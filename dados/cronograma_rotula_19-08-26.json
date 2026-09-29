@@ -1,0 +1,1042 @@
+[
+ {
+  "id": 1,
+  "nome": "PROJETO SIMÕES FILHO - CONSTRUÇÃO DE GALPÃO LOGÍSTICO - G200 (MELI)",
+  "dias": 268,
+  "inicio": "2026-03-31",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 45.8
+ },
+ {
+  "id": 2,
+  "nome": "EXECUÇÃO DA OBRA - LSF G200",
+  "dias": 268,
+  "inicio": "2026-03-31",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 45.8
+ },
+ {
+  "id": 3,
+  "nome": "GALPÃO G200",
+  "dias": 268,
+  "inicio": "2026-03-31",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 45.8
+ },
+ {
+  "id": 4,
+  "nome": "FASE 1 - Eixos 11 ao 20",
+  "dias": 186,
+  "inicio": "2026-03-31",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 66.0
+ },
+ {
+  "id": 5,
+  "nome": "GALPÃO - FASE 1",
+  "dias": 186,
+  "inicio": "2026-03-31",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 66.0
+ },
+ {
+  "id": 6,
+  "nome": "FABRICAÇÕES",
+  "dias": 138,
+  "inicio": "2026-03-31",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 89.0
+ },
+ {
+  "id": 7,
+  "nome": "FABRICAÇÕES ESTRUTURA METÁLICA",
+  "dias": 138,
+  "inicio": "2026-03-31",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 89.0
+ },
+ {
+  "id": 8,
+  "nome": "COBERTURA METÁLICA - FABRICAÇÃO JOIST",
+  "dias": 45,
+  "inicio": "2026-03-31",
+  "fim": "2026-06-05",
+  "plan_hoje_pct": 100.0
+ },
+ {
+  "id": 9,
+  "nome": "COBERTURA METÁLICA - FABRICAÇÃO VIGAS PRINCIPAIS",
+  "dias": 104,
+  "inicio": "2026-04-14",
+  "fim": "2026-09-14",
+  "plan_hoje_pct": 100.0
+ },
+ {
+  "id": 10,
+  "nome": "MARQUISE - FABRICAÇÃO VIGAS",
+  "dias": 40,
+  "inicio": "2026-08-24",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 61.9
+ },
+ {
+  "id": 11,
+  "nome": "MARQUISE - FABRICAÇÃO TERÇAS",
+  "dias": 40,
+  "inicio": "2026-08-24",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 61.9
+ },
+ {
+  "id": 12,
+  "nome": "EXECUÇÃO GALPÃO - FASE 1",
+  "dias": 110,
+  "inicio": "2026-07-23",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 41.7
+ },
+ {
+  "id": 13,
+  "nome": "COBERTURA E FECHAMENTO METALICO",
+  "dias": 110,
+  "inicio": "2026-07-23",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 41.7
+ },
+ {
+  "id": 14,
+  "nome": "COBERTURA METÁLICA",
+  "dias": 98,
+  "inicio": "2026-07-23",
+  "fim": "2026-12-11",
+  "plan_hoje_pct": 47.1
+ },
+ {
+  "id": 15,
+  "nome": "COBERTURA METÁLICA - PRÉ-MONTAGEM JOIST",
+  "dias": 80,
+  "inicio": "2026-07-23",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 57.8
+ },
+ {
+  "id": 16,
+  "nome": "COBERTURA METÁLICA - MONTAGEM VIGAS PRINCIPAIS",
+  "dias": 70,
+  "inicio": "2026-07-28",
+  "fim": "2026-11-05",
+  "plan_hoje_pct": 61.6
+ },
+ {
+  "id": 17,
+  "nome": "COBERTURA METÁLICA - MONTAGEM JOIST",
+  "dias": 80,
+  "inicio": "2026-07-28",
+  "fim": "2026-11-19",
+  "plan_hoje_pct": 54.2
+ },
+ {
+  "id": 18,
+  "nome": "COBERTURA METÁLICA - MONTAGEM TELHAS, COM FACEFELT",
+  "dias": 55,
+  "inicio": "2026-09-09",
+  "fim": "2026-11-27",
+  "plan_hoje_pct": 24.1
+ },
+ {
+  "id": 19,
+  "nome": "COBERTURA METÁLICA - CALHAS COBERTURA",
+  "dias": 55,
+  "inicio": "2026-09-16",
+  "fim": "2026-12-04",
+  "plan_hoje_pct": 15.5
+ },
+ {
+  "id": 20,
+  "nome": "COBERTURA METÁLICA - ARREMATES COBERTURA",
+  "dias": 55,
+  "inicio": "2026-09-23",
+  "fim": "2026-12-11",
+  "plan_hoje_pct": 6.9
+ },
+ {
+  "id": 21,
+  "nome": "FECHAMENTO LATERAL",
+  "dias": 64,
+  "inicio": "2026-09-17",
+  "fim": "2026-12-18",
+  "plan_hoje_pct": 11.9
+ },
+ {
+  "id": 22,
+  "nome": "COBERTURA METÁLICA - FECHAMENTO LATERAL ESTRUTURA",
+  "dias": 55,
+  "inicio": "2026-09-17",
+  "fim": "2026-12-07",
+  "plan_hoje_pct": 13.8
+ },
+ {
+  "id": 23,
+  "nome": "COBERTURA METÁLICA - FECHAMENTO LATERAL TELHA PIR",
+  "dias": 55,
+  "inicio": "2026-09-30",
+  "fim": "2026-12-18",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 24,
+  "nome": "MARQUISE",
+  "dias": 66,
+  "inicio": "2026-09-24",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 4.3
+ },
+ {
+  "id": 25,
+  "nome": "MARQUISE - MONTAGEM VIGAS PRINCIPAIS",
+  "dias": 50,
+  "inicio": "2026-09-24",
+  "fim": "2026-12-07",
+  "plan_hoje_pct": 5.7
+ },
+ {
+  "id": 26,
+  "nome": "MARQUISE - PRÉ-MONTAGEM TERÇAS",
+  "dias": 50,
+  "inicio": "2026-09-29",
+  "fim": "2026-12-10",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 27,
+  "nome": "MARQUISE - MONTAGEM TERÇAS",
+  "dias": 50,
+  "inicio": "2026-10-06",
+  "fim": "2026-12-17",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 28,
+  "nome": "MARQUISE - MONTAGEM CALHAS",
+  "dias": 50,
+  "inicio": "2026-10-07",
+  "fim": "2026-12-18",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 29,
+  "nome": "MARQUISE - MONTAGEM TELHAS",
+  "dias": 50,
+  "inicio": "2026-10-15",
+  "fim": "2026-12-28",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 30,
+  "nome": "MARQUISE - MONTAGEM TESTEIRA",
+  "dias": 50,
+  "inicio": "2026-10-19",
+  "fim": "2026-12-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 31,
+  "nome": "FASE 1 - PRÉDIOS ANEXOS",
+  "dias": 97,
+  "inicio": "2026-08-17",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 29.8
+ },
+ {
+  "id": 32,
+  "nome": "ECLUSA",
+  "dias": 63,
+  "inicio": "2026-08-17",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 47.0
+ },
+ {
+  "id": 33,
+  "nome": "FABRICAÇÕES - ECLUSA",
+  "dias": 35,
+  "inicio": "2026-08-17",
+  "fim": "2026-10-05",
+  "plan_hoje_pct": 86.1
+ },
+ {
+  "id": 34,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 35,
+  "inicio": "2026-08-17",
+  "fim": "2026-10-05",
+  "plan_hoje_pct": 86.1
+ },
+ {
+  "id": 35,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO – ECLUSA",
+  "dias": 35,
+  "inicio": "2026-08-17",
+  "fim": "2026-10-05",
+  "plan_hoje_pct": 86.1
+ },
+ {
+  "id": 36,
+  "nome": "EXECUÇÃO - ECLUSA",
+  "dias": 48,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 30.0
+ },
+ {
+  "id": 37,
+  "nome": "COBERTURA E FECHAMENTO METÁLICO",
+  "dias": 48,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 30.0
+ },
+ {
+  "id": 38,
+  "nome": "COBERTURA – ECLUSA",
+  "dias": 48,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 30.0
+ },
+ {
+  "id": 39,
+  "nome": "MONTAGEM DE VIGAS E JOISTS METÁLICAS – ECLUSA",
+  "dias": 7,
+  "inicio": "2026-09-08",
+  "fim": "2026-09-16",
+  "plan_hoje_pct": 100.0
+ },
+ {
+  "id": 40,
+  "nome": "MONTAGEM DE CALHAS METÁLICAS – ECLUSA",
+  "dias": 5,
+  "inicio": "2026-09-17",
+  "fim": "2026-09-23",
+  "plan_hoje_pct": 100.0
+ },
+ {
+  "id": 41,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS – ECLUSA",
+  "dias": 12,
+  "inicio": "2026-09-24",
+  "fim": "2026-10-09",
+  "plan_hoje_pct": 25.0
+ },
+ {
+  "id": 42,
+  "nome": "INSTALAÇÃO DE FECHAMENTO EM ACM H=2,00m – ECLUSA",
+  "dias": 8,
+  "inicio": "2026-11-03",
+  "fim": "2026-11-12",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 43,
+  "nome": "RUFOS E ARREMATES METÁLICOS – ECLUSA",
+  "dias": 10,
+  "inicio": "2026-11-03",
+  "fim": "2026-11-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 44,
+  "nome": "PLATIBANDA – ECLUSA",
+  "dias": 14,
+  "inicio": "2026-10-13",
+  "fim": "2026-10-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 45,
+  "nome": "MONTAGEM DE ESTRUTURA METÁLICA – ECLUSA",
+  "dias": 7,
+  "inicio": "2026-10-13",
+  "fim": "2026-10-21",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 46,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS – ECLUSA",
+  "dias": 7,
+  "inicio": "2026-10-22",
+  "fim": "2026-10-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 47,
+  "nome": "PORTARIA",
+  "dias": 64,
+  "inicio": "2026-08-24",
+  "fim": "2026-11-25",
+  "plan_hoje_pct": 38.2
+ },
+ {
+  "id": 48,
+  "nome": "FABRICAÇÕES - PORTARIA",
+  "dias": 35,
+  "inicio": "2026-08-24",
+  "fim": "2026-10-13",
+  "plan_hoje_pct": 70.3
+ },
+ {
+  "id": 49,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 35,
+  "inicio": "2026-08-24",
+  "fim": "2026-10-13",
+  "plan_hoje_pct": 70.3
+ },
+ {
+  "id": 50,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO – PORTARIA",
+  "dias": 35,
+  "inicio": "2026-08-24",
+  "fim": "2026-10-13",
+  "plan_hoje_pct": 70.3
+ },
+ {
+  "id": 51,
+  "nome": "EXECUÇÃO - PORTARIA",
+  "dias": 47,
+  "inicio": "2026-09-17",
+  "fim": "2026-11-25",
+  "plan_hoje_pct": 16.0
+ },
+ {
+  "id": 52,
+  "nome": "COBERTURA E FECHAMENTO METÁLICO",
+  "dias": 47,
+  "inicio": "2026-09-17",
+  "fim": "2026-11-25",
+  "plan_hoje_pct": 16.0
+ },
+ {
+  "id": 53,
+  "nome": "MONTAGEM DE VIGAS E TERÇAS METÁLICAS – PORTARIA",
+  "dias": 8,
+  "inicio": "2026-09-17",
+  "fim": "2026-09-28",
+  "plan_hoje_pct": 100.0
+ },
+ {
+  "id": 54,
+  "nome": "MONTAGEM DE CALHAS METÁLICAS – PORTARIA",
+  "dias": 3,
+  "inicio": "2026-09-29",
+  "fim": "2026-10-01",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 55,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS – PORTARIA",
+  "dias": 10,
+  "inicio": "2026-10-13",
+  "fim": "2026-10-26",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 56,
+  "nome": "PLATIBANDA METÁLICA H=1,90m – PORTARIA",
+  "dias": 7,
+  "inicio": "2026-10-27",
+  "fim": "2026-11-05",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 57,
+  "nome": "INSTALAÇÃO DE FECHAMENTO EM ACM H=2,00m – PORTARIA",
+  "dias": 6,
+  "inicio": "2026-11-16",
+  "fim": "2026-11-24",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 58,
+  "nome": "INSTALAÇÃO DE RUFOS E ARREMATES -  PORTARIA",
+  "dias": 7,
+  "inicio": "2026-11-16",
+  "fim": "2026-11-25",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 59,
+  "nome": "REFEITÓRIO",
+  "dias": 59,
+  "inicio": "2026-09-08",
+  "fim": "2026-12-02",
+  "plan_hoje_pct": 24.2
+ },
+ {
+  "id": 60,
+  "nome": "FABRICAÇÕES",
+  "dias": 30,
+  "inicio": "2026-09-08",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 48.4
+ },
+ {
+  "id": 61,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 30,
+  "inicio": "2026-09-08",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 48.4
+ },
+ {
+  "id": 62,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO - REFEITÓRIO",
+  "dias": 30,
+  "inicio": "2026-09-08",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 48.4
+ },
+ {
+  "id": 63,
+  "nome": "EXECUÇÃO - REFEITÓRIO",
+  "dias": 44,
+  "inicio": "2026-09-29",
+  "fim": "2026-12-02",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 64,
+  "nome": "COBERTURA E FECHAMENTO METÁLICO",
+  "dias": 44,
+  "inicio": "2026-09-29",
+  "fim": "2026-12-02",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 65,
+  "nome": "MONTAGEM DE VIGAS E TERÇAS METÁLICAS - REFEITÓRIO",
+  "dias": 7,
+  "inicio": "2026-09-29",
+  "fim": "2026-10-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 66,
+  "nome": "MONTAGEM DE CALHAS METÁLICAS - REFEITÓRIO",
+  "dias": 4,
+  "inicio": "2026-10-08",
+  "fim": "2026-10-14",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 67,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS - REFEITÓRIO",
+  "dias": 8,
+  "inicio": "2026-10-09",
+  "fim": "2026-10-21",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 68,
+  "nome": "MONTAGEM DE RUFOS E ARREMATES METÁLICOS - REFEITÓRIO",
+  "dias": 8,
+  "inicio": "2026-11-23",
+  "fim": "2026-12-02",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 69,
+  "nome": "VESTIÁRIO",
+  "dias": 64,
+  "inicio": "2026-09-18",
+  "fim": "2026-12-21",
+  "plan_hoje_pct": 10.4
+ },
+ {
+  "id": 70,
+  "nome": "FABRICAÇÕES - VESTIÁRIO",
+  "dias": 30,
+  "inicio": "2026-09-18",
+  "fim": "2026-10-30",
+  "plan_hoje_pct": 22.6
+ },
+ {
+  "id": 71,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 30,
+  "inicio": "2026-09-18",
+  "fim": "2026-10-30",
+  "plan_hoje_pct": 22.6
+ },
+ {
+  "id": 72,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO  - VESTIÁRIO",
+  "dias": 30,
+  "inicio": "2026-09-18",
+  "fim": "2026-10-30",
+  "plan_hoje_pct": 22.6
+ },
+ {
+  "id": 73,
+  "nome": "EXECUÇÃO - VESTIÁRIO",
+  "dias": 50,
+  "inicio": "2026-10-08",
+  "fim": "2026-12-21",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 74,
+  "nome": "COBERTURA E FECHAMENTO METÁLICO",
+  "dias": 50,
+  "inicio": "2026-10-08",
+  "fim": "2026-12-21",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 75,
+  "nome": "MONTAGEM DE VIGAS E TERÇAS METÁLICAS  - VESTIÁRIO",
+  "dias": 5,
+  "inicio": "2026-10-08",
+  "fim": "2026-10-15",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 76,
+  "nome": "MONTAGEM DE CALHAS METÁLICAS  - VESTIÁRIO",
+  "dias": 3,
+  "inicio": "2026-10-16",
+  "fim": "2026-10-20",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 77,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS  - VESTIÁRIO",
+  "dias": 12,
+  "inicio": "2026-10-21",
+  "fim": "2026-11-06",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 78,
+  "nome": "RUFOS E ARREMATES METÁLICOS  - VESTIÁRIO",
+  "dias": 10,
+  "inicio": "2026-12-08",
+  "fim": "2026-12-21",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 79,
+  "nome": "PASSARELAS / AREA DE VIVÊNCIA",
+  "dias": 82,
+  "inicio": "2026-09-08",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 17.0
+ },
+ {
+  "id": 80,
+  "nome": "COBERTURA DE PEDESTRES / ENTORNO DO ESTACIONAMENTO DE ÔNIBU",
+  "dias": 69,
+  "inicio": "2026-09-08",
+  "fim": "2026-12-16",
+  "plan_hoje_pct": 20.8
+ },
+ {
+  "id": 81,
+  "nome": "FABRICAÇÕES - COBERTURA DE PEDESTRES / ENTORNO DO ESTACIONA",
+  "dias": 40,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-04",
+  "plan_hoje_pct": 35.7
+ },
+ {
+  "id": 82,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 40,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-04",
+  "plan_hoje_pct": 35.7
+ },
+ {
+  "id": 83,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO (PILARES, VIGAS E TESTEIRAS",
+  "dias": 40,
+  "inicio": "2026-09-08",
+  "fim": "2026-11-04",
+  "plan_hoje_pct": 35.7
+ },
+ {
+  "id": 84,
+  "nome": "EXECUÇÃO - COBERTURA DE PEDESTRES / ENTORNO DO ESTACIONAM",
+  "dias": 42,
+  "inicio": "2026-10-16",
+  "fim": "2026-12-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 85,
+  "nome": "ESTRUTURA METÁLICA E COBERTURA",
+  "dias": 42,
+  "inicio": "2026-10-16",
+  "fim": "2026-12-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 86,
+  "nome": "MONTAGEM DE PILARES METÁLICOS – COBERTURA DE PEDESTRES",
+  "dias": 17,
+  "inicio": "2026-10-16",
+  "fim": "2026-11-10",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 87,
+  "nome": "MONTAGEM DE VIGAS E TERÇAS METÁLICAS – COBERTURA DE PED",
+  "dias": 17,
+  "inicio": "2026-10-23",
+  "fim": "2026-11-17",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 88,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS – COBERTURA DE PEDESTRES",
+  "dias": 17,
+  "inicio": "2026-11-16",
+  "fim": "2026-12-09",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 89,
+  "nome": "INSTALAÇÃO DE CALHAS E DESCIDAS PLUVIAIS – COBERTURA DE PE",
+  "dias": 12,
+  "inicio": "2026-11-27",
+  "fim": "2026-12-14",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 90,
+  "nome": "INSTALAÇÃO DE TESTEIRA METÁLICA – COBERTURA DE PEDESTRES",
+  "dias": 12,
+  "inicio": "2026-11-27",
+  "fim": "2026-12-14",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 91,
+  "nome": "COBERTURA ÁREA DE VIVÊNCIA",
+  "dias": 20,
+  "inicio": "2026-11-18",
+  "fim": "2026-12-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 92,
+  "nome": "COBERTURA DE PEDESTRE / PRAÇA ENTRE VESTIÁRIO E REFEITÓRIO (ARE",
+  "dias": 54,
+  "inicio": "2026-10-19",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 93,
+  "nome": "FABRICAÇÕES - COBERTURA DE PEDESTRE / PRAÇA ENTRE VESTIÁRIO E",
+  "dias": 40,
+  "inicio": "2026-10-19",
+  "fim": "2026-12-15",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 94,
+  "nome": "FABRICAÇÃO ESTRUTURA METÁLICA",
+  "dias": 40,
+  "inicio": "2026-10-19",
+  "fim": "2026-12-15",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 95,
+  "nome": "COBERTURA METÁLICA – FABRICAÇÃO (PILARES, VIGAS E TESTEIRAS",
+  "dias": 40,
+  "inicio": "2026-10-19",
+  "fim": "2026-12-15",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 96,
+  "nome": "EXECUÇÃO - COBERTURA DE PEDESTRE / PRAÇA ENTRE VESTIÁRIO E RE",
+  "dias": 37,
+  "inicio": "2026-11-12",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 97,
+  "nome": "ESTRUTURA METÁLICA E COBERTURA",
+  "dias": 37,
+  "inicio": "2026-11-12",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 98,
+  "nome": "MONTAGEM DE PILARES METÁLICOS – COBERTURA DO ESTACIONA",
+  "dias": 20,
+  "inicio": "2026-11-12",
+  "fim": "2026-12-10",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 99,
+  "nome": "MONTAGEM DE VIGAS E TERÇAS METÁLICAS – COBERTURA DO EST",
+  "dias": 20,
+  "inicio": "2026-11-18",
+  "fim": "2026-12-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 100,
+  "nome": "MONTAGEM DE TELHAS METÁLICAS – COBERTURA DO ESTACIONAM",
+  "dias": 20,
+  "inicio": "2026-12-03",
+  "fim": "2027-01-04",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 101,
+  "nome": "INSTALAÇÃO DE CALHAS E DESCIDAS PLUVIAIS – COBERTURA DO ES",
+  "dias": 15,
+  "inicio": "2026-12-15",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 102,
+  "nome": "INSTALAÇÃO DE TESTEIRA METÁLICA – COBERTURA DO ESTACIONA",
+  "dias": 15,
+  "inicio": "2026-12-15",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 103,
+  "nome": "COBERTURA ÁREA DE VIVÊNCIA",
+  "dias": 20,
+  "inicio": "2026-12-08",
+  "fim": "2027-01-07",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 104,
+  "nome": "FASE 2 - Eixos 1 ao 11",
+  "dias": 236,
+  "inicio": "2026-05-19",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 38.2
+ },
+ {
+  "id": 105,
+  "nome": "GALPÃO - FASE 2",
+  "dias": 236,
+  "inicio": "2026-05-19",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 38.2
+ },
+ {
+  "id": 106,
+  "nome": "FABRICAÇÕES GALPÃO - FASE 2",
+  "dias": 226,
+  "inicio": "2026-05-19",
+  "fim": "2027-04-15",
+  "plan_hoje_pct": 39.9
+ },
+ {
+  "id": 107,
+  "nome": "FABRICAÇÕES ESTRUTURA METÁLICA",
+  "dias": 226,
+  "inicio": "2026-05-19",
+  "fim": "2027-04-15",
+  "plan_hoje_pct": 39.9
+ },
+ {
+  "id": 108,
+  "nome": "COBERTURA METÁLICA - FABRICAÇÃO JOIST",
+  "dias": 130,
+  "inicio": "2026-05-19",
+  "fim": "2026-11-25",
+  "plan_hoje_pct": 69.3
+ },
+ {
+  "id": 109,
+  "nome": "COBERTURA METÁLICA - FABRICAÇÃO VIGAS PRINCIPAIS",
+  "dias": 150,
+  "inicio": "2026-06-02",
+  "fim": "2027-01-11",
+  "plan_hoje_pct": 53.1
+ },
+ {
+  "id": 110,
+  "nome": "MARQUISE - FABRICAÇÃO VIGAS",
+  "dias": 140,
+  "inicio": "2026-09-22",
+  "fim": "2027-04-15",
+  "plan_hoje_pct": 3.4
+ },
+ {
+  "id": 111,
+  "nome": "MARQUISE - FABRICAÇÃO TERÇAS",
+  "dias": 140,
+  "inicio": "2026-09-22",
+  "fim": "2027-04-15",
+  "plan_hoje_pct": 3.4
+ },
+ {
+  "id": 112,
+  "nome": "EXECUÇÃO GALPÃO - FASE 2",
+  "dias": 153,
+  "inicio": "2026-09-17",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 4.9
+ },
+ {
+  "id": 113,
+  "nome": "COBERTURA E FECHAMENTO METALICO",
+  "dias": 153,
+  "inicio": "2026-09-17",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 4.9
+ },
+ {
+  "id": 114,
+  "nome": "COBERTURA METÁLICA",
+  "dias": 153,
+  "inicio": "2026-09-17",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 4.9
+ },
+ {
+  "id": 115,
+  "nome": "COBERTURA METÁLICA - PRÉ-MONTAGEM JOIST",
+  "dias": 123,
+  "inicio": "2026-09-17",
+  "fim": "2027-03-17",
+  "plan_hoje_pct": 6.2
+ },
+ {
+  "id": 116,
+  "nome": "COBERTURA METÁLICA - MONTAGEM VIGAS PRINCIPAIS",
+  "dias": 120,
+  "inicio": "2026-09-28",
+  "fim": "2027-03-23",
+  "plan_hoje_pct": 0.8
+ },
+ {
+  "id": 117,
+  "nome": "COBERTURA METÁLICA - MONTAGEM JOIST",
+  "dias": 120,
+  "inicio": "2026-10-14",
+  "fim": "2027-04-08",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 118,
+  "nome": "COBERTURA METÁLICA - MONTAGEM TELHAS, COM FACEFELT",
+  "dias": 120,
+  "inicio": "2026-10-21",
+  "fim": "2027-04-15",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 119,
+  "nome": "COBERTURA METÁLICA - CALHAS COBERTURA",
+  "dias": 85,
+  "inicio": "2026-12-18",
+  "fim": "2027-04-23",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 120,
+  "nome": "COBERTURA METÁLICA - ARREMATES COBERTURA",
+  "dias": 80,
+  "inicio": "2027-01-06",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 121,
+  "nome": "FECHAMENTO LATERAL",
+  "dias": 115,
+  "inicio": "2026-11-12",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 122,
+  "nome": "COBERTURA METÁLICA - FECHAMENTO LATERAL ESTRUTURA",
+  "dias": 100,
+  "inicio": "2026-11-12",
+  "fim": "2027-04-08",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 123,
+  "nome": "COBERTURA METÁLICA - FECHAMENTO LATERAL TELHA PIR",
+  "dias": 100,
+  "inicio": "2026-12-04",
+  "fim": "2027-04-30",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 124,
+  "nome": "MARQUISE",
+  "dias": 79,
+  "inicio": "2026-12-22",
+  "fim": "2027-04-16",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 125,
+  "nome": "MARQUISE - MONTAGEM VIGAS PRINCIPAIS",
+  "dias": 60,
+  "inicio": "2026-12-22",
+  "fim": "2027-03-19",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 126,
+  "nome": "MARQUISE - PRÉ-MONTAGEM TERÇAS",
+  "dias": 60,
+  "inicio": "2026-12-30",
+  "fim": "2027-03-29",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 127,
+  "nome": "MARQUISE - MONTAGEM TERÇAS",
+  "dias": 60,
+  "inicio": "2027-01-06",
+  "fim": "2027-04-01",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 128,
+  "nome": "MARQUISE - MONTAGEM CALHAS",
+  "dias": 60,
+  "inicio": "2027-01-07",
+  "fim": "2027-04-02",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 129,
+  "nome": "MARQUISE - MONTAGEM TELHAS",
+  "dias": 60,
+  "inicio": "2027-01-19",
+  "fim": "2027-04-14",
+  "plan_hoje_pct": 0.0
+ },
+ {
+  "id": 130,
+  "nome": "MARQUISE - MONTAGEM TESTEIRA",
+  "dias": 60,
+  "inicio": "2027-01-21",
+  "fim": "2027-04-16",
+  "plan_hoje_pct": 0.0
+ }
+]
