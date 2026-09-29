@@ -152,6 +152,37 @@
   <!-- ESTOQUE -->
   <section id="aba-estoque" hidden>
     <div id="estExterno"></div>
+
+    <!-- Baixa automática por IFC -->
+    <div class="bloco-cab"><h2>Baixa automática por IFC</h2>
+      <span class="nota" id="estIfcNota">Consumo teórico = eventos de produção × regras de baixa. Base de projeto: IFC do galpão.</span></div>
+    <div class="tiles" id="estIfcTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota" id="estIfcResumo"></p>
+      <div class="acoes">
+        <button class="btn" data-novo="estoque_inventario">+ Inventário físico</button>
+        <button class="btn" data-novo="estoque_remessas">+ Remessa</button>
+        <button class="btn primario" data-novo="estoque_eventos">+ Evento de produção</button>
+      </div>
+    </div>
+    <ul class="alertas" id="estIfcAlertas"></ul>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Consumo teórico × chegou × físico</h2>
+        <span class="nota">Uma linha por material. Saldo teórico = chegou − consumo. Perda = físico − saldo teórico.</span></div>
+      <div class="tabela-rolagem"><table id="tabEstIfc"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Joists por rua e faixa</h2>
+          <span class="nota">Projetado (IFC) vs. apontado. Máx. 6 por faixa.</span></div>
+        <div class="tabela-rolagem"><table id="tabEstIfcRuas"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Últimos eventos de produção</h2></div>
+        <div class="tabela-rolagem"><table id="tabEstEventos"></table></div>
+      </div>
+    </div>
+
     <div class="bloco-cab"><h2>Materiais controlados no sistema</h2></div>
     <div class="tiles" id="estTiles"></div>
     <div class="barra-acoes">

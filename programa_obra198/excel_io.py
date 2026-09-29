@@ -4,7 +4,9 @@ Leitura: openpyxl (somente leitura, não altera o arquivo).
 Gravação: edição cirúrgica do XML das células alteradas dentro do .xlsm,
 preservando macros, gráficos, formatação e todas as demais abas.
 """
+import collections
 import datetime as dt
+import json
 import os
 import re
 import shutil
@@ -13,6 +15,11 @@ import zipfile
 
 import openpyxl
 from lxml import etree
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.path.dirname(BASE)
+CAMINHO_INVENTARIO_IFC = os.path.join(RAIZ, "dados", "ifc_r0d_inventario.json")
+CAMINHO_REGRAS_BAIXA = os.path.join(BASE, "regras_baixa.json")
 
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -147,6 +154,170 @@ def ler_planilha(caminho):
         wb.close()
 
 
+def carregar_inventario_ifc():
+    if not os.path.exists(CAMINHO_INVENTARIO_IFC):
+        return None
+    with open(CAMINHO_INVENTARIO_IFC, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def carregar_regras_baixa():
+    if not os.path.exists(CAMINHO_REGRAS_BAIXA):
+        return None
+    with open(CAMINHO_REGRAS_BAIXA, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _consumo_evento(ev, regras):
+    """Devolve dict {codigo_material: quantidade} consumido por um evento."""
+    tipo = (ev.get("tipo") or "").upper()
+    letra = (ev.get("letra") or "").upper()
+    faixa = (ev.get("faixa") or "").upper()
+    consumo = collections.Counter()
+
+    if tipo in ("VIGA_APOIO_MONTADA", "VIGA_INTERM_MONTADA"):
+        alvo = "VIGA_APOIO_MONTADA" if tipo.endswith("APOIO_MONTADA") else "VIGA_INTERM_MONTADA"
+        for e in regras.get("eventos", []):
+            if e["codigo"] == alvo:
+                for b in e.get("baixa", []):
+                    consumo[b["codigo"]] += b["quantidade"]
+                break
+        return consumo
+
+    if tipo == "JOIST_ICADA":
+        n = ev.get("n_joists") or 0
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            n = 0
+        if n <= 0:
+            return consumo
+        # cada joist tem 4 parafusos em cada uma das 2 pontas (eixo ini e eixo fim), do
+        # tipo definido pela LETRA do par de vigas (A/B/BC/C/CD/D/DE/E/F/FG/G/H).
+        # Se só a faixa veio, usamos a primeira letra da faixa (borda apoio) como fallback.
+        crit = regras.get("criterio_por_letra", {}) or {}
+        chave_letra = letra if letra in crit else (
+            faixa if faixa in crit else (faixa[:1] if faixa and faixa[:1] in crit else ""))
+        par = crit.get(chave_letra) or {}
+        parafuso = par.get("parafuso")
+        for e in regras.get("eventos", []):
+            if e["codigo"] != "JOIST_ICADA":
+                continue
+            for b in e.get("baixa_por_joist", []):
+                cod = b.get("codigo")
+                q = b.get("quantidade", 0) * n
+                if cod == "PARAFUSO_FIX_JOIST" and parafuso:
+                    consumo[parafuso] += q
+                elif cod and cod != "PARAFUSO_FIX_JOIST":
+                    consumo[cod] += q
+        return consumo
+
+    return consumo
+
+
+def resumir_estoque_ifc(eventos, remessas, inventarios, regras, inv_ifc):
+    """Consolida consumo teórico, saldo, cobertura, perda e acuracidade por material."""
+    if not regras:
+        return None
+
+    # 1) consumo teórico acumulado por material
+    consumo = collections.Counter()
+    consumo_por_dia = collections.defaultdict(collections.Counter)
+    joists_por_rua_faixa = collections.defaultdict(int)
+    alertas = []
+    limite = (regras.get("limites_ifc") or {}).get("joists_por_rua_faixa_maximo") or 6
+
+    letra_para_faixa = regras.get("letra_para_faixa_do_par") or {}
+    for ev in eventos or []:
+        c = _consumo_evento(ev, regras)
+        consumo.update(c)
+        if ev.get("data"):
+            consumo_por_dia[ev["data"]].update(c)
+        if (ev.get("tipo") or "").upper() == "JOIST_ICADA":
+            n = int(ev.get("n_joists") or 0)
+            faixa = (ev.get("faixa") or letra_para_faixa.get((ev.get("letra") or "").upper()) or "").upper()
+            chave = f"{ev.get('rua', '')}/{faixa}"
+            joists_por_rua_faixa[chave] += n
+            if joists_por_rua_faixa[chave] > limite:
+                alertas.append({
+                    "tipo": "joists_excedeu_ifc",
+                    "chave": chave,
+                    "mensagem": f"Rua/faixa {chave}: {joists_por_rua_faixa[chave]} joists apontadas (máx. IFC {limite}).",
+                })
+
+    # 2) chegou (soma remessas) e inventário mais recente por material
+    chegou = collections.Counter()
+    for r in remessas or []:
+        q = r.get("quantidade")
+        cod = r.get("codigo")
+        if q and cod:
+            chegou[cod] += float(q)
+
+    ultimo_inv = {}
+    for i in inventarios or []:
+        cod = i.get("codigo")
+        q = i.get("quantidade")
+        d = i.get("data")
+        if cod and q is not None and d and (cod not in ultimo_inv or d >= ultimo_inv[cod]["data"]):
+            ultimo_inv[cod] = {"data": d, "quantidade": float(q)}
+
+    # 3) por material: saldo teórico = chegou − consumo; físico − teórico = perda; acuracidade
+    codigos = set(consumo) | set(chegou) | set(ultimo_inv)
+    materiais = []
+    for cod in sorted(codigos):
+        c = float(consumo.get(cod, 0))
+        entrou = float(chegou.get(cod, 0))
+        saldo_teo = entrou - c
+        fis = ultimo_inv.get(cod, {}).get("quantidade")
+        perda = None
+        acuracia = None
+        if fis is not None:
+            perda = fis - saldo_teo
+            f, s = max(fis, 0), max(saldo_teo, 0)
+            acuracia = (min(f, s) / max(f, s)) if max(f, s) else 1.0
+        materiais.append({
+            "codigo": cod, "consumo_teorico": c, "chegou": entrou,
+            "saldo_teorico": saldo_teo,
+            "fisico": fis, "data_inventario": (ultimo_inv.get(cod) or {}).get("data"),
+            "perda": perda, "acuracidade": acuracia,
+        })
+
+    # 4) consumo por rua/faixa vs. projetado (limite IFC)
+    joists_proj = ((inv_ifc or {}).get("joists_projetadas") or {}).get("por_rua_faixa", {})
+    ruas = []
+    for rua, faixas in joists_proj.items():
+        for fx, proj in faixas.items():
+            apont = joists_por_rua_faixa.get(f"{rua}/{fx}", 0)
+            ruas.append({"rua": rua, "faixa": fx, "projetado": proj, "apontado": apont,
+                         "saldo": proj - apont})
+
+    # 5) cobertura (dias) por material: quantos dias o saldo teórico dura ao ritmo médio
+    hoje = dt.date.today()
+    for m in materiais:
+        m["cobertura_dias"] = None
+        c = m["consumo_teorico"]
+        if not c:
+            continue
+        # ritmo médio: consumo dividido pelo intervalo de dias entre 1º e último evento
+        datas_c = sorted(consumo_por_dia)
+        if len(datas_c) >= 2:
+            try:
+                dias = (dt.date.fromisoformat(datas_c[-1]) - dt.date.fromisoformat(datas_c[0])).days or 1
+                ritmo = c / dias  # unid/dia
+                if ritmo > 0 and m["saldo_teorico"] is not None:
+                    m["cobertura_dias"] = round(m["saldo_teorico"] / ritmo, 1)
+            except ValueError:
+                pass
+
+    return {
+        "materiais": materiais,
+        "por_rua_faixa": ruas,
+        "consumo_por_dia": {d: dict(c) for d, c in consumo_por_dia.items()},
+        "alertas": alertas,
+        "gerado_em": hoje.isoformat(),
+    }
+
+
 def _montar_modelo(wb):
     cons = _linhas(wb[ABA_CONSOLIDADO], max_col=1)
     datas = {}
@@ -212,6 +383,12 @@ def _montar_modelo(wb):
             "registros": registros,
         })
 
+    tabelas = ler_tabelas(wb)
+    inv_ifc = carregar_inventario_ifc()
+    regras = carregar_regras_baixa()
+    resumo = resumir_estoque_ifc(
+        tabelas.get("estoque_eventos"), tabelas.get("estoque_remessas"),
+        tabelas.get("estoque_inventario"), regras, inv_ifc) if regras else None
     return {
         "datas": sorted(datas.values()),
         "linhas_por_data": {d: l for l, d in datas.items()},
@@ -220,8 +397,9 @@ def _montar_modelo(wb):
         "cliente": _ler_cliente(cliente),
         "impactos": _ler_impactos(wb[ABA_IMPACTO]),
         "referencia": iso(wb[ABA_PAINEL]["B3"].value) if ABA_PAINEL in wb.sheetnames else None,
-        "tabelas": ler_tabelas(wb),
+        "tabelas": tabelas,
         "abas_mensais_equip": [n for n in wb.sheetnames if n.upper().startswith("USO DE EQUIPAMENTO")],
+        "estoque_ifc": {"inventario": inv_ifc, "regras": regras, "resumo": resumo},
     }
 
 
@@ -411,6 +589,39 @@ TABELAS = {
             ("item", "Item", "txt", 10), ("realizado", "Realizado acumulado", "num", 14), ("qtd", "Quantidade contratada", "num", 14),
             ("peso", "Peso no item", "num", 10), ("valor_qpc", "Valor do item QPC (R$)", "num", 16),
             ("valor_rotula", "Valor do item RÓTULA (R$)", "num", 16),
+        ],
+    },
+    "estoque_eventos": {
+        "aba": "ESTOQUE EVENTOS",
+        "titulo": "ESTOQUE — EVENTOS DE PRODUÇÃO que disparam baixa de material. Tipos: VIGA_APOIO_MONTADA, VIGA_INTERM_MONTADA (identifique a viga por eixo/letra) ou JOIST_ICADA (informe rua, faixa e nº de joists içadas naquele par). O material sai automaticamente conforme regras_baixa.json.",
+        "cor": "FF7F6000",
+        "campos": [
+            ("data", "Data", "data", 12), ("tipo", "Tipo de evento", "txt", 20),
+            ("empresa", "Empresa", "txt", 14), ("eixo", "Eixo (viga) ou rua (joist)", "txt", 12),
+            ("letra", "Letra do eixo / faixa", "txt", 8), ("rua", "Rua (par de eixos, ex.: 10-11)", "txt", 10),
+            ("faixa", "Faixa (AB..GH)", "txt", 6), ("n_joists", "Qtd de joists (0..6)", "num", 8),
+            ("viga_id", "ID da viga (opcional)", "txt", 14), ("obs", "Observação / nº RDO", "txt", 34),
+        ],
+    },
+    "estoque_remessas": {
+        "aba": "ESTOQUE REMESSAS",
+        "titulo": "ESTOQUE — REMESSAS que chegaram na obra. Usada como base do 'chegou' (entrada) do material. Uma linha por remessa/material.",
+        "cor": "FF7F6000",
+        "campos": [
+            ("data", "Data", "data", 12), ("codigo", "Código material", "txt", 14),
+            ("descricao", "Descrição", "txt", 34), ("quantidade", "Quantidade", "num", 12),
+            ("documento", "Nº NF / romaneio", "txt", 20), ("fornecedor", "Fornecedor", "txt", 20),
+            ("obs", "Observação", "txt", 28),
+        ],
+    },
+    "estoque_inventario": {
+        "aba": "ESTOQUE INVENTÁRIO",
+        "titulo": "ESTOQUE — CONTAGEM FÍSICA. Comparado ao saldo teórico calculado por eventos × regras (base do IFC) para gerar perda e acuracidade.",
+        "cor": "FF7F6000",
+        "campos": [
+            ("data", "Data", "data", 12), ("codigo", "Código material", "txt", 14),
+            ("quantidade", "Quantidade contada", "num", 12), ("responsavel", "Responsável", "txt", 20),
+            ("obs", "Observação", "txt", 34),
         ],
     },
 }

@@ -136,7 +136,8 @@ async function carregar() {
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
-  ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades'].forEach(k => T[k] ||= []);
+  ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario'].forEach(k => T[k] ||= []);
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
@@ -743,6 +744,7 @@ function estoqueLinhas() {
 
 function renderEstoque() {
   renderEstoqueExterno();
+  renderEstoqueIfc();
   const ls = estoqueLinhas();
   const cont = n => ls.filter(l => l.nivel === n).length;
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -771,6 +773,80 @@ function renderEstoque() {
       : '<tr><td colspan="8" class="vazio">Nenhuma movimentação registrada.</td></tr>') + '</tbody>';
 }
 
+
+// ---------------------------------------- BAIXA POR IFC (regras × eventos) ----
+function renderEstoqueIfc() {
+  const box = M && M.estoque_ifc;
+  const nota = $('#estIfcNota'), tiles = $('#estIfcTiles'), resumo = $('#estIfcResumo');
+  const tabMat = $('#tabEstIfc'), tabRuas = $('#tabEstIfcRuas'), tabEv = $('#tabEstEventos'), al = $('#estIfcAlertas');
+  if (!box || !box.inventario || !box.regras) {
+    nota.textContent = 'IFC ou regras de baixa não encontrados. Gere dados/ifc_r0d_inventario.json (ferramentas/ifc_inventario.py) e programa_obra198/regras_baixa.json.';
+    tiles.innerHTML = ''; resumo.textContent = ''; tabMat.innerHTML = ''; tabRuas.innerHTML = ''; tabEv.innerHTML = ''; al.innerHTML = '';
+    return;
+  }
+  const inv = box.inventario, reg = box.regras, r = box.resumo || { materiais: [], por_rua_faixa: [], alertas: [] };
+  const jp = inv.joists_projetadas || {};
+  const t = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${esc(sub)}</div></div>`;
+  const totApont = r.por_rua_faixa.reduce((a, x) => a + x.apontado, 0);
+  const totProj = jp.total || 0;
+  const perdaPos = r.materiais.filter(m => m.perda != null && m.perda < 0).length;
+  const acuMed = (() => {
+    const xs = r.materiais.map(m => m.acuracidade).filter(v => v != null);
+    return xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length) * 100 : null;
+  })();
+  tiles.innerHTML =
+    t('Joists apontadas', totApont, `de ${totProj} projetadas no IFC · ${totProj ? Math.round(100 * totApont / totProj) : 0}%`, 'var(--fg)') +
+    t('Alertas', r.alertas.length, r.alertas.length ? 'ver abaixo' : 'nada crítico', r.alertas.length ? 'var(--vermelho)' : 'var(--verde)') +
+    t('Perda apurada', perdaPos, 'materiais com físico < saldo teórico', perdaPos ? 'var(--amarelo)' : 'var(--fg)') +
+    t('Acurácia média', acuMed == null ? '—' : nf(acuMed, 1) + '%', 'inventário × teórico', 'var(--fg)');
+  nota.textContent = `Fonte: ${inv.fonte} · ${inv.totais.conjuntos} conjuntos, ${jp.total} joists projetadas.`;
+  resumo.textContent = `Malha: ${inv.malha.eixos.length} eixos (${inv.malha.eixos[0]}..${inv.malha.eixos.at(-1)}) · ${inv.malha.ruas.length} ruas · 7 faixas (AB–GH). Regras: ${reg.eventos.length} eventos, ${Object.keys(reg.criterio_por_letra).length} letras.`;
+
+  // materiais
+  const codDesc = {}; (reg.eventos || []).forEach(e => (e.baixa || []).concat(e.baixa_por_joist || []).forEach(b => { if (b.codigo && b.descricao) codDesc[b.codigo] = b.descricao; }));
+  Object.values(reg.criterio_por_letra || {}).forEach(c => { if (c.parafuso && c.descricao_parafuso) codDesc[c.parafuso] = c.descricao_parafuso; });
+  const mats = [...r.materiais].sort((a, b) => (b.consumo_teorico || 0) - (a.consumo_teorico || 0));
+  tabMat.innerHTML = `<thead><tr><th>Código</th><th>Descrição</th><th class="n">Consumo teórico</th><th class="n">Chegou</th><th class="n">Saldo teórico</th><th class="n">Físico</th><th class="n">Perda</th><th class="n">Acurácia</th><th class="n">Cobertura</th></tr></thead><tbody>` +
+    (mats.length ? mats.map(m => {
+      const perdaCls = m.perda == null ? '' : m.perda < 0 ? 'valor-neg' : '';
+      const acu = m.acuracidade == null ? '—' : nf(m.acuracidade * 100, 1) + '%';
+      const cob = m.cobertura_dias == null ? '—' : m.cobertura_dias < 0 ? '<span class="farol f-vermelho">Vencido</span>' : `${nf(m.cobertura_dias, 1)} d`;
+      const saldoCls = m.saldo_teorico < 0 ? 'valor-neg' : '';
+      return `<tr><td><b>${esc(m.codigo)}</b></td><td>${esc(codDesc[m.codigo] || '—')}</td>
+        <td class="n">${nf(m.consumo_teorico, 0)}</td><td class="n">${nf(m.chegou, 0)}</td>
+        <td class="n ${saldoCls}"><b>${nf(m.saldo_teorico, 0)}</b></td>
+        <td class="n">${m.fisico == null ? '—' : nf(m.fisico, 0)}</td>
+        <td class="n ${perdaCls}">${m.perda == null ? '—' : nf(m.perda, 0)}</td>
+        <td class="n">${acu}</td><td class="n">${cob}</td></tr>`;
+    }).join('') : '<tr><td colspan="9" class="vazio">Sem consumo ainda. Lance um evento de produção para começar.</td></tr>') + '</tbody>';
+
+  // ruas × faixas — pivot: linha = rua, colunas = faixas
+  const faixas = inv.malha.faixas || ['AB', 'BC', 'CD', 'DE', 'EF', 'FG', 'GH'];
+  const ruas = inv.malha.ruas || [];
+  const proj = jp.por_rua_faixa || {};
+  const apontMap = {}; r.por_rua_faixa.forEach(x => { (apontMap[x.rua] ||= {})[x.faixa] = x.apontado; });
+  tabRuas.innerHTML = `<thead><tr><th>Rua</th>${faixas.map(f => `<th class="n">${f}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
+    ruas.map(ru => {
+      let tot = 0, tds = faixas.map(f => {
+        const p = (proj[ru] || {})[f] || 0, ap = (apontMap[ru] || {})[f] || 0;
+        tot += ap;
+        const cls = ap > p ? 'valor-neg' : ap === p ? 'valor-ok' : '';
+        return `<td class="n ${cls}">${ap}/${p}</td>`;
+      }).join('');
+      return `<tr><td><b>${ru}</b></td>${tds}<td class="n">${tot}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // últimos eventos
+  const evs = [...(T.estoque_eventos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))).slice(0, 20);
+  tabEv.innerHTML = `<thead><tr><th>Data</th><th>Tipo</th><th>Rua/Eixo</th><th>Letra/Faixa</th><th class="n">Joists</th><th>Empresa</th><th></th></tr></thead><tbody>` +
+    (evs.length ? evs.map(e => `<tr><td>${fdA(e.data)}</td><td>${esc(e.tipo || '')}</td>
+      <td>${esc(e.rua || e.eixo || '')}</td><td>${esc(e.letra || e.faixa || '')}</td>
+      <td class="n">${e.n_joists == null ? '—' : nf(e.n_joists, 0)}</td><td>${esc(e.empresa || '')}</td>
+      <td><button class="link" data-editar-reg="estoque_eventos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
+      : '<tr><td colspan="7" class="vazio">Nenhum evento apontado.</td></tr>') + '</tbody>';
+
+  al.innerHTML = r.alertas.length ? r.alertas.map(a => `<li class="alerta a-vermelho">${esc(a.mensagem)}</li>`).join('') : '';
+}
 
 // ------------------------------------------------------------ PLANILHA DE ESTOQUE (externa, somente leitura)
 function estoqueExternoResumo() {
@@ -1310,6 +1386,26 @@ const FORMS = {
     ['item_desc', 'Descrição do item', 'text', 1, 'largo'], ['atividade', 'Atividade (serviço)', 'text', 1, 'largo'], ['unidade', 'Unidade', 'text', 1],
     ['qtd', 'Quantidade contratada', 'num', 1], ['peso', 'Peso no item (0 a 1)', 'num', 1], ['valor_qpc', 'Valor do item QPC (R$)', 'num'],
     ['valor_rotula', 'Valor do item RÓTULA (R$)', 'num'], ['controle', 'Coluna no controle de produção (nome do serviço)', 'text'],
+    ['obs', 'Observação', 'text', 0, 'largo']] },
+  estoque_eventos: { tit: 'evento de produção (baixa por IFC)', campos: [
+    ['data', 'Data', 'date', 1],
+    ['tipo', 'Tipo', 'select:VIGA_APOIO_MONTADA,VIGA_INTERM_MONTADA,JOIST_ICADA', 1],
+    ['empresa', 'Empresa', 'empresa'],
+    ['eixo', 'Eixo (para viga) — ex.: 11', 'text'],
+    ['letra', 'Letra (A, B, BC, C, CD, D, DE, E, F, FG, G, H)', 'text'],
+    ['rua', 'Rua (para joist) — ex.: 11-12', 'text'],
+    ['faixa', 'Faixa (AB, BC, CD, DE, EF, FG, GH) — opcional (derivado da letra)', 'text'],
+    ['n_joists', 'Qtd de joists (0 a 6, para JOIST_ICADA)', 'num'],
+    ['viga_id', 'ID da viga (opcional, para VIGA_*)', 'text'],
+    ['obs', 'Observação / nº RDO', 'text', 0, 'largo']] },
+  estoque_remessas: { tit: 'remessa de material', campos: [
+    ['data', 'Data', 'date', 1], ['codigo', 'Código do material (ex.: FG005)', 'text', 1],
+    ['descricao', 'Descrição', 'text', 0, 'largo'], ['quantidade', 'Quantidade', 'num', 1],
+    ['documento', 'Nº NF / romaneio', 'text'], ['fornecedor', 'Fornecedor', 'text'],
+    ['obs', 'Observação', 'text', 0, 'largo']] },
+  estoque_inventario: { tit: 'contagem de inventário', campos: [
+    ['data', 'Data', 'date', 1], ['codigo', 'Código do material', 'text', 1],
+    ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
 };
 

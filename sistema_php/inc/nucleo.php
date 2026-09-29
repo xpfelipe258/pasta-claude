@@ -72,10 +72,16 @@ function tabelas_spec()
             'litros' => 'num', 'obs' => 'txt'],
         'bm_fech_atividades' => ['empresa' => 'txt', 'bm' => 'num', 'codigo' => 'txt', 'item' => 'txt', 'realizado' => 'num',
             'qtd' => 'num', 'peso' => 'num', 'valor_qpc' => 'num', 'valor_rotula' => 'num'],
+        'estoque_eventos' => ['data' => 'data', 'tipo' => 'txt', 'empresa' => 'txt', 'eixo' => 'txt',
+            'letra' => 'txt', 'rua' => 'txt', 'faixa' => 'txt', 'n_joists' => 'num', 'viga_id' => 'txt', 'obs' => 'txt'],
+        'estoque_remessas' => ['data' => 'data', 'codigo' => 'txt', 'descricao' => 'txt', 'quantidade' => 'num',
+            'documento' => 'txt', 'fornecedor' => 'txt', 'obs' => 'txt'],
+        'estoque_inventario' => ['data' => 'data', 'codigo' => 'txt', 'quantidade' => 'num',
+            'responsavel' => 'txt', 'obs' => 'txt'],
     ];
 }
 
-const ESQUEMA_VERSAO = 3;
+const ESQUEMA_VERSAO = 4;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)

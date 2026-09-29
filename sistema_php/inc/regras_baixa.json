@@ -1,0 +1,84 @@
+{
+  "fonte": "teste claude.xlsm (abas Fluxo_Baixa, Criterio_Quadrantes)",
+  "origem_das_quantidades": "IFC LSF-MET-EX-200-200-BIM-R0D (arquivo dados/ifc_r0d_inventario.json)",
+  "observacoes": [
+    "As regras dizem QUAL material sai e a proporção. A base de projeto (quanto o galpão inteiro exige) vem do IFC.",
+    "A joist pertence à RUA entre dois eixos. Um par de vigas consecutivas fecha um quadrante (rua × faixa).",
+    "O IFC não modela os parafusos das joists; para eles a regra vale sem contraconferência (só pela porca/arruela onde couber).",
+    "Letras A/H = VC01 (apoio de borda). BC/CD/DE/FG são INTERMEDIÁRIAS. As demais são APOIO."
+  ],
+  "letras_ordem": ["A", "B", "BC", "C", "CD", "D", "DE", "E", "F", "FG", "G", "H"],
+  "criterio_por_letra": {
+    "A":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
+    "B":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4 },
+    "BC": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
+    "C":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
+    "CD": { "viga": "VC03", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
+    "D":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
+    "DE": { "viga": "VC05", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
+    "E":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
+    "F":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
+    "FG": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
+    "G":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4 },
+    "H":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 }
+  },
+  "letra_para_faixa_do_par": {
+    "A":  "AB", "B":  "AB",
+    "BC": "BC",
+    "C":  "BC", "D":  "CD",
+    "CD": "CD",
+    "DE": "DE",
+    "E":  "DE", "F":  "EF",
+    "FG": "FG",
+    "G":  "FG", "H":  "GH"
+  },
+  "eventos": [
+    {
+      "codigo": "VIGA_APOIO_MONTADA",
+      "origem": "Fluxo_Baixa etapa 1 (Montagem_Vigas.MONTADA=SIM)",
+      "chave": ["viga_id"],
+      "gatilho": "aponte de montagem no par (eixo, letra) com tipo APOIO",
+      "baixa": [
+        { "codigo": "FG021", "descricao": "PORCA Ø1\" A194-2H",   "quantidade": 4, "base": "por viga montada" },
+        { "codigo": "FG023", "descricao": "ARRUELA Ø1\" LISA",    "quantidade": 4, "base": "por viga montada" }
+      ]
+    },
+    {
+      "codigo": "VIGA_INTERM_MONTADA",
+      "origem": "Fluxo_Baixa etapa 1 (Montagem_Vigas.MONTADA=SIM)",
+      "chave": ["viga_id"],
+      "gatilho": "aponte de montagem no par (eixo, letra) com tipo INTERMEDIARIA",
+      "baixa": [
+        { "codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "quantidade": 4, "base": "por viga montada" },
+        { "codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "quantidade": 4, "base": "por viga montada" },
+        { "codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "quantidade": 4, "base": "por viga montada" }
+      ]
+    },
+    {
+      "codigo": "JOIST_ICADA",
+      "origem": "Fluxo_Baixa etapas 3-4 (Apontamento_Quadrantes)",
+      "chave": ["rua", "faixa", "n_joists"],
+      "gatilho": "apontar N joists no par de vigas (0..6 por rua/faixa segundo IFC)",
+      "baixa_por_joist": [
+        { "codigo": "PARAFUSO_FIX_JOIST", "quantidade": 8, "base": "8 por joist (4 eixo ini + 4 eixo fim)",
+          "codigo_resolvido_por_letra": true,
+          "regra": "parafuso é definido por criterio_por_letra da LETRA do par; a metade sai da letra do eixo ini, metade do eixo fim" },
+        { "codigo": "FG015", "descricao": "PORCA Ø1/2\" A307",   "quantidade": 8, "base": "1:1 com parafuso Ø1/2\"" },
+        { "codigo": "FG018", "descricao": "ARRUELA Ø1/2\" LISA", "quantidade": 8, "base": "1:1 com parafuso Ø1/2\"" }
+      ],
+      "consumo_joist_fisica": {
+        "descricao": "cada joist içada consome 1 conjunto BZ/DN/RF/TV/SPD conforme catálogo BASE MATERIAL",
+        "codigo_conjunto": "BZ001+DN00x+RF00x+TV00x+SPD01",
+        "referencia": "Consumo_Joists e BASE MATERIAL"
+      }
+    }
+  ],
+  "limites_ifc": {
+    "joists_por_rua_faixa_maximo": 6,
+    "joists_por_rua_maximo": 42,
+    "joists_no_galpao_maximo": 798,
+    "vigas_apoio_no_galpao": 120,
+    "vigas_intermediarias_no_galpao": 180,
+    "fonte": "dados/ifc_r0d_inventario.json"
+  }
+}

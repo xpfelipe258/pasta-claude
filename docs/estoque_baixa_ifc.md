@@ -82,3 +82,18 @@ Regras de consistência:
 
 - IFC de texto da estrutura principal (com parafusos), para fixar o tipo de parafuso por viga.
 - Decidir se as correções da seção 3 são feitas direto na planilha `teste claude` ou só no sistema.
+
+## 6. Implementação (setembro/2026)
+
+- `ferramentas/ifc_inventario.py` → gera `dados/ifc_r0d_inventario.json` (inventário completo,
+  ainda por rua/faixa/eixo, incluindo 6.384 suportes, 300 apoios de viga, 1.680 travamentos,
+  1.680 clipes-aranha, 448 contraventamentos, 864 suportes de terça, 1.800 telhas cobertura).
+- `programa_obra198/regras_baixa.json` → tabela única evento→material→quantidade
+  (VIGA_APOIO_MONTADA, VIGA_INTERM_MONTADA, JOIST_ICADA), com o critério por letra
+  (VC/parafuso) e o limite de 6 joists por rua/faixa.
+- Novas tabelas do sistema (Python + PHP): `ESTOQUE EVENTOS`, `ESTOQUE REMESSAS`,
+  `ESTOQUE INVENTÁRIO`.
+- Aba **Estoque > Baixa automática por IFC** mostra: consumo teórico × chegou × físico,
+  saldo teórico, perda, acurácia, cobertura em dias e joists por rua/faixa (apontado/projetado).
+- Alertas dispostos automaticamente quando: joists/faixa > 6, saldo teórico negativo,
+  perda > 0.

@@ -123,6 +123,13 @@ function montar_modelo()
     foreach (tabelas_spec() as $nome => $campos) {
         $tabelas[$nome] = linhas_tabela($nome, $campos);
     }
+    $inv_ifc = carregar_inventario_ifc();
+    $regras = carregar_regras_baixa();
+    $resumo = ($regras) ? resumir_estoque_ifc(
+        $tabelas['estoque_eventos'] ?? [],
+        $tabelas['estoque_remessas'] ?? [],
+        $tabelas['estoque_inventario'] ?? [],
+        $regras, $inv_ifc) : null;
     return [
         'datas' => datas_obra(),
         'empresas' => $empresas,
@@ -133,7 +140,176 @@ function montar_modelo()
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
+        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo],
     ];
+}
+
+function carregar_inventario_ifc()
+{
+    $p = __DIR__ . '/ifc_inventario.json';
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
+}
+
+function carregar_regras_baixa()
+{
+    $p = __DIR__ . '/regras_baixa.json';
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
+}
+
+function consumo_evento(array $ev, array $regras)
+{
+    $tipo = strtoupper((string)($ev['tipo'] ?? ''));
+    $letra = strtoupper((string)($ev['letra'] ?? ''));
+    $faixa = strtoupper((string)($ev['faixa'] ?? ''));
+    $out = [];
+    if ($tipo === 'VIGA_APOIO_MONTADA' || $tipo === 'VIGA_INTERM_MONTADA') {
+        foreach ($regras['eventos'] as $e) {
+            if ($e['codigo'] === $tipo) {
+                foreach ($e['baixa'] ?? [] as $b) {
+                    $out[$b['codigo']] = ($out[$b['codigo']] ?? 0) + $b['quantidade'];
+                }
+                break;
+            }
+        }
+        return $out;
+    }
+    if ($tipo === 'JOIST_ICADA') {
+        $n = (int)($ev['n_joists'] ?? 0);
+        if ($n <= 0) {
+            return $out;
+        }
+        $crit = $regras['criterio_por_letra'] ?? [];
+        $chave = isset($crit[$letra]) ? $letra : (isset($crit[$faixa]) ? $faixa : (substr($faixa, 0, 1) ?: ''));
+        $par = $crit[$chave] ?? [];
+        $paraf = $par['parafuso'] ?? null;
+        foreach ($regras['eventos'] as $e) {
+            if ($e['codigo'] !== 'JOIST_ICADA') {
+                continue;
+            }
+            foreach ($e['baixa_por_joist'] ?? [] as $b) {
+                $cod = $b['codigo'] ?? null;
+                $q = ($b['quantidade'] ?? 0) * $n;
+                if ($cod === 'PARAFUSO_FIX_JOIST' && $paraf) {
+                    $out[$paraf] = ($out[$paraf] ?? 0) + $q;
+                } elseif ($cod && $cod !== 'PARAFUSO_FIX_JOIST') {
+                    $out[$cod] = ($out[$cod] ?? 0) + $q;
+                }
+            }
+        }
+    }
+    return $out;
+}
+
+function resumir_estoque_ifc(array $eventos, array $remessas, array $inv, array $regras, $inv_ifc)
+{
+    $consumo = [];
+    $consumo_por_dia = [];
+    $joists = [];
+    $alertas = [];
+    $limite = $regras['limites_ifc']['joists_por_rua_faixa_maximo'] ?? 6;
+    $letra_faixa = $regras['letra_para_faixa_do_par'] ?? [];
+
+    foreach ($eventos as $ev) {
+        $c = consumo_evento($ev, $regras);
+        foreach ($c as $k => $v) {
+            $consumo[$k] = ($consumo[$k] ?? 0) + $v;
+        }
+        $d = $ev['data'] ?? null;
+        if ($d) {
+            foreach ($c as $k => $v) {
+                $consumo_por_dia[$d][$k] = ($consumo_por_dia[$d][$k] ?? 0) + $v;
+            }
+        }
+        if (strtoupper((string)($ev['tipo'] ?? '')) === 'JOIST_ICADA') {
+            $n = (int)($ev['n_joists'] ?? 0);
+            $fx = strtoupper((string)($ev['faixa'] ?? ''));
+            if (!$fx) {
+                $fx = strtoupper($letra_faixa[strtoupper((string)($ev['letra'] ?? ''))] ?? '');
+            }
+            $chave = ($ev['rua'] ?? '') . '/' . $fx;
+            $joists[$chave] = ($joists[$chave] ?? 0) + $n;
+            if ($joists[$chave] > $limite) {
+                $alertas[] = ['tipo' => 'joists_excedeu_ifc', 'chave' => $chave,
+                    'mensagem' => "Rua/faixa $chave: {$joists[$chave]} joists apontadas (máx. IFC $limite)."];
+            }
+        }
+    }
+
+    $chegou = [];
+    foreach ($remessas as $r) {
+        $q = $r['quantidade'] ?? null;
+        $cod = $r['codigo'] ?? null;
+        if ($q !== null && $cod) {
+            $chegou[$cod] = ($chegou[$cod] ?? 0) + (float)$q;
+        }
+    }
+
+    $ultimo = [];
+    foreach ($inv as $i) {
+        $cod = $i['codigo'] ?? null;
+        $q = $i['quantidade'] ?? null;
+        $d = $i['data'] ?? null;
+        if ($cod && $q !== null && $d && (!isset($ultimo[$cod]) || $d >= $ultimo[$cod]['data'])) {
+            $ultimo[$cod] = ['data' => $d, 'quantidade' => (float)$q];
+        }
+    }
+
+    $codigos = array_unique(array_merge(array_keys($consumo), array_keys($chegou), array_keys($ultimo)));
+    sort($codigos);
+    $materiais = [];
+    foreach ($codigos as $cod) {
+        $c = (float)($consumo[$cod] ?? 0);
+        $en = (float)($chegou[$cod] ?? 0);
+        $st = $en - $c;
+        $fs = $ultimo[$cod]['quantidade'] ?? null;
+        $perda = $fs !== null ? $fs - $st : null;
+        $acu = null;
+        if ($fs !== null) {
+            $f = max($fs, 0); $s = max($st, 0);
+            $mx = max($f, $s);
+            $acu = $mx ? min($f, $s) / $mx : 1.0;
+        }
+        $materiais[] = ['codigo' => $cod, 'consumo_teorico' => $c, 'chegou' => $en,
+            'saldo_teorico' => $st, 'fisico' => $fs,
+            'data_inventario' => $ultimo[$cod]['data'] ?? null, 'perda' => $perda, 'acuracidade' => $acu];
+    }
+
+    $joists_proj = $inv_ifc['joists_projetadas']['por_rua_faixa'] ?? [];
+    $ruas = [];
+    foreach ($joists_proj as $ru => $faixas) {
+        foreach ($faixas as $fx => $proj) {
+            $ap = $joists["$ru/$fx"] ?? 0;
+            $ruas[] = ['rua' => $ru, 'faixa' => $fx, 'projetado' => $proj, 'apontado' => $ap,
+                'saldo' => $proj - $ap];
+        }
+    }
+
+    // cobertura em dias: saldo / ritmo médio
+    $datas_c = array_keys($consumo_por_dia);
+    sort($datas_c);
+    foreach ($materiais as &$m) {
+        $m['cobertura_dias'] = null;
+        if ($m['consumo_teorico'] && count($datas_c) >= 2) {
+            $dias = max(1, (int)((strtotime(end($datas_c)) - strtotime(reset($datas_c))) / 86400));
+            $ritmo = $m['consumo_teorico'] / $dias;
+            if ($ritmo > 0 && $m['saldo_teorico'] !== null) {
+                $m['cobertura_dias'] = round($m['saldo_teorico'] / $ritmo, 1);
+            }
+        }
+    }
+    unset($m);
+
+    return ['materiais' => $materiais, 'por_rua_faixa' => $ruas,
+        'consumo_por_dia' => $consumo_por_dia, 'alertas' => $alertas,
+        'gerado_em' => date('Y-m-d')];
 }
 
 function exportar_pacote()
