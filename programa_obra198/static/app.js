@@ -237,7 +237,8 @@ function renderTudo() {
   if (!M) return;
   const abertos = M.impactos.filter(i => !i.solucionado).length;
   $('#impCont').hidden = !abertos; $('#impCont').textContent = abertos;
-  const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho').length;
+  const rExt = estoqueExternoResumo();
+  const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho').length + (rExt ? rExt.etapas.filter(e => e.nivel === 'vermelho').length + rExt.fixCrit.length : 0);
   $('#estCont').hidden = !falta; $('#estCont').textContent = falta;
   atualizarPendentes();
   renderAba();
@@ -306,6 +307,7 @@ function renderAlertas(ks, c) {
   estoqueLinhas().filter(l => l.nivel !== 'verde' && l.nivel !== 'pendente').forEach(l =>
     al.push([l.nivel, `<b>Estoque · ${esc(l.material)}</b>: ${esc(l.status.toLowerCase())}. Saldo ${nf(l.saldo, 1)} ${esc(l.unidade || '')}, necessário ${nf(l.necSemana + l.necProx, 1)} até a próxima semana. <button class="link" data-ir-aba="estoque">Ver estoque</button>`]));
 
+  alertasEstoqueExterno().forEach(x => al.push(x));
   const abertos = M.impactos.filter(i => !i.solucionado);
   if (abertos.length) {
     const velhos = abertos.filter(i => ehISO(i.data)).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3)
@@ -623,6 +625,7 @@ function renderCliente() {
   linhas.filter(l => l.status === 'ADIANTADO' && l.realAc > 0).forEach(l => ins.push(['verde', `<b>${esc(cap(l.it.servico))}</b> à frente do previsto do cliente (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
   const abertos = M.impactos.filter(i => !i.solucionado);
   if (abertos.length) ins.push(['amarelo', `<b>${abertos.length} impacto(s) em aberto</b> afetando a produção: ${[...new Set(abertos.map(i => cap(i.motivo).trim()))].slice(0, 4).map(esc).join('; ')}.`]);
+  alertasEstoqueExterno().filter(x => x[0] === 'vermelho').forEach(x => ins.push(['vermelho', x[1].replace(/<button[^>]*>.*?<\/button>/g, '')]));
   const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho');
   if (falta.length) ins.push(['vermelho', `Material insuficiente para a semana: ${falta.map(l => esc(l.material)).join(', ')}.`]);
   $('#cliInsights').innerHTML = ins.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'verde' ? 'OK' : n === 'amarelo' ? 'ATENÇÃO' : 'CRÍTICO'}</span><span>${t}</span></li>`).join('');
@@ -701,6 +704,7 @@ function estoqueLinhas() {
 }
 
 function renderEstoque() {
+  renderEstoqueExterno();
   const ls = estoqueLinhas();
   const cont = n => ls.filter(l => l.nivel === n).length;
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -727,6 +731,86 @@ function renderEstoque() {
       <td class="n">${nf(v.quantidade, 2)}</td><td>${esc(v.documento)}</td><td>${esc(v.empresa)}</td><td>${esc(v.obs)}</td>
       <td><button class="link" data-editar-reg="movimentos" data-linha="${v.linha}">Editar</button></td></tr>`).join('')
       : '<tr><td colspan="8" class="vazio">Nenhuma movimentação registrada.</td></tr>') + '</tbody>';
+}
+
+
+// ------------------------------------------------------------ PLANILHA DE ESTOQUE (externa, somente leitura)
+function estoqueExternoResumo() {
+  const E = M && M.estoque_externo;
+  if (!E) return null;
+  const seg = segunda(ref), prox = add(seg, 7);
+  const etapas = ['PREMONTAGEM', 'IÇAMENTO JOIST'].map(serv => {
+    const metaSem = metaServicoSemana(serv, null, seg), realSem = prodServico(serv, null, seg, ref);
+    const rest = Math.max(metaSem - realSem, 0), proxMeta = metaServicoSemana(serv, null, prox);
+    const cap = (E.capacidade || {})[serv] || {};
+    const j = cap.joists;
+    const nivel = j == null ? 'pendente' : j >= rest + proxMeta ? 'verde' : j >= rest ? 'amarelo' : 'vermelho';
+    return { serv, metaSem, realSem, rest, proxMeta, cap, nivel };
+  });
+  const itens = (E.itens || []).filter(i => i.coef > 0).map(i => {
+    const et = etapas.find(e => e.serv === i.etapa) || etapas[0];
+    const necSem = et.rest * i.coef, necProx = et.proxMeta * i.coef, disp = i.disponivel || 0;
+    const nivel = disp < necSem ? 'vermelho' : disp < necSem + necProx ? 'amarelo' : 'verde';
+    return { ...i, necSem, necProx, cobertura: disp / i.coef, nivel };
+  }).sort((a, b) => a.cobertura - b.cobertura);
+  const ordem = ['verde', 'amarelo', 'vermelho'];
+  etapas.forEach(e => {
+    e.itensFalta = itens.filter(i => i.etapa === e.serv && i.nivel === 'vermelho');
+    const pior = itens.filter(i => i.etapa === e.serv).reduce((a, i) => Math.max(a, ordem.indexOf(i.nivel)), 0);
+    if (e.nivel !== 'pendente' && pior > ordem.indexOf(e.nivel)) e.nivel = ordem[pior];
+  });
+  const fixCrit = (E.fixadores || []).filter(f => /CR[IÍ]TICO|FALTA/i.test(f.status || '') || (f.saldo != null && f.saldo < 0));
+  const aguardando = soma0(E.mix_joists || [], m => m.aguardando_icamento);
+  return { E, etapas, itens, fixCrit, aguardando };
+}
+
+function alertasEstoqueExterno() {
+  const r = estoqueExternoResumo();
+  if (!r) return [];
+  const al = [];
+  r.etapas.forEach(e => {
+    const lim = e.cap.limitante ? ` (limitante: ${esc(e.cap.limitante)}${e.cap.descricao ? ' – ' + esc(e.cap.descricao) : ''})` : '';
+    const semSaldo = e.itensFalta.length ? ` Itens sem saldo para a semana: ${e.itensFalta.map(i => esc(i.tag)).join(', ')}.` : '';
+    if (e.nivel === 'vermelho') al.push(['vermelho', `<b>Material para ${esc(cap(e.serv))}</b>: a planilha de estoque indica capacidade de ${nf(e.cap.joists)} joists; a meta restante da semana é ${nf(e.rest)}${lim}.${semSaldo} <button class="link" data-ir-aba="estoque">Ver estoque</button>`]);
+    else if (e.nivel === 'amarelo') al.push(['amarelo', `<b>Material para ${esc(cap(e.serv))}</b>: cobre a semana, mas não a próxima (${nf(e.cap.joists)} joists × ${nf(e.rest + e.proxMeta)} necessárias)${lim}.`]);
+  });
+  if (r.fixCrit.length) al.push(['vermelho', `<b>Fixadores em falta</b>: ${r.fixCrit.map(f => `${esc(f.codigo)} (${esc(f.descricao || '')}, saldo ${nf(f.saldo)})`).join('; ')}.`]);
+  return al;
+}
+
+function renderEstoqueExterno() {
+  const box = $('#estExterno');
+  const r = estoqueExternoResumo();
+  if (!r) { box.innerHTML = ''; return; }
+  const { E, etapas, itens, fixCrit, aguardando } = r;
+  const tile = (rot, val, sub, st, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span>${st || ''}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const rot = { verde: 'COBRE 2 SEMANAS', amarelo: 'SÓ ESTA SEMANA', vermelho: 'FALTA NA SEMANA', pendente: 'SEM DADO' };
+  let h = `<div class="bloco-cab"><h2>Planilha de estoque · ${esc(E.arquivo)}</h2><span class="nota">Valores calculados pela própria planilha (gravada em ${new Date(E.modificado).toLocaleString('pt-BR')}) · somente leitura</span></div>`;
+  h += '<div class="tiles">' + etapas.map(e => tile(`Material para ${esc(cap(e.serv))}`, `${nf(e.cap.joists)} joists`,
+      `Meta restante da semana ${nf(e.rest)} · próxima semana ${nf(e.proxMeta)}${e.cap.limitante ? ` · limitante ${esc(e.cap.limitante)}` : ''}${e.itensFalta.length ? ` · <b>sem saldo para a semana: ${e.itensFalta.map(i => esc(i.tag)).join(', ')}</b>` : ''}`,
+      `<span class="farol f-${e.nivel}">${rot[e.nivel]}</span>`, `var(--${e.nivel === 'pendente' ? 'fg3' : e.nivel})`)).join('') +
+    tile('Premontadas aguardando içamento', `${nf(aguardando)} joists`, 'Apontamento_Montagem · pendente montar', '', 'var(--acento)') +
+    tile('Fixadores em falta', String(fixCrit.length), fixCrit.length ? fixCrit.map(f => esc(f.codigo)).join(', ') : 'nenhum item crítico', '', fixCrit.length ? 'var(--vermelho)' : 'var(--verde)') + '</div>';
+  h += `<div class="bloco"><div class="bloco-cab"><h2>Componentes por joist × meta</h2><span class="nota">Consumo por joist ponderado pelo mix de joists pendentes, com perda.</span></div><div class="tabela-rolagem"><table id="tabEstExt">
+    <thead><tr><th>TAG</th><th>Produto</th><th>Etapa</th><th class="n">Disponível</th><th class="n">Consumo por joist</th><th class="n">Necessário resto da semana</th><th class="n">Necessário próx. semana</th><th class="n">Cobertura (joists)</th><th>Situação</th><th>Status na planilha</th><th class="n">Solicitar</th></tr></thead><tbody>` +
+    itens.map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(cap(i.produto || ''))}<br><span class="nota">${esc(i.material || '')}</span></td><td>${esc(cap(i.etapa))}</td>
+      <td class="n"><b>${nf(i.disponivel)}</b></td><td class="n">${nf(i.coef, 2)}</td><td class="n">${nf(i.necSem, 0)}</td><td class="n">${nf(i.necProx, 0)}</td>
+      <td class="n ${i.cobertura < 1 ? 'valor-neg' : ''}">${nf(Math.floor(i.cobertura))}</td><td><span class="farol f-${i.nivel}">${rot[i.nivel]}</span></td>
+      <td class="sub">${esc(i.status || '—')}</td><td class="n">${i.solicitar > 0 ? nf(i.solicitar) : '—'}</td></tr>`).join('') + '</tbody></table></div></div>';
+  if ((E.fixadores || []).length) {
+    h += `<div class="bloco"><div class="bloco-cab"><h2>Fixadores de montagem (quadrantes)</h2></div><div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Descrição</th><th>Aplicação</th><th class="n">Consumo previsto</th><th class="n">Disponível</th><th class="n">Saldo</th><th>Status</th><th>Regra</th></tr></thead><tbody>` +
+      E.fixadores.map(f => { const crit = fixCrit.includes(f); return `<tr><td><b>${esc(f.codigo)}</b></td><td>${esc(f.descricao)}</td><td class="sub">${esc(f.escopo)}</td><td class="n">${nf(f.consumo_total)}</td><td class="n">${nf(f.disponivel)}</td>
+        <td class="n ${f.saldo < 0 ? 'valor-neg' : ''}">${nf(f.saldo)}</td><td><span class="farol f-${crit ? 'vermelho' : 'verde'}">${esc(f.status || (crit ? 'FALTA' : 'OK'))}</span></td><td class="sub">${esc(f.regra || '')}</td></tr>`; }).join('') + '</tbody></table></div></div>';
+  }
+  const inv = (E.inventario || []).filter(i => i.acuracidade != null);
+  if (inv.length) {
+    const media = soma0(inv, i => i.acuracidade) / inv.length * 100;
+    const piores = [...inv].sort((a, b) => a.acuracidade - b.acuracidade).slice(0, 6);
+    h += `<div class="bloco"><div class="bloco-cab"><h2>Inventário físico × virtual</h2><span class="nota">Acuracidade média ${nf(media, 1)}% em ${inv.length} itens contados · maiores divergências abaixo</span></div><div class="tabela-rolagem"><table><thead><tr><th>TAG</th><th>Produto</th><th class="n">Estoque virtual</th><th class="n">Estoque físico</th><th class="n">Perda real</th><th class="n">Acuracidade</th></tr></thead><tbody>` +
+      piores.map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}</td><td class="n">${nf(i.virtual)}</td><td class="n">${nf(i.fisico)}</td><td class="n">${nf(i.perda)}</td>
+        <td class="n ${i.acuracidade < 0.8 ? 'valor-neg' : ''}">${nf(i.acuracidade * 100, 1)}%</td></tr>`).join('') + '</tbody></table></div></div>';
+  }
+  box.innerHTML = h;
 }
 
 // ------------------------------------------------------------ EQUIPAMENTOS

@@ -19,7 +19,7 @@ import excel_io as xio
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(BASE, "static")
-CONFIG_PADRAO = {"planilha": "", "porta": 8198, "acesso_rede": False, "abrir_navegador": True}
+CONFIG_PADRAO = {"planilha": "", "planilha_estoque": "", "porta": 8198, "acesso_rede": False, "abrir_navegador": True}
 
 _trava = threading.Lock()
 _cache = {"chave": None, "modelo": None}
@@ -33,18 +33,25 @@ def carregar_config():
             cfg.update(json.load(f))
     if len(sys.argv) > 1:
         cfg["planilha"] = sys.argv[1]
+    pastas = (BASE, os.path.dirname(BASE))
+    candidatos = [p for pasta in pastas for ext in ("*.xlsm", "*.xlsx")
+                  for p in sorted(glob.glob(os.path.join(pasta, ext))) if not os.path.basename(p).startswith("~$")]
     if not cfg["planilha"]:
-        candidatos = [p for pasta in (BASE, os.path.dirname(BASE))
-                      for p in sorted(glob.glob(os.path.join(pasta, "*.xlsm")))
-                      if not os.path.basename(p).startswith("~$")]
-        if not candidatos:
-            sys.exit("Nenhuma planilha .xlsm encontrada. Informe o caminho em config.json (campo \"planilha\").")
-        cfg["planilha"] = candidatos[0]
+        producao = [p for p in candidatos if xio.eh_planilha_producao(p)]
+        if not producao:
+            sys.exit("Nenhuma planilha de produção encontrada. Informe o caminho em config.json (campo \"planilha\").")
+        cfg["planilha"] = producao[0]
     elif not os.path.isabs(cfg["planilha"]):
         cfg["planilha"] = os.path.join(BASE, cfg["planilha"])
     cfg["planilha"] = os.path.abspath(cfg["planilha"])
     if not os.path.exists(cfg["planilha"]):
         sys.exit(f"Planilha não encontrada: {cfg['planilha']}")
+    est = cfg.get("planilha_estoque") or ""
+    if est and not os.path.isabs(est):
+        est = os.path.join(BASE, est)
+    if not est:
+        est = next((p for p in candidatos if os.path.abspath(p) != cfg["planilha"] and xio.eh_planilha_estoque(p)), "")
+    cfg["planilha_estoque"] = os.path.abspath(est) if est and os.path.exists(est) else ""
     return cfg
 
 
@@ -53,13 +60,23 @@ CFG = None
 
 def versao():
     st = os.stat(CFG["planilha"])
-    return f"{st.st_mtime_ns}-{st.st_size}"
+    v = f"{st.st_mtime_ns}-{st.st_size}"
+    if CFG.get("planilha_estoque") and os.path.exists(CFG["planilha_estoque"]):
+        v += f"-{os.stat(CFG['planilha_estoque']).st_mtime_ns}"
+    return v
 
 
 def modelo():
     v = versao()
     if _cache["chave"] != v:
-        _cache["modelo"] = xio.ler_planilha(CFG["planilha"])
+        m = xio.ler_planilha(CFG["planilha"])
+        m["estoque_externo"] = None
+        if CFG.get("planilha_estoque"):
+            try:
+                m["estoque_externo"] = xio.ler_estoque_externo(CFG["planilha_estoque"])
+            except Exception as e:
+                print(f" Aviso: não foi possível ler a planilha de estoque ({e}).")
+        _cache["modelo"] = m
         _cache["chave"] = v
     return _cache["modelo"]
 
@@ -392,6 +409,7 @@ def main():
     print("=" * 60)
     print(" OBRA 198 — Controle de Produção")
     print(f" Planilha: {CFG['planilha']}")
+    print(f" Estoque:  {CFG['planilha_estoque'] or 'não encontrada (opcional: campo planilha_estoque no config.json)'}")
     print(f" Acesse:   {url}")
     if CFG["acesso_rede"]:
         print(" Acesso pela rede local habilitado (use o IP deste computador).")

@@ -12,6 +12,18 @@ Tudo o que é lançado no sistema é gravado na própria planilha, e o que é al
 
 Para escolher outra planilha, informe o caminho em `config.json`, no campo `"planilha"`.
 
+## Planilha de estoque (integração)
+
+Se a planilha de estoque (a que tem as abas `Consumo_Joists` e `Controle_Materiais`) estiver na mesma pasta, o programa a encontra sozinho. Para indicar outro local, use o campo `"planilha_estoque"` do `config.json`.
+
+Ela é **somente lida**, nunca alterada: o programa usa os valores que a própria planilha calculou na última vez que foi salva no Excel (rode as macros e salve para atualizar). Na aba **Estoque** aparecem:
+
+- quantas joists o material em obra permite premontar e montar (e o item limitante), comparadas com a meta restante da semana e com a meta da próxima;
+- cada componente (banzos, diagonais, reforços, travamentos, fixadores) com consumo por joist, necessidade da semana e cobertura em joists;
+- fixadores de montagem dos quadrantes e inventário físico × virtual (acuracidade).
+
+Faltas também aparecem nos pontos de atenção do Painel e do Dashboard do cliente.
+
 ## Atualização automática (configuração única)
 
 Toda vez que o `INICIAR.bat` abre, o programa verifica o GitHub e, se houver versão nova, atualiza os próprios arquivos e reinicia sozinho. A planilha, os backups e o `config.json` nunca são alterados.

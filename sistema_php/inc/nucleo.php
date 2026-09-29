@@ -68,8 +68,9 @@ function criar_esquema(PDO $pdo, $driver)
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     $fim = $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : '';
     $tipos = ['txt' => 'VARCHAR(255) NULL', 'num' => 'DOUBLE NULL', 'data' => 'DATE NULL'];
+    $longo = $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT';
     $sql = [
-        "CREATE TABLE IF NOT EXISTS sistema (chave VARCHAR(50) PRIMARY KEY, valor TEXT NULL)$fim",
+        "CREATE TABLE IF NOT EXISTS sistema (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         "CREATE TABLE IF NOT EXISTS usuarios (id $pk, nome VARCHAR(100) NOT NULL, login VARCHAR(50) NOT NULL UNIQUE,
             senha VARCHAR(255) NOT NULL, perfil VARCHAR(20) NOT NULL, empresa VARCHAR(100) NULL, ativo INT NOT NULL DEFAULT 1)$fim",
         "CREATE TABLE IF NOT EXISTS empresas (id $pk, aba VARCHAR(100) NOT NULL, nome VARCHAR(100) NOT NULL,

@@ -132,6 +132,7 @@ function montar_modelo()
         'referencia' => null,
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
+        'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
     ];
 }
 
@@ -211,6 +212,7 @@ function importar_pacote(array $pacote)
                 $ins->execute($vals);
             }
         }
+        sistema_gravar('estoque_externo', json_encode($m['estoque_externo'] ?? null, JSON_UNESCAPED_UNICODE));
         $datas = $m['datas'] ?? [];
         $obra = $pacote['obra'] ?? [];
         sistema_gravar('data_inicio', $obra['data_inicio'] ?? ($datas ? $datas[0] : date('Y-m-d')));

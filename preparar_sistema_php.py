@@ -32,6 +32,9 @@ def gerar_dados_iniciais(planilha):
         sys.argv = ["app.py", copia]
         import app
         app.CFG = app.carregar_config()
+        est = next((os.path.join(RAIZ, f) for f in sorted(os.listdir(RAIZ))
+                    if f.lower().endswith((".xlsm", ".xlsx")) and xio.eh_planilha_estoque(os.path.join(RAIZ, f))), "")
+        app.CFG["planilha_estoque"] = est
         xio.garantir_abas(copia)
         app.acao_importar_equip({})
         m = app.modelo()

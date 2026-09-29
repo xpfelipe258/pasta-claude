@@ -793,3 +793,117 @@ def extrair_usos_mensais(caminho):
     finally:
         wb.close()
     return registros
+
+
+# ------------------------------------------- planilha de estoque (somente leitura)
+
+ABAS_ESTOQUE = ("Consumo_Joists", "Controle_Materiais")
+
+
+def eh_planilha_producao(caminho):
+    try:
+        wb = openpyxl.load_workbook(caminho, read_only=True)
+        try:
+            return ABA_CONSOLIDADO in wb.sheetnames
+        finally:
+            wb.close()
+    except Exception:
+        return False
+
+
+def eh_planilha_estoque(caminho):
+    try:
+        wb = openpyxl.load_workbook(caminho, read_only=True)
+        try:
+            return all(a in wb.sheetnames for a in ABAS_ESTOQUE)
+        finally:
+            wb.close()
+    except Exception:
+        return False
+
+
+def _txt(v):
+    if v is None:
+        return None
+    t = str(v).strip()
+    return None if t == "" or t.startswith("#") else t
+
+
+def ler_estoque_externo(caminho):
+    """Lê os indicadores já calculados pela planilha de estoque (valores salvos pelo Excel)."""
+    wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
+    try:
+        cj = _linhas(wb["Consumo_Joists"])
+        mix = []
+        if "Apontamento_Montagem" in wb.sheetnames:
+            am = _linhas(wb["Apontamento_Montagem"], max_col=10)
+            for lin in range(4, 14):
+                tipo = _txt(_cel(am, lin, 1))
+                if tipo:
+                    mix.append({"tipo": tipo, "planejada": numero(_cel(am, lin, 3)) or 0,
+                                "premontadas": numero(_cel(am, lin, 4)) or 0, "montadas": numero(_cel(am, lin, 5)) or 0,
+                                "pendentes": numero(_cel(am, lin, 6)) or 0, "aguardando_icamento": numero(_cel(am, lin, 8)) or 0})
+        pesos = [m["pendentes"] for m in mix][:10] or [1]
+        if not any(pesos):
+            pesos = [1] + [0] * 9
+
+        itens, secao = [], "PREMONTAGEM"
+        for lin in range(4, len(cj) + 1):
+            tag = _txt(_cel(cj, lin, 1))
+            if not tag:
+                continue
+            if tag.upper().startswith("CONSUMO DE FIX"):
+                continue
+            if tag.upper() == "TAG":
+                continue
+            por_tipo = [numero(_cel(cj, lin, c)) or 0 for c in range(5, 15)]
+            perda = numero(_cel(cj, lin, 15)) or 0
+            soma_p = sum(pesos[:len(por_tipo)]) or 1
+            coef = sum(p * q for p, q in zip(pesos, por_tipo)) / soma_p * (1 + perda)
+            etapa = "IÇAMENTO JOIST" if tag.upper().startswith("FG") else "PREMONTAGEM"
+            itens.append({
+                "tag": tag, "produto": _txt(_cel(cj, lin, 2)), "descricao": _txt(_cel(cj, lin, 3)),
+                "material": _txt(_cel(cj, lin, 4)), "etapa": etapa, "coef": round(coef, 4), "perda": perda,
+                "recebido": numero(_cel(cj, lin, 18)), "consumido": numero(_cel(cj, lin, 19)),
+                "disponivel": numero(_cel(cj, lin, 20)), "minimo": numero(_cel(cj, lin, 21)),
+                "status": _txt(_cel(cj, lin, 27)), "solicitar": numero(_cel(cj, lin, 28)),
+            })
+
+        capacidade = {}
+        for etapa, col in (("PREMONTAGEM", 37), ("IÇAMENTO JOIST", 39)):
+            capacidade[etapa] = {"joists": numero(_cel(cj, 4, col)), "limitante": _txt(_cel(cj, 5, col)),
+                                 "descricao": _txt(_cel(cj, 6, col))}
+
+        fixadores = []
+        if "Consumo_Quadrantes" in wb.sheetnames:
+            cq = _linhas(wb["Consumo_Quadrantes"], max_col=12)
+            for lin in range(5, len(cq) + 1):
+                cod = _txt(_cel(cq, lin, 1))
+                if not cod or not re.match(r"^[A-Z]{2}\d", cod):
+                    if fixadores:
+                        break
+                    continue
+                fixadores.append({
+                    "codigo": cod, "descricao": _txt(_cel(cq, lin, 2)), "escopo": _txt(_cel(cq, lin, 3)),
+                    "consumo_total": numero(_cel(cq, lin, 6)), "disponivel": numero(_cel(cq, lin, 7)),
+                    "saldo": numero(_cel(cq, lin, 8)), "status": _txt(_cel(cq, lin, 10)), "regra": _txt(_cel(cq, lin, 11)),
+                })
+
+        inventario = []
+        if "INVENTARIO" in wb.sheetnames:
+            inv = _linhas(wb["INVENTARIO"], max_col=16)
+            for lin in range(2, len(inv) + 1):
+                tag = _txt(_cel(inv, lin, 3))
+                virtual, fisico = numero(_cel(inv, lin, 9)), numero(_cel(inv, lin, 6))
+                if not tag or not (virtual or fisico):
+                    continue
+                inventario.append({"tag": tag, "produto": _txt(_cel(inv, lin, 2)), "virtual": virtual, "fisico": fisico,
+                                   "perda": numero(_cel(inv, lin, 14)), "acuracidade": numero(_cel(inv, lin, 16))})
+    finally:
+        wb.close()
+    return {
+        "arquivo": os.path.basename(caminho),
+        "modificado": dt.datetime.fromtimestamp(os.path.getmtime(caminho)).isoformat(timespec="seconds"),
+        "itens": itens, "capacidade": capacidade, "mix_joists": mix,
+        "fixadores": fixadores, "inventario": inventario,
+    }
