@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obra 198 · Controle de Produção</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231c1b18%22/%3E%3Cpath d=%22M6 24h20M9 24V12l7-5 7 5v12%22 stroke=%22%23fff%22 stroke-width=%222.5%22 fill=%22none%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topo">
+  <div class="marca">
+    <span class="marca-sigla">198</span>
+    <div>
+      <h1>Controle de Produção</h1>
+      <div class="arquivo" id="arquivo"><span class="ponto" id="pontoSync"></span><span id="arquivoTxt">Conectando à planilha…</span></div>
+    </div>
+  </div>
+  <div class="ref">
+    <button class="btn-icone" id="semAnt" title="Semana anterior" aria-label="Semana anterior">‹</button>
+    <label class="ref-data"><span>Data de referência</span><input type="date" id="refData"></label>
+    <button class="btn-icone" id="semProx" title="Próxima semana" aria-label="Próxima semana">›</button>
+    <button class="btn" id="btnHoje">Hoje</button>
+    <span class="semana-txt" id="semanaTxt"></span>
+  </div>
+</header>
+
+<nav class="abas" id="abas">
+  <button data-aba="painel" class="ativa">Painel</button>
+  <button data-aba="semana">Programação semanal</button>
+  <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
+  <button data-aba="avanco">Avanço físico</button>
+  <button data-aba="metas">Metas</button>
+  <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
+  <button data-aba="tendencia">Tendências</button>
+</nav>
+
+<div class="faixa" id="faixaExterna" hidden>
+  A planilha foi alterada fora do sistema. Salve ou descarte seus lançamentos pendentes para recarregar.
+</div>
+
+<main>
+  <!-- PAINEL -->
+  <section id="aba-painel">
+    <div class="tiles" id="tiles"></div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farol da semana</h2><span class="nota" id="notaFarol"></span></div>
+        <div class="tabela-rolagem"><table id="tabFarol"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Pontos de atenção</h2></div>
+        <ul class="alertas" id="alertas"></ul>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Previsto até a data × Realizado</h2>
+        <div class="legenda"><span><i class="leg-prev"></i>Previsto até a data</span><span><i class="leg-real"></i>Realizado</span></div>
+      </div>
+      <div class="grafico alto"><canvas id="gPainel"></canvas></div>
+    </div>
+  </section>
+
+  <!-- SEMANA -->
+  <section id="aba-semana" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Programação × Realizado por dia</h2><span class="nota">Cada célula: realizado / meta do dia. Dias futuros mostram o planejado.</span></div>
+      <div class="tabela-rolagem"><table id="tabSemana" class="tab-semana"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Planejado para entrar nesta semana</h2></div>
+        <ul class="lista" id="planejado"></ul>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Impactos registrados na semana</h2></div>
+        <ul class="lista" id="impSemana"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- LANÇAMENTOS -->
+  <section id="aba-lanc" hidden>
+    <div class="barra-acoes">
+      <div class="seg" id="segEmpresas"></div>
+      <div class="acoes">
+        <span class="nota" id="pendTxt"></span>
+        <button class="btn" id="btnDescartar" disabled>Descartar</button>
+        <button class="btn primario" id="btnSalvar" disabled>Salvar na planilha</button>
+      </div>
+    </div>
+    <p class="nota">Digite a quantidade executada no dia. Texto (ex.: INTEGRAÇÃO, CHUVA) também é aceito. Enter desce para o próximo dia · Ctrl+S salva.</p>
+    <div class="tabela-rolagem grade-lanc"><table id="tabLanc"></table></div>
+  </section>
+
+  <!-- AVANÇO -->
+  <section id="aba-avanco" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
+      <div class="tabela-rolagem"><table id="tabContrato"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Avanço por empresa</h2></div>
+      <div id="avancoEmpresas" class="grade-3"></div>
+    </div>
+  </section>
+
+  <!-- METAS -->
+  <section id="aba-metas" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Metas da semana</h2>
+        <div class="acoes">
+          <label class="check"><input type="checkbox" id="propagar"> Aplicar também às semanas seguintes</label>
+          <button class="btn primario" id="btnSalvarMetas" disabled>Salvar metas</button>
+        </div>
+      </div>
+      <div class="tabela-rolagem"><table id="tabMetas"></table></div>
+      <p class="nota">Grava em METAS EMPRESAS (colunas F, G e I). Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
+    </div>
+  </section>
+
+  <!-- IMPACTOS -->
+  <section id="aba-impactos" hidden>
+    <div class="barra-acoes">
+      <div class="seg" id="filtroImp">
+        <button data-f="abertos" class="ativa">Em aberto</button>
+        <button data-f="todos">Todos</button>
+      </div>
+      <button class="btn primario" id="btnNovoImp">+ Novo impacto</button>
+    </div>
+    <form class="bloco form-imp" id="formImp" hidden>
+      <div class="bloco-cab"><h2 id="formImpTit">Novo impacto</h2></div>
+      <div class="campos">
+        <label>Data<input type="date" name="data" required></label>
+        <label>Serviço<input name="servico" list="listaServicos" required></label>
+        <label class="largo">Motivo<textarea name="motivo" rows="2" required></textarea></label>
+        <label>Tempo perdido<input name="tempo" placeholder="ex.: 8H, 2 DIAS"></label>
+        <label>Quando<input name="quando" placeholder="ex.: IÇAMENTO"></label>
+        <label class="largo">Paralisação / efeito<input name="paralisacao"></label>
+        <label>Data solucionada<input type="date" name="solucionado"></label>
+      </div>
+      <div class="acoes">
+        <button type="button" class="btn perigo" id="btnExcluirImp" hidden>Excluir</button>
+        <span class="espaco"></span>
+        <button type="button" class="btn" id="btnCancelarImp">Cancelar</button>
+        <button type="submit" class="btn primario">Salvar na planilha</button>
+      </div>
+    </form>
+    <datalist id="listaServicos"></datalist>
+    <div class="bloco"><div class="tabela-rolagem"><table id="tabImp"></table></div></div>
+  </section>
+
+  <!-- TENDÊNCIAS -->
+  <section id="aba-tendencia" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Atingimento semanal por empresa</h2><div class="legenda" id="legTend"></div></div>
+      <div class="grafico"><canvas id="gAting"></canvas></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Produção semanal × meta</h2><select id="selServ"></select></div>
+      <div class="grafico"><canvas id="gServ"></canvas></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
