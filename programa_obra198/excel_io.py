@@ -352,6 +352,46 @@ TABELAS = {
             ("obs", "Observação", "txt", 28), ("origem", "Origem", "txt", 30),
         ],
     },
+    "bm_atividades": {
+        "aba": "BM ATIVIDADES",
+        "titulo": "BM — CATÁLOGO DE ATIVIDADES POR EMPRESA (memória de cálculo). Cada atividade tem peso dentro do item e quantidade contratada; o valor do item é o do contrato QPC e RÓTULA. 'Coluna no controle' liga a atividade a um serviço do lançamento de produção.",
+        "cor": "FF1F4E79",
+        "campos": [
+            ("codigo", "Código", "txt", 16), ("empresa", "Empresa", "txt", 14), ("item", "Item do BM", "txt", 12),
+            ("item_desc", "Descrição do item", "txt", 40), ("atividade", "Atividade (serviço)", "txt", 44), ("unidade", "Unidade", "txt", 9),
+            ("qtd", "Quantidade contratada", "num", 14), ("peso", "Peso da atividade no item", "num", 12),
+            ("valor_qpc", "Valor do item QPC (R$)", "num", 16), ("valor_rotula", "Valor do item RÓTULA (R$)", "num", 16),
+            ("controle", "Coluna no controle de produção", "txt", 20), ("obs", "Observação", "txt", 30),
+        ],
+    },
+    "bm_periodos": {
+        "aba": "BM PERÍODOS",
+        "titulo": "BM — DATA DE CORTE DE CADA MEDIÇÃO. O período vai do dia seguinte ao corte anterior até a data de corte (inclusive).",
+        "cor": "FF1F4E79",
+        "campos": [
+            ("empresa", "Empresa", "txt", 14), ("bm", "Nº do BM", "num", 10), ("corte", "Data de corte", "data", 14),
+            ("obs", "Observação", "txt", 40),
+        ],
+    },
+    "bm_apontamentos": {
+        "aba": "BM APONTAMENTO",
+        "titulo": "BM — APONTAMENTO POR SERVIÇO. Quantidade executada por dia em cada atividade do catálogo (as atividades ligadas a uma coluna do controle de produção são lançadas lá).",
+        "cor": "FF1F4E79",
+        "campos": [
+            ("data", "Data", "data", 12), ("empresa", "Empresa", "txt", 14), ("codigo", "Código da atividade", "txt", 16),
+            ("quantidade", "Quantidade", "num", 12), ("obs", "Observação / nº RDO", "txt", 34),
+        ],
+    },
+    "bm_deducoes": {
+        "aba": "BM DEDUÇÕES",
+        "titulo": "BM — DEDUÇÕES MANUAIS (adiantamento, refeição, outros). Equipamentos e combustível são descontados automaticamente a partir de USO EQUIPAMENTOS.",
+        "cor": "FF1F4E79",
+        "campos": [
+            ("empresa", "Empresa", "txt", 14), ("bm", "Nº do BM", "num", 10), ("data", "Data", "data", 12),
+            ("tipo", "Tipo", "txt", 16), ("descricao", "Descrição", "txt", 40), ("valor", "Valor a deduzir (R$)", "num", 16),
+            ("contrato", "Contrato (RÓTULA, QPC ou AMBOS)", "txt", 18),
+        ],
+    },
 }
 LINHA_DADOS_TABELA = 3
 
@@ -676,6 +716,34 @@ def garantir_abas(caminho, pasta_backup=None):
 
     _reescrever(caminho, preparar, pasta_backup)
     return [t["aba"] for t in faltando]
+
+
+CATALOGO_BM = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_bm.json")
+
+
+def semear_catalogo_bm(caminho, pasta_backup=None):
+    """Carrega o catálogo inicial de atividades do BM na aba BM ATIVIDADES, se ela estiver vazia.
+
+    Devolve o número de atividades gravadas (0 se já havia dados ou o catálogo não existe)."""
+    import json
+    if not os.path.exists(CATALOGO_BM):
+        return 0
+    wb = openpyxl.load_workbook(caminho, read_only=True)
+    try:
+        if TABELAS["bm_atividades"]["aba"] not in wb.sheetnames or _ler_tabela(wb, TABELAS["bm_atividades"]):
+            return 0
+    finally:
+        wb.close()
+    with open(CATALOGO_BM, encoding="utf-8") as f:
+        atividades = json.load(f)["atividades"]
+    aba = TABELAS["bm_atividades"]["aba"]
+    alteracoes = []
+    for i, a in enumerate(atividades):
+        lin = LINHA_DADOS_TABELA + i
+        for col, v, t in valores_registro("bm_atividades", a):
+            alteracoes.append((aba, f"{col}{lin}", v, t))
+    gravar_celulas(caminho, alteracoes, pasta_backup=pasta_backup)
+    return len(atividades)
 
 
 def _backup(caminho, pasta, manter):

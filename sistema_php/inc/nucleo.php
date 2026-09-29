@@ -36,6 +36,7 @@ function bd()
             throw new RuntimeException('Sistema não instalado. Acesse instalar.php.');
         }
         $pdo = conectar($c);
+        garantir_esquema($pdo, $c);
     }
     return $pdo;
 }
@@ -60,7 +61,32 @@ function tabelas_spec()
         'usos' => ['data' => 'data', 'equipamento' => 'txt', 'empresa' => 'txt', 'uso' => 'txt', 'quantidade' => 'num',
             'custo' => 'num', 'litros' => 'num', 'preco_litro' => 'num', 'custo_combustivel' => 'num', 'operador' => 'txt',
             'obs' => 'txt', 'origem' => 'txt'],
+        'bm_atividades' => ['codigo' => 'txt', 'empresa' => 'txt', 'item' => 'txt', 'item_desc' => 'txt', 'atividade' => 'txt',
+            'unidade' => 'txt', 'qtd' => 'num', 'peso' => 'num', 'valor_qpc' => 'num', 'valor_rotula' => 'num',
+            'controle' => 'txt', 'obs' => 'txt'],
+        'bm_periodos' => ['empresa' => 'txt', 'bm' => 'num', 'corte' => 'data', 'obs' => 'txt'],
+        'bm_apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'codigo' => 'txt', 'quantidade' => 'num', 'obs' => 'txt'],
+        'bm_deducoes' => ['empresa' => 'txt', 'bm' => 'num', 'data' => 'data', 'tipo' => 'txt', 'descricao' => 'txt',
+            'valor' => 'num', 'contrato' => 'txt'],
     ];
+}
+
+const ESQUEMA_VERSAO = 2;
+
+// Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
+function garantir_esquema(PDO $pdo, array $c)
+{
+    try {
+        $v = $pdo->query("SELECT valor FROM sistema WHERE chave = 'esquema'")->fetchColumn();
+    } catch (Exception $e) {
+        return;
+    }
+    if ((int)$v >= ESQUEMA_VERSAO) {
+        return;
+    }
+    criar_esquema($pdo, $c['driver']);
+    $pdo->prepare("DELETE FROM sistema WHERE chave = 'esquema'")->execute();
+    $pdo->prepare("INSERT INTO sistema (chave, valor) VALUES ('esquema', ?)")->execute([(string)ESQUEMA_VERSAO]);
 }
 
 function criar_esquema(PDO $pdo, $driver)

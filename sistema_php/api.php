@@ -52,6 +52,7 @@ try {
     $acoes = [
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
+        'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -215,6 +216,30 @@ function acao_registro(array $corpo)
             throw new ErroValidacao('Tipo de movimentação deve ser ENTRADA, SAÍDA ou AJUSTE.');
         }
     }
+    if (in_array($tabela, ['bm_periodos', 'bm_apontamentos', 'bm_deducoes'], true) && !empty($campos['empresa'])) {
+        $campos['empresa'] = mb_strtoupper(trim($campos['empresa']));
+        if (!q('SELECT id FROM empresas WHERE nome = ?', [$campos['empresa']])->fetch()) {
+            throw new ErroValidacao('Empresa inválida.');
+        }
+    }
+    if ($tabela === 'bm_periodos' && empty($campos['corte'])) {
+        throw new ErroValidacao('Informe a data de corte do BM.');
+    }
+    if ($tabela === 'bm_apontamentos') {
+        if (isset($campos['quantidade']) && (numero($campos['quantidade']) ?? 0) < 0) {
+            throw new ErroValidacao('Quantidade não pode ser negativa.');
+        }
+        if (!q('SELECT id FROM bm_atividades WHERE codigo = ?', [$campos['codigo'] ?? ''])->fetch()) {
+            throw new ErroValidacao('Atividade não encontrada no catálogo do BM.');
+        }
+    }
+    if ($tabela === 'bm_deducoes') {
+        $campos['tipo'] = mb_strtoupper((string)($campos['tipo'] ?? 'OUTROS'));
+        $campos['contrato'] = mb_strtoupper((string)($campos['contrato'] ?? 'RÓTULA'));
+        if (!in_array($campos['contrato'], ['RÓTULA', 'QPC', 'AMBOS'], true)) {
+            throw new ErroValidacao('Contrato deve ser RÓTULA, QPC ou AMBOS.');
+        }
+    }
     $vals = [];
     foreach ($specs[$tabela] as $c => $tipo) {
         if (!array_key_exists($c, $campos)) {
@@ -239,6 +264,49 @@ function acao_registro(array $corpo)
         }
     }
     return gravar_linha($tabela, $id, $vals);
+}
+
+function acao_bm_apontar(array $corpo)
+{
+    $n = 0;
+    foreach (($corpo['alteracoes'] ?? []) as $a) {
+        $emp = (string)($a['empresa'] ?? '');
+        $cod = (string)($a['codigo'] ?? '');
+        $data = (string)($a['data'] ?? '');
+        $atv = q('SELECT controle, empresa FROM bm_atividades WHERE codigo = ?', [$cod])->fetch();
+        if (!$atv || $atv['empresa'] !== $emp) {
+            throw new ErroValidacao("Atividade inválida para $emp: $cod");
+        }
+        if (!empty($atv['controle'])) {
+            throw new ErroValidacao("A atividade $cod é lançada pela coluna '{$atv['controle']}' do controle de produção.");
+        }
+        if (!data_valida($data)) {
+            throw new ErroValidacao("Data inválida: $data");
+        }
+        $q = ($a['quantidade'] ?? null) === null || $a['quantidade'] === '' ? null : numero($a['quantidade']);
+        if ($q !== null && $q < 0) {
+            throw new ErroValidacao('Quantidade não pode ser negativa.');
+        }
+        $ex = q('SELECT id FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$emp, $cod, $data])->fetch();
+        if ($q === null) {
+            if ($ex) {
+                q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+                $n++;
+            }
+        } elseif ($ex) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$q, $ex['id']]);
+            $n++;
+        } else {
+            q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade) VALUES (?, ?, ?, ?)', [$data, $emp, $cod, $q]);
+            $n++;
+        }
+    }
+    return $n;
+}
+
+function acao_bm_semear()
+{
+    throw new ErroValidacao('O catálogo do BM chega com a importação dos dados do programa local (Administração → Importar dados).');
 }
 
 function acao_importar_mensal()

@@ -224,6 +224,46 @@ def _preparar_campos(tabela, campos):
     return campos
 
 
+def acao_semear_bm(corpo):
+    _garantir()
+    n = xio.semear_catalogo_bm(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
+    _cache["chave"] = None
+    return {"atividades": n}
+
+
+def acao_bm_apontar(corpo):
+    """Grava (insere, altera ou apaga) quantidades por atividade do BM em uma única gravação."""
+    _garantir()
+    m = modelo()
+    spec = xio.TABELAS["bm_apontamentos"]
+    atividades = {a["codigo"]: a for a in m["tabelas"]["bm_atividades"]}
+    empresas = {e["nome"] for e in m["empresas"]}
+    existentes = {(r["empresa"], r["codigo"], r["data"]): r["linha"] for r in m["tabelas"]["bm_apontamentos"]}
+    reservadas, alteracoes = [], []
+    for a in corpo.get("alteracoes", []):
+        emp, cod, data, qtd = a.get("empresa"), a.get("codigo"), a.get("data"), a.get("quantidade")
+        if emp not in empresas or cod not in atividades or atividades[cod]["empresa"] != emp:
+            raise ErroValidacao(f"Atividade inválida para {emp}: {cod}")
+        if atividades[cod].get("controle"):
+            raise ErroValidacao(f"A atividade {cod} é lançada pela coluna '{atividades[cod]['controle']}' do controle de produção.")
+        if not _eh_data(data):
+            raise ErroValidacao(f"Data inválida: {data}")
+        qtd = xio.numero(qtd) if qtd not in (None, "") else None
+        if qtd is not None and qtd < 0:
+            raise ErroValidacao("Quantidade não pode ser negativa.")
+        lin = existentes.get((emp, cod, data))
+        if qtd is None:
+            if lin:
+                alteracoes += [(spec["aba"], f"{xio.col_letra(i)}{lin}", None, None) for i in range(1, len(spec["campos"]) + 1)]
+            continue
+        if not lin:
+            lin = _proxima_linha_livre("bm_apontamentos", reservadas)
+            reservadas.append(lin)
+        for col, v, t in xio.valores_registro("bm_apontamentos", {"data": data, "empresa": emp, "codigo": cod, "quantidade": qtd}):
+            alteracoes.append((spec["aba"], f"{col}{lin}", v, t))
+    return gravar(alteracoes)
+
+
 def acao_registro(corpo):
     tabela = corpo.get("tabela")
     if tabela not in xio.TABELAS:
@@ -278,6 +318,8 @@ def acao_importar_equip(corpo):
 ACOES = {
     "/api/registro": acao_registro,
     "/api/equip/importar": acao_importar_equip,
+    "/api/bm/semear": acao_semear_bm,
+    "/api/bm/apontar": acao_bm_apontar,
     "/api/producao": acao_producao,
     "/api/metas": acao_metas,
     "/api/impacto": acao_impacto,
@@ -401,6 +443,9 @@ def main():
         criadas = xio.garantir_abas(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
         if criadas:
             print(" Abas criadas na planilha: " + ", ".join(criadas))
+        n = xio.semear_catalogo_bm(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
+        if n:
+            print(f" Catálogo de medição (BM) carregado: {n} atividades.")
     except xio.PlanilhaBloqueada:
         print(" Aviso: planilha aberta no Excel; as abas novas serão criadas no primeiro salvamento.")
     modelo()

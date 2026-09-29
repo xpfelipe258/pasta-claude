@@ -36,6 +36,7 @@ def gerar_dados_iniciais(planilha):
                     if f.lower().endswith((".xlsm", ".xlsx")) and xio.eh_planilha_estoque(os.path.join(RAIZ, f))), "")
         app.CFG["planilha_estoque"] = est
         xio.garantir_abas(copia)
+        xio.semear_catalogo_bm(copia)
         app.acao_importar_equip({})
         m = app.modelo()
     pacote = {

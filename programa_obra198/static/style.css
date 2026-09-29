@@ -256,3 +256,22 @@ form.inline { display: flex; gap: 6px; align-items: center; }
 form.inline input { width: 130px; }
 td.detalhe { max-width: 520px; white-space: normal; word-break: break-word; }
 code { background: var(--pend-bg); padding: 1px 5px; border-radius: 4px; }
+
+/* ---- Medição (BM) */
+.pilha { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rot-sel { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--fg2); }
+.rot-sel select { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; max-width: 100%; }
+tr.grupo-item td { background: var(--bg); font-size: .82rem; }
+.grade-lanc tr.grupo-item td.fixa { background: var(--bg); }
+.sub-ativ { padding-left: 22px !important; font-weight: 400 !important; }
+.grade-lanc td.sub-ativ { white-space: normal; min-width: 260px; max-width: 340px; }
+.tabela-bm tr.linha-item { cursor: pointer; }
+.tabela-bm tr.linha-item:hover td { background: var(--bg); }
+.tabela-bm tr.linha-ativ td { font-size: .82rem; color: var(--fg2); }
+.tabela-bm tfoot td { font-weight: 700; background: var(--bg); }
+.seta { display: inline-block; width: 1em; color: var(--fg3); }
+.tabela-bm td:first-child { min-width: 300px; white-space: normal; }
+.tabela-bm th, .tabela-bm td { white-space: nowrap; }
+.tabela-bm td:first-child { white-space: normal; }
+#tabLanc.por-servico { table-layout: fixed; width: 1298px; }
+#tabLanc.por-servico td.sub-ativ, #tabLanc.por-servico td.fixa { max-width: none; min-width: 0; }

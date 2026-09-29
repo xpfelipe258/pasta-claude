@@ -47,11 +47,12 @@ No topo da tela, clique em **Exportar dados para o sistema online**. O arquivo `
 |---|---|---|
 | Painel | KPIs, farol por serviço e pontos de atenção para o período escolhido (data início e data fim) | leitura |
 | Programação semanal | Meta × realizado dia a dia e o que está planejado para a semana | leitura |
-| Lançamentos | Grade editável por empresa e dia, com todos os serviços e o nº do RDO | abas CONTROLE EJ / CMM / GLOBO AÇOS |
+| Lançamentos | Grade editável por empresa e dia, com todos os serviços e o nº do RDO. O modo **Por serviço (BM)** mostra uma linha por atividade do boletim de medição | abas CONTROLE EJ / CMM / GLOBO AÇOS e BM APONTAMENTO |
 | Avanço físico | Escopo, acumulado, ritmo e projeção de término versus prazo | leitura |
 | Dashboard cliente | Avanço ponderado, curva S, previsto do cliente × realizado por serviço e frente, insights e resumo para enviar | leitura |
 | Estoque | Saldo de cada material × necessidade da meta desta semana e da próxima, sugestão de compra | ESTOQUE MATERIAIS e MOVIMENTAÇÃO ESTOQUE |
 | Equipamentos | Custo de equipamentos e combustível por empresa, por equipamento e por semana | CADASTRO EQUIPAMENTOS e USO EQUIPAMENTOS |
+| Medição (BM) | Boletim por empresa: avanço por item e atividade, valores nos contratos QPC e RÓTULA, deduções de equipamento e combustível, valor a faturar e evolução. Também cadastra períodos (cortes), deduções manuais e o catálogo de atividades | BM ATIVIDADES, BM PERÍODOS, BM APONTAMENTO e BM DEDUÇÕES |
 | Metas | Meta/dia, dias úteis e GAP por semana, com opção de aplicar às semanas seguintes | METAS EMPRESAS (F, G e I) |
 | Impactos | Registrar, editar, solucionar e excluir impactos | LISTA DE IMPACTO |
 | Tendências | Para o serviço escolhido, compara as empresas semana a semana e no período | leitura |
