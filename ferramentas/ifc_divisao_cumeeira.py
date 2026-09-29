@@ -1,9 +1,9 @@
 """Divide o IFC do galpão G200 na cumeeira (linha média entre os eixos D e E)
-e totaliza telhas (m²) e peso das peças (kg) de cada metade.
+e totaliza as telhas (m², contrato GLOBO, sem divisão) e a área de cobertura de cada metade.
 
 Uso: python ifc_divisao_cumeeira.py LSF-MET-EX-200-200-BIM-R0D.ifc
 Requer: pip install ifcopenshell numpy
-Lado D-A = EJ ou CMM (metade dos eixos D..A); lado E-H = a outra empresa.
+Lado D-A = EJ ou CMM (eixos D..A); lado E-H = a outra empresa. Telhas (GLOBO) não são divididas.
 """
 import collections
 import sys
@@ -47,27 +47,27 @@ def filho(a):
             return o
 
 
+# Telhas: todas do contrato GLOBO, de A até H (sem divisão por empresa).
 # A posição do conjunto (assembly) é a mesma para todos: usar a da peça filha.
+# Pesos do IFC NÃO são confiáveis (telha de fechamento com 2.728 t, dutos com 3.673 t):
+# usar somente áreas e contagens.
 area = collections.defaultdict(float)
 n_telhas = collections.Counter()
+cob_por_lado = collections.defaultdict(float)
 for a in f.by_type("IfcElementAssembly"):
     nome = (a.Name or "")[:16]
     c = filho(a)
     if c is None or not nome.startswith("TELHA"):
         continue
-    k = (nome, lado(c))
-    n_telhas[k] += 1
-    area[k] += quants(c).get("Length", 0) / 1000 * quants(a).get("Width", 490.9) / 1000
+    n_telhas[nome] += 1
+    m2 = quants(c).get("Length", 0) / 1000 * quants(a).get("Width", 490.9) / 1000
+    area[nome] += m2
+    if nome == "TELHA COBERTURA":
+        cob_por_lado[lado(c)] += m2
 
-peso = collections.defaultdict(float)
-for e in f.by_type("IfcElement"):
-    if e.is_a("IfcElementAssembly") or e.is_a("IfcDiscreteAccessory"):
-        continue
-    peso[(e.is_a(), lado(e))] += quants(e).get("NetWeight", 0)
-
-print("TELHAS (n, m²)")
+print("TELHAS - contrato GLOBO, eixos A-H (n, m²)")
 for k in sorted(area):
-    print(f"  {k[0]:<18}{k[1]}  n={n_telhas[k]:>5}  {area[k]:>11,.1f} m²")
-print("PESO DAS PEÇAS (kg)")
-for k in sorted(peso):
-    print(f"  {k[0]:<12}{k[1]}  {peso[k]:>12,.0f}")
+    print(f"  {k:<18}n={n_telhas[k]:>5}  {area[k]:>11,.1f} m²")
+print("Referência para EJ/CMM (estrutura da cobertura, m² de telha por metade):")
+for l, v in sorted(cob_por_lado.items()):
+    print(f"  lado {l}: {v:>11,.1f} m²")

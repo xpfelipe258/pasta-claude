@@ -136,20 +136,24 @@ a sua metade, não sobre a cobertura inteira.
 
 ### Cruzamento IFC x BM (modelo `LSF-MET-EX-200-200-BIM-R0D`, 08/07/2026)
 
-Corte na cumeeira, linha média entre os eixos D e E (script em
-`ferramentas/ifc_divisao_cumeeira.py`). O modelo é simétrico:
+**Telhas: contrato único da GLOBO, eixos A a H, sem divisão por empresa.**
+Área = comprimento da peça x largura útil (490,9 mm). Script em
+`ferramentas/ifc_divisao_cumeeira.py`.
 
-| Serviço | Metade D-A | Metade E-H | Modelo total | BM (contrato) | Dif. |
-|---|---|---|---|---|---|
-| Telha cobertura (m²) | 39.170,9 | 39.170,9 | 78.341,7 | 75.835,93 | +3,3% |
-| Telha fechamento (m²) | 5.790,1 | 5.793,7 | 11.583,8 | 12.082,65 | -4,1% |
-| Telha marquise (m²) | 2.061,2 | 2.104,2 | 4.165,4 | 4.472,70 | -6,9% |
-| Peso das peças (t) | 1.683 | 1.685 | 3.368 | — | — |
+| Serviço (GLOBO) | Peças | Modelo | BM (contrato) | Dif. |
+|---|---|---|---|---|
+| 3.2.1 Telha de cobertura | 1.800 | 78.341,7 m² | 75.835,93 m² | +3,3% |
+| 3.2.2 Telha de fechamento | 1.574 | 11.583,8 m² | 12.082,65 m² | -4,1% |
+| 3.2.5 Telha de marquise | 1.572 | 4.165,4 m² | 4.472,70 m² | -6,9% |
 
-Área de telha = comprimento da peça x largura útil (490,9 mm). Cada metade tem
-900 telhas de cobertura. O peso das peças não tem contagem dupla (conjuntos não
-carregam peso próprio). A diferença contra o BM ainda precisa de explicação
-(área projetada em planta x área inclinada, por exemplo).
+**Estrutura (EJ e CMM):** a cumeeira (entre os eixos D e E) divide a cobertura
+em duas metades iguais, 39.170,9 m² de telha cada, contra 37.917,965 m² no BM
+de cada empresa.
+
+**Pesos do IFC não são confiáveis** e não devem entrar no painel: a telha de
+fechamento aparece com 2.728 t e, no modelo sem telhas, os dutos com 3.673 t
+(sólidos, não perfis). O peso da estrutura principal (fornecimento) não está
+nesses arquivos. Usar somente áreas e contagens.
 
 ---
 
