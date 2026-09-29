@@ -66,6 +66,47 @@ ponderada dos % das atividades, com o "Peso no avanço" de METAS CLIENTE.
 - Itens fornecidos pela RÓTULA à subempreiteira (material, refeição, equipamento)
   viram dedução no BM, como já ocorre no "VALOR A FATURAR" (adiantamento, almoço).
 
+## Ponte produção -> BM: aba `BM2-MC MONTAGEM` ("proporção de atividades do contrato")
+
+Confirmado: a aba faz a ponderação. Cada item do BM é dividido em atividades
+com peso (coluna G, soma 100%) e quantidade (coluna D). O avanço do item é a
+soma dos avanços de cada atividade vezes o peso, e o BM lê o resultado na
+célula O10 (ver `J15 = O10 - H15` em `fluxo_boletim_medicao.md`).
+
+Item 3.1.1 Cobertura do galpão (EJ, metade de 37.917,965 m²):
+
+| Atividade | Peso | Qtd (metade do total) | Acumulado digitado | % da atividade |
+|---|---|---|---|---|
+| Instalação de vigas principais senoidais | 20,0% | 138 un (276/2) | 62 | 44,9% |
+| Pré-montagem de joist | 27,5% | 408,5 un (817/2) | 150 | 36,7% |
+| Instalação de joist | 37,5% | 408,5 un (817/2) | 169 | 41,4% |
+| Contraventamento de pilares intermediários | 5,0% | 224 un (448/2) | 29 | 12,9% |
+| Acabamento / checklist (ruas entregues) | 10,0% | 66,5 vãos (19x7/2) | 0 | 0% |
+| **Avanço do item (O10)** | 100% | | | **35,24%** |
+
+O item 3.1.1 pesa 70,3% do contrato da EJ (célula F10); fechamento lateral
+11,0% (3.1.2) e marquises 4,2% (3.1.3), cada um com sua própria lista de
+atividades e pesos.
+
+Achados:
+
+1. As quantidades do MC já são **metade do total do galpão** (276 vigas,
+   817 joists, 448 contraventos), o que confirma a divisão EJ/CMM na cumeeira.
+2. O acumulado das atividades (coluna N) é **digitado à mão**. A produção diária
+   tem apenas 3 das 5 atividades (pré-montagem, içamento de joist, vigas);
+   contraventamento e checklist não são lançados na planilha de produção.
+3. Os números não batem com a planilha de produção do repositório: EJ tem
+   pré-montagem 128, joist 162 e vigas 67 lançados, contra 150, 169 e 62 no MC.
+   Pode ser data de corte diferente, mas é exatamente o risco da digitação manual.
+4. Contagem de joists da METAS CLIENTE (396 na Fase 1) contra 817 do MC no galpão
+   inteiro sugere que a Fase 1 tem cerca de 48% dos joists e 44% das vigas (121
+   de 276). Hipótese a confirmar; não é proporção de área.
+
+Regra proposta: o acumulado do MC deixa de ser digitado e passa a vir da produção
+até a **data de corte do BM**; contraventamento e checklist ganham lançamento diário.
+
+---
+
 ## Fluxo geral
 
 ```
