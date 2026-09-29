@@ -120,6 +120,22 @@ VALOR A FATURAR = valor bruto medido
 
 ---
 
+## Divisão da cobertura principal entre EJ e CMM
+
+A cobertura principal é repartida **ao meio** entre as duas empresas de estrutura:
+
+```
+Cobertura total (telhas, GLOBO) = 75.835,93 m²
+EJ  (item 3.1.1 montagem)       = 37.917,965 m²  (50%)
+CMM (item 3.1.1 montagem)       = 37.917,965 m²  (50%)
+```
+
+Ao cruzar com o IFC, o modelo do galpão deve ser dividido em duas metades
+(eixos de divisão a confirmar). O percentual de cada empresa é sempre sobre
+a sua metade, não sobre a cobertura inteira.
+
+---
+
 ## Serviços por status
 
 | Item | Escopo | Empresas | Status |
