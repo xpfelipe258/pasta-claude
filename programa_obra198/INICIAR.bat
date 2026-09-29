@@ -27,5 +27,7 @@ if not exist ".instalado" (
   echo ok> .instalado
 )
 
+:inicio
 %PY% app.py %*
+if errorlevel 3 if not errorlevel 4 goto inicio
 pause

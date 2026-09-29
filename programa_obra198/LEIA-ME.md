@@ -12,6 +12,23 @@ Tudo o que é lançado no sistema é gravado na própria planilha, e o que é al
 
 Para escolher outra planilha, informe o caminho em `config.json`, no campo `"planilha"`.
 
+## Atualização automática (configuração única)
+
+Toda vez que o `INICIAR.bat` abre, o programa verifica o GitHub e, se houver versão nova, atualiza os próprios arquivos e reinicia sozinho. A planilha, os backups e o `config.json` nunca são alterados.
+
+Como o repositório é privado, é preciso um token de leitura (uma vez só):
+
+1. Em github.com, entre em **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Em **Repository access**, escolha **Only select repositories** e marque `pasta-claude`.
+3. Em **Permissions → Repository permissions → Contents**, escolha **Read-only**. Gere e copie o token.
+4. Na primeira vez que abrir o `INICIAR.bat` com esta versão, cole o token quando ele pedir. Ele fica gravado no `config.json`, na seção `"atualizacao"`.
+
+Sem internet, o programa segue normalmente com a versão atual.
+
+## Levar os dados para o sistema online
+
+No topo da tela, clique em **Exportar dados para o sistema online**. O arquivo `obra198_dados.json` é enviado em **Administração → Importar dados** do sistema PHP.
+
 ## Telas
 
 | Tela | O que faz | Onde grava na planilha |

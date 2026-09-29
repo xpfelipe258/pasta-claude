@@ -14,6 +14,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+import atualizador
 import excel_io as xio
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -293,10 +294,27 @@ class Handler(BaseHTTPRequestHandler):
                     v = _cache["chave"]
                 return self._json(200, {
                     "versao": v,
+                    "recursos": {"importar_mensal": True, "exportar": True},
                     "arquivo": os.path.basename(CFG["planilha"]),
                     "modificado": dt.datetime.fromtimestamp(os.path.getmtime(CFG["planilha"])).isoformat(timespec="seconds"),
                     "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
                 })
+            if caminho == "/api/exportar":
+                with _trava:
+                    m = modelo()
+                pacote = {"formato": "obra198", "versao_formato": 1,
+                          "gerado_em": dt.datetime.now().isoformat(timespec="seconds"),
+                          "origem": os.path.basename(CFG["planilha"]),
+                          "obra": {"nome": "OBRA 198", "data_inicio": m["datas"][0], "data_fim": m["datas"][-1]},
+                          "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"}}
+                dados = json.dumps(pacote, ensure_ascii=False, default=str).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="obra198_dados.json"')
+                self.send_header("Content-Length", str(len(dados)))
+                self.end_headers()
+                self.wfile.write(dados)
+                return
         except Exception as e:  # leitura falhou (ex.: Excel salvando o arquivo no momento)
             return self._json(503, {"erro": f"Não foi possível ler a planilha: {e}"})
         self._estatico(caminho)
@@ -343,8 +361,22 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"erro": f"Falha ao gravar: {e}"})
 
 
+def verificar_atualizacao():
+    if os.environ.get("OBRA198_SEM_ATUALIZAR"):
+        return
+    caminho = os.path.join(BASE, "config.json")
+    arquivo = {}
+    if os.path.exists(caminho):
+        with open(caminho, encoding="utf-8") as f:
+            arquivo = json.load(f)
+    arquivo = atualizador.configurar_token(caminho, arquivo)
+    if atualizador.atualizar(BASE, arquivo.get("atualizacao")):
+        sys.exit(3)  # INICIAR.bat reinicia com o código novo
+
+
 def main():
     global CFG
+    verificar_atualizacao()
     CFG = carregar_config()
     host = "0.0.0.0" if CFG["acesso_rede"] else "127.0.0.1"
     porta = int(CFG["porta"])
