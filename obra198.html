@@ -1,0 +1,1079 @@
+<title>Obra 198 - Controle</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #f8f7f4;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --fg: #1a1917;
+  --fg-muted: #6b6860;
+  --fg-dim: #9e9b93;
+  --border: #e5e2da;
+  --border-focus: #2563eb;
+  --accent: #2563eb;
+  --accent-light: #dbeafe;
+  --cat-ej: #2563eb;
+  --cat-cmm: #f59e0b;
+  --cat-ga: #10b981;
+  --cat-ej-bg: rgba(37,99,235,0.12);
+  --cat-cmm-bg: rgba(245,158,11,0.12);
+  --cat-ga-bg: rgba(16,185,129,0.12);
+  --verde: #16a34a;
+  --verde-bg: #dcfce7;
+  --amarelo: #ca8a04;
+  --amarelo-bg: #fef9c3;
+  --vermelho: #dc2626;
+  --vermelho-bg: #fee2e2;
+  --pendente-bg: #f3f4f6;
+  --pendente: #9ca3af;
+  --shadow: 0 1px 3px rgba(26,25,23,0.06);
+  --shadow-lg: 0 4px 12px rgba(26,25,23,0.08);
+  --radius: 8px;
+  --radius-lg: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413;
+    --bg-card: #1e1e1c;
+    --bg-input: #2a2a27;
+    --fg: #e8e6e1;
+    --fg-muted: #9e9b93;
+    --fg-dim: #6b6860;
+    --border: #3a3935;
+    --border-focus: #3b82c8;
+    --accent: #3b82c8;
+    --accent-light: rgba(59,130,200,0.15);
+    --cat-ej: #3b82c8;
+    --cat-cmm: #b87d22;
+    --cat-ga: #258f6b;
+    --cat-ej-bg: rgba(59,130,200,0.15);
+    --cat-cmm-bg: rgba(184,125,34,0.15);
+    --cat-ga-bg: rgba(37,143,107,0.15);
+    --verde: #22c55e;
+    --verde-bg: rgba(34,197,94,0.15);
+    --amarelo: #eab308;
+    --amarelo-bg: rgba(234,179,8,0.15);
+    --vermelho: #ef4444;
+    --vermelho-bg: rgba(239,68,68,0.15);
+    --pendente-bg: #2a2a27;
+    --pendente: #6b6860;
+    --shadow: 0 1px 3px rgba(0,0,0,0.2);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413;
+  --bg-card: #1e1e1c;
+  --bg-input: #2a2a27;
+  --fg: #e8e6e1;
+  --fg-muted: #9e9b93;
+  --fg-dim: #6b6860;
+  --border: #3a3935;
+  --border-focus: #3b82c8;
+  --accent: #3b82c8;
+  --accent-light: rgba(59,130,200,0.15);
+  --cat-ej: #3b82c8;
+  --cat-cmm: #b87d22;
+  --cat-ga: #258f6b;
+  --cat-ej-bg: rgba(59,130,200,0.15);
+  --cat-cmm-bg: rgba(184,125,34,0.15);
+  --cat-ga-bg: rgba(37,143,107,0.15);
+  --verde: #22c55e;
+  --verde-bg: rgba(34,197,94,0.15);
+  --amarelo: #eab308;
+  --amarelo-bg: rgba(234,179,8,0.15);
+  --vermelho: #ef4444;
+  --vermelho-bg: rgba(239,68,68,0.15);
+  --pendente-bg: #2a2a27;
+  --pendente: #6b6860;
+  --shadow: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.3);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  padding-inline: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.125rem; margin: 0 0 12px; }
+h3 { font-size: 0.875rem; margin: 0; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+  position: sticky; top: env(safe-area-inset-top, 0px);
+  background: var(--bg); z-index: 50;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600;
+}
+.badge-ej { background: var(--cat-ej-bg); color: var(--cat-ej); }
+.badge-cmm { background: var(--cat-cmm-bg); color: var(--cat-cmm); }
+.badge-ga { background: var(--cat-ga-bg); color: var(--cat-ga); }
+
+.week-nav {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.875rem;
+}
+.week-nav button {
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--fg);
+  width: 32px; height: 32px; border-radius: var(--radius);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+}
+.week-nav button:hover { border-color: var(--accent); }
+.week-nav span { font-weight: 600; min-width: 200px; text-align: center; }
+
+.tabs {
+  display: flex; gap: 4px; margin: 16px 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.tab {
+  padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+  font-size: 0.8125rem; font-weight: 500;
+  background: transparent; border: 1px solid var(--border); color: var(--fg-muted);
+  white-space: nowrap; transition: all 0.15s;
+}
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab:hover:not(.active) { border-color: var(--accent); color: var(--fg); }
+
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 16px;
+  box-shadow: var(--shadow); text-align: center;
+}
+.kpi-card .kpi-label {
+  font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin-bottom: 4px;
+}
+.kpi-card .kpi-value {
+  font-size: 1.75rem; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+.kpi-card .kpi-sub {
+  font-size: 0.75rem; color: var(--fg-dim); margin-top: 2px;
+}
+
+.farol {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600;
+}
+.farol-verde { background: var(--verde-bg); color: var(--verde); }
+.farol-amarelo { background: var(--amarelo-bg); color: var(--amarelo); }
+.farol-vermelho { background: var(--vermelho-bg); color: var(--vermelho); }
+.farol-pendente { background: var(--pendente-bg); color: var(--pendente); }
+
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: 0.8125rem;
+}
+th {
+  text-align: left; padding: 8px 12px;
+  font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--fg-muted);
+  border-bottom: 2px solid var(--border);
+  position: sticky; top: 0; background: var(--bg-card); z-index: 2;
+}
+td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; }
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius); }
+
+.section { margin-bottom: 24px; }
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; flex-wrap: wrap; gap: 8px;
+}
+
+.chart-container { position: relative; width: 100%; max-height: 320px; }
+.chart-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
+}
+@media (max-width: 700px) {
+  .chart-row { grid-template-columns: 1fr; }
+}
+
+.input-group {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 8px;
+  align-items: end; margin-bottom: 16px;
+}
+.input-group label { font-size: 0.75rem; color: var(--fg-muted); display: block; margin-bottom: 2px; }
+input[type="date"], input[type="number"], select {
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--fg);
+  padding: 6px 10px; border-radius: var(--radius); font-size: 0.8125rem;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+input:focus, select:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--accent-light); }
+
+.btn {
+  padding: 6px 14px; border-radius: var(--radius); font-size: 0.8125rem;
+  font-weight: 600; cursor: pointer; border: none; transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+.btn-ghost:hover { border-color: var(--accent); }
+
+.entry-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.entry-company {
+  border-left: 3px solid var(--border); padding-left: 16px;
+}
+.entry-company h3 { margin-bottom: 8px; }
+.entry-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 6px;
+}
+.entry-row label { font-size: 0.8125rem; flex: 1; min-width: 0; }
+.entry-row input {
+  width: 70px; text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 0.75rem; color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+[hidden] { display: none !important; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px; padding: 10px 20px;
+  background: var(--verde); color: #fff; border-radius: var(--radius);
+  font-size: 0.875rem; font-weight: 500; z-index: 100;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+</style>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Obra 198</h1>
+    <span class="badge badge-ej">EJ</span>
+    <span class="badge badge-cmm">CMM</span>
+    <span class="badge badge-ga">GLOBO</span>
+  </div>
+  <div class="week-nav">
+    <button onclick="changeWeek(-1)" aria-label="Semana anterior">&#8249;</button>
+    <span id="weekLabel"></span>
+    <button onclick="changeWeek(1)" aria-label="Semana seguinte">&#8250;</button>
+  </div>
+</div>
+
+<div class="tabs" role="tablist">
+  <div class="tab active" onclick="showTab('dashboard')" role="tab">Painel</div>
+  <div class="tab" onclick="showTab('semanal')" role="tab">Semanal</div>
+  <div class="tab" onclick="showTab('entrada')" role="tab">Entrada de Dados</div>
+  <div class="tab" onclick="showTab('historico')" role="tab">Tendencias</div>
+  <div class="tab" onclick="showTab('metas')" role="tab">Metas</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="tab-dashboard">
+  <div class="kpi-grid" id="kpiCards"></div>
+  <div class="section">
+    <div class="section-header"><h2>Farol Semanal</h2></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="farolTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="chart-row">
+    <div class="card">
+      <h3>Previsto vs Realizado - Semana</h3>
+      <div class="legend" id="legendBar"></div>
+      <div class="chart-container"><canvas id="chartBar"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Atingimento por Empresa (%)</h3>
+      <div class="chart-container"><canvas id="chartRadar"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- SEMANAL -->
+<div id="tab-semanal" hidden>
+  <div class="section">
+    <div class="section-header"><h2>Programacao Semanal (Seg-Sex)</h2></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="semanalTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header"><h2>Acompanhamento Diario</h2></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="acompTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header"><h2>Status Diario (Farol)</h2></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="statusTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ENTRADA DE DADOS -->
+<div id="tab-entrada" hidden>
+  <div class="section">
+    <div class="section-header">
+      <h2>Registrar Producao</h2>
+    </div>
+    <div class="input-group" style="grid-template-columns: auto 1fr;">
+      <div>
+        <label>Data</label>
+        <input type="date" id="entryDate">
+      </div>
+      <div style="text-align:right;align-self:end;">
+        <button class="btn btn-primary" onclick="saveEntry()">Salvar</button>
+      </div>
+    </div>
+    <div class="entry-grid" id="entryGrid"></div>
+  </div>
+</div>
+
+<!-- TENDENCIAS -->
+<div id="tab-historico" hidden>
+  <div class="chart-row">
+    <div class="card">
+      <h3>Producao Acumulada - EJ</h3>
+      <div class="chart-container"><canvas id="chartEJ"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Producao Acumulada - CMM</h3>
+      <div class="chart-container"><canvas id="chartCMM"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-row">
+    <div class="card">
+      <h3>Producao Acumulada - GLOBO ACOS</h3>
+      <div class="chart-container"><canvas id="chartGA"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Atingimento Semanal (%)</h3>
+      <div class="chart-container"><canvas id="chartAting"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- METAS -->
+<div id="tab-metas" hidden>
+  <div class="section">
+    <div class="section-header"><h2>Metas Diarias por Semana</h2></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="metasTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Salvo com sucesso</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.7/chart.umd.min.js"></script>
+<script>
+const EMBEDDED_DATA = {"metas":{"2026-07-20":{"fim":"2026-07-24","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-07-27":{"fim":"2026-07-31","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-08-03":{"fim":"2026-08-07","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-08-10":{"fim":"2026-08-14","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-08-17":{"fim":"2026-08-21","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-08-24":{"fim":"2026-08-28","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-08-31":{"fim":"2026-09-04","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[0,5],"GLOBO AÇOS|TELHAR":[0,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-09-07":{"fim":"2026-09-12","EJ|PREMONTAGEM":[5,4],"EJ|IÇAMENTO JOIST":[5,4],"EJ|VIGAS":[1.51,4],"CMM|PREMONTAGEM":[5,4],"CMM|IÇAMENTO JOIST":[5,4],"CMM|VIGAS":[2,4],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-09-14":{"fim":"2026-09-19","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-09-21":{"fim":"2026-09-25","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-09-28":{"fim":"2026-10-02","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-10-05":{"fim":"2026-10-09","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-10-12":{"fim":"2026-10-16","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-10-19":{"fim":"2026-10-23","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-10-26":{"fim":"2026-10-30","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-11-02":{"fim":"2026-11-06","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[0,5]},"2026-11-09":{"fim":"2026-11-13","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-11-16":{"fim":"2026-11-20","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-11-23":{"fim":"2026-11-27","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-11-30":{"fim":"2026-12-04","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-12-07":{"fim":"2026-12-11","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-12-14":{"fim":"2026-12-18","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-12-21":{"fim":"2026-12-25","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2026-12-28":{"fim":"2027-01-01","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-01-04":{"fim":"2027-01-08","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-01-11":{"fim":"2027-01-15","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-01-18":{"fim":"2027-01-22","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-01-25":{"fim":"2027-01-29","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-02-01":{"fim":"2027-02-05","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-02-08":{"fim":"2027-02-12","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-02-15":{"fim":"2027-02-19","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-02-22":{"fim":"2027-02-26","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-03-01":{"fim":"2027-03-05","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-03-08":{"fim":"2027-03-12","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-03-15":{"fim":"2027-03-19","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-03-22":{"fim":"2027-03-26","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-03-29":{"fim":"2027-04-02","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-04-05":{"fim":"2027-04-09","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-04-12":{"fim":"2027-04-16","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-04-19":{"fim":"2027-04-23","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-04-26":{"fim":"2027-04-30","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-05-03":{"fim":"2027-05-07","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-05-10":{"fim":"2027-05-14","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-05-17":{"fim":"2027-05-21","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-05-24":{"fim":"2027-05-28","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-05-31":{"fim":"2027-06-04","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-06-07":{"fim":"2027-06-11","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-06-14":{"fim":"2027-06-18","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-06-21":{"fim":"2027-06-25","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-06-28":{"fim":"2027-07-02","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]},"2027-07-05":{"fim":"2027-07-09","EJ|PREMONTAGEM":[6,5],"EJ|IÇAMENTO JOIST":[5,5],"EJ|VIGAS":[2,5],"CMM|PREMONTAGEM":[6,5],"CMM|IÇAMENTO JOIST":[5,5],"CMM|VIGAS":[2,5],"GLOBO AÇOS|PERFILAÇÃO":[19,5],"GLOBO AÇOS|TELHAR":[7,5],"GLOBO AÇOS|FECHAMENTO":[36,5]}},"prod":{"2026-07-20":{"ej_joist":1,"ej_vigas":4},"2026-07-22":{"ej_pre":3},"2026-07-23":{"ej_pre":2},"2026-07-24":{"ej_pre":3},"2026-07-25":{"ej_pre":3},"2026-07-28":{"ej_pre":0,"ej_joist":2,"ej_vigas":4},"2026-07-29":{"ej_pre":2,"ej_joist":4,"ej_vigas":2},"2026-07-30":{"ej_pre":3,"ej_joist":4},"2026-07-31":{"ej_pre":3,"ej_joist":2},"2026-08-01":{"ej_pre":3,"ej_joist":1,"ej_vigas":5},"2026-08-03":{"ej_pre":3,"ej_joist":4},"2026-08-04":{"ej_pre":1,"ej_joist":0,"cmm_pre":5},"2026-08-05":{"ej_joist":4,"cmm_pre":5},"2026-08-06":{"ej_joist":0,"ej_vigas":6,"cmm_pre":4},"2026-08-07":{"ej_joist":4,"cmm_pre":4},"2026-08-08":{"ej_joist":6},"2026-08-10":{"cmm_pre":4},"2026-08-11":{"ej_pre":0,"ej_joist":0,"ej_vigas":10,"cmm_pre":5},"2026-08-12":{"ej_joist":8,"cmm_pre":3},"2026-08-13":{"ej_joist":14,"cmm_pre":7},"2026-08-14":{"ej_joist":10,"ej_vigas":4,"cmm_pre":7},"2026-08-15":{"ej_vigas":5,"cmm_pre":1},"2026-08-16":{"cmm_pre":0},"2026-08-17":{"ej_pre":0,"cmm_pre":5},"2026-08-18":{"ej_pre":2,"cmm_pre":5},"2026-08-19":{"ej_pre":2,"cmm_pre":4},"2026-08-20":{"ej_pre":4,"cmm_pre":2},"2026-08-21":{"ej_pre":3,"cmm_pre":5,"cmm_joist":3},"2026-08-22":{"ej_pre":4,"cmm_pre":2,"cmm_joist":4},"2026-08-24":{"ej_pre":0,"ej_joist":8,"cmm_pre":6,"cmm_joist":7},"2026-08-25":{"ej_pre":3,"ej_joist":6,"ej_vigas":2,"cmm_pre":4,"cmm_joist":0,"cmm_vigas":6},"2026-08-26":{"ej_pre":3,"ej_joist":5,"ej_vigas":0,"cmm_pre":5,"cmm_joist":10,"cmm_vigas":0},"2026-08-27":{"ej_pre":4,"ej_joist":0,"ej_vigas":0,"cmm_pre":2,"cmm_joist":6,"cmm_vigas":6},"2026-08-28":{"ej_pre":6,"ej_joist":0,"ej_vigas":5,"cmm_pre":5,"cmm_joist":12,"cmm_vigas":0},"2026-08-29":{"ej_pre":3,"ej_joist":0,"ej_vigas":5,"cmm_pre":2,"cmm_joist":0,"cmm_vigas":0},"2026-08-31":{"ej_pre":3,"ej_joist":6,"ej_vigas":2,"cmm_pre":5,"cmm_joist":0,"cmm_vigas":0},"2026-09-01":{"ej_pre":6,"ej_joist":14,"ej_vigas":0,"cmm_pre":5,"cmm_joist":0,"cmm_vigas":0},"2026-09-02":{"ej_pre":7,"ej_joist":0,"ej_vigas":0,"cmm_pre":5,"cmm_joist":0,"cmm_vigas":0},"2026-09-03":{"ej_pre":5,"ej_joist":12,"ej_vigas":0,"cmm_pre":5,"cmm_joist":0,"cmm_vigas":0},"2026-09-04":{"ej_pre":4,"ej_joist":0,"ej_vigas":0,"cmm_pre":8,"cmm_joist":16,"cmm_vigas":8},"2026-09-05":{"ej_pre":0,"ej_joist":0,"ej_vigas":0},"2026-09-08":{"ej_pre":3,"ej_joist":0,"ej_vigas":0,"cmm_pre":5,"cmm_joist":4,"cmm_vigas":0},"2026-09-09":{"ej_pre":5,"ej_joist":0,"ej_vigas":0,"cmm_pre":5,"cmm_joist":8,"cmm_vigas":0},"2026-09-10":{"ej_pre":4,"ej_joist":0,"ej_vigas":0,"cmm_pre":4,"cmm_joist":0,"cmm_vigas":2},"2026-09-11":{"ej_pre":5,"ej_joist":0,"ej_vigas":0,"cmm_pre":5,"cmm_joist":2,"cmm_vigas":4},"2026-09-12":{"ej_pre":2,"ej_joist":0,"ej_vigas":2,"cmm_pre":0,"cmm_joist":6,"cmm_vigas":3},"2026-09-14":{"ej_pre":5,"ej_joist":0,"ej_vigas":0,"cmm_pre":7,"cmm_joist":4,"cmm_vigas":1},"2026-09-15":{"ej_pre":3,"ej_joist":0,"ej_vigas":0,"cmm_pre":5,"cmm_joist":9,"cmm_vigas":1},"2026-09-16":{"ej_pre":3,"ej_joist":8,"ej_vigas":0,"cmm_pre":6,"cmm_joist":0,"cmm_vigas":0},"2026-09-17":{"ej_pre":0,"ej_joist":0,"ej_vigas":0,"cmm_pre":0,"cmm_joist":0,"cmm_vigas":0},"2026-09-18":{"ej_pre":0,"ej_joist":0,"ej_vigas":0,"cmm_pre":0,"cmm_joist":4,"cmm_vigas":2},"2026-09-19":{"ej_pre":0,"ej_joist":0,"ej_vigas":4,"cmm_pre":0,"cmm_joist":0,"cmm_vigas":3},"2026-09-21":{"ej_pre":2,"ej_joist":11,"ej_vigas":0,"cmm_pre":2,"cmm_joist":0,"cmm_vigas":0},"2026-09-22":{"ej_pre":2,"ej_joist":9,"ej_vigas":0,"cmm_pre":3,"cmm_joist":0,"cmm_vigas":0},"2026-09-23":{"ej_pre":3,"ej_joist":0,"ej_vigas":0,"cmm_pre":3,"cmm_joist":8,"cmm_vigas":0},"2026-09-24":{"ej_pre":3,"ej_joist":0,"ej_vigas":0,"cmm_pre":3,"cmm_joist":0,"cmm_vigas":0},"2026-09-25":{"ej_pre":3,"ej_joist":0,"ej_vigas":7,"cmm_pre":3,"cmm_joist":0,"cmm_vigas":0,"ga_perf":2},"2026-09-26":{"ej_pre":0,"ej_joist":19,"ej_vigas":0,"cmm_pre":0,"cmm_joist":0,"cmm_vigas":0}}};
+
+const COMPANIES = [
+  { id:'EJ', name:'EJ', services:[
+    {key:'ej_pre', meta:'EJ|PREMONTAGEM', label:'Premontagem'},
+    {key:'ej_joist', meta:'EJ|IÇAMENTO JOIST', label:'Icamento Joist'},
+    {key:'ej_vigas', meta:'EJ|VIGAS', label:'Vigas'}
+  ]},
+  { id:'CMM', name:'CMM', services:[
+    {key:'cmm_pre', meta:'CMM|PREMONTAGEM', label:'Premontagem'},
+    {key:'cmm_joist', meta:'CMM|IÇAMENTO JOIST', label:'Icamento Joist'},
+    {key:'cmm_vigas', meta:'CMM|VIGAS', label:'Vigas'}
+  ]},
+  { id:'GA', name:'GLOBO ACOS', services:[
+    {key:'ga_perf', meta:'GLOBO AÇOS|PERFILAÇÃO', label:'Perfilacao'},
+    {key:'ga_telhar', meta:'GLOBO AÇOS|TELHAR', label:'Telhar'},
+    {key:'ga_fech', meta:'GLOBO AÇOS|FECHAMENTO', label:'Fechamento'}
+  ]}
+];
+
+const WEEK_DAYS = ['Seg','Ter','Qua','Qui','Sex'];
+const CSS_COMPANY = {EJ:'ej', CMM:'cmm', GA:'ga'};
+
+let metas = EMBEDDED_DATA.metas;
+let prod = {};
+let weekStarts = Object.keys(metas).sort();
+let currentWeekIdx = 0;
+
+function loadStorage() {
+  try {
+    const s = localStorage.getItem('obra198_prod');
+    if (s) prod = JSON.parse(s);
+    else prod = JSON.parse(JSON.stringify(EMBEDDED_DATA.prod));
+    const wi = localStorage.getItem('obra198_weekIdx');
+    if (wi !== null) currentWeekIdx = Math.min(parseInt(wi), weekStarts.length - 1);
+  } catch(e) {
+    prod = JSON.parse(JSON.stringify(EMBEDDED_DATA.prod));
+  }
+}
+
+function saveProd() {
+  try {
+    localStorage.setItem('obra198_prod', JSON.stringify(prod));
+    localStorage.setItem('obra198_weekIdx', String(currentWeekIdx));
+  } catch(e) {}
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+function getWeekDates(startStr) {
+  return Array.from({length:5}, (_,i) => addDays(startStr, i));
+}
+
+function fmtDate(s) {
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}`;
+}
+
+function fmtDateFull(s) {
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function getMetaForWeek(weekStart) {
+  return metas[weekStart] || null;
+}
+
+function getWeekPrevisto(weekStart, metaKey) {
+  const m = getMetaForWeek(weekStart);
+  if (!m || !m[metaKey]) return 0;
+  return m[metaKey][0] * m[metaKey][1];
+}
+
+function getDailyMeta(weekStart, metaKey) {
+  const m = getMetaForWeek(weekStart);
+  if (!m || !m[metaKey]) return 0;
+  return m[metaKey][0];
+}
+
+function getWeekRealizado(weekStart, prodKey) {
+  const dates = getWeekDates(weekStart);
+  let total = 0;
+  dates.forEach(d => {
+    if (prod[d] && prod[d][prodKey] !== undefined && prod[d][prodKey] !== null) {
+      total += prod[d][prodKey];
+    }
+  });
+  return total;
+}
+
+function getDayRealizado(date, prodKey) {
+  if (prod[date] && prod[date][prodKey] !== undefined && prod[date][prodKey] !== null) {
+    return prod[date][prodKey];
+  }
+  return null;
+}
+
+function atingimento(previsto, realizado) {
+  if (previsto === 0) return null;
+  return (realizado / previsto) * 100;
+}
+
+function farol(pct) {
+  if (pct === null) return {cls:'farol-pendente', text:'PENDENTE'};
+  if (pct >= 100) return {cls:'farol-verde', text:'VERDE'};
+  if (pct >= 90) return {cls:'farol-amarelo', text:'AMARELO'};
+  return {cls:'farol-vermelho', text:'VERMELHO'};
+}
+
+function farolHtml(pct) {
+  const f = farol(pct);
+  return `<span class="farol ${f.cls}">${f.text}</span>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg || 'Salvo com sucesso';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+let charts = {};
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function getChartColors() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    ej: s.getPropertyValue('--cat-ej').trim(),
+    cmm: s.getPropertyValue('--cat-cmm').trim(),
+    ga: s.getPropertyValue('--cat-ga').trim(),
+    fg: s.getPropertyValue('--fg').trim(),
+    fgMuted: s.getPropertyValue('--fg-muted').trim(),
+    border: s.getPropertyValue('--border').trim(),
+    verde: s.getPropertyValue('--verde').trim(),
+    amarelo: s.getPropertyValue('--amarelo').trim(),
+    vermelho: s.getPropertyValue('--vermelho').trim()
+  };
+}
+
+function chartDefaults() {
+  const c = getChartColors();
+  Chart.defaults.color = c.fgMuted;
+  Chart.defaults.borderColor = c.border;
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+}
+
+// ===== TAB NAVIGATION =====
+function showTab(name) {
+  ['dashboard','semanal','entrada','historico','metas'].forEach(t => {
+    const el = document.getElementById('tab-'+t);
+    if (el) el.hidden = (t !== name);
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    const tabs = ['dashboard','semanal','entrada','historico','metas'];
+    el.classList.toggle('active', tabs[i] === name);
+  });
+  try { localStorage.setItem('obra198_tab', name); } catch(e) {}
+  if (name === 'historico') renderTrends();
+}
+
+// ===== WEEK NAVIGATION =====
+function changeWeek(dir) {
+  currentWeekIdx = Math.max(0, Math.min(weekStarts.length - 1, currentWeekIdx + dir));
+  saveProd();
+  renderAll();
+}
+
+function updateWeekLabel() {
+  const ws = weekStarts[currentWeekIdx];
+  const m = metas[ws];
+  const fim = m ? m.fim : addDays(ws, 4);
+  document.getElementById('weekLabel').textContent =
+    `${fmtDateFull(ws)} - ${fmtDateFull(fim)}`;
+}
+
+// ===== KPI CARDS =====
+function renderKPIs() {
+  const ws = weekStarts[currentWeekIdx];
+  const cards = [];
+  let totalPrev = 0, totalReal = 0;
+
+  COMPANIES.forEach(co => {
+    let coPrev = 0, coReal = 0;
+    co.services.forEach(s => {
+      coPrev += getWeekPrevisto(ws, s.meta);
+      coReal += getWeekRealizado(ws, s.key);
+    });
+    totalPrev += coPrev;
+    totalReal += coReal;
+    const pct = atingimento(coPrev, coReal);
+    const f = farol(pct);
+    cards.push(`
+      <div class="kpi-card" style="border-top: 3px solid var(--cat-${CSS_COMPANY[co.id]})">
+        <div class="kpi-label">${co.name}</div>
+        <div class="kpi-value">${pct !== null ? pct.toFixed(0) + '%' : '--'}</div>
+        <div class="kpi-sub">${coReal} / ${coPrev} un</div>
+      </div>`);
+  });
+
+  const totalPct = atingimento(totalPrev, totalReal);
+  cards.unshift(`
+    <div class="kpi-card" style="border-top: 3px solid var(--accent)">
+      <div class="kpi-label">GERAL</div>
+      <div class="kpi-value">${totalPct !== null ? totalPct.toFixed(0) + '%' : '--'}</div>
+      <div class="kpi-sub">${totalReal} / ${totalPrev} un</div>
+    </div>`);
+
+  document.getElementById('kpiCards').innerHTML = cards.join('');
+}
+
+// ===== FAROL TABLE =====
+function renderFarolTable() {
+  const ws = weekStarts[currentWeekIdx];
+  let head = '<tr><th>Empresa</th><th>Servico</th><th>Previsto</th><th>Realizado</th><th>%</th><th>Farol</th></tr>';
+  let body = '';
+
+  COMPANIES.forEach(co => {
+    co.services.forEach((s, i) => {
+      const prev = getWeekPrevisto(ws, s.meta);
+      const real = getWeekRealizado(ws, s.key);
+      const pct = atingimento(prev, real);
+      body += `<tr>
+        ${i === 0 ? `<td rowspan="${co.services.length}" style="font-weight:600">${co.name}</td>` : ''}
+        <td>${s.label}</td>
+        <td class="num">${prev}</td>
+        <td class="num">${real}</td>
+        <td class="num">${pct !== null ? pct.toFixed(1) + '%' : '--'}</td>
+        <td>${farolHtml(pct)}</td>
+      </tr>`;
+    });
+  });
+
+  const t = document.getElementById('farolTable');
+  t.querySelector('thead').innerHTML = head;
+  t.querySelector('tbody').innerHTML = body;
+}
+
+// ===== BAR CHART =====
+function renderBarChart() {
+  const ws = weekStarts[currentWeekIdx];
+  const c = getChartColors();
+  destroyChart('bar');
+
+  const labels = COMPANIES.map(co => co.name);
+  const prevData = COMPANIES.map(co =>
+    co.services.reduce((sum, s) => sum + getWeekPrevisto(ws, s.meta), 0));
+  const realData = COMPANIES.map(co =>
+    co.services.reduce((sum, s) => sum + getWeekRealizado(ws, s.key), 0));
+
+  const colors = [c.ej, c.cmm, c.ga];
+
+  document.getElementById('legendBar').innerHTML =
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--fg-dim);opacity:0.4"></span>Previsto</span>' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--fg)"></span>Realizado</span>';
+
+  charts.bar = new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Previsto', data:prevData, backgroundColor: colors.map(c=>c+'40'), borderColor: colors, borderWidth: 2, borderRadius: 4 },
+        { label:'Realizado', data:realData, backgroundColor: colors, borderColor: colors, borderWidth: 0, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleFont:{weight:'600'}, bodyFont:{family:"'JetBrains Mono'"} }
+      },
+      scales: {
+        y: { beginAtZero: true, grid:{color: c.border+'60'}, ticks:{color:c.fgMuted} },
+        x: { grid:{display:false}, ticks:{color:c.fgMuted} }
+      }
+    }
+  });
+}
+
+// ===== RADAR CHART =====
+function renderRadarChart() {
+  const ws = weekStarts[currentWeekIdx];
+  const c = getChartColors();
+  destroyChart('radar');
+
+  const allServices = [];
+  const pctData = [];
+  COMPANIES.forEach(co => {
+    co.services.forEach(s => {
+      allServices.push(co.id + ' ' + s.label);
+      const prev = getWeekPrevisto(ws, s.meta);
+      const real = getWeekRealizado(ws, s.key);
+      pctData.push(prev > 0 ? Math.min((real/prev)*100, 150) : 0);
+    });
+  });
+
+  charts.radar = new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: {
+      labels: allServices,
+      datasets: [{
+        label: 'Atingimento %',
+        data: pctData,
+        borderColor: c.ej,
+        backgroundColor: c.ej + '20',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: c.ej
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(1) + '%' } }
+      },
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: 150,
+          ticks: { stepSize: 50, color: c.fgMuted, backdropColor: 'transparent' },
+          grid: { color: c.border + '60' },
+          angleLines: { color: c.border + '40' },
+          pointLabels: { font: { size: 9 }, color: c.fgMuted }
+        }
+      }
+    }
+  });
+}
+
+// ===== SEMANAL TABLE =====
+function renderSemanalTable() {
+  const ws = weekStarts[currentWeekIdx];
+  const dates = getWeekDates(ws);
+
+  let head = `<tr><th>Empresa</th><th>Servico</th>`;
+  dates.forEach((d, i) => { head += `<th>${WEEK_DAYS[i]}<br>${fmtDate(d)}</th>`; });
+  head += `<th>Total</th></tr>`;
+
+  let body = '';
+  COMPANIES.forEach(co => {
+    co.services.forEach((s, si) => {
+      body += `<tr>`;
+      if (si === 0) body += `<td rowspan="${co.services.length}" style="font-weight:600">${co.name}</td>`;
+      body += `<td>${s.label}</td>`;
+      let total = 0;
+      dates.forEach(d => {
+        const meta = getDailyMeta(ws, s.meta);
+        total += meta;
+        body += `<td class="num">${meta}</td>`;
+      });
+      body += `<td class="num" style="font-weight:600">${total}</td></tr>`;
+    });
+  });
+
+  const t = document.getElementById('semanalTable');
+  t.querySelector('thead').innerHTML = head;
+  t.querySelector('tbody').innerHTML = body;
+}
+
+// ===== ACOMPANHAMENTO TABLE =====
+function renderAcompTable() {
+  const ws = weekStarts[currentWeekIdx];
+  const dates = getWeekDates(ws);
+
+  let head = `<tr><th>Empresa</th><th>Servico</th>`;
+  dates.forEach((d, i) => { head += `<th>${WEEK_DAYS[i]}<br>${fmtDate(d)}</th>`; });
+  head += `<th>Total</th><th>%</th></tr>`;
+
+  let body = '';
+  COMPANIES.forEach(co => {
+    co.services.forEach((s, si) => {
+      body += `<tr>`;
+      if (si === 0) body += `<td rowspan="${co.services.length}" style="font-weight:600">${co.name}</td>`;
+      body += `<td>${s.label}</td>`;
+      let totalReal = 0;
+      dates.forEach(d => {
+        const val = getDayRealizado(d, s.key);
+        totalReal += (val || 0);
+        body += `<td class="num">${val !== null ? val : '--'}</td>`;
+      });
+      const prev = getWeekPrevisto(ws, s.meta);
+      const pct = atingimento(prev, totalReal);
+      body += `<td class="num" style="font-weight:600">${totalReal}</td>`;
+      body += `<td>${farolHtml(pct)}</td></tr>`;
+    });
+  });
+
+  const t = document.getElementById('acompTable');
+  t.querySelector('thead').innerHTML = head;
+  t.querySelector('tbody').innerHTML = body;
+}
+
+// ===== STATUS TABLE =====
+function renderStatusTable() {
+  const ws = weekStarts[currentWeekIdx];
+  const dates = getWeekDates(ws);
+
+  let head = `<tr><th>Empresa</th><th>Servico</th>`;
+  dates.forEach((d, i) => { head += `<th>${WEEK_DAYS[i]}<br>${fmtDate(d)}</th>`; });
+  head += `</tr>`;
+
+  let body = '';
+  COMPANIES.forEach(co => {
+    co.services.forEach((s, si) => {
+      body += `<tr>`;
+      if (si === 0) body += `<td rowspan="${co.services.length}" style="font-weight:600">${co.name}</td>`;
+      body += `<td>${s.label}</td>`;
+      dates.forEach(d => {
+        const meta = getDailyMeta(ws, s.meta);
+        const real = getDayRealizado(d, s.key);
+        let pct = null;
+        if (meta > 0 && real !== null) pct = (real / meta) * 100;
+        else if (meta === 0) pct = null;
+        body += `<td>${farolHtml(pct)}</td>`;
+      });
+      body += `</tr>`;
+    });
+  });
+
+  const t = document.getElementById('statusTable');
+  t.querySelector('thead').innerHTML = head;
+  t.querySelector('tbody').innerHTML = body;
+}
+
+// ===== DATA ENTRY =====
+function renderEntryForm() {
+  const dateInput = document.getElementById('entryDate');
+  if (!dateInput.value) {
+    const today = new Date();
+    dateInput.value = today.toISOString().slice(0,10);
+  }
+
+  const grid = document.getElementById('entryGrid');
+  const d = dateInput.value;
+  const existing = prod[d] || {};
+
+  let html = '';
+  COMPANIES.forEach(co => {
+    html += `<div class="entry-company" style="border-color:var(--cat-${CSS_COMPANY[co.id]})">
+      <h3 style="color:var(--cat-${CSS_COMPANY[co.id]})">${co.name}</h3>`;
+    co.services.forEach(s => {
+      const val = existing[s.key] !== undefined && existing[s.key] !== null ? existing[s.key] : '';
+      html += `<div class="entry-row">
+        <label>${s.label}</label>
+        <input type="number" min="0" step="1" id="entry_${s.key}" value="${val}" placeholder="--">
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  grid.innerHTML = html;
+}
+
+function saveEntry() {
+  const d = document.getElementById('entryDate').value;
+  if (!d) return;
+  if (!prod[d]) prod[d] = {};
+
+  COMPANIES.forEach(co => {
+    co.services.forEach(s => {
+      const input = document.getElementById('entry_' + s.key);
+      const val = input.value.trim();
+      if (val === '') {
+        delete prod[d][s.key];
+      } else {
+        prod[d][s.key] = parseFloat(val);
+      }
+    });
+  });
+
+  if (Object.keys(prod[d]).length === 0) delete prod[d];
+  saveProd();
+  renderAll();
+  showToast('Producao salva para ' + fmtDateFull(d));
+}
+
+document.getElementById('entryDate').addEventListener('change', renderEntryForm);
+
+// ===== TREND CHARTS =====
+function renderTrends() {
+  const c = getChartColors();
+  chartDefaults();
+
+  const sortedWeeks = weekStarts.filter(w => {
+    let hasData = false;
+    const dates = getWeekDates(w);
+    dates.forEach(d => { if (prod[d]) hasData = true; });
+    return hasData;
+  });
+
+  if (sortedWeeks.length === 0) return;
+
+  const weekLabels = sortedWeeks.map(w => fmtDate(w));
+
+  function makeLineChart(canvasId, company, chartKey) {
+    destroyChart(chartKey);
+    const co = COMPANIES.find(x => x.id === company);
+    const datasets = co.services.map((s, i) => {
+      const data = sortedWeeks.map(w => getWeekRealizado(w, s.key));
+      const hues = [c.ej, c.cmm, c.ga];
+      const alphas = ['ff','aa','66'];
+      return {
+        label: s.label,
+        data,
+        borderColor: hues[0] + alphas[i],
+        backgroundColor: hues[0] + '10',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        tension: 0.3,
+        fill: false
+      };
+    });
+
+    const companyColor = company === 'EJ' ? c.ej : company === 'CMM' ? c.cmm : c.ga;
+    datasets.forEach((ds, i) => {
+      const alphas = ['ff','bb','77'];
+      ds.borderColor = companyColor + alphas[i];
+    });
+
+    charts[chartKey] = new Chart(document.getElementById(canvasId), {
+      type: 'line',
+      data: { labels: weekLabels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'bottom', labels:{boxWidth:12, padding:8, font:{size:10}} },
+          tooltip: { mode:'index', intersect:false }
+        },
+        scales: {
+          y: { beginAtZero:true, grid:{color:c.border+'60'} },
+          x: { grid:{display:false}, ticks:{maxRotation:45, font:{size:9}} }
+        },
+        interaction: { mode:'nearest', axis:'x', intersect:false }
+      }
+    });
+  }
+
+  makeLineChart('chartEJ', 'EJ', 'trendEJ');
+  makeLineChart('chartCMM', 'CMM', 'trendCMM');
+  makeLineChart('chartGA', 'GA', 'trendGA');
+
+  destroyChart('ating');
+  const atingData = COMPANIES.map(co => {
+    return {
+      label: co.name,
+      data: sortedWeeks.map(w => {
+        let prev = 0, real = 0;
+        co.services.forEach(s => {
+          prev += getWeekPrevisto(w, s.meta);
+          real += getWeekRealizado(w, s.key);
+        });
+        return prev > 0 ? Math.round((real/prev)*100) : null;
+      }),
+      borderColor: co.id === 'EJ' ? c.ej : co.id === 'CMM' ? c.cmm : c.ga,
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      tension: 0.3
+    };
+  });
+
+  charts.ating = new Chart(document.getElementById('chartAting'), {
+    type: 'line',
+    data: { labels: weekLabels, datasets: atingData },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'bottom', labels:{boxWidth:12, padding:8, font:{size:10}} },
+        tooltip: { mode:'index', intersect:false, callbacks:{ label: ctx => ctx.dataset.label + ': ' + (ctx.raw !== null ? ctx.raw + '%' : '--') } },
+        annotation: undefined
+      },
+      scales: {
+        y: { beginAtZero:true, max:200, grid:{color:c.border+'60'}, ticks:{callback:v=>v+'%'} },
+        x: { grid:{display:false}, ticks:{maxRotation:45, font:{size:9}} }
+      },
+      interaction: { mode:'nearest', axis:'x', intersect:false }
+    }
+  });
+}
+
+// ===== METAS TABLE =====
+function renderMetasTable() {
+  let head = '<tr><th>Semana</th>';
+  COMPANIES.forEach(co => {
+    co.services.forEach(s => {
+      head += `<th>${co.id}<br>${s.label}</th>`;
+    });
+  });
+  head += '</tr>';
+
+  let body = '';
+  weekStarts.forEach(ws => {
+    body += `<tr><td style="font-weight:500">${fmtDate(ws)}</td>`;
+    COMPANIES.forEach(co => {
+      co.services.forEach(s => {
+        const m = metas[ws];
+        const val = m && m[s.meta] ? m[s.meta][0] : 0;
+        body += `<td class="num">${val}</td>`;
+      });
+    });
+    body += '</tr>';
+  });
+
+  const t = document.getElementById('metasTable');
+  t.querySelector('thead').innerHTML = head;
+  t.querySelector('tbody').innerHTML = body;
+}
+
+// ===== FIND CURRENT WEEK =====
+function findCurrentWeek() {
+  const today = new Date().toISOString().slice(0,10);
+  for (let i = 0; i < weekStarts.length; i++) {
+    const ws = weekStarts[i];
+    const fim = metas[ws] ? metas[ws].fim : addDays(ws, 4);
+    if (today >= ws && today <= fim) {
+      currentWeekIdx = i;
+      return;
+    }
+  }
+  for (let i = 0; i < weekStarts.length - 1; i++) {
+    if (today >= weekStarts[i] && today < weekStarts[i+1]) {
+      currentWeekIdx = i;
+      return;
+    }
+  }
+  currentWeekIdx = weekStarts.length - 1;
+}
+
+// ===== RENDER ALL =====
+function renderAll() {
+  chartDefaults();
+  updateWeekLabel();
+  renderKPIs();
+  renderFarolTable();
+  renderBarChart();
+  renderRadarChart();
+  renderSemanalTable();
+  renderAcompTable();
+  renderStatusTable();
+  renderEntryForm();
+  renderMetasTable();
+}
+
+// ===== INIT =====
+loadStorage();
+findCurrentWeek();
+renderAll();
+
+let savedTab;
+try { savedTab = localStorage.getItem('obra198_tab'); } catch(e) {}
+if (savedTab) showTab(savedTab);
+
+const mqDark = window.matchMedia('(prefers-color-scheme: dark)');
+mqDark.addEventListener('change', () => { renderAll(); });
+</script>
