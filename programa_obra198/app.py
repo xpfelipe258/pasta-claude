@@ -177,7 +177,89 @@ def acao_referencia(corpo):
     return gravar([(xio.ABA_PAINEL, "B3", d, "data"), (xio.ABA_METAS, "B3", d, "data")])
 
 
+def _proxima_linha_livre(tabela, reservadas=()):
+    usadas = {r["linha"] for r in modelo()["tabelas"][tabela]} | set(reservadas)
+    lin = xio.LINHA_DADOS_TABELA
+    while lin in usadas:
+        lin += 1
+    return lin
+
+
+def _garantir():
+    xio.garantir_abas(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
+    _cache["chave"] = None
+
+
+def _preparar_campos(tabela, campos):
+    campos = dict(campos)
+    if tabela == "usos":
+        litros, preco = xio.numero(campos.get("litros")), xio.numero(campos.get("preco_litro"))
+        if litros and preco and not campos.get("custo_combustivel"):
+            campos["custo_combustivel"] = round(litros * preco, 2)
+    if tabela == "materiais" and not campos.get("codigo"):
+        existentes = {m.get("codigo") for m in modelo()["tabelas"]["materiais"]}
+        campos["codigo"] = next(f"MAT-{i:03d}" for i in range(1, 10000) if f"MAT-{i:03d}" not in existentes)
+    if tabela == "movimentos" and campos.get("tipo"):
+        campos["tipo"] = str(campos["tipo"]).upper()
+        if campos["tipo"] not in ("ENTRADA", "SAÍDA", "AJUSTE"):
+            raise ErroValidacao("Tipo de movimentação deve ser ENTRADA, SAÍDA ou AJUSTE.")
+    return campos
+
+
+def acao_registro(corpo):
+    tabela = corpo.get("tabela")
+    if tabela not in xio.TABELAS:
+        raise ErroValidacao("Tabela inválida.")
+    _garantir()
+    spec = xio.TABELAS[tabela]
+    lin = corpo.get("linha")
+    if lin is not None and lin not in {r["linha"] for r in modelo()["tabelas"][tabela]}:
+        raise ErroValidacao("Registro não encontrado (a planilha pode ter sido alterada). Recarregue a tela.")
+    if corpo.get("excluir"):
+        if lin is None:
+            raise ErroValidacao("Informe o registro a excluir.")
+        return gravar([(spec["aba"], f"{xio.col_letra(i)}{lin}", None, None) for i in range(1, len(spec["campos"]) + 1)])
+    if lin is None:
+        lin = _proxima_linha_livre(tabela)
+    try:
+        celulas = xio.valores_registro(tabela, _preparar_campos(tabela, corpo.get("campos") or {}))
+    except ValueError as e:
+        raise ErroValidacao(str(e))
+    return gravar([(spec["aba"], f"{col}{lin}", v, t) for col, v, t in celulas])
+
+
+def acao_importar_equip(corpo):
+    _garantir()
+    m = modelo()
+    ja = {u.get("origem") for u in m["tabelas"]["usos"] if u.get("origem")}
+    novos = [r for r in xio.extrair_usos_mensais(CFG["planilha"]) if r["origem"] not in ja]
+    alteracoes, reservadas = [], []
+    for r in novos:
+        r["equipamento"] = r.get("equipamento") or "NÃO INFORMADO"
+        lin = _proxima_linha_livre("usos", reservadas)
+        reservadas.append(lin)
+        for col, v, t in xio.valores_registro("usos", r):
+            alteracoes.append((xio.TABELAS["usos"]["aba"], f"{col}{lin}", v, t))
+    cadastrados = {e.get("equipamento") for e in m["tabelas"]["equipamentos"]}
+    reservadas = []
+    for nome in sorted({r["equipamento"] for r in novos} - cadastrados):
+        custos = [r["custo"] for r in novos if r["equipamento"] == nome and r.get("custo")]
+        valor = max(set(custos), key=custos.count) if custos else None
+        tipo = ("GUINDASTE" if "SANY" in nome or "GUINDASTE" in nome else "PLATAFORMA (PTA)" if "SKYJACK" in nome
+                else "MUNCK" if "MUNCK" in nome else None)
+        lin = _proxima_linha_livre("equipamentos", reservadas)
+        reservadas.append(lin)
+        campos = {"equipamento": nome, "tipo": tipo, "cobranca": "DIÁRIA" if valor else None, "valor": valor,
+                  "situacao": "ATIVO", "obs": "Cadastrado pela importação das abas mensais"}
+        for col, v, t in xio.valores_registro("equipamentos", campos):
+            alteracoes.append((xio.TABELAS["equipamentos"]["aba"], f"{col}{lin}", v, t))
+    gravar(alteracoes)
+    return {"importados": len(novos)}
+
+
 ACOES = {
+    "/api/registro": acao_registro,
+    "/api/equip/importar": acao_importar_equip,
     "/api/producao": acao_producao,
     "/api/metas": acao_metas,
     "/api/impacto": acao_impacto,
@@ -248,7 +330,9 @@ class Handler(BaseHTTPRequestHandler):
             with _trava:
                 n = acao(corpo)
                 v = versao()
-            self._json(200, {"ok": True, "celulas": n, "versao": v})
+            resp = {"ok": True, "versao": v}
+            resp.update(n if isinstance(n, dict) else {"celulas": n})
+            self._json(200, resp)
         except ErroValidacao as e:
             self._json(400, {"erro": str(e)})
         except xio.CelulaProtegida as e:
@@ -264,6 +348,12 @@ def main():
     CFG = carregar_config()
     host = "0.0.0.0" if CFG["acesso_rede"] else "127.0.0.1"
     porta = int(CFG["porta"])
+    try:
+        criadas = xio.garantir_abas(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
+        if criadas:
+            print(" Abas criadas na planilha: " + ", ".join(criadas))
+    except xio.PlanilhaBloqueada:
+        print(" Aviso: planilha aberta no Excel; as abas novas serão criadas no primeiro salvamento.")
     modelo()
     srv = ThreadingHTTPServer((host, porta), Handler)
     url = f"http://localhost:{porta}"

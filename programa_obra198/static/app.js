@@ -3,7 +3,9 @@
 // ------------------------------------------------------------ estado
 let D = null;            // resposta de /api/dados
 let M = null;            // modelo da planilha
-let ref = null;
+let T = null;            // tabelas do sistema (estoque, equipamentos)
+let ref = null;          // data de referência / corte
+let per = null;          // período do painel {ini, fim}
 let abaAtual = 'painel';
 let empSel = null;
 let filtroImp = 'abertos';
@@ -14,6 +16,7 @@ let salvando = false;
 
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const COR_EMP = { 'EJ': '--ej', 'CMM': '--cmm', 'GLOBO AÇOS': '--ga' };
+const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia']);
 
 // ------------------------------------------------------------ utilidades
 const $ = s => document.querySelector(s);
@@ -25,15 +28,23 @@ function dow(s) { return (dU(s).getUTCDay() + 6) % 7; }
 function segunda(s) { return add(s, -dow(s)); }
 function diasEntre(a, b) { return Math.round((dU(b) - dU(a)) / 864e5); }
 const ehISO = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const minD = (a, b) => (a < b ? a : b);
+const maxD = (a, b) => (a > b ? a : b);
 function fd(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [, m, d] = s.split('-'); return `${d}/${m}`; }
 function fdA(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; }
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
-function cap(s) { return String(s || '').toLowerCase().replace(/(^|\s|–|-)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
+function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
+function cap(s) { return String(s || '').toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
 function cor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-function corEmp(nome) { return `var(${COR_EMP[nome] || '--acento'})`; }
+function corEmp(nome) { return `var(${COR_EMP[nome] || '--fg3'})`; }
+function corEmpHex(nome) { return cor(COR_EMP[nome] || '--fg3'); }
 function diaUtil(s) { return dow(s) < 5; }
 function somarDiasUteis(s, n) { let d = s; while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }
+function contarDiasUteis(a, b) { let n = 0; for (let d = add(a, 1); d <= b; d = add(d, 1)) if (diaUtil(d)) n++; return n; }
+function normEmp(s) { const t = String(s || '').trim().toUpperCase(); return t === 'GA' || t.startsWith('GLOBO') ? 'GLOBO AÇOS' : t; }
+function empresasDe(s) { return String(s || '').split('/').map(normEmp).filter(Boolean); }
+const soma0 = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
 
 function toast(msg, erro = false) {
   const t = $('#toast');
@@ -43,7 +54,7 @@ function toast(msg, erro = false) {
   toast._t = setTimeout(() => t.className = 'toast' + (erro ? ' erro' : ''), erro ? 6000 : 2600);
 }
 
-// ------------------------------------------------------------ dados
+// ------------------------------------------------------------ dados de produção
 function empresa(nome) { return M.empresas.find(e => e.nome === nome); }
 function colDe(e, serv) { const s = e && e.servicos.find(x => x.nome === serv); return s ? s.col : null; }
 function soma(e, col, ini, fim) {
@@ -53,11 +64,20 @@ function soma(e, col, ini, fim) {
   }
   return t;
 }
+function prodServico(servico, empresaNome, ini, fim) {
+  let t = 0;
+  M.empresas.forEach(e => {
+    if (empresaNome && e.nome !== empresaNome) return;
+    e.servicos.filter(s => s.nome === servico).forEach(s => t += soma(e, s.col, ini, fim));
+  });
+  return t;
+}
 function metasSemana(r) { const s = segunda(r); return M.metas.filter(m => m.inicio === s); }
+const metaSemanaTotal = m => m.meta_dia * m.du + (m.gap || 0);
 
 function diasDecorridos(m, r) {
   if (r < m.inicio) return 0;
-  const lim = r < m.fim ? r : m.fim;
+  const lim = minD(r, m.fim);
   let n = 0;
   for (let d = m.inicio; d <= lim; d = add(d, 1)) if (diaUtil(d)) n++;
   return m.du ? Math.min(n, m.du) : n;
@@ -65,14 +85,36 @@ function diasDecorridos(m, r) {
 
 function kpi(m, r) {
   const e = empresa(m.empresa), col = colDe(e, m.servico);
-  const semana = m.meta_dia * m.du + (m.gap || 0);
+  const semana = metaSemanaTotal(m);
   const dec = diasDecorridos(m, r);
   const prevAte = m.du ? semana * dec / m.du : 0;
-  const lim = r < m.fim ? r : m.fim;
-  const real = col && r >= m.inicio ? soma(e, col, m.inicio, lim) : 0;
+  const real = col && r >= m.inicio ? soma(e, col, m.inicio, minD(r, m.fim)) : 0;
   const realSemana = col ? soma(e, col, m.inicio, m.fim) : 0;
   const pct = prevAte > 0 ? real / prevAte * 100 : null;
   return { m, e, col, semana, prevAte, real, realSemana, pct, dec };
+}
+
+// Previsto distribuído pelos dias úteis de cada semana de meta.
+function diasMeta(m) {
+  if (!m._d) { const ds = []; for (let d = m.inicio; d <= m.fim && ds.length < (m.du || 0); d = add(d, 1)) if (diaUtil(d)) ds.push(d); m._d = ds; }
+  return m._d;
+}
+function prevMeta(m, ini, fim) {
+  const ds = diasMeta(m);
+  return ds.length ? metaSemanaTotal(m) / ds.length * ds.filter(d => d >= ini && d <= fim).length : 0;
+}
+function paresMeta() {
+  const vistos = new Map();
+  M.metas.forEach(m => { const k = m.empresa + '|' + m.servico; if (!vistos.has(k)) vistos.set(k, [m.empresa, m.servico]); });
+  return [...vistos.values()];
+}
+function kpiPer(emp, serv, ini, fim, corte) {
+  const e = empresa(emp), col = colDe(e, serv);
+  const ms = M.metas.filter(m => m.empresa === emp && m.servico === serv && m.fim >= ini && m.inicio <= fim);
+  const prevTotal = soma0(ms, m => prevMeta(m, ini, fim));
+  const prev = corte < ini ? 0 : soma0(ms, m => prevMeta(m, ini, minD(fim, corte)));
+  const real = col && corte >= ini ? soma(e, col, ini, minD(fim, corte)) : 0;
+  return { emp, serv, e, col, prevTotal, prev, real, pct: prev > 0 ? real / prev * 100 : null };
 }
 
 function farol(pct, semMeta) {
@@ -83,24 +125,32 @@ function farol(pct, semMeta) {
   return ['vermelho', 'VERMELHO'];
 }
 function farolHtml(pct, semMeta) { const [c, t] = farol(pct, semMeta); return `<span class="farol f-${c}">${t}</span>`; }
+const corte = () => minD(per.fim, ref);
 
 // ------------------------------------------------------------ comunicação
 async function carregar() {
   const r = await fetch('/api/dados', { cache: 'no-store' });
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
-  D = j; M = j.modelo;
+  D = j; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
   $('#faixaExterna').hidden = true;
+  preencherListas();
   renderTudo();
 }
 
 async function postar(url, corpo) {
+  salvando = true;
+  try { return await postarBruto(url, corpo); } finally { salvando = false; }
+}
+
+async function postarBruto(url, corpo) {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
   const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor' }));
   if (!r.ok) throw new Error(j.erro || 'Falha ao gravar');
+  if (j.versao && D) D.versao = j.versao;
   return j;
 }
 
@@ -121,11 +171,22 @@ async function verificarVersao() {
   }
 }
 
-// ------------------------------------------------------------ navegação
+function preencherListas() {
+  const serv = new Set(), emps = new Set(['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM']);
+  M.empresas.forEach(e => { emps.add(e.nome); e.servicos.forEach(s => serv.add(s.nome)); });
+  M.impactos.forEach(i => i.servico && serv.add(String(i.servico).toUpperCase()));
+  T.usos.forEach(u => u.empresa && emps.add(u.empresa));
+  $('#listaServicos').innerHTML = [...serv].sort().map(n => `<option value="${esc(n)}">`).join('');
+  $('#listaEmpresas').innerHTML = [...emps].sort().map(n => `<option value="${esc(n)}">`).join('');
+  $('#listaEquip').innerHTML = T.equipamentos.map(e => `<option value="${esc(e.equipamento)}">`).join('');
+}
+
+// ------------------------------------------------------------ navegação e período
 function mudarAba(nome) {
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
+  $('#barraPeriodo').hidden = !ABAS_PERIODO.has(nome);
   try { localStorage.setItem('obra198_aba', nome); } catch { }
   renderAba();
 }
@@ -136,77 +197,99 @@ function definirRef(d) {
   $('#refData').value = d;
   const s = segunda(d);
   $('#semanaTxt').textContent = `Semana ${fdA(s)} a ${fdA(add(s, 6))}`;
+  definirPeriodo(s, add(s, 6), 'semana');
+}
+
+function definirPeriodo(ini, fim, atalho) {
+  if (!ehISO(ini) || !ehISO(fim)) return;
+  if (fim < ini) [ini, fim] = [fim, ini];
+  per = { ini, fim };
+  $('#perIni').value = ini; $('#perFim').value = fim;
+  document.querySelectorAll('#perAtalhos button').forEach(b => b.classList.toggle('ativa', b.dataset.p === atalho));
+  $('#perTxt').textContent = `${diasEntre(ini, fim) + 1} dias · ${contarDiasUteis(add(ini, -1), fim)} dias úteis · resultados apurados até ${fdA(minD(fim, ref))}`;
   renderTudo();
+}
+
+function atalhoPeriodo(p) {
+  const s = segunda(ref);
+  if (p === 'semana') return definirPeriodo(s, add(s, 6), p);
+  if (p === 'mes') { const ini = ref.slice(0, 8) + '01'; const d = dU(ini); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return definirPeriodo(ini, d.toISOString().slice(0, 10), p); }
+  if (p === '30') return definirPeriodo(add(ref, -29), ref, p);
+  if (p === 'obra') return definirPeriodo(M?.datas[0] || add(ref, -90), ref, p);
 }
 
 function renderTudo() {
   if (!M) return;
   const abertos = M.impactos.filter(i => !i.solucionado).length;
   $('#impCont').hidden = !abertos; $('#impCont').textContent = abertos;
+  const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho').length;
+  $('#estCont').hidden = !falta; $('#estCont').textContent = falta;
   atualizarPendentes();
   renderAba();
 }
 
 function renderAba() {
   if (!M) return;
-  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco,
-     metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia })[abaAtual]();
+  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente,
+     estoque: renderEstoque, equip: renderEquip, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia })[abaAtual]();
 }
 
-// ------------------------------------------------------------ PAINEL
+// ------------------------------------------------------------ PAINEL (por período)
 function renderPainel() {
-  const ks = metasSemana(ref).map(m => kpi(m, ref));
-  $('#notaFarol').textContent = ks.length ? `Previsto proporcional aos dias úteis até ${fdA(ref)}` : '';
+  const c = corte();
+  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+  const du = c >= per.ini ? contarDiasUteis(add(per.ini, -1), c) : 0;
+  $('#notaFarol').textContent = `Previsto distribuído pelos dias úteis das metas · corte em ${fdA(c)}`;
 
   const porEmp = {};
   ks.forEach(k => {
-    const o = porEmp[k.m.empresa] ||= { prev: 0, real: 0, semana: 0 };
-    if (k.semana > 0) { o.prev += k.prevAte; o.real += k.real; o.semana += k.semana; }
+    const o = porEmp[k.emp] ||= { prev: 0, real: 0, total: 0 };
+    if (k.prevTotal > 0) { o.prev += k.prev; o.real += k.real; o.total += k.prevTotal; }
   });
-  const tot = Object.values(porEmp).reduce((a, o) => ({ prev: a.prev + o.prev, real: a.real + o.real, semana: a.semana + o.semana }), { prev: 0, real: 0, semana: 0 });
-  const tile = (rot, o, c) => {
+  const tot = Object.values(porEmp).reduce((a, o) => ({ prev: a.prev + o.prev, real: a.real + o.real, total: a.total + o.total }), { prev: 0, real: 0, total: 0 });
+  const tile = (rot, o, cc) => {
     const pct = o.prev > 0 ? o.real / o.prev * 100 : null;
-    return `<div class="tile" style="--c:${c}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.semana === 0)}</div>
+    return `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.total === 0)}</div>
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
-      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(ref)} · meta semana ${nf(o.semana, 1)}</div></div>`;
+      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}</div></div>`;
   };
   $('#tiles').innerHTML = ks.length
     ? tile('Geral da obra', tot, 'var(--fg)') + Object.entries(porEmp).map(([n, o]) => tile(n, o, corEmp(n))).join('')
-    : `<div class="bloco vazio">Não há metas cadastradas para a semana de ${fdA(segunda(ref))}. Cadastre em METAS EMPRESAS.</div>`;
+    : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
-  let h = `<thead><tr><th>Serviço</th><th class="n">Meta/dia</th><th class="n">Meta semana</th><th class="n">Previsto até ${fd(ref)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th>Farol</th><th style="min-width:110px">Semana</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
-    if (k.m.empresa !== ultimo) { ultimo = k.m.empresa; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
-    const desvio = k.real - k.prevAte;
-    const pctSem = k.semana > 0 ? Math.min(100, k.realSemana / k.semana * 100) : 0;
-    h += `<tr><td>${esc(cap(k.m.servico))}</td><td class="n">${nf(k.m.meta_dia, 2)}</td><td class="n">${nf(k.semana, 1)}</td>
-      <td class="n">${nf(k.prevAte, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
-      <td class="n" style="color:${k.semana === 0 ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${k.semana === 0 ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
-      <td>${farolHtml(k.pct, k.semana === 0)}</td>
-      <td><div class="barra" title="${nf(pctSem)}% da meta semanal"><i style="width:${pctSem}%;--c:${corEmp(k.m.empresa)}"></i></div></td></tr>`;
+    if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
+    const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
+    const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
+    h += `<tr><td>${esc(cap(k.serv))}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
+      <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
+      <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
+      <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
-
-  renderAlertas(ks);
+  renderAlertas(ks, c);
   graficoPainel(ks);
 }
 
-function renderAlertas(ks) {
+function renderAlertas(ks, c) {
   const al = [];
-  ks.filter(k => k.semana > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
-    al.push(['vermelho', `<b>${esc(k.m.empresa)} · ${esc(cap(k.m.servico))}</b>: ${nf(k.real, 1)} de ${nf(k.prevAte, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(k.semana - k.realSemana, 1)} para a meta da semana.`]));
-  ks.filter(k => k.semana > 0 && k.pct != null && k.pct >= 90 && k.pct < 100).forEach(k =>
-    al.push(['amarelo', `<b>${esc(k.m.empresa)} · ${esc(cap(k.m.servico))}</b>: no limite (${nf(k.pct)}%).`]));
+  ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
+    al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para a meta do período.`]));
+  ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct >= 90 && k.pct < 100).forEach(k =>
+    al.push(['amarelo', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: no limite (${nf(k.pct)}%).`]));
 
-  const s = segunda(ref);
-  const empsComMeta = [...new Set(ks.filter(k => k.semana > 0).map(k => k.m.empresa))];
-  empsComMeta.forEach(n => {
+  const limite = minD(add(c, -1), per.fim);
+  [...new Set(ks.filter(k => k.prevTotal > 0).map(k => k.emp))].forEach(n => {
     const e = empresa(n); if (!e) return;
     const faltam = [];
-    for (let d = s; d < ref; d = add(d, 1)) if (diaUtil(d) && !e.registros[d]) faltam.push(fd(d));
-    if (faltam.length) al.push(['amarelo', `<b>${esc(n)}</b> sem lançamento em ${faltam.join(', ')}. <button class="link" data-ir-lanc="${esc(e.aba)}">Lançar agora</button>`]);
+    for (let d = per.ini; d <= limite; d = add(d, 1)) if (diaUtil(d) && !e.registros[d]) faltam.push(fd(d));
+    if (faltam.length) al.push(['amarelo', `<b>${esc(n)}</b> sem lançamento em ${faltam.length > 6 ? faltam.length + ' dias úteis (últimos: ' + faltam.slice(-6).join(', ') + ')' : faltam.join(', ')}. <button class="link" data-ir-lanc="${esc(e.aba)}">Lançar agora</button>`]);
   });
+
+  estoqueLinhas().filter(l => l.nivel !== 'verde' && l.nivel !== 'pendente').forEach(l =>
+    al.push([l.nivel, `<b>Estoque · ${esc(l.material)}</b>: ${esc(l.status.toLowerCase())}. Saldo ${nf(l.saldo, 1)} ${esc(l.unidade || '')}, necessário ${nf(l.necSemana + l.necProx, 1)} até a próxima semana. <button class="link" data-ir-aba="estoque">Ver estoque</button>`]));
 
   const abertos = M.impactos.filter(i => !i.solucionado);
   if (abertos.length) {
@@ -214,19 +297,18 @@ function renderAlertas(ks) {
       .map(i => `${esc(cap(i.motivo))} (${diasEntre(i.data, ref)} dias)`);
     al.push(['vermelho', `<b>${abertos.length} impacto(s) em aberto</b>. Mais antigos: ${velhos.join('; ')}. <button class="link" data-ir-aba="impactos">Ver impactos</button>`]);
   }
-
-  contratoLinhas().filter(c => c.status === 'ATRASO').forEach(c =>
-    al.push(['vermelho', `<b>${esc(cap(c.servico))}</b>: no ritmo atual termina em ${fdA(c.projecao)}, depois do prazo ${fdA(c.prazo)}.`]));
+  contratoLinhas(c).filter(x => x.status === 'ATRASO').forEach(x =>
+    al.push(['vermelho', `<b>${esc(cap(x.servico))}</b>: no ritmo atual termina em ${fdA(x.projecao)}, depois do prazo ${fdA(x.prazo)}. Necessário ${nf(x.necessario, 2)}/dia; ritmo atual ${nf(x.ritmo, 2)}/dia.`]));
 
   $('#alertas').innerHTML = al.length
     ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
-    : '<li class="vazio">Nenhum ponto de atenção para esta data.</li>';
+    : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
 }
 
-function eixos(extraY = {}) {
+function eixos(extraY = {}, extraX = {}) {
   const txt = cor('--fg2'), grade = cor('--linha');
   return {
-    x: { ticks: { color: txt }, grid: { display: false } },
+    x: { ticks: { color: txt }, grid: { display: false }, ...extraX },
     y: { beginAtZero: true, ticks: { color: txt }, grid: { color: grade }, border: { display: false }, ...extraY },
   };
 }
@@ -240,14 +322,14 @@ function trocarGrafico(id, cfg) {
 }
 
 function graficoPainel(ks) {
-  const lista = ks.filter(k => k.semana > 0 || k.real > 0);
+  const lista = ks.filter(k => k.prevTotal > 0 || k.real > 0);
   trocarGrafico('gPainel', {
     type: 'bar',
     data: {
-      labels: lista.map(k => [k.m.empresa, cap(k.m.servico)]),
+      labels: lista.map(k => [k.emp, cap(k.serv)]),
       datasets: [
-        { label: 'Previsto até a data', data: lista.map(k => +k.prevAte.toFixed(1)), backgroundColor: cor('--prev'), borderRadius: 4, maxBarThickness: 28 },
-        { label: 'Realizado', data: lista.map(k => k.real), backgroundColor: lista.map(k => cor(COR_EMP[k.m.empresa] || '--acento')), borderRadius: 4, maxBarThickness: 28 },
+        { label: 'Previsto até a data de corte', data: lista.map(k => +k.prev.toFixed(1)), backgroundColor: cor('--prev'), borderRadius: 4, maxBarThickness: 28 },
+        { label: 'Realizado', data: lista.map(k => k.real), backgroundColor: lista.map(k => corEmpHex(k.emp)), borderRadius: 4, maxBarThickness: 28 },
       ],
     },
     options: {
@@ -287,7 +369,6 @@ function renderSemana() {
     if (k.m.empresa !== ultimo) { ultimo = k.m.empresa; h += `<tr class="grupo"><td colspan="9"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
     if (k.col) h += linha(esc(cap(k.m.servico)), k.e, k.col, k.m, k);
   });
-  // demais frentes com produção na semana
   const extras = [];
   M.empresas.forEach(e => e.servicos.forEach(sv => {
     const temMeta = ks.some(k => k.e === e && k.col === sv.col);
@@ -385,7 +466,7 @@ async function salvarLanc() {
   try {
     let total = 0;
     for (const [aba, alteracoes] of Object.entries(porAba)) {
-      const r = await postar('/api/producao', { aba, alteracoes });
+      const r = await postarBruto('/api/producao', { aba, alteracoes });
       total += r.celulas;
       [...pend.keys()].filter(k => k.startsWith(aba + '|')).forEach(k => pend.delete(k));
     }
@@ -399,34 +480,32 @@ async function salvarLanc() {
 }
 
 // ------------------------------------------------------------ AVANÇO FÍSICO
-function realizadoTotal(servico, ate) {
-  let t = 0;
-  M.empresas.forEach(e => e.servicos.filter(s => s.nome === servico).forEach(s => t += soma(e, s.col, '0000', ate)));
-  return t;
-}
+function realizadoTotal(servico, ate) { return prodServico(servico, null, '0000', ate); }
 
-function contratoLinhas() {
-  const ini = add(ref, -14);
-  let du = 0; for (let d = ini; d <= ref; d = add(d, 1)) if (diaUtil(d)) du++;
+function contratoLinhas(ate = ref) {
+  const ini = add(ate, -14);
+  let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
   return M.cliente.filter(c => c.qtd).map(c => {
-    const real = realizadoTotal(c.servico, ref);
+    const real = realizadoTotal(c.servico, ate);
     const ritmo = (real - realizadoTotal(c.servico, add(ini, -1))) / Math.max(du, 1);
     const saldo = Math.max(c.qtd - real, 0);
     let projecao = null, status;
     if (saldo <= 0) status = 'CONCLUÍDO';
-    else if (ritmo <= 0) status = c.inicio_plan && c.inicio_plan > ref ? 'NÃO INICIADO' : 'SEM RITMO';
+    else if (ritmo <= 0 && c.inicio_plan && c.inicio_plan > ate) {
+      status = 'NÃO INICIADO';
+      if (c.meta_dia) projecao = somarDiasUteis(add(c.inicio_plan, -1), Math.ceil(saldo / c.meta_dia));
+    } else if (ritmo <= 0) status = 'SEM RITMO';
     else {
-      projecao = somarDiasUteis(ref, Math.ceil(saldo / ritmo));
+      projecao = somarDiasUteis(ate, Math.ceil(saldo / ritmo));
       status = c.prazo && projecao > c.prazo ? 'ATRASO' : 'NO PRAZO';
     }
-    const necessario = c.prazo && saldo > 0 && c.prazo > ref ? saldo / Math.max(1, contarDiasUteis(ref, c.prazo)) : null;
+    const necessario = c.prazo && saldo > 0 && c.prazo > ate ? saldo / Math.max(1, contarDiasUteis(ate, c.prazo)) : null;
     return { ...c, real, ritmo, saldo, projecao, status, necessario };
   });
 }
-function contarDiasUteis(a, b) { let n = 0; for (let d = add(a, 1); d <= b; d = add(d, 1)) if (diaUtil(d)) n++; return n; }
+const COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'ATRASO': 'vermelho', 'ATRASADO': 'vermelho', 'SEM RITMO': 'amarelo', 'NÃO INICIADO': 'pendente', 'NO LIMITE': 'amarelo' };
 
 function renderAvanco() {
-  const st = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ATRASO': 'vermelho', 'SEM RITMO': 'amarelo', 'NÃO INICIADO': 'pendente' };
   const linhas = contratoLinhas();
   $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n">Contrato</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th>Prazo</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
     (linhas.length ? linhas.map(c => {
@@ -434,7 +513,7 @@ function renderAvanco() {
       return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td><td class="n">${nf(c.qtd)}</td><td class="n">${nf(c.real, 1)}</td>
         <td><div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span></td>
         <td class="n">${nf(c.saldo, 1)}</td><td class="n">${nf(c.ritmo, 2)}</td><td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
-        <td>${fdA(c.prazo)}</td><td>${fdA(c.projecao)}</td><td><span class="farol f-${st[c.status]}">${c.status}</span></td></tr>`;
+        <td>${fdA(c.prazo)}</td><td>${fdA(c.projecao)}</td><td><span class="farol f-${COR_STATUS[c.status]}">${c.status}</span></td></tr>`;
     }).join('') : '<tr><td colspan="11" class="vazio">Nenhuma quantidade contratada em METAS CLIENTE.</td></tr>') + '</tbody>';
 
   $('#avancoEmpresas').innerHTML = M.empresas.map(e => {
@@ -447,6 +526,373 @@ function renderAvanco() {
           <td>${p == null ? '<span class="nota">sem escopo</span>' : `<div class="barra"><i style="width:${Math.min(p, 100)}%;--c:${corEmp(e.nome)}"></i></div><span class="nota">${nf(p, 1)}%</span>`}</td></tr>`;
       }).join('') : '<tr><td colspan="4" class="vazio">Sem escopo ou produção.</td></tr>') + '</tbody></table></div>';
   }).join('');
+}
+
+// ------------------------------------------------------------ DASHBOARD CLIENTE
+function prevCliente(c, ate) {
+  if (!c.qtd || !c.inicio_plan || !c.meta_dia || ate < c.inicio_plan) return 0;
+  return Math.min(c.qtd, c.meta_dia * contarDiasUteis(add(c.inicio_plan, -1), ate));
+}
+function itensCliente() { return M.cliente.filter(c => c.qtd); }
+function avancoPonderado(ate, previsto) {
+  const itens = itensCliente();
+  const pesoTot = soma0(itens, c => c.peso);
+  if (!pesoTot) return 0;
+  return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoTotal(c.servico, ate)) / c.qtd)) / pesoTot * 100;
+}
+
+function renderCliente() {
+  const c = corte(), ini = per.ini, antes = add(ini, -1);
+  const itens = itensCliente();
+  const emps = M.empresas.map(e => e.nome);
+  const proj = Object.fromEntries(contratoLinhas(c).map(x => [x.servico, x]));
+  const linhas = itens.map(it => {
+    const prevPer = prevCliente(it, c) - prevCliente(it, antes);
+    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? prodServico(it.servico, n, ini, c) : 0]));
+    const realPer = soma0(Object.values(porEmp), v => v);
+    const prevAc = prevCliente(it, c), realAc = realizadoTotal(it.servico, c);
+    const p = proj[it.servico] || {};
+    const status = realAc >= it.qtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo: Math.max(it.qtd - realAc, 0), p, status };
+  });
+
+  const avPrev = avancoPonderado(c, true), avReal = avancoPonderado(c, false);
+  const pesoTot = soma0(itens, x => x.peso) || 1;
+  const perPrev = soma0(linhas, l => l.it.peso * l.prevPer / l.it.qtd) / pesoTot * 100;
+  const perReal = soma0(linhas, l => l.it.peso * l.realPer / l.it.qtd) / pesoTot * 100;
+  const prazoFinal = itens.map(x => x.prazo).filter(Boolean).sort().pop();
+  const semRitmo = Object.values(proj).filter(x => x.status === 'SEM RITMO');
+  const projFinal = semRitmo.length ? null : Object.values(proj).map(x => x.projecao).filter(Boolean).sort().pop();
+  const atrasados = linhas.filter(l => l.status === 'ATRASADO');
+  const gap = avReal - avPrev;
+  const tile = (rot, val, sub, st, cc = 'var(--acento)') => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span>${st || ''}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#cliTiles').innerHTML =
+    tile('Avanço físico realizado', nf(avReal, 1) + '%', `Previsto pelo cliente: ${nf(avPrev, 1)}% · desvio ${gap >= 0 ? '+' : ''}${nf(gap, 1)} p.p.`, `<span class="farol f-${gap >= 0 ? 'verde' : gap > -5 ? 'amarelo' : 'vermelho'}">${gap >= 0 ? 'ADIANTADO' : 'ATRASADO'}</span>`, 'var(--fg)') +
+    tile('Avanço no período', nf(perReal, 1) + ' p.p.', `Previsto no período: ${nf(perPrev, 1)} p.p. (${fd(ini)} a ${fd(c)})`, farolHtml(perPrev > 0 ? perReal / perPrev * 100 : null, perPrev === 0)) +
+    tile('Término projetado', projFinal ? fdA(projFinal) : 'Indefinido', projFinal ? `Prazo contratual: ${fdA(prazoFinal)}` : `Sem ritmo de produção: ${semRitmo.map(x => cap(x.servico)).join(', ')} · prazo ${fdA(prazoFinal)}`, projFinal && prazoFinal ? `<span class="farol f-${projFinal <= prazoFinal ? 'verde' : 'vermelho'}">${projFinal <= prazoFinal ? 'NO PRAZO' : 'ATRASO'}</span>` : '') +
+    tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
+
+  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado`;
+  let h = `<thead><tr><th>Serviço</th><th class="n">Contrato</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Realizado acum.</th><th class="n">Saldo</th><th>Término projetado</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>`;
+  linhas.forEach(l => {
+    const gp = l.realPer - l.prevPer;
+    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n">${nf(l.it.qtd)}</td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
+      ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
+      <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
+      <td class="n">${l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—'}</td><td class="n">${nf(l.prevAc, 1)}</td><td class="n">${nf(l.realAc, 1)}</td><td class="n">${nf(l.saldo, 1)}</td>
+      <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
+  });
+  $('#tabCliente').innerHTML = h + '</tbody>';
+
+  const frentes = {};
+  linhas.forEach(l => {
+    const f = frentes[l.it.frente || 'SEM FRENTE'] ||= { peso: 0, prev: 0, real: 0, prevPer: 0, realPer: 0 };
+    f.peso += l.it.peso;
+    f.prev += l.it.peso * Math.min(1, l.prevAc / l.it.qtd); f.real += l.it.peso * Math.min(1, l.realAc / l.it.qtd);
+    f.prevPer += l.it.peso * l.prevPer / l.it.qtd; f.realPer += l.it.peso * l.realPer / l.it.qtd;
+  });
+  $('#tabFrentes').innerHTML = `<thead><tr><th>Frente</th><th class="n">% previsto período</th><th class="n">% realizado período</th><th class="n">% previsto acum.</th><th class="n">% realizado acum.</th><th style="min-width:140px">Realizado acum.</th><th class="n">GAP (p.p.)</th></tr></thead><tbody>` +
+    Object.entries(frentes).map(([n, f]) => {
+      const pa = f.prev / f.peso * 100, ra = f.real / f.peso * 100;
+      return `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(f.prevPer / f.peso * 100, 1)}%</td><td class="n">${nf(f.realPer / f.peso * 100, 1)}%</td><td class="n">${nf(pa, 1)}%</td><td class="n">${nf(ra, 1)}%</td>
+        <td><div class="barra"><i style="width:${Math.min(ra, 100)}%"></i></div></td><td class="n ${ra - pa < 0 ? 'valor-neg' : ''}">${(ra - pa > 0 ? '+' : '') + nf(ra - pa, 1)}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // insights
+  const ins = [];
+  ins.push([gap >= 0 ? 'verde' : 'vermelho', `Avanço físico ponderado de <b>${nf(avReal, 1)}%</b> contra <b>${nf(avPrev, 1)}%</b> previstos pelo cliente em ${fdA(c)} (${gap >= 0 ? '+' : ''}${nf(gap, 1)} p.p.).`]);
+  if (semRitmo.length) ins.push(['vermelho', `Término do contrato indefinido: ${semRitmo.map(x => '<b>' + esc(cap(x.servico)) + '</b>').join(', ')} sem produção nas últimas duas semanas.`]);
+  if (projFinal && prazoFinal) ins.push([projFinal <= prazoFinal ? 'verde' : 'vermelho', `No ritmo das últimas duas semanas, o escopo contratado termina em <b>${fdA(projFinal)}</b>; o prazo é <b>${fdA(prazoFinal)}</b>.`]);
+  atrasados.forEach(l => ins.push(['vermelho', `<b>${esc(cap(l.it.servico))}</b>: ${nf(l.realAc, 1)} de ${nf(l.prevAc, 1)} previstos (faltam ${nf(l.prevAc - l.realAc, 1)} para alcançar o cliente).${l.p.necessario ? ` Para cumprir o prazo são necessários ${nf(l.p.necessario, 2)}/dia; ritmo atual ${nf(l.p.ritmo, 2)}/dia.` : ''}`]));
+  linhas.filter(l => l.status === 'NO LIMITE').forEach(l => ins.push(['amarelo', `<b>${esc(cap(l.it.servico))}</b> no limite do previsto (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
+  linhas.filter(l => l.status === 'ADIANTADO' && l.realAc > 0).forEach(l => ins.push(['verde', `<b>${esc(cap(l.it.servico))}</b> à frente do previsto do cliente (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
+  const abertos = M.impactos.filter(i => !i.solucionado);
+  if (abertos.length) ins.push(['amarelo', `<b>${abertos.length} impacto(s) em aberto</b> afetando a produção: ${[...new Set(abertos.map(i => cap(i.motivo).trim()))].slice(0, 4).map(esc).join('; ')}.`]);
+  const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho');
+  if (falta.length) ins.push(['vermelho', `Material insuficiente para a semana: ${falta.map(l => esc(l.material)).join(', ')}.`]);
+  $('#cliInsights').innerHTML = ins.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'verde' ? 'OK' : n === 'amarelo' ? 'ATENÇÃO' : 'CRÍTICO'}</span><span>${t}</span></li>`).join('');
+  $('#cliResumo').hidden = true;
+  $('#cliResumo').value = ['OBRA 198 — Posição em ' + fdA(c), ...ins.map(([, t]) => '• ' + t.replace(/<[^>]+>/g, '')),
+    '', 'Por serviço (realizado acumulado / previsto cliente / contrato):',
+    ...linhas.map(l => `• ${cap(l.it.servico)}: ${nf(l.realAc, 1)} / ${nf(l.prevAc, 1)} / ${nf(l.it.qtd)} — ${l.status}`)].join('\n');
+
+  graficoCurvaS(c);
+}
+
+function graficoCurvaS(c) {
+  const itens = itensCliente();
+  if (!itens.length) return;
+  const inicio = segunda(itens.map(x => x.inicio_plan).filter(Boolean).sort()[0] || M.datas[0]);
+  const fimPlan = maxD(itens.map(x => x.prazo).filter(Boolean).sort().pop() || c, c);
+  const semanas = [];
+  for (let d = add(inicio, 6); d <= add(fimPlan, 6); d = add(d, 7)) semanas.push(d);
+  trocarGrafico('gCurvaS', {
+    type: 'line',
+    data: {
+      labels: semanas.map(fd),
+      datasets: [
+        { label: 'Previsto cliente', data: semanas.map(d => +avancoPonderado(d, true).toFixed(1)), borderColor: cor('--prev'), backgroundColor: cor('--prev'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
+        { label: 'Realizado', data: semanas.map(d => add(d, -6) <= c ? +avancoPonderado(minD(d, c), false).toFixed(1) : null), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderWidth: 2, pointRadius: 3, tension: .2 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.raw == null ? '—' : nf(x.raw, 1) + '%'}` } } },
+      scales: eixos({ max: 100, ticks: { color: cor('--fg2'), callback: v => v + '%' } }, { ticks: { color: cor('--fg2'), maxTicksLimit: 12 } }),
+    },
+  });
+}
+
+async function copiarResumo() {
+  const t = $('#cliResumo');
+  try { await navigator.clipboard.writeText(t.value); toast('Resumo copiado. Cole no e-mail ou WhatsApp.'); }
+  catch { t.hidden = false; t.focus(); t.select(); toast('Selecionei o resumo: copie com Ctrl+C.'); }
+}
+
+// ------------------------------------------------------------ ESTOQUE
+function metaServicoSemana(servico, emp, seg) {
+  return soma0(M.metas.filter(m => m.inicio === seg && m.servico === servico && (!emp || m.empresa === emp)), metaSemanaTotal);
+}
+
+function estoqueLinhas() {
+  if (!T || !M) return [];
+  const seg = segunda(ref), prox = add(seg, 7);
+  const ini15 = add(ref, -14), du15 = Math.max(1, contarDiasUteis(add(ini15, -1), ref));
+  return T.materiais.map(mt => {
+    const emp = mt.empresa ? normEmp(mt.empresa) : null;
+    const base = mt.data_saldo || '0000-01-01';
+    const movs = T.movimentos.filter(v => v.codigo === mt.codigo && (!v.data || (v.data >= base && v.data <= ref)));
+    const q = tipo => soma0(movs.filter(v => v.tipo === tipo), v => v.quantidade);
+    const coef = mt.coef || 0;
+    const vinculado = coef > 0 && !!mt.servico;
+    const consumo = vinculado ? coef * prodServico(mt.servico, emp, base, ref) : 0;
+    const saldo = (mt.saldo_inicial || 0) + q('ENTRADA') - q('SAÍDA') + q('AJUSTE') - consumo;
+    const metaSem = vinculado ? metaServicoSemana(mt.servico, emp, seg) : 0;
+    const realSem = vinculado ? prodServico(mt.servico, emp, seg, ref) : 0;
+    const necSemana = Math.max(metaSem - realSem, 0) * coef;
+    const necProx = vinculado ? metaServicoSemana(mt.servico, emp, prox) * coef : 0;
+    const consumoDia = vinculado ? prodServico(mt.servico, emp, ini15, ref) / du15 * coef : 0;
+    const cobertura = consumoDia > 0 ? saldo / consumoDia : null;
+    let status, nivel;
+    if (vinculado && saldo < necSemana) [status, nivel] = ['FALTA NA SEMANA', 'vermelho'];
+    else if (vinculado && saldo < necSemana + necProx) [status, nivel] = ['REPOR PARA A PRÓXIMA SEMANA', 'amarelo'];
+    else if (mt.minimo && saldo < mt.minimo) [status, nivel] = ['ABAIXO DO MÍNIMO', 'amarelo'];
+    else if (mt.prazo_reposicao && cobertura != null && cobertura < mt.prazo_reposicao) [status, nivel] = ['PEDIR AGORA (PRAZO DE REPOSIÇÃO)', 'amarelo'];
+    else if (!vinculado) [status, nivel] = ['SEM VÍNCULO COM SERVIÇO', 'pendente'];
+    else [status, nivel] = ['OK', 'verde'];
+    const comprar = Math.max(0, necSemana + necProx + (mt.minimo || 0) - saldo);
+    return { ...mt, emp, consumo, saldo, metaSem, necSemana, necProx, consumoDia, cobertura, status, nivel, comprar, entradas: q('ENTRADA') };
+  });
+}
+
+function renderEstoque() {
+  const ls = estoqueLinhas();
+  const cont = n => ls.filter(l => l.nivel === n).length;
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#estTiles').innerHTML = tile('Materiais cadastrados', ls.length, 'aba ESTOQUE MATERIAIS', 'var(--fg)') +
+    tile('Falta na semana', cont('vermelho'), 'saldo menor que o necessário para a meta', 'var(--vermelho)') +
+    tile('Repor / atenção', cont('amarelo'), 'não cobre a próxima semana ou abaixo do mínimo', 'var(--amarelo)') +
+    tile('Abastecidos', cont('verde'), 'cobrem esta semana e a próxima', 'var(--verde)');
+  $('#estNota').textContent = `Semana ${fdA(segunda(ref))} a ${fdA(add(segunda(ref), 6))} · saldo apurado até ${fdA(ref)}`;
+  $('#tabEstoque').innerHTML = `<thead><tr><th>Material</th><th>Serviço vinculado</th><th class="n">Consumo/un.</th><th class="n">Saldo atual</th><th class="n">Necessário resto da semana</th><th class="n">Necessário próx. semana</th><th class="n">Consumo/dia (ritmo)</th><th class="n">Cobertura</th><th class="n">Comprar</th><th>Situação</th><th></th></tr></thead><tbody>` +
+    (ls.length ? ls.sort((a, b) => ['vermelho', 'amarelo', 'pendente', 'verde'].indexOf(a.nivel) - ['vermelho', 'amarelo', 'pendente', 'verde'].indexOf(b.nivel)).map(l => `<tr>
+      <td><b>${esc(l.material)}</b><br><span class="nota">${esc(l.codigo)} · ${esc(l.unidade || '')}${l.fornecedor ? ' · ' + esc(l.fornecedor) : ''}</span></td>
+      <td>${esc(cap(l.servico || '—'))}<br><span class="nota">${esc(l.emp || 'todas as empresas')}</span></td>
+      <td class="n">${nf(l.coef, 3)}</td><td class="n ${l.saldo < 0 ? 'valor-neg' : ''}"><b>${nf(l.saldo, 1)}</b></td>
+      <td class="n">${nf(l.necSemana, 1)}</td><td class="n">${nf(l.necProx, 1)}</td><td class="n">${nf(l.consumoDia, 2)}</td>
+      <td class="n">${l.cobertura == null ? '—' : nf(Math.max(l.cobertura, 0), 1) + ' d.u.'}</td><td class="n">${l.comprar > 0 ? '<b>' + nf(l.comprar, 1) + '</b>' : '—'}</td>
+      <td><span class="farol f-${l.nivel}">${l.status}</span></td>
+      <td class="acoes-linha"><button class="link" data-mov="${esc(l.codigo)}">Movimentar</button> · <button class="link" data-editar-reg="materiais" data-linha="${l.linha}">Editar</button></td></tr>`).join('')
+      : '<tr><td colspan="11" class="vazio">Nenhum material cadastrado. Use "+ Material" para começar (ex.: parafusos por joist, telha por m² de cobertura).</td></tr>') + '</tbody>';
+
+  const nomes = Object.fromEntries(T.materiais.map(m => [m.codigo, m.material]));
+  const movs = [...T.movimentos].sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 40);
+  $('#tabMov').innerHTML = `<thead><tr><th>Data</th><th>Material</th><th>Tipo</th><th class="n">Quantidade</th><th>Documento</th><th>Empresa</th><th>Observação</th><th></th></tr></thead><tbody>` +
+    (movs.length ? movs.map(v => `<tr><td>${fdA(v.data)}</td><td>${esc(nomes[v.codigo] || v.codigo)}</td><td><span class="farol f-${v.tipo === 'ENTRADA' ? 'verde' : v.tipo === 'SAÍDA' ? 'vermelho' : 'pendente'}">${esc(v.tipo)}</span></td>
+      <td class="n">${nf(v.quantidade, 2)}</td><td>${esc(v.documento)}</td><td>${esc(v.empresa)}</td><td>${esc(v.obs)}</td>
+      <td><button class="link" data-editar-reg="movimentos" data-linha="${v.linha}">Editar</button></td></tr>`).join('')
+      : '<tr><td colspan="8" class="vazio">Nenhuma movimentação registrada.</td></tr>') + '</tbody>';
+}
+
+// ------------------------------------------------------------ EQUIPAMENTOS
+function usosPeriodo() { return T.usos.filter(u => u.data && u.data >= per.ini && u.data <= per.fim); }
+function ratear(lista) {
+  const out = [];
+  lista.forEach(u => {
+    const emps = empresasDe(u.empresa);
+    const partes = emps.length ? emps : ['NÃO INFORMADA'];
+    partes.forEach(emp => out.push({ ...u, empAjust: emp, custoR: (u.custo || 0) / partes.length, combR: (u.custo_combustivel || 0) / partes.length, litrosR: (u.litros || 0) / partes.length }));
+  });
+  return out;
+}
+
+function renderEquip() {
+  const us = usosPeriodo(), rt = ratear(us);
+  const totEq = soma0(us, u => u.custo), totComb = soma0(us, u => u.custo_combustivel), totL = soma0(us, u => u.litros);
+  const porEmp = {};
+  rt.forEach(r => { const o = porEmp[r.empAjust] ||= { eq: 0, comb: 0, l: 0, dias: new Set() }; o.eq += r.custoR; o.comb += r.combR; o.l += r.litrosR; o.dias.add(r.data); });
+  const emps = Object.keys(porEmp).sort((a, b) => (porEmp[b].eq + porEmp[b].comb) - (porEmp[a].eq + porEmp[a].comb));
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#eqTiles').innerHTML = tile('Custo total no período', rs(totEq + totComb), `Equipamentos ${rs(totEq)} · combustível ${rs(totComb)}`, 'var(--fg)') +
+    tile('Combustível', nf(totL, 0) + ' L', `${rs(totComb)} · média ${totL ? 'R$ ' + nf(totComb / totL, 2) : '—'}/L`, 'var(--acento)') +
+    ['EJ', 'CMM', 'GLOBO AÇOS'].map(n => { const o = porEmp[n]; return tile(n, rs(o ? o.eq + o.comb : 0), o ? `${rs(o.eq)} equip. + ${rs(o.comb)} comb. · ${nf(o.l)} L` : 'sem registros no período', corEmp(n)); }).join('');
+
+  const c = corte();
+  $('#tabEqEmp').innerHTML = `<thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Combustível</th><th class="n">Litros</th><th class="n">Total</th><th class="n">% do custo</th><th class="n">Dias com uso</th><th class="n">Produção no período</th><th class="n">Custo por unidade produzida</th></tr></thead><tbody>` +
+    (emps.length ? emps.map(n => {
+      const o = porEmp[n], tot = o.eq + o.comb;
+      const e = empresa(n);
+      const prod = e ? soma0(M.metas.filter(m => m.empresa === n).map(m => m.servico).filter((v, i, a) => a.indexOf(v) === i), s => prodServico(s, n, per.ini, c)) : null;
+      return `<tr><td><span class="emp-tag" style="--c:${corEmp(n)}">${esc(n)}</span></td><td class="n">${rs(o.eq)}</td><td class="n">${rs(o.comb)}</td><td class="n">${nf(o.l, 1)}</td><td class="n"><b>${rs(tot)}</b></td>
+        <td class="n">${nf(tot / (totEq + totComb || 1) * 100, 1)}%</td><td class="n">${o.dias.size}</td><td class="n">${prod == null ? '—' : nf(prod, 1)}</td><td class="n">${prod ? rs(tot / prod) : '—'}</td></tr>`;
+    }).join('') : '<tr><td colspan="9" class="vazio">Sem registros no período. Use "Importar abas mensais" ou "+ Uso / abastecimento".</td></tr>') + '</tbody>';
+
+  const porEq = {};
+  us.forEach(u => { const o = porEq[u.equipamento || 'NÃO INFORMADO'] ||= { n: 0, eq: 0, comb: 0, l: 0 }; if (u.custo) o.n += u.quantidade || 1; o.eq += u.custo || 0; o.comb += u.custo_combustivel || 0; o.l += u.litros || 0; });
+  $('#tabEqEquip').innerHTML = `<thead><tr><th>Equipamento</th><th class="n">Diárias/usos</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>` +
+    Object.entries(porEq).sort((a, b) => (b[1].eq + b[1].comb) - (a[1].eq + a[1].comb)).map(([n, o]) =>
+      `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(o.n, 1)}</td><td class="n">${rs(o.eq)}</td><td class="n">${nf(o.l, 1)}</td><td class="n">${rs(o.comb)}</td><td class="n"><b>${rs(o.eq + o.comb)}</b></td></tr>`).join('') + '</tbody>';
+
+  $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Situação</th><th></th></tr></thead><tbody>` +
+    (T.equipamentos.length ? T.equipamentos.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${esc(e.situacao || '')}</td>
+      <td><button class="link" data-editar-reg="equipamentos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
+      : '<tr><td colspan="6" class="vazio">Nenhum equipamento cadastrado.</td></tr>') + '</tbody>';
+
+  $('#tabEqUso').innerHTML = `<thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">R$/L</th><th class="n">Combustível</th><th>Operador / obs.</th><th></th></tr></thead><tbody>` +
+    (us.length ? [...us].sort((a, b) => b.data.localeCompare(a.data)).map(u => `<tr><td>${fdA(u.data)}</td><td>${esc(u.equipamento)}</td><td>${esc(u.empresa)}</td><td>${esc(u.uso)}</td><td class="n">${nf(u.quantidade, 1)}</td><td class="n">${u.custo ? rs(u.custo) : '—'}</td>
+      <td class="n">${nf(u.litros, 1)}</td><td class="n">${u.preco_litro ? nf(u.preco_litro, 2) : '—'}</td><td class="n">${u.custo_combustivel ? rs(u.custo_combustivel) : '—'}</td><td class="sub">${esc([u.operador, u.obs].filter(Boolean).join(' · '))}</td>
+      <td><button class="link" data-editar-reg="usos" data-linha="${u.linha}">Editar</button></td></tr>`).join('')
+      : '<tr><td colspan="11" class="vazio">Sem registros no período.</td></tr>') + '</tbody>';
+
+  graficoEquip(rt);
+}
+
+function graficoEquip(rt) {
+  const longo = diasEntre(per.ini, per.fim) > 45;
+  const chaveT = d => longo ? segunda(d) : d;
+  const buckets = [...new Set(rt.map(r => chaveT(r.data)))].sort();
+  const emps = [...new Set(rt.map(r => r.empAjust))].sort((a, b) => (COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
+  $('#legEq').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('') + `<span class="nota">${longo ? 'por semana' : 'por dia'}</span>`;
+  const outras = emps.filter(n => !COR_EMP[n]);
+  trocarGrafico('gEquip', {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => longo ? 'sem. ' + fd(b) : fd(b)),
+      datasets: emps.map(n => ({
+        label: n, data: buckets.map(b => +soma0(rt.filter(r => r.empAjust === n && chaveT(r.data) === b), r => r.custoR + r.combR).toFixed(2)),
+        backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, stack: 'custo',
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}`, footer: its => 'Total: ' + rs(soma0(its, i => i.raw)) } } },
+      scales: { ...eixos({ stacked: true, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: true, ticks: { color: cor('--fg2') }, grid: { display: false } } },
+    },
+  });
+}
+
+async function importarEquip() {
+  const b = $('#btnImportarEq');
+  b.disabled = true;
+  try {
+    const r = await postar('/api/equip/importar', {});
+    await carregar();
+    toast(r.importados ? `${r.importados} registro(s) importado(s) das abas mensais` : 'Nada novo para importar: as abas mensais já estão no sistema.');
+  } catch (err) { toast(err.message, true); } finally { b.disabled = false; }
+}
+
+// ------------------------------------------------------------ FORMULÁRIO GENÉRICO (cadastros)
+const FORMS = {
+  materiais: { tit: 'material', campos: [
+    ['material', 'Material', 'text', 1], ['codigo', 'Código (automático se vazio)', 'text'], ['unidade', 'Unidade (pç, kg, m², m)', 'text', 1],
+    ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
+    ['saldo_inicial', 'Saldo inicial', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
+    ['fornecedor', 'Fornecedor', 'text'], ['prazo_reposicao', 'Prazo de reposição (dias úteis)', 'num'], ['obs', 'Observação', 'text', 0, 'largo']] },
+  movimentos: { tit: 'movimentação', campos: [
+    ['data', 'Data', 'date', 1], ['codigo', 'Material', 'material', 1], ['tipo', 'Tipo', 'select:ENTRADA,SAÍDA,AJUSTE', 1],
+    ['quantidade', 'Quantidade (ajuste aceita negativo)', 'num', 1], ['documento', 'Documento (NF / romaneio)', 'text'], ['empresa', 'Empresa', 'empresa'],
+    ['obs', 'Observação', 'text', 0, 'largo']] },
+  equipamentos: { tit: 'equipamento', campos: [
+    ['equipamento', 'Equipamento', 'text', 1], ['tipo', 'Tipo (guindaste, PTA, munck…)', 'text'], ['locadora', 'Locadora / proprietário', 'text'],
+    ['cobranca', 'Cobrança', 'select:,DIÁRIA,HORA,TURNO,MENSAL'], ['valor', 'Valor unitário (R$)', 'num'], ['consumo_lh', 'Consumo estimado (L/h)', 'num'],
+    ['situacao', 'Situação', 'select:ATIVO,MANUTENÇÃO,DESMOBILIZADO'], ['obs', 'Observação', 'text', 0, 'largo']] },
+  usos: { tit: 'uso / abastecimento', campos: [
+    ['data', 'Data', 'date', 1], ['equipamento', 'Equipamento', 'equipamento', 1], ['empresa', 'Empresa (EJ/CMM divide o custo)', 'empresa', 1],
+    ['uso', 'Uso', 'select:DIÁRIA,TURNO,MEIO TURNO,HORAS,ABASTECIMENTO,NÃO USO', 1], ['quantidade', 'Qtd (diárias ou horas)', 'num'],
+    ['custo', 'Custo do equipamento (R$)', 'num'], ['litros', 'Combustível (L)', 'num'], ['preco_litro', 'Preço do litro (R$)', 'num'],
+    ['custo_combustivel', 'Custo combustível (R$) — calculado se vazio', 'num'], ['operador', 'Operador', 'text'], ['obs', 'Observação', 'text', 0, 'largo']] },
+};
+
+function abrirDialogo(tabela, linha, preset = {}) {
+  const def = FORMS[tabela];
+  const reg = linha ? T[tabela].find(r => r.linha === linha) : null;
+  const dados = { ...(reg || {}), ...preset };
+  if (!reg && !dados.data && def.campos.some(c => c[0] === 'data')) dados.data = minD(ref, hoje());
+  const dlg = $('#dlg');
+  dlg.dataset.tabela = tabela; dlg.dataset.linha = linha || '';
+  $('#dlgTit').textContent = (reg ? 'Editar ' : 'Novo(a) ') + def.tit;
+  $('#dlgCampos').innerHTML = def.campos.map(([k, rot, tipo, obrig, cls]) => {
+    const v = dados[k] ?? '';
+    const req = obrig ? 'required' : '';
+    let inp;
+    if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${tipo.slice(7).split(',').map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
+    else if (tipo === 'material') inp = `<select name="${k}" ${req}>${T.materiais.map(m => `<option value="${esc(m.codigo)}" ${m.codigo === v ? 'selected' : ''}>${esc(m.codigo)} — ${esc(m.material)}</option>`).join('')}</select>`;
+    else {
+      const lista = { servico: 'listaServicos', empresa: 'listaEmpresas', equipamento: 'listaEquip' }[tipo];
+      const t = tipo === 'date' ? 'date' : 'text';
+      inp = `<input name="${k}" type="${t}" ${lista ? `list="${lista}"` : ''} ${tipo === 'num' ? 'inputmode="decimal"' : ''} value="${esc(tipo === 'num' && v !== '' ? String(v).replace('.', ',') : v)}" ${req}>`;
+    }
+    return `<label class="${cls || ''}"><span class="${obrig ? 'obrig' : ''}">${rot}</span>${inp}</label>`;
+  }).join('');
+  $('#dlgExcluir').hidden = !reg;
+  $('#dlgExcluir').dataset.confirmar = '';
+  $('#dlgExcluir').textContent = 'Excluir';
+  if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
+  dlg.showModal();
+}
+
+function autoCustoUso(form) {
+  if (form.closest('dialog').dataset.tabela !== 'usos') return;
+  const eq = T.equipamentos.find(e => e.equipamento === form.elements.equipamento.value.trim().toUpperCase() || e.equipamento === form.elements.equipamento.value.trim());
+  const uso = form.elements.uso.value;
+  const custo = form.elements.custo;
+  if (!eq || !eq.valor || custo.dataset.manual) return;
+  const fator = { 'DIÁRIA': 1, 'TURNO': 1, 'MEIO TURNO': 0.5, 'HORAS': null, 'ABASTECIMENTO': 0, 'NÃO USO': 0 }[uso];
+  const qtd = Number(String(form.elements.quantidade.value || '1').replace(',', '.')) || 1;
+  let v = null;
+  if (uso === 'HORAS' && eq.cobranca === 'HORA') v = eq.valor * qtd;
+  else if (fator != null && eq.cobranca !== 'HORA') v = eq.valor * fator * (uso === 'DIÁRIA' ? qtd : 1);
+  if (v != null) custo.value = String(+v.toFixed(2)).replace('.', ',');
+}
+
+async function salvarDialogo(ev) {
+  ev.preventDefault();
+  const dlg = $('#dlg'), f = $('#dlgForm');
+  const tabela = dlg.dataset.tabela, linha = dlg.dataset.linha ? +dlg.dataset.linha : null;
+  const campos = {};
+  FORMS[tabela].campos.forEach(([k, , tipo]) => {
+    let v = f.elements[k].value.trim();
+    if (tipo === 'num' && v && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
+    if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && k !== 'obs' && k !== 'material') v = v.toUpperCase();
+    campos[k] = v || null;
+  });
+  try {
+    await postar('/api/registro', { tabela, linha, campos });
+    dlg.close();
+    await carregar();
+    toast('Salvo na planilha');
+  } catch (err) { toast(err.message, true); }
+}
+
+async function excluirDialogo() {
+  const b = $('#dlgExcluir'), dlg = $('#dlg');
+  if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão'; return; }
+  try {
+    await postar('/api/registro', { tabela: dlg.dataset.tabela, linha: +dlg.dataset.linha, excluir: true });
+    dlg.close();
+    await carregar();
+    toast('Registro excluído da planilha');
+  } catch (err) { toast(err.message, true); }
 }
 
 // ------------------------------------------------------------ METAS
@@ -501,11 +947,6 @@ function renderImpactos() {
         <td>${i.solucionado ? `<span class="farol f-verde">SOLUCIONADO ${fd(i.solucionado)}</span>` : `<span class="farol f-vermelho">ABERTO${dias != null ? ` · ${dias}d` : ''}</span>`}</td>
         <td style="white-space:nowrap">${i.solucionado ? '' : `<button class="link" data-resolver="${i.linha}">Solucionar hoje</button> · `}<button class="link" data-editar="${i.linha}">Editar</button></td></tr>`;
     }).join('') : `<tr><td colspan="8" class="vazio">${filtroImp === 'abertos' ? 'Nenhum impacto em aberto.' : 'Nenhum impacto registrado.'}</td></tr>`) + '</tbody>';
-
-  const nomes = new Set();
-  M.empresas.forEach(e => e.servicos.forEach(s => nomes.add(s.nome)));
-  M.impactos.forEach(i => i.servico && nomes.add(String(i.servico).toUpperCase()));
-  $('#listaServicos').innerHTML = [...nomes].sort().map(n => `<option value="${esc(n)}">`).join('');
 }
 
 function abrirFormImp(linha) {
@@ -539,52 +980,74 @@ async function salvarImpacto(corpo, msg) {
   } catch (err) { toast(err.message, true); return false; }
 }
 
-// ------------------------------------------------------------ TENDÊNCIAS
+// ------------------------------------------------------------ TENDÊNCIAS (empresas por serviço)
 function renderTendencia() {
+  const sel = $('#selServ');
+  const servicos = [...new Set(M.metas.map(m => m.servico))];
+  if (sel.options.length !== servicos.length) {
+    const atual = sel.value;
+    sel.innerHTML = servicos.map(s => `<option value="${esc(s)}">${esc(cap(s))}</option>`).join('');
+    if (servicos.includes(atual)) sel.value = atual;
+  }
+  const serv = sel.value;
   const ate = segunda(ref);
-  const semanas = [...new Set(M.metas.map(m => m.inicio))].filter(s => s <= ate).sort();
-  const emps = [...new Set(M.metas.map(m => m.empresa))];
-  $('#legTend').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('');
+  const emps = [...new Set(M.metas.filter(m => m.servico === serv).map(m => m.empresa))];
+  const semanas = [...new Set(M.metas.filter(m => m.servico === serv && m.inicio <= ate).map(m => m.inicio))].sort()
+    .filter(s => M.metas.some(m => m.servico === serv && m.inicio === s && (metaSemanaTotal(m) > 0 || kpi(m, minD(m.fim, ref)).realSemana > 0)));
+  const todasEmps = [...new Set(M.metas.map(m => m.empresa))];
+  $('#legTend').innerHTML = todasEmps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('');
+  $('#titAting').textContent = `Atingimento semanal por empresa — ${cap(serv)}`;
+  $('#titProd').textContent = `Produção semanal por empresa — ${cap(serv)}`;
+
+  const linhaDe = (n, s) => M.metas.find(m => m.empresa === n && m.servico === serv && m.inicio === s);
   trocarGrafico('gAting', {
     type: 'line',
     data: {
       labels: semanas.map(fd),
       datasets: emps.map(n => ({
         label: n,
-        data: semanas.map(s => {
-          let prev = 0, real = 0;
-          M.metas.filter(m => m.empresa === n && m.inicio === s).forEach(m => { const k = kpi(m, m.fim < ref ? m.fim : ref); if (k.semana > 0) { prev += k.prevAte; real += k.real; } });
-          return prev > 0 ? Math.round(real / prev * 100) : null;
-        }),
-        borderColor: cor(COR_EMP[n] || '--acento'), backgroundColor: cor(COR_EMP[n] || '--acento'),
-        borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, tension: .25, spanGaps: true,
+        data: semanas.map(s => { const m = linhaDe(n, s); if (!m) return null; const k = kpi(m, minD(m.fim, ref)); return k.prevAte > 0 ? Math.round(k.real / k.prevAte * 100) : null; }),
+        borderColor: corEmpHex(n), backgroundColor: corEmpHex(n), borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, tension: 0, spanGaps: true,
       })),
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? '—' : c.raw + '%'}` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? 'sem meta' : c.raw + '%'}` } } },
       scales: eixos({ ticks: { color: cor('--fg2'), callback: v => v + '%' } }),
     },
   });
 
-  const sel = $('#selServ');
-  const opcoes = [...new Set(M.metas.map(m => `${m.empresa}|${m.servico}`))];
-  if (sel.options.length !== opcoes.length) sel.innerHTML = opcoes.map(o => `<option value="${esc(o)}">${esc(o.replace('|', ' · '))}</option>`).join('');
-  const [empN, serv] = sel.value.split('|');
-  const ms = M.metas.filter(m => m.empresa === empN && m.servico === serv && m.inicio <= ate).sort((a, b) => a.inicio.localeCompare(b.inicio));
-  const c = cor(COR_EMP[empN] || '--acento');
   trocarGrafico('gServ', {
     data: {
-      labels: ms.map(m => fd(m.inicio)),
+      labels: semanas.map(fd),
       datasets: [
-        { type: 'line', label: 'Meta ajustada', data: ms.map(m => m.meta_dia * m.du + m.gap), borderColor: cor('--fg2'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, stepped: 'middle' },
-        { type: 'bar', label: 'Realizado', data: ms.map(m => kpi(m, m.fim).realSemana), backgroundColor: c, borderRadius: 4, maxBarThickness: 26 },
+        { type: 'line', label: 'Meta (soma das empresas)', data: semanas.map(s => soma0(emps.map(n => linhaDe(n, s)).filter(Boolean), metaSemanaTotal)), borderColor: cor('--fg2'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, stepped: 'middle', order: 0 },
+        ...emps.map(n => ({ type: 'bar', label: n, data: semanas.map(s => { const m = linhaDe(n, s); return m ? kpi(m, m.fim).realSemana : 0; }), backgroundColor: corEmpHex(n), borderColor: cor('--card'), borderWidth: 1, borderRadius: 4, maxBarThickness: 22, order: 1 })),
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { color: cor('--fg2'), boxWidth: 12 } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${nf(c.raw, 1)}` } } },
       scales: eixos(),
+    },
+  });
+
+  const c = corte();
+  $('#notaComp').textContent = `Realizado ÷ previsto de ${fdA(per.ini)} a ${fdA(c)} (use a barra de período)`;
+  trocarGrafico('gComp', {
+    type: 'bar',
+    data: {
+      labels: servicos.map(cap),
+      datasets: todasEmps.map(n => ({
+        label: n,
+        data: servicos.map(s => { if (!M.metas.some(m => m.empresa === n && m.servico === s)) return null; const k = kpiPer(n, s, per.ini, per.fim, c); return k.pct == null ? null : Math.round(k.pct); }),
+        backgroundColor: corEmpHex(n), borderColor: cor('--card'), borderWidth: 1, borderRadius: 4, maxBarThickness: 26,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.raw == null ? 'sem meta' : x.raw + '%'}` } } },
+      scales: eixos({ ticks: { color: cor('--fg2'), callback: v => v + '%' } }),
     },
   });
 }
@@ -596,12 +1059,21 @@ function ligarEventos() {
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));
   $('#btnHoje').onclick = () => definirRef(hoje());
+  $('#perIni').addEventListener('change', () => definirPeriodo($('#perIni').value, $('#perFim').value, null));
+  $('#perFim').addEventListener('change', () => definirPeriodo($('#perIni').value, $('#perFim').value, null));
+  $('#perAtalhos').addEventListener('click', ev => { const b = ev.target.closest('button[data-p]'); if (b) atalhoPeriodo(b.dataset.p); });
 
   document.addEventListener('click', ev => {
     const lanc = ev.target.closest('[data-ir-lanc]');
     if (lanc) { empSel = lanc.dataset.irLanc; mudarAba('lanc'); }
     const ir = ev.target.closest('[data-ir-aba]');
     if (ir) mudarAba(ir.dataset.irAba);
+    const novo = ev.target.closest('[data-novo]');
+    if (novo) abrirDialogo(novo.dataset.novo, null);
+    const ed = ev.target.closest('[data-editar-reg]');
+    if (ed) abrirDialogo(ed.dataset.editarReg, +ed.dataset.linha);
+    const mv = ev.target.closest('[data-mov]');
+    if (mv) abrirDialogo('movimentos', null, { codigo: mv.dataset.mov, tipo: 'ENTRADA' });
   });
 
   $('#segEmpresas').addEventListener('click', ev => { const b = ev.target.closest('button[data-emp]'); if (b) { empSel = b.dataset.emp; renderLanc(); } });
@@ -620,7 +1092,7 @@ function ligarEventos() {
   $('#btnSalvar').onclick = salvarLanc;
   $('#btnDescartar').onclick = () => { pend.clear(); atualizarPendentes(); renderLanc(); verificarVersao(); };
   document.addEventListener('keydown', ev => {
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && !$('#dlg').open) {
       ev.preventDefault();
       if (abaAtual === 'metas') salvarMetas(); else salvarLanc();
     }
@@ -649,8 +1121,8 @@ function ligarEventos() {
   $('#tabImp').addEventListener('click', async ev => {
     const ed = ev.target.closest('[data-editar]');
     if (ed) abrirFormImp(+ed.dataset.editar);
-    const rs = ev.target.closest('[data-resolver]');
-    if (rs) await salvarImpacto({ linha: +rs.dataset.resolver, solucionado: hoje() }, 'Impacto marcado como solucionado');
+    const rsv = ev.target.closest('[data-resolver]');
+    if (rsv) await salvarImpacto({ linha: +rsv.dataset.resolver, solucionado: hoje() }, 'Impacto marcado como solucionado');
   });
   $('#formImp').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -666,6 +1138,17 @@ function ligarEventos() {
     if (await salvarImpacto({ linha: +$('#formImp').dataset.linha, excluir: true }, 'Impacto excluído')) $('#formImp').hidden = true;
   };
 
+  $('#dlgForm').addEventListener('submit', salvarDialogo);
+  $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
+  $('#dlgExcluir').onclick = excluirDialogo;
+  $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); }));
+  $('#dlgForm').addEventListener('input', ev => {
+    if (ev.target.name === 'custo') ev.target.dataset.manual = ev.target.value ? '1' : '';
+    if (['equipamento', 'uso', 'quantidade'].includes(ev.target.name)) autoCustoUso(ev.currentTarget);
+  });
+  $('#btnImportarEq').onclick = importarEquip;
+  $('#btnCopiarCli').onclick = copiarResumo;
+
   $('#selServ').addEventListener('change', renderTendencia);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAba);
 }
@@ -677,8 +1160,9 @@ function ligarEventos() {
   let aba = 'painel';
   try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
   $('#refData').value = ref;
-  definirRef(ref);
-  try { await carregar(); }
+  const s = segunda(ref);
+  per = { ini: s, fim: add(s, 6) };
+  try { await carregar(); definirRef(ref); }
   catch (err) { $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; }
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
   setInterval(verificarVersao, 4000);

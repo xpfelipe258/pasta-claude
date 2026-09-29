@@ -214,3 +214,24 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
   main { padding-inline: 16px; }
   .tile .val { font-size: 1.6rem; }
 }
+
+.periodo {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px;
+  padding: 12px 20px; background: var(--acento-suave); border-bottom: 1px solid var(--linha);
+}
+.periodo label { display: flex; flex-direction: column; gap: 2px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
+.periodo .nota { align-self: center; }
+
+dialog { border: 1px solid var(--linha-forte); border-radius: 10px; padding: 18px; background: var(--card); color: var(--fg); width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .75rem; font-weight: 600; color: var(--fg2); }
+dialog .largo { grid-column: 1 / -1; }
+dialog .obrig::after { content: " *"; color: var(--vermelho); }
+
+.resumo { width: 100%; margin-top: 10px; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+.valor-neg { color: var(--vermelho); font-weight: 700; }
+.acoes-linha { white-space: nowrap; }
+td.sub { color: var(--fg3); font-size: .78rem; }
+@media (max-width: 600px) { .periodo { padding-inline: 16px; } }
+#tabFarol th, #tabEstoque th, #tabCliente th, #tabEqEmp th, #tabEqUso th { white-space: normal; vertical-align: bottom; }

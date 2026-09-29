@@ -30,6 +30,9 @@
   <button data-aba="semana">Programação semanal</button>
   <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
   <button data-aba="avanco">Avanço físico</button>
+  <button data-aba="cliente">Dashboard cliente</button>
+  <button data-aba="estoque">Estoque <span class="contador alerta" id="estCont" hidden></span></button>
+  <button data-aba="equip">Equipamentos</button>
   <button data-aba="metas">Metas</button>
   <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
   <button data-aba="tendencia">Tendências</button>
@@ -39,13 +42,25 @@
   A planilha foi alterada fora do sistema. Salve ou descarte seus lançamentos pendentes para recarregar.
 </div>
 
+<div class="periodo" id="barraPeriodo" hidden>
+  <label>Data início<input type="date" id="perIni"></label>
+  <label>Data fim<input type="date" id="perFim"></label>
+  <div class="seg" id="perAtalhos">
+    <button data-p="semana">Semana</button>
+    <button data-p="mes">Mês</button>
+    <button data-p="30">Últimos 30 dias</button>
+    <button data-p="obra">Obra toda</button>
+  </div>
+  <span class="nota" id="perTxt"></span>
+</div>
+
 <main>
   <!-- PAINEL -->
   <section id="aba-painel">
     <div class="tiles" id="tiles"></div>
     <div class="grade-2">
       <div class="bloco">
-        <div class="bloco-cab"><h2>Farol da semana</h2><span class="nota" id="notaFarol"></span></div>
+        <div class="bloco-cab"><h2>Farol do período</h2><span class="nota" id="notaFarol"></span></div>
         <div class="tabela-rolagem"><table id="tabFarol"></table></div>
       </div>
       <div class="bloco">
@@ -54,8 +69,8 @@
       </div>
     </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Previsto até a data × Realizado</h2>
-        <div class="legenda"><span><i class="leg-prev"></i>Previsto até a data</span><span><i class="leg-real"></i>Realizado</span></div>
+      <div class="bloco-cab"><h2>Previsto × realizado no período</h2>
+        <div class="legenda"><span><i class="leg-prev"></i>Previsto até a data de corte</span><span><i class="leg-real"></i>Realizado</span></div>
       </div>
       <div class="grafico alto"><canvas id="gPainel"></canvas></div>
     </div>
@@ -64,7 +79,7 @@
   <!-- SEMANA -->
   <section id="aba-semana" hidden>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Programação × Realizado por dia</h2><span class="nota">Cada célula: realizado / meta do dia. Dias futuros mostram o planejado.</span></div>
+      <div class="bloco-cab"><h2>Programação × realizado por dia</h2><span class="nota">Cada célula: realizado / meta do dia. Dias futuros mostram o planejado.</span></div>
       <div class="tabela-rolagem"><table id="tabSemana" class="tab-semana"></table></div>
     </div>
     <div class="grade-2">
@@ -102,6 +117,84 @@
     <div class="bloco">
       <div class="bloco-cab"><h2>Avanço por empresa</h2></div>
       <div id="avancoEmpresas" class="grade-3"></div>
+    </div>
+  </section>
+
+  <!-- CLIENTE -->
+  <section id="aba-cliente" hidden>
+    <div class="tiles" id="cliTiles"></div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Curva S — avanço físico ponderado</h2>
+          <div class="legenda"><span><i class="leg-prev"></i>Previsto cliente</span><span><i class="leg-real"></i>Realizado</span></div>
+        </div>
+        <div class="grafico"><canvas id="gCurvaS"></canvas></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Insights e pontos de atenção</h2><button class="btn" id="btnCopiarCli">Copiar resumo para o cliente</button></div>
+        <ul class="alertas" id="cliInsights"></ul>
+        <textarea id="cliResumo" class="resumo" rows="8" hidden readonly></textarea>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Previsto do cliente × realizado por serviço</h2><span class="nota" id="cliNota"></span></div>
+      <div class="tabela-rolagem"><table id="tabCliente"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Posição por frente</h2><span class="nota">Percentuais ponderados pelo peso de cada serviço (METAS CLIENTE, coluna L).</span></div>
+      <div class="tabela-rolagem"><table id="tabFrentes"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE -->
+  <section id="aba-estoque" hidden>
+    <div class="tiles" id="estTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota">Saldo = saldo inicial + entradas − saídas ± ajustes − consumo pela produção lançada (produção × consumo por unidade). Necessidade calculada pela meta da semana da data de referência.</p>
+      <div class="acoes">
+        <button class="btn" data-novo="movimentos">+ Movimentação</button>
+        <button class="btn primario" data-novo="materiais">+ Material</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Materiais × necessidade da semana</h2><span class="nota" id="estNota"></span></div>
+      <div class="tabela-rolagem"><table id="tabEstoque"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Últimas movimentações</h2></div>
+      <div class="tabela-rolagem"><table id="tabMov"></table></div>
+    </div>
+  </section>
+
+  <!-- EQUIPAMENTOS -->
+  <section id="aba-equip" hidden>
+    <div class="tiles" id="eqTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota">Registros com empresa compartilhada (ex.: EJ/CMM) têm o custo dividido igualmente entre as empresas.</p>
+      <div class="acoes">
+        <button class="btn" id="btnImportarEq">Importar abas mensais</button>
+        <button class="btn" data-novo="equipamentos">+ Equipamento</button>
+        <button class="btn primario" data-novo="usos">+ Uso / abastecimento</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Custo por empresa no período</h2><div class="legenda" id="legEq"></div></div>
+      <div class="grafico"><canvas id="gEquip"></canvas></div>
+      <div class="tabela-rolagem"><table id="tabEqEmp"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Por equipamento</h2></div>
+        <div class="tabela-rolagem"><table id="tabEqEquip"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Cadastro de equipamentos</h2></div>
+        <div class="tabela-rolagem"><table id="tabEqCad"></table></div>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Registros de uso e abastecimento no período</h2></div>
+      <div class="tabela-rolagem"><table id="tabEqUso"></table></div>
     </div>
   </section>
 
@@ -146,22 +239,46 @@
         <button type="submit" class="btn primario">Salvar na planilha</button>
       </div>
     </form>
-    <datalist id="listaServicos"></datalist>
     <div class="bloco"><div class="tabela-rolagem"><table id="tabImp"></table></div></div>
   </section>
 
   <!-- TENDÊNCIAS -->
   <section id="aba-tendencia" hidden>
+    <div class="barra-acoes">
+      <label class="check">Serviço <select id="selServ"></select></label>
+      <div class="legenda" id="legTend"></div>
+    </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Atingimento semanal por empresa</h2><div class="legenda" id="legTend"></div></div>
+      <div class="bloco-cab"><h2 id="titAting">Atingimento semanal por empresa</h2></div>
       <div class="grafico"><canvas id="gAting"></canvas></div>
     </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Produção semanal × meta</h2><select id="selServ"></select></div>
+      <div class="bloco-cab"><h2 id="titProd">Produção semanal por empresa</h2><span class="nota">Linha tracejada: meta somada das empresas.</span></div>
       <div class="grafico"><canvas id="gServ"></canvas></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Comparativo das empresas por serviço no período</h2><span class="nota" id="notaComp"></span></div>
+      <div class="grafico"><canvas id="gComp"></canvas></div>
     </div>
   </section>
 </main>
+
+<dialog id="dlg">
+  <form id="dlgForm" method="dialog">
+    <div class="bloco-cab"><h2 id="dlgTit"></h2><button type="button" class="btn-icone" id="dlgFechar" aria-label="Fechar">×</button></div>
+    <div class="campos" id="dlgCampos"></div>
+    <div class="acoes">
+      <button type="button" class="btn perigo" id="dlgExcluir" hidden>Excluir</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn" id="dlgCancelar">Cancelar</button>
+      <button type="submit" class="btn primario">Salvar na planilha</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="listaServicos"></datalist>
+<datalist id="listaEmpresas"></datalist>
+<datalist id="listaEquip"></datalist>
 
 <div class="toast" id="toast" role="status"></div>
 <script src="chart.umd.js"></script>
