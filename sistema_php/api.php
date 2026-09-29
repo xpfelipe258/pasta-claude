@@ -53,6 +53,7 @@ try {
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
+        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -188,6 +189,9 @@ function acao_registro(array $corpo)
     if (!isset($specs[$tabela])) {
         throw new ErroValidacao('Tabela inválida.');
     }
+    if (in_array($tabela, ['bm_fechamentos', 'bm_fech_atividades'], true)) {
+        throw new ErroValidacao('O fechamento do BM é gravado por Medição (BM) > Fechar BM / Reabrir.');
+    }
     $id = isset($corpo['linha']) && $corpo['linha'] !== null ? (int)$corpo['linha'] : null;
     if ($id !== null && !q("SELECT id FROM $tabela WHERE id = ?", [$id])->fetch()) {
         throw new ErroValidacao('Registro não encontrado. Recarregue a tela.');
@@ -302,6 +306,71 @@ function acao_bm_apontar(array $corpo)
         }
     }
     return $n;
+}
+
+function acao_bm_fechar(array $corpo)
+{
+    $emp = (string)($corpo['empresa'] ?? '');
+    $n = numero($corpo['bm'] ?? null);
+    if ($n === null || !q('SELECT id FROM empresas WHERE nome = ?', [$emp])->fetch()) {
+        throw new ErroValidacao('Empresa ou número do BM inválido.');
+    }
+    $n = (int)$n;
+    $periodos = [];
+    foreach (q('SELECT bm, corte FROM bm_periodos WHERE empresa = ? AND bm IS NOT NULL AND corte IS NOT NULL', [$emp])->fetchAll() as $p) {
+        $periodos[(int)$p['bm']] = $p['corte'];
+    }
+    if (!isset($periodos[$n])) {
+        throw new ErroValidacao("Cadastre a data de corte do BM$n em Períodos e deduções antes de fechar.");
+    }
+    $fechados = array_map('intval', q('SELECT bm FROM bm_fechamentos WHERE empresa = ?', [$emp])->fetchAll(PDO::FETCH_COLUMN));
+    if (in_array($n, $fechados, true)) {
+        throw new ErroValidacao("O BM$n já está fechado.");
+    }
+    foreach (array_keys($periodos) as $k) {
+        if ($k < $n && !in_array($k, $fechados, true)) {
+            throw new ErroValidacao('Feche os BMs anteriores antes deste.');
+        }
+    }
+    $ativs = is_array($corpo['atividades'] ?? null) ? $corpo['atividades'] : [];
+    $catalogo = q('SELECT codigo FROM bm_atividades WHERE empresa = ?', [$emp])->fetchAll(PDO::FETCH_COLUMN);
+    if (!$ativs) {
+        throw new ErroValidacao('Atividades do fechamento inválidas.');
+    }
+    foreach ($ativs as $a) {
+        if (!in_array($a['codigo'] ?? '', $catalogo, true)) {
+            throw new ErroValidacao('Atividades do fechamento inválidas.');
+        }
+    }
+    if (!data_valida((string)($corpo['fechado_em'] ?? ''))) {
+        throw new ErroValidacao('Data de fechamento inválida.');
+    }
+    q('INSERT INTO bm_fechamentos (empresa, bm, fechado_em, equip, comb, litros) VALUES (?, ?, ?, ?, ?, ?)',
+        [$emp, $n, $corpo['fechado_em'], round(numero($corpo['equip'] ?? 0) ?: 0, 2), round(numero($corpo['comb'] ?? 0) ?: 0, 2), numero($corpo['litros'] ?? 0) ?: 0]);
+    foreach ($ativs as $a) {
+        q('INSERT INTO bm_fech_atividades (empresa, bm, codigo, item, realizado, qtd, peso, valor_qpc, valor_rotula) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$emp, $n, $a['codigo'], $a['item'] ?? null, numero($a['realizado'] ?? 0) ?: 0, numero($a['qtd'] ?? null), numero($a['peso'] ?? null),
+                numero($a['valor_qpc'] ?? null), numero($a['valor_rotula'] ?? null)]);
+    }
+    return count($ativs) + 1;
+}
+
+function acao_bm_reabrir(array $corpo)
+{
+    $emp = (string)($corpo['empresa'] ?? '');
+    $n = numero($corpo['bm'] ?? null);
+    $fechados = array_map('intval', q('SELECT bm FROM bm_fechamentos WHERE empresa = ?', [$emp])->fetchAll(PDO::FETCH_COLUMN));
+    if ($n === null || !in_array((int)$n, $fechados, true)) {
+        throw new ErroValidacao('Este BM não está fechado.');
+    }
+    foreach ($fechados as $k) {
+        if ($k > (int)$n) {
+            throw new ErroValidacao('Reabra primeiro os BMs posteriores.');
+        }
+    }
+    q('DELETE FROM bm_fech_atividades WHERE empresa = ? AND bm = ?', [$emp, (int)$n]);
+    q('DELETE FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$emp, (int)$n]);
+    return 1;
 }
 
 function acao_bm_semear()

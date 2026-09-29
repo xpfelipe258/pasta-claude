@@ -275,3 +275,6 @@ tr.grupo-item td { background: var(--bg); font-size: .82rem; }
 .tabela-bm td:first-child { white-space: normal; }
 #tabLanc.por-servico { table-layout: fixed; width: 1298px; }
 #tabLanc.por-servico td.sub-ativ, #tabLanc.por-servico td.fixa { max-width: none; min-width: 0; }
+.grade-lanc input[data-fechado] { background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--linha-forte) 5px 6px); box-shadow: inset 2px 0 0 var(--vermelho); }
+.linha-info td { color: var(--fg2); font-size: .85rem; }
+.status-bm { display: inline-flex; }

@@ -392,6 +392,27 @@ TABELAS = {
             ("contrato", "Contrato (RÓTULA, QPC ou AMBOS)", "txt", 18),
         ],
     },
+    "bm_fechamentos": {
+        "aba": "BM FECHAMENTO",
+        "titulo": "BM — FECHAMENTOS (não edite). Foto do BM no momento do fechamento: equipamento e combustível descontados. Use Medição (BM) > Fechar BM / Reabrir.",
+        "cor": "FF7F0000",
+        "campos": [
+            ("empresa", "Empresa", "txt", 14), ("bm", "Nº do BM", "num", 10), ("fechado_em", "Fechado em", "data", 14),
+            ("equip", "Equipamentos (R$)", "num", 16), ("comb", "Combustível (R$)", "num", 16), ("litros", "Litros", "num", 10),
+            ("obs", "Observação", "txt", 30),
+        ],
+    },
+    "bm_fech_atividades": {
+        "aba": "BM FECHAMENTO ATIVIDADES",
+        "titulo": "BM — FOTO DAS ATIVIDADES NO FECHAMENTO (não edite). Realizado acumulado, quantidade, peso e valor do item congelados em cada BM fechado.",
+        "cor": "FF7F0000",
+        "campos": [
+            ("empresa", "Empresa", "txt", 14), ("bm", "Nº do BM", "num", 10), ("codigo", "Código da atividade", "txt", 16),
+            ("item", "Item", "txt", 10), ("realizado", "Realizado acumulado", "num", 14), ("qtd", "Quantidade contratada", "num", 14),
+            ("peso", "Peso no item", "num", 10), ("valor_qpc", "Valor do item QPC (R$)", "num", 16),
+            ("valor_rotula", "Valor do item RÓTULA (R$)", "num", 16),
+        ],
+    },
 }
 LINHA_DADOS_TABELA = 3
 

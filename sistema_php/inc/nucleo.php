@@ -68,10 +68,14 @@ function tabelas_spec()
         'bm_apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'codigo' => 'txt', 'quantidade' => 'num', 'obs' => 'txt'],
         'bm_deducoes' => ['empresa' => 'txt', 'bm' => 'num', 'data' => 'data', 'tipo' => 'txt', 'descricao' => 'txt',
             'valor' => 'num', 'contrato' => 'txt'],
+        'bm_fechamentos' => ['empresa' => 'txt', 'bm' => 'num', 'fechado_em' => 'data', 'equip' => 'num', 'comb' => 'num',
+            'litros' => 'num', 'obs' => 'txt'],
+        'bm_fech_atividades' => ['empresa' => 'txt', 'bm' => 'num', 'codigo' => 'txt', 'item' => 'txt', 'realizado' => 'num',
+            'qtd' => 'num', 'peso' => 'num', 'valor_qpc' => 'num', 'valor_rotula' => 'num'],
     ];
 }
 
-const ESQUEMA_VERSAO = 2;
+const ESQUEMA_VERSAO = 3;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)

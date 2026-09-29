@@ -264,10 +264,71 @@ def acao_bm_apontar(corpo):
     return gravar(alteracoes)
 
 
+def _limpar_linhas(tabela, linhas):
+    spec = xio.TABELAS[tabela]
+    return [(spec["aba"], f"{xio.col_letra(i)}{lin}", None, None) for lin in linhas for i in range(1, len(spec["campos"]) + 1)]
+
+
+def acao_bm_fechar(corpo):
+    """Congela o BM: grava a foto das atividades e dos descontos de equipamento e combustível."""
+    _garantir()
+    m = modelo()
+    emp, n = corpo.get("empresa"), xio.numero(corpo.get("bm"))
+    if emp not in {e["nome"] for e in m["empresas"]} or n is None:
+        raise ErroValidacao("Empresa ou número do BM inválido.")
+    n = int(n)
+    periodos = {int(p["bm"]): p for p in m["tabelas"]["bm_periodos"] if p["empresa"] == emp and p.get("bm") is not None and p.get("corte")}
+    if n not in periodos:
+        raise ErroValidacao(f"Cadastre a data de corte do BM{n} em Períodos e deduções antes de fechar.")
+    fechados = {int(f["bm"]) for f in m["tabelas"]["bm_fechamentos"] if f["empresa"] == emp}
+    if n in fechados:
+        raise ErroValidacao(f"O BM{n} já está fechado.")
+    if any(k < n and k not in fechados for k in periodos):
+        raise ErroValidacao("Feche os BMs anteriores antes deste.")
+    catalogo = {a["codigo"] for a in m["tabelas"]["bm_atividades"] if a["empresa"] == emp}
+    ativs = corpo.get("atividades") or []
+    if not ativs or any(a.get("codigo") not in catalogo for a in ativs):
+        raise ErroValidacao("Atividades do fechamento inválidas.")
+    if not _eh_data(corpo.get("fechado_em")):
+        raise ErroValidacao("Data de fechamento inválida.")
+    alteracoes = []
+    lin = _proxima_linha_livre("bm_fechamentos")
+    cab = {"empresa": emp, "bm": n, "fechado_em": corpo["fechado_em"], "equip": round(xio.numero(corpo.get("equip")) or 0, 2),
+           "comb": round(xio.numero(corpo.get("comb")) or 0, 2), "litros": xio.numero(corpo.get("litros")) or 0}
+    for col, v, t in xio.valores_registro("bm_fechamentos", cab):
+        alteracoes.append((xio.TABELAS["bm_fechamentos"]["aba"], f"{col}{lin}", v, t))
+    aba, reservadas = xio.TABELAS["bm_fech_atividades"]["aba"], []
+    for a in ativs:
+        lin = _proxima_linha_livre("bm_fech_atividades", reservadas)
+        reservadas.append(lin)
+        campos = {"empresa": emp, "bm": n, "codigo": a["codigo"], "item": a.get("item"), "realizado": a.get("realizado") or 0,
+                  "qtd": a.get("qtd"), "peso": a.get("peso"), "valor_qpc": a.get("valor_qpc"), "valor_rotula": a.get("valor_rotula")}
+        for col, v, t in xio.valores_registro("bm_fech_atividades", campos):
+            alteracoes.append((aba, f"{col}{lin}", v, t))
+    return gravar(alteracoes)
+
+
+def acao_bm_reabrir(corpo):
+    """Desfaz o fechamento do último BM fechado da empresa."""
+    _garantir()
+    m = modelo()
+    emp, n = corpo.get("empresa"), xio.numero(corpo.get("bm"))
+    fechados = [f for f in m["tabelas"]["bm_fechamentos"] if f["empresa"] == emp]
+    alvo = [f for f in fechados if n is not None and int(f["bm"]) == int(n)]
+    if not alvo:
+        raise ErroValidacao("Este BM não está fechado.")
+    if any(int(f["bm"]) > int(n) for f in fechados):
+        raise ErroValidacao("Reabra primeiro os BMs posteriores.")
+    linhas = [r["linha"] for r in m["tabelas"]["bm_fech_atividades"] if r["empresa"] == emp and int(r["bm"]) == int(n)]
+    return gravar(_limpar_linhas("bm_fechamentos", [alvo[0]["linha"]]) + _limpar_linhas("bm_fech_atividades", linhas))
+
+
 def acao_registro(corpo):
     tabela = corpo.get("tabela")
     if tabela not in xio.TABELAS:
         raise ErroValidacao("Tabela inválida.")
+    if tabela in ("bm_fechamentos", "bm_fech_atividades"):
+        raise ErroValidacao("O fechamento do BM é gravado por Medição (BM) > Fechar BM / Reabrir.")
     _garantir()
     spec = xio.TABELAS[tabela]
     lin = corpo.get("linha")
@@ -320,6 +381,8 @@ ACOES = {
     "/api/equip/importar": acao_importar_equip,
     "/api/bm/semear": acao_semear_bm,
     "/api/bm/apontar": acao_bm_apontar,
+    "/api/bm/fechar": acao_bm_fechar,
+    "/api/bm/reabrir": acao_bm_reabrir,
     "/api/producao": acao_producao,
     "/api/metas": acao_metas,
     "/api/impacto": acao_impacto,

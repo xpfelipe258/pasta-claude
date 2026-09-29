@@ -34,11 +34,26 @@ Mesma regra da aba `BM2-MC MONTAGEM` das planilhas de medição
 | BM PERÍODOS | data de corte de cada BM por empresa |
 | BM APONTAMENTO | quantidade por dia e atividade (atividades sem coluna no controle) |
 | BM DEDUÇÕES | deduções manuais por BM |
+| BM FECHAMENTO | um registro por BM fechado, com o total de equipamento e combustível descontado (não editar) |
+| BM FECHAMENTO ATIVIDADES | foto de cada atividade no fechamento: realizado, quantidade, peso e valor do item (não editar) |
 
 Na primeira execução o programa cria as abas e carrega o catálogo inicial
 (168 atividades: EJ 69, CMM 16, GLOBO AÇOS 83). No sistema online, o catálogo
 chega com a importação dos dados do programa local; instalações antigas ganham as
 tabelas sozinhas.
+
+## Fechamento do BM e correção de datas passadas
+
+- **Fechar BM:** no boletim de um BM que já tem data de corte, o botão "Fechar BMn"
+  (com confirmação) grava a foto do BM. Os BMs anteriores precisam estar fechados.
+- **BM fechado é congelado:** quantidades, pesos, valores e equipamento/combustível
+  ficam como no fechamento. Corrigir depois uma data daquele período não altera o BM.
+- **Ajuste:** a diferença causada por correções em datas de períodos fechados entra no
+  BM em aberto, em linha separada ("ajuste de períodos anteriores") e num ponto de atenção.
+- **Aviso na hora de lançar:** a célula de uma data em período fechado fica listrada, com
+  borda vermelha, e a barra de pendências informa quantos lançamentos vão virar ajuste.
+- **Reabrir BM:** desfaz o fechamento do último BM fechado (com confirmação); ele volta a
+  refletir os dados vivos. Períodos fechados não podem ser editados até serem reabertos.
 
 ## Regras
 

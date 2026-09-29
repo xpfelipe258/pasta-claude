@@ -136,7 +136,7 @@ async function carregar() {
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
-  ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes'].forEach(k => T[k] ||= []);
+  ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades'].forEach(k => T[k] ||= []);
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
@@ -430,6 +430,7 @@ function renderLanc() {
   if (lancModo === 'servico') return renderLancServico(e);
   const s = segunda(ref), dias = [0, 1, 2, 3, 4, 5, 6].map(i => add(s, i));
   const noCal = new Set(M.datas);
+  const fechadosG = bmPeriodos(e.nome).filter(p => p.fechado);
 
   const grupos = [];
   e.servicos.forEach(sv => { const g = grupos[grupos.length - 1]; if (g && g.f === sv.frente) g.n++; else grupos.push({ f: sv.frente, n: 1 }); });
@@ -443,7 +444,9 @@ function renderLanc() {
       const k = chave(e.aba, d, col);
       const v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, col);
       const ehTexto = v !== '' && isNaN(Number(v.replace(',', '.')));
-      return `<td><input class="${cls} ${pend.has(k) ? 'editado' : ''} ${ehTexto && cls !== 'txt' ? 'texto-val' : ''}" data-d="${d}" data-c="${col}" value="${esc(v)}" ${dentro ? '' : 'disabled'} inputmode="${cls === 'txt' ? 'text' : 'decimal'}" aria-label="${DIAS[i]} ${fd(d)}"></td>`;
+      const fz = cls === 'txt' ? undefined : fechadosG.find(p => d >= p.ini && d <= p.fim);
+      const marcaF = fz ? `data-fechado="${fz.n}" title="Período do BM${fz.n}, já fechado: a correção entra como ajuste no BM em aberto"` : '';
+      return `<td><input class="${cls} ${pend.has(k) ? 'editado' : ''} ${ehTexto && cls !== 'txt' ? 'texto-val' : ''}" data-d="${d}" data-c="${col}" value="${esc(v)}" ${dentro ? '' : 'disabled'} ${marcaF} inputmode="${cls === 'txt' ? 'text' : 'decimal'}" aria-label="${DIAS[i]} ${fd(d)}"></td>`;
     };
     e.servicos.forEach(sv => h += campo(sv.col, 'num'));
     if (e.col_obs) h += campo(e.col_obs, 'txt');
@@ -459,10 +462,23 @@ function renderLanc() {
   $('#tabLanc').innerHTML = h + '</tfoot>';
 }
 
+function pendentesEmPeriodoFechado() {
+  const cache = {};
+  const fech = emp => cache[emp] ||= bmPeriodos(emp).filter(p => p.fechado);
+  let n = 0;
+  pend.forEach((v, k) => {
+    const [aba, data, col] = k.split('|'), e = M.empresas.find(x => x.aba === aba);
+    if (e && col !== e.col_obs && fech(e.nome).some(p => data >= p.ini && data <= p.fim)) n++;
+  });
+  bmPend.forEach((v, k) => { const [emp, , data] = k.split('|'); if (fech(emp).some(p => data >= p.ini && data <= p.fim)) n++; });
+  return n;
+}
+
 function atualizarPendentes() {
   const n = pend.size + bmPend.size;
+  const nf_ = n ? pendentesEmPeriodoFechado() : 0;
   $('#pendCont').hidden = !n; $('#pendCont').textContent = n;
-  $('#pendTxt').textContent = n ? `${n} alteração(ões) não salva(s)` : `Tudo salvo ${ONDE}`;
+  $('#pendTxt').textContent = n ? `${n} alteração(ões) não salva(s)${nf_ ? ` · ${nf_} em período de BM fechado (vira ajuste no BM em aberto)` : ''}` : `Tudo salvo ${ONDE}`;
   $('#btnSalvar').disabled = !n || salvando;
   $('#btnDescartar').disabled = !n || salvando;
 }
@@ -949,18 +965,22 @@ function bmRealizado(a, ate) {
   return t;
 }
 
-function bmItens(emp, ate) {
+const bmFech = (emp, n) => bmTab('bm_fechamentos').find(f => f.empresa === emp && f.bm === n);
+const bmFechAtiv = (emp, n) => bmTab('bm_fech_atividades').filter(r => r.empresa === emp && r.bm === n);
+
+function bmMontarItens(lista) {
   const mapa = new Map();
-  bmAtiv(emp).forEach(a => {
+  lista.forEach(x => {
+    const a = x.a;
     let it = mapa.get(a.item);
-    if (!it) { it = { item: a.item, desc: a.item_desc, valor: { 'QPC': a.valor_qpc || 0, 'RÓTULA': a.valor_rotula || 0 }, atividades: [] }; mapa.set(a.item, it); }
-    it.atividades.push(a);
+    if (!it) { it = { item: a.item, desc: a.item_desc, valor: { 'QPC': a.valor_qpc || 0, 'RÓTULA': a.valor_rotula || 0 }, xs: [] }; mapa.set(a.item, it); }
+    it.xs.push(x);
   });
   return [...mapa.values()].map(it => {
-    const sp = it.atividades.reduce((s, a) => s + (a.peso || 0), 0) || 1;
+    const sp = it.xs.reduce((s, x) => s + (x.a.peso || 0), 0) || 1;
     let pct = 0, excedeu = false;
-    const ats = it.atividades.map(a => {
-      const real = bmRealizado(a, ate), r = a.qtd ? real / a.qtd : 0;
+    const ats = it.xs.map(({ a, real }) => {
+      const r = a.qtd ? real / a.qtd : 0;
       if (r > 1.000001) excedeu = true;
       const p = Math.min(1, r);
       pct += p * (a.peso || 0) / sp;
@@ -970,54 +990,87 @@ function bmItens(emp, ate) {
   });
 }
 
+// snap: linhas de bm_fech_atividades (BM fechado) — usa quantidade, peso, valor e realizado congelados
+function bmItens(emp, ate, snap) {
+  if (snap) {
+    const cat = new Map(bmTab('bm_atividades').map(a => [a.codigo, a]));
+    return bmMontarItens(snap.map(r => {
+      const b = cat.get(r.codigo) || {};
+      return { a: { ...b, codigo: r.codigo, empresa: emp, item: r.item, item_desc: b.item_desc || r.item, atividade: b.atividade || r.codigo,
+        unidade: b.unidade || '', qtd: r.qtd, peso: r.peso, valor_qpc: r.valor_qpc, valor_rotula: r.valor_rotula }, real: r.realizado || 0 };
+    }));
+  }
+  return bmMontarItens(bmAtiv(emp).map(a => ({ a, real: bmRealizado(a, ate) })));
+}
+
 function bmPeriodos(emp) {
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((a, b) => a.corte.localeCompare(b.corte));
   const lista = [];
   let ant = null;
   ps.forEach((p, i) => {
-    const n = p.bm || i + 1;
-    lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, fechado: true, rot: `BM${n} · corte ${fdA(p.corte)}` });
+    const n = p.bm || i + 1, fech = bmFech(emp, n);
+    lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, cortado: true, fechado: !!fech, fech,
+      rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
     ant = p.corte;
   });
   if (!ant || ref > ant) {
     const n = lista.length ? lista[lista.length - 1].n + 1 : 1;
-    lista.push({ chave: 'aberto', n, ini: ant ? add(ant, 1) : '0000-01-01', fim: ref, fechado: false,
+    lista.push({ chave: 'aberto', n, ini: ant ? add(ant, 1) : '0000-01-01', fim: ref, cortado: false, fechado: false,
       rot: ant ? `BM${n} em aberto · até ${fdA(ref)}` : `Acumulado até ${fdA(ref)} (sem corte definido)` });
   }
   return lista;
 }
 
 function bmDeducoes(emp, p) {
-  const rt = ratear(bmTab('usos').filter(u => u.data && u.data >= p.ini && u.data <= p.fim)).filter(r => r.empAjust === emp);
-  const equip = soma0(rt, r => r.custoR), comb = soma0(rt, r => r.combR), litros = soma0(rt, r => r.litrosR);
+  let equip, comb, litros, usos = null;
+  if (p.fechado && p.fech) {
+    equip = p.fech.equip || 0; comb = p.fech.comb || 0; litros = p.fech.litros || 0;
+  } else {
+    const rt = ratear(bmTab('usos').filter(u => u.data && u.data >= p.ini && u.data <= p.fim)).filter(r => r.empAjust === emp);
+    equip = soma0(rt, r => r.custoR); comb = soma0(rt, r => r.combR); litros = soma0(rt, r => r.litrosR); usos = rt.length;
+  }
   const manuais = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
   const total = {};
   BM_CONTRATOS.forEach(c => {
-    total[c] = (c === BM_DESCONTA_EQUIP ? equip + comb : 0) +
-      soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => d.valor);
+    total[c] = (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => d.valor);
   });
-  return { equip, comb, litros, manuais, total, usos: rt.length };
+  return { equip, comb, litros, manuais, total, usos };
 }
 
+// BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
+// aparece como ajuste (diferença entre o realizado atual até o corte anterior e a foto daquele fechamento).
 function bmCalc(emp, p) {
-  const fimIt = bmItens(emp, p.fim);
-  const iniIt = p.ini === '0000-01-01' ? null : bmItens(emp, add(p.ini, -1));
-  const itens = fimIt.map((it, i) => {
-    const ant = iniIt ? iniIt[i] : null;
-    return { ...it, pctAnt: ant ? ant.pct : 0, pctPer: it.pct - (ant ? ant.pct : 0),
-      ats: it.ats.map((x, j) => ({ ...x, realAnt: ant ? ant.ats[j].real : 0 })) };
+  const ps = bmPeriodos(emp), i = ps.findIndex(x => x.chave === p.chave), prev = i > 0 ? ps[i - 1] : null;
+  const fimIt = p.fechado ? bmItens(emp, null, bmFechAtiv(emp, p.n)) : bmItens(emp, p.fim);
+  let antIt = null, ajuste = new Map();
+  if (prev) {
+    if (prev.fechado) {
+      antIt = bmItens(emp, null, bmFechAtiv(emp, prev.n));
+      if (!p.fechado) {
+        const vivo = new Map(bmItens(emp, prev.fim).map(it => [it.item, it.pct]));
+        antIt.forEach(it => ajuste.set(it.item, (vivo.get(it.item) || 0) - it.pct));
+      }
+    } else antIt = bmItens(emp, prev.fim);
+  }
+  const ant = new Map((antIt || []).map(it => [it.item, it]));
+  const itens = fimIt.map(it => {
+    const a = ant.get(it.item), pctAnt = a ? a.pct : 0;
+    const reaisAnt = a ? new Map(a.ats.map(x => [x.a.codigo, x.real])) : new Map();
+    return { ...it, pctAnt, pctPer: it.pct - pctAnt, pctAjuste: ajuste.get(it.item) || 0,
+      ats: it.ats.map(x => ({ ...x, realAnt: reaisAnt.get(x.a.codigo) || 0 })) };
   });
   const tot = {};
   BM_CONTRATOS.forEach(c => {
     const contrato = soma0(itens, it => it.valor[c]);
     const acum = soma0(itens, it => it.pct * it.valor[c]);
-    const ant = soma0(itens, it => it.pctAnt * it.valor[c]);
-    tot[c] = { contrato, acum, ant, per: acum - ant, pctAcum: contrato ? acum / contrato : 0, pctPer: contrato ? (acum - ant) / contrato : 0 };
+    const antV = soma0(itens, it => it.pctAnt * it.valor[c]);
+    tot[c] = { contrato, acum, ant: antV, per: acum - antV, ajuste: soma0(itens, it => it.pctAjuste * it.valor[c]),
+      pctAcum: contrato ? acum / contrato : 0, pctPer: contrato ? (acum - antV) / contrato : 0 };
   });
   const ded = bmDeducoes(emp, p);
   const faturar = {};
   BM_CONTRATOS.forEach(c => faturar[c] = tot[c].per - ded.total[c]);
-  return { p, itens, tot, ded, faturar };
+  return { p, itens, tot, ded, faturar, prev };
 }
 
 function bmEvolucao(emp) {
@@ -1059,9 +1112,14 @@ function renderBMBoletim(box) {
   const p = ps.find(x => x.chave === bmPerSel), r = bmCalc(emp, p);
   const cc = corEmp(emp);
   const pc = v => nf(v * 100, 1) + '%';
+  const idx = ps.findIndex(x => x.chave === p.chave);
+  const podeFechar = p.cortado && !p.fechado && ps.slice(0, idx).every(x => x.fechado);
+  const podeReabrir = p.fechado && !ps.some(x => x.fechado && x.n > p.n);
 
   let h = `<div class="barra-acoes"><label class="rot-sel">Medição <select id="selBmPer">${ps.map(x => `<option value="${x.chave}" ${x.chave === bmPerSel ? 'selected' : ''}>${esc(x.rot)}</option>`).join('')}</select></label>
-    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. Realizado vem do lançamento de produção.</span></div>`;
+    <span class="status-bm">${p.fechado ? `<span class="farol f-verde">FECHADO em ${fdA(p.fech.fechado_em)}</span>` : `<span class="farol f-amarelo">EM ABERTO</span>`}</span>
+    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento.' : 'Realizado vem do lançamento de produção.'}</span>
+    <span class="acoes">${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}</span></div>`;
   h += '<div class="tiles">' +
     BM_CONTRATOS.map(c => bmTile(`Contrato ${c}`, rs(r.tot[c].contrato), `Medido acumulado ${rs(r.tot[c].acum)} · <b>${pc(r.tot[c].pctAcum)}</b>`, c === 'QPC' ? 'var(--fg3)' : cc)).join('') +
     bmTile('Medido no período', rs(r.tot['RÓTULA'].per), `RÓTULA · QPC ${rs(r.tot['QPC'].per)}`, 'var(--fg)') +
@@ -1071,7 +1129,13 @@ function renderBMBoletim(box) {
   const alertas = [];
   r.itens.filter(it => it.pesosAjustados).forEach(it => alertas.push(`Item ${it.item}: os pesos das atividades somam ${nf(it.somaPesos * 100, 1)}% (o sistema normaliza para 100%). Corrija no catálogo.`));
   r.itens.filter(it => it.excedeu).forEach(it => alertas.push(`Item ${it.item}: há atividade com realizado acima da quantidade contratada (limitado a 100% no cálculo).`));
-  if (!p.fechado && p.ini === '0000-01-01') alertas.push('Nenhum corte de BM cadastrado para esta empresa: o boletim mostra o acumulado até a data de referência. Cadastre em "Períodos e deduções".');
+  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum corte de BM cadastrado para esta empresa: o boletim mostra o acumulado até a data de referência. Cadastre em "Períodos e deduções".');
+  const ajQ = r.tot['QPC'].ajuste, ajR = r.tot['RÓTULA'].ajuste;
+  if (Math.abs(ajQ) + Math.abs(ajR) > 0.5) {
+    const its = r.itens.filter(it => Math.abs(it.pctAjuste) > 1e-9).map(it => it.item).join(', ');
+    alertas.push(`Ajuste de períodos anteriores: correções em datas de ${r.prev ? 'BM' + r.prev.n + ' (já fechado)' : 'períodos fechados'} somam RÓTULA ${rs(ajR)} e QPC ${rs(ajQ)} (itens ${its}). Entram neste BM sem alterar o fechado.`);
+  }
+  if (p.cortado && !p.fechado && !podeFechar) alertas.push(`Para fechar o BM${p.n}, feche antes os BMs anteriores.`);
   if (alertas.length) h += `<div class="bloco"><div class="bloco-cab"><h2>Pontos de atenção</h2></div><ul class="alertas">${alertas.map(a => `<li><span class="farol f-amarelo">Atenção</span><span>${esc(a)}</span></li>`).join('')}</ul></div>`;
 
   h += `<div class="bloco"><div class="bloco-cab"><h2>Evolução da medição acumulada</h2><div class="legenda"><span><i style="--c:${cc}"></i>RÓTULA</span><span><i style="--c:var(--fg3)"></i>QPC</span></div></div><div class="grafico"><canvas id="gBM"></canvas></div></div>`;
@@ -1095,8 +1159,9 @@ function renderBMBoletim(box) {
   const dd = r.ded;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Deduções e valor a faturar</h2><span class="nota">Equipamentos e combustível vêm de "Uso de equipamentos" no período; empresa compartilhada (EJ/CMM) divide o custo. Descontados do contrato ${BM_DESCONTA_EQUIP}.</span></div>
     <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">QPC</th><th class="n">RÓTULA</th></tr></thead><tbody>
-    <tr><td><b>Medido no período</b></td><td class="n">${rs(r.tot['QPC'].per)}</td><td class="n">${rs(r.tot['RÓTULA'].per)}</td></tr>
-    <tr><td>(−) Equipamentos <span class="nota">${dd.usos} lançamento(s)</span></td><td class="n">—</td><td class="n">${rs(dd.equip)}</td></tr>
+    <tr><td><b>Medido no período</b></td><td class="n">${rs(r.tot['QPC'].per)}</td><td class="n">${rs(r.tot['RÓTULA'].per)}</td></tr>` +
+    (Math.abs(ajQ) + Math.abs(ajR) > 0.5 ? `<tr class="linha-info"><td>↳ dos quais ajuste de períodos anteriores</td><td class="n">${rs(ajQ)}</td><td class="n">${rs(ajR)}</td></tr>` : '') + `
+    <tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s)'}</span></td><td class="n">—</td><td class="n">${rs(dd.equip)}</td></tr>
     <tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">—</td><td class="n">${rs(dd.comb)}</td></tr>` +
     dd.manuais.map(d => `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}: ${esc(d.descricao || '')} <span class="nota">${d.data ? fdA(d.data) : ''}</span> <button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button></td>
       <td class="n">${d.contrato === 'RÓTULA' ? '—' : rs(d.valor)}</td><td class="n">${d.contrato === 'QPC' ? '—' : rs(d.valor)}</td></tr>`).join('') +
@@ -1122,9 +1187,9 @@ function renderBMPeriodos(box) {
   box.innerHTML = `<div class="grade-2">
     <div class="bloco"><div class="bloco-cab"><h2>Períodos de medição (BM)</h2><button class="btn primario" data-novo="bm_periodos">+ Período</button></div>
       <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto.</p>
-      <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th>Observação</th><th></th></tr></thead><tbody>` +
-    (ps.length ? ps.map(p => `<tr><td><b>BM${p.bm ?? ''}</b></td><td>${fdA(p.corte)}</td><td class="sub">${esc(p.obs || '')}</td><td><button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="4" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
+      <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>` +
+    (ps.length ? ps.map(p => { const f = bmFech(emp, p.bm); return `<tr><td><b>BM${p.bm ?? ''}</b></td><td>${fdA(p.corte)}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
+      : '<tr><td colspan="5" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
     `</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Deduções manuais</h2><button class="btn primario" data-novo="bm_deducoes">+ Dedução</button></div>
       <p class="nota">Adiantamento, refeição fornecida no canteiro e outros descontos. Equipamentos e combustível entram sozinhos, a partir dos lançamentos em Equipamentos.</p>
@@ -1148,6 +1213,28 @@ function renderBMCatalogo(box) {
   box.innerHTML = h + '</tbody></table></div></div>';
 }
 
+async function fecharBM() {
+  const emp = bmEmp, p = bmPeriodos(emp).find(x => x.chave === bmPerSel);
+  if (!p || !p.cortado || p.fechado) return;
+  const its = bmItens(emp, p.fim), d = bmDeducoes(emp, p);
+  const atividades = its.flatMap(it => it.ats.map(x => ({ codigo: x.a.codigo, item: it.item, realizado: x.real, qtd: x.a.qtd, peso: x.a.peso, valor_qpc: it.valor['QPC'], valor_rotula: it.valor['RÓTULA'] })));
+  try {
+    await postar(API + 'bm/fechar', { empresa: emp, bm: p.n, fechado_em: hoje(), equip: d.equip, comb: d.comb, litros: d.litros, atividades });
+    await carregar();
+    toast(`BM${p.n} fechado: valores congelados`);
+  } catch (err) { toast(err.message, true); renderBM(); }
+}
+
+async function reabrirBM() {
+  const emp = bmEmp, p = bmPeriodos(emp).find(x => x.chave === bmPerSel);
+  if (!p || !p.fechado) return;
+  try {
+    await postar(API + 'bm/reabrir', { empresa: emp, bm: p.n });
+    await carregar();
+    toast(`BM${p.n} reaberto`);
+  } catch (err) { toast(err.message, true); renderBM(); }
+}
+
 async function semearBM() {
   try { const r = await postar(API + 'bm/semear', {}); await carregar(); toast(r.atividades ? `${r.atividades} atividades carregadas` : 'O catálogo já estava carregado'); }
   catch (err) { toast(err.message, true); }
@@ -1166,6 +1253,8 @@ function renderLancServico(e) {
   const its = bmItens(e.nome, ref);
   if (!its.length) { $('#tabLanc').innerHTML = '<tbody><tr><td class="vazio">Não há atividades do BM cadastradas para esta empresa (aba Medição (BM) → Catálogo).</td></tr></tbody>'; return; }
   const s = segunda(ref), dias = [0, 1, 2, 3, 4, 5, 6].map(i => add(s, i)), noCal = new Set(M.datas);
+  const fechados = bmPeriodos(e.nome).filter(p => p.fechado);
+  const marca = d => { const f = fechados.find(p => d >= p.ini && d <= p.fim); return f ? `data-fechado="${f.n}" title="Período do BM${f.n}, já fechado: a correção entra como ajuste no BM em aberto"` : ''; };
   $('#tabLanc').className = 'por-servico';
   let h = '<colgroup><col style="width:340px"><col style="width:64px"><col style="width:96px">' + '<col style="width:78px">'.repeat(7) + '<col style="width:84px"><col style="width:90px"><col style="width:70px"></colgroup><thead><tr><th class="fixa">Serviço (atividade do BM)</th><th>Un.</th><th class="n">Contratado</th>' +
     dias.map((d, i) => `<th class="n ${i >= 5 ? 'fds' : ''} ${d === ref ? 'hoje' : ''}">${DIAS[i]}<br>${fd(d)}</th>`).join('') + '<th class="n">Semana</th><th class="n">Acumulado</th><th class="n">%</th></tr></thead><tbody>';
@@ -1178,10 +1267,10 @@ function renderLancServico(e) {
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
-          h += `<td><input class="num ${pend.has(k) ? 'editado' : ''}" data-d="${d}" data-c="${ctl}" value="${esc(v)}" ${noCal.has(d) ? '' : 'disabled'} inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
+          h += `<td><input class="num ${pend.has(k) ? 'editado' : ''}" data-d="${d}" data-c="${ctl}" value="${esc(v)}" ${noCal.has(d) ? '' : 'disabled'} ${marca(d)} inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
         } else {
           const k = bmChave(e.nome, a.codigo, d), v = bmPend.has(k) ? bmPend.get(k) : bmQtdSalva(e.nome, a.codigo, d);
-          h += `<td><input class="num ${bmPend.has(k) ? 'editado' : ''}" data-bm="1" data-cod="${esc(a.codigo)}" data-d="${d}" value="${esc(v)}" inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
+          h += `<td><input class="num ${bmPend.has(k) ? 'editado' : ''}" data-bm="1" data-cod="${esc(a.codigo)}" data-d="${d}" value="${esc(v)}" ${marca(d)} inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
         }
       });
       h += `<td class="n">${nf(semana, 1)}</td><td class="n">${nf(real, 1)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td></tr>`;
@@ -1495,7 +1584,12 @@ function ligarEventos() {
     const emp = ev.target.closest('[data-bm-emp]'); if (emp) { bmEmp = emp.dataset.bmEmp; bmPerSel = null; return renderBM(); }
     const sub = ev.target.closest('[data-bm-sub]'); if (sub) { bmSub = sub.dataset.bmSub; return renderBM(); }
     const it = ev.target.closest('[data-bm-item]'); if (it) { const k = it.dataset.bmItem; bmAbertos.has(k) ? bmAbertos.delete(k) : bmAbertos.add(k); return renderBM(); }
-    if (ev.target.closest('[data-bm-semear]')) semearBM();
+    if (ev.target.closest('[data-bm-semear]')) return semearBM();
+    const bf = ev.target.closest('[data-bm-fechar], [data-bm-reabrir]');
+    if (bf) {
+      if (!bf.dataset.confirmar) { bf.dataset.confirmar = '1'; bf.textContent = 'Confirmar ' + (bf.hasAttribute('data-bm-fechar') ? 'fechamento' : 'reabertura'); return; }
+      bf.hasAttribute('data-bm-fechar') ? fecharBM() : reabrirBM();
+    }
   });
   $('#aba-bm').addEventListener('change', ev => { if (ev.target.id === 'selBmPer') { bmPerSel = ev.target.value; renderBM(); } });
   $('#btnSalvar').onclick = salvarLanc;
