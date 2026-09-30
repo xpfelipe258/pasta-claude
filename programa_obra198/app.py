@@ -616,8 +616,9 @@ def _apontamento_excluir(m, corpo):
 def acao_apontamento(corpo):
     """Apontamento de montagem: joists por rua/faixa/viga de apoio e vigas por eixo/letra.
 
-    Grava em APONTAMENTO MONTAGEM e soma na coluna do serviço da empresa no controle de produção,
-    que é de onde o BM, o cronograma e os dashboards leem a produção."""
+    Aceita um apontamento simples ou um `lote` (vários quadrantes/vigas/empresas no mesmo salvamento, como
+    o mapa gera). Grava em APONTAMENTO MONTAGEM e soma na coluna do serviço da empresa no controle de produção,
+    que é de onde o BM, o cronograma e os dashboards leem a produção. Tudo é validado antes de gravar."""
     _garantir()
     m = modelo()
     if corpo.get("excluir"):
@@ -626,78 +627,95 @@ def acao_apontamento(corpo):
     cfg, posicoes, crit = regras.get("apontamento"), regras.get("faixas_posicoes"), regras.get("criterio_por_letra")
     if not (cfg and posicoes and crit):
         raise ErroValidacao("regras_baixa.json sem as regras de apontamento (faixas_posicoes, criterio_por_letra, apontamento).")
-    tipo = str(corpo.get("tipo") or "").upper()
     data = corpo.get("data")
     if not _eh_data(data) or data not in m["linhas_por_data"]:
         raise ErroValidacao("Data fora do calendário da planilha.")
-    emp = next((e for e in m["empresas"] if e["nome"] == corpo.get("empresa")), None)
-    if not emp:
-        raise ErroValidacao("Escolha a empresa que executou a montagem.")
     lanca = corpo.get("lanca_producao", True)
+    limite = (regras.get("limites_ifc") or {}).get("joists_por_rua_faixa_maximo") or 6
     existentes = m["tabelas"]["apontamentos"]
-    avisos, linhas_novas = [], []
-    base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
+    vigas_ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
+    joists_rf = {}
+    for a in existentes:
+        if (a.get("tipo") or "").upper() == "JOIST":
+            joists_rf[(a.get("rua"), a.get("faixa"))] = joists_rf.get((a.get("rua"), a.get("faixa")), 0) + (a.get("qtd") or 0)
+    avisos, linhas_novas, grupos = [], [], {}
 
-    if tipo == "JOIST":
-        rua, faixa = str(corpo.get("rua") or ""), str(corpo.get("faixa") or "").upper()
-        if not _rua_valida(rua, cfg["eixos"]):
-            raise ErroValidacao("Rua inválida: use eixos consecutivos, ex.: 11-12.")
-        if faixa not in posicoes:
-            raise ErroValidacao("Faixa inválida (AB a GH).")
-        for it in corpo.get("itens") or []:
-            letra, n = str(it.get("letra") or "").upper(), xio.numero(it.get("n"))
-            if not n:
+    for item in corpo.get("lote") or [corpo]:
+        tipo = str(item.get("tipo") or "").upper()
+        emp = next((e for e in m["empresas"] if e["nome"] == (item.get("empresa") or corpo.get("empresa"))), None)
+        if not emp:
+            raise ErroValidacao("Escolha a empresa que executou a montagem.")
+        base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
+        novas, padrao = [], None
+        if tipo == "JOIST":
+            rua, faixa = str(item.get("rua") or ""), str(item.get("faixa") or "").upper()
+            if not _rua_valida(rua, cfg["eixos"]):
+                raise ErroValidacao("Rua inválida: use eixos consecutivos, ex.: 11-12.")
+            if faixa not in posicoes:
+                raise ErroValidacao("Faixa inválida (AB a GH).")
+            for it in item.get("itens") or []:
+                letra, n = str(it.get("letra") or "").upper(), xio.numero(it.get("n"))
+                if not n:
+                    continue
+                if letra not in posicoes[faixa]:
+                    raise ErroValidacao(f"A viga {letra} não é apoio da faixa {faixa} (apoios: {', '.join(posicoes[faixa])}).")
+                if n < 0 or not float(n).is_integer():
+                    raise ErroValidacao("Quantidade de joists deve ser inteira e positiva.")
+                novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": int(n)})
+            if not novas:
                 continue
-            if letra not in posicoes[faixa]:
-                raise ErroValidacao(f"A viga {letra} não é apoio da faixa {faixa} (apoios: {', '.join(posicoes[faixa])}).")
-            if n < 0 or not float(n).is_integer():
-                raise ErroValidacao("Quantidade de joists deve ser inteira e positiva.")
-            linhas_novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": int(n)})
-        if not linhas_novas:
-            raise ErroValidacao("Informe ao menos uma joist.")
-        limite = (regras.get("limites_ifc") or {}).get("joists_por_rua_faixa_maximo") or 6
-        total = sum(a.get("qtd") or 0 for a in existentes if (a.get("tipo") or "").upper() == "JOIST"
-                    and a.get("rua") == rua and a.get("faixa") == faixa) + sum(r["qtd"] for r in linhas_novas)
-        if total > limite:
-            avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas, acima do limite do projeto (IFC: {limite}). Confira o apontamento.")
-        servico, delta = cfg["servico_joist"], sum(r["qtd"] for r in linhas_novas)
-        padrao = (regras.get("empresa_por_faixa") or {}).get(faixa)
-    elif tipo == "VIGA":
-        eixo = str(corpo.get("eixo") or "")
-        if eixo not in cfg["eixos"]:
-            raise ErroValidacao("Eixo inválido (01 a 20).")
-        ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
-        letras = [str(l).upper() for l in corpo.get("letras") or []]
-        if not letras:
-            raise ErroValidacao("Marque ao menos uma viga.")
-        for letra in dict.fromkeys(letras):
-            if letra not in crit:
-                raise ErroValidacao(f"Letra de viga inválida: {letra}.")
-            vid = f"E{eixo}-{letra}-{crit[letra]['viga']}"
-            if vid in ja:
-                quando = ja[vid].get("data")
-                raise ErroValidacao(f"A viga {vid} já foi apontada" + (f" em {quando[8:]}/{quando[5:7]}/{quando[:4]}." if quando else "."))
-            linhas_novas.append({**base, "tipo": "VIGA", "eixo": eixo, "letra": letra, "viga_id": vid, "qtd": 1})
-        servico, delta = cfg["servico_viga"], len(linhas_novas)
-        por_letra = regras.get("empresa_por_letra") or {}
-        padroes = {por_letra.get(r["letra"]) for r in linhas_novas} - {"", None}
-        padrao = padroes.pop() if len(padroes) == 1 else (emp["nome"] if emp["nome"] in padroes else (sorted(padroes)[0] if padroes else None))
-    else:
-        raise ErroValidacao("Tipo de apontamento inválido (JOIST ou VIGA).")
+            total = joists_rf.get((rua, faixa), 0) + sum(r["qtd"] for r in novas)
+            joists_rf[(rua, faixa)] = total
+            if total > limite:
+                avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas, acima do limite do projeto (IFC: {limite}). Confira o apontamento.")
+            servico, padrao = cfg["servico_joist"], (regras.get("empresa_por_faixa") or {}).get(faixa)
+        elif tipo == "VIGA":
+            eixo = str(item.get("eixo") or "")
+            if eixo not in cfg["eixos"]:
+                raise ErroValidacao("Eixo inválido (01 a 20).")
+            letras = [str(l).upper() for l in item.get("letras") or []]
+            for letra in dict.fromkeys(letras):
+                if letra not in crit:
+                    raise ErroValidacao(f"Letra de viga inválida: {letra}.")
+                vid = f"E{eixo}-{letra}-{crit[letra]['viga']}"
+                if vid in vigas_ja:
+                    quando = vigas_ja[vid].get("data")
+                    raise ErroValidacao(f"A viga {vid} já foi apontada" + (f" em {quando[8:]}/{quando[5:7]}/{quando[:4]}." if quando else "."))
+                vigas_ja[vid] = {"data": data}
+                novas.append({**base, "tipo": "VIGA", "eixo": eixo, "letra": letra, "viga_id": vid, "qtd": 1})
+            if not novas:
+                continue
+            servico = cfg["servico_viga"]
+            por_letra = regras.get("empresa_por_letra") or {}
+            padroes = {por_letra.get(r["letra"]) for r in novas} - {"", None}
+            padrao = emp["nome"] if emp["nome"] in padroes else (sorted(padroes)[0] if padroes else None)
+        else:
+            raise ErroValidacao("Tipo de apontamento inválido (JOIST ou VIGA).")
+        if padrao and padrao != emp["nome"]:
+            avisos.append(f"Pela malha do projeto essa posição é de {padrao}; apontado para {emp['nome']}.")
+        linhas_novas += novas
+        g = grupos.setdefault((emp["nome"], servico), {"emp": emp, "delta": 0, "linhas": []})
+        g["delta"] += sum(r["qtd"] for r in novas)
+        g["linhas"] += novas
 
-    if padrao is not None and padrao and padrao != emp["nome"]:
-        avisos.append(f"Pela malha do projeto essa posição é de {padrao}; apontado para {emp['nome']}.")
-
-    aba, reservadas, celulas = xio.TABELAS["apontamentos"]["aba"], [], []
-    for campos in linhas_novas:
-        lin = _proxima_linha_livre("apontamentos", reservadas)
-        reservadas.append(lin)
-        for col, v, t in xio.valores_registro("apontamentos", campos):
-            celulas.append((aba, f"{col}{lin}", v, t))
-    if lanca:
-        n = acao_producao(_corpo_soma_grade(emp, servico, data, delta), extras=celulas)["celulas"]
-    else:
-        n = gravar(celulas)
+    if not linhas_novas:
+        raise ErroValidacao("Nada selecionado para apontar.")
+    aba, reservadas, por_emp = xio.TABELAS["apontamentos"]["aba"], [], {}
+    for (nome, servico), g in grupos.items():
+        d = por_emp.setdefault(nome, {"emp": g["emp"], "celulas": [], "alteracoes": []})
+        for campos in g["linhas"]:
+            lin = _proxima_linha_livre("apontamentos", reservadas)
+            reservadas.append(lin)
+            for col, v, t in xio.valores_registro("apontamentos", campos):
+                d["celulas"].append((aba, f"{col}{lin}", v, t))
+        if lanca:
+            d["alteracoes"] += _corpo_soma_grade(g["emp"], servico, data, g["delta"])["alteracoes"]
+    n = 0
+    for d in por_emp.values():  # uma gravação por empresa (mesma aba), mesmo com joists e vigas juntas
+        if lanca:
+            n += acao_producao({"aba": d["emp"]["aba"], "alteracoes": d["alteracoes"]}, extras=d["celulas"])["celulas"]
+        else:
+            n += gravar(d["celulas"])
     return {"celulas": n, "avisos": avisos, "salvos": len(linhas_novas), "linhas": reservadas}
 
 

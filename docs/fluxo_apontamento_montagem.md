@@ -12,6 +12,23 @@ Apontamento (data, empresa, onde)
    |-- tipo de viga/apoio --> kit de fixadores --> Estoque (Inventário, Controle de Materiais, Sistema)
 ```
 
+## Mapa selecionável (modo padrão)
+
+A tela abre num mapa em planta, como o desenho do cronograma: eixos na horizontal (11 a 20 por padrão, com a opção
+"Todos os eixos"), estações de viga na vertical (A, B, BC, C ... H) e as faixas (AB a GH) coloridas por empresa.
+
+- **Quadrados** sobre os eixos são as vigas (maior = apoio/VC01, menor = intermediária). Clique para marcar; clicar
+  no número do eixo marca todas as vigas pendentes dele.
+- **Barras** são as joists de cada quadrante (rua entre dois eixos x faixa), agrupadas junto da viga que as apoia;
+  a posição da barra define o tipo de parafuso. Clicar na 2ª barra pendente de um grupo seleciona duas; clicar de
+  novo na última selecionada desfaz.
+- Amarelo = já montada, azul = selecionada para este salvamento, cinza/branco = pendente. Peça já montada não
+  seleciona: para corrigir, exclua no histórico.
+- **Um único Salvar** grava tudo que foi selecionado (vários quadrantes, vigas, EJ e CMM). A empresa vem da malha;
+  só a cumeeira (faixa DE e viga DE) pede a empresa. A barra "Seleção / Salvar" fica fixa no topo durante a rolagem.
+- Pré-montagem segue por escrita no Lançamentos; "Digitar joists" e "Digitar vigas" continuam disponíveis para
+  regularizar histórico em lote.
+
 ## O que se aponta
 
 - **Joists por quadrante:** rua (par de eixos consecutivos, `11-12`) x faixa (AB a GH) e, para cada viga de apoio da
@@ -27,7 +44,8 @@ Apontamento (data, empresa, onde)
 - Viga já apontada não entra de novo (evita contar duas vezes a mesma viga).
 - Rua x faixa acima de 6 joists (limite do projeto/IFC) grava com aviso; empresa diferente da malha do projeto
   (AB-CD = EJ, EF-GH = CMM, DE = cumeeira, a empresa é escolhida) grava com aviso.
-- Empresa sem a coluna do serviço, data fora do calendário e rua/faixa/letra inválidas são recusadas.
+- Empresa sem a coluna do serviço, data fora do calendário e rua/faixa/letra inválidas são recusadas. O salvamento
+  é atômico: se uma peça do lote é inválida (ex.: viga repetida), nada é gravado.
 - **Regularização:** marque quando a produção já está no Lançamentos (histórico). Grava só o local/tipo, sem somar
   de novo na grade.
 - Excluir um apontamento devolve a quantidade à grade (se ele tinha somado).
@@ -53,6 +71,9 @@ Conferência: os ladrilhos da tela comparam produção x apontado. "A apontar" �
 
 ## Limitações
 
+- O desenho é esquemático: a posição exata de cada joist no quadrante não é registrada, só a viga de apoio
+  (3 barras por viga são desenhadas; se houver mais apontadas, aparecem barras extras). A orientação assume a
+  letra A no topo.
 - O sistema PHP (online) não tem esta tela nem as rotas de estoque: o menu fica oculto nele.
 - O apontamento não altera o histórico do Lançamentos. Para classificar o que já foi produzido, aponte com
   "Regularização" marcada.
