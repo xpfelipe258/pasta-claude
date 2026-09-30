@@ -66,12 +66,12 @@ function normEmp(s) { const t = String(s || '').trim().toUpperCase(); return t =
 function empresasDe(s) { return String(s || '').split('/').map(normEmp).filter(Boolean); }
 const soma0 = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
 
-function toast(msg, erro = false) {
+function toast(msg, erro = false, duracao) {
   const t = $('#toast');
   t.textContent = msg;
   t.className = 'toast mostra' + (erro ? ' erro' : '');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.className = 'toast' + (erro ? ' erro' : ''), erro ? 6000 : 2600);
+  toast._t = setTimeout(() => t.className = 'toast' + (erro ? ' erro' : ''), duracao || (erro ? 6000 : 2600));
 }
 
 // ------------------------------------------------------------ dados de produção
@@ -534,10 +534,11 @@ async function salvarLanc() {
   const porAba = {};
   pend.forEach((v, k) => { const [aba, data, col] = k.split('|'); (porAba[aba] ||= []).push({ data, col, valor: v === '' ? null : v }); });
   try {
-    let total = 0;
+    let total = 0, baixas = [];
     for (const [aba, alteracoes] of Object.entries(porAba)) {
       const r = await postarBruto(API + 'producao', { aba, alteracoes });
       total += r.celulas;
+      if (r.baixa_auto && r.baixa_auto.length) baixas.push(...r.baixa_auto);
       [...pend.keys()].filter(k => k.startsWith(aba + '|')).forEach(k => pend.delete(k));
     }
     if (bmAlt.length) {
@@ -547,7 +548,17 @@ async function salvarLanc() {
     }
     salvando = false;
     await carregar();
-    toast(`Salvo ${ONDE} (${total} célula(s))`);
+    if (baixas.length) {
+      const agrup = {};
+      baixas.forEach(b => { agrup[b.codigo] = (agrup[b.codigo] || 0) + b.quantidade; });
+      const linhas = Object.entries(agrup).map(([c, q]) => {
+        const desc = baixas.find(b => b.codigo === c);
+        return `${desc ? desc.material : c}: ${q % 1 ? q.toFixed(1) : q}`;
+      }).join(', ');
+      toast(`Salvo ${ONDE} (${total} célula(s)). Baixa automática: ${linhas}`, false, 6000);
+    } else {
+      toast(`Salvo ${ONDE} (${total} célula(s))`);
+    }
   } catch (err) {
     salvando = false; atualizarPendentes();
     toast(err.message, true);
@@ -825,7 +836,7 @@ function renderEstoqueIfc() {
   const codDesc = {}; (reg.eventos || []).forEach(e => (e.baixa || []).concat(e.baixa_por_joist || []).forEach(b => { if (b.codigo && b.descricao) codDesc[b.codigo] = b.descricao; }));
   Object.values(reg.criterio_por_letra || {}).forEach(c => { if (c.parafuso && c.descricao_parafuso) codDesc[c.parafuso] = c.descricao_parafuso; });
   const mats = [...r.materiais].sort((a, b) => (b.consumo_teorico || 0) - (a.consumo_teorico || 0));
-  tabMat.innerHTML = `<thead><tr><th>Código</th><th>Descrição</th><th class="n">Consumo teórico</th><th class="n">Chegou</th><th class="n">Saldo teórico</th><th class="n">Físico</th><th class="n">Perda</th><th class="n">Acurácia</th><th class="n">Cobertura</th></tr></thead><tbody>` +
+  tabMat.innerHTML = `<thead><tr><th>Código</th><th>Descrição</th><th class="n">QTD Consumida</th><th class="n">QTD Chegou</th><th class="n">Estoque Virtual</th><th class="n">Físico</th><th class="n">Perda</th><th class="n">Acurácia</th><th class="n">Cobertura</th></tr></thead><tbody>` +
     (mats.length ? mats.map(m => {
       const perdaCls = m.perda == null ? '' : m.perda < 0 ? 'valor-neg' : '';
       const acu = m.acuracidade == null ? '—' : nf(m.acuracidade * 100, 1) + '%';
@@ -1335,6 +1346,15 @@ async function semearBM() {
   catch (err) { toast(err.message, true); }
 }
 
+async function semearMateriais() {
+  try {
+    const r = await postar(API + 'estoque/semear-materiais', {});
+    await carregar();
+    if (r.materiais_criados) toast(`${r.materiais_criados} materiais cadastrados: ${r.codigos.join(', ')}`, false, 5000);
+    else toast(r.msg || 'Todos os materiais do IFC já estão cadastrados.');
+  } catch (err) { toast(err.message, true); }
+}
+
 // lançamento por serviço (linha por atividade do BM dentro do Lançamentos)
 function bmQtdSalva(emp, cod, d) {
   const r = bmTab('bm_apontamentos').find(x => x.empresa === emp && x.codigo === cod && x.data === d);
@@ -1686,6 +1706,7 @@ function ligarEventos() {
     if (ed) abrirDialogo(ed.dataset.editarReg, +ed.dataset.linha);
     const mv = ev.target.closest('[data-mov]');
     if (mv) abrirDialogo('movimentos', null, { codigo: mv.dataset.mov, tipo: 'ENTRADA' });
+    if (ev.target.id === 'btnSemearMat') semearMateriais();
   });
 
   $('#segEmpresas').addEventListener('click', ev => { const b = ev.target.closest('button[data-emp]'); if (b) { empSel = b.dataset.emp; renderLanc(); } });

@@ -73,6 +73,40 @@
       }
     }
   ],
+  "consumo_por_servico": {
+    "_descricao": "Mapeamento: nome do serviço no controle de produção → materiais consumidos automaticamente por unidade produzida. Quando lançamentos são salvos, o sistema cria movimentações de SAÍDA automaticamente.",
+    "PREMONTAGEM": {
+      "descricao": "Pré-montagem de joist. Os componentes estruturais (BZ/DN/RF/TV/SPD) devem ser cadastrados na aba ESTOQUE MATERIAIS com servico=PREMONTAGEM e coef correspondente. Os fixadores de fixação (parafusos/porcas/arruelas Ø1/2\") são consumidos no IÇAMENTO JOIST.",
+      "itens": [],
+      "nota": "Sem baixa automática de fixadores na pré-montagem. Para dar baixa dos componentes estruturais, cadastre-os como materiais com coef na tabela de estoque."
+    },
+    "IÇAMENTO JOIST": {
+      "descricao": "Cada joist içada/instalada consome os mesmos fixadores da pré-montagem (são os parafusos que prendem a joist às vigas).",
+      "itens": [
+        {"codigo": "FG015", "descricao": "PORCA Ø1/2\" A307",   "por_unidade": 8},
+        {"codigo": "FG018", "descricao": "ARRUELA Ø1/2\" LISA", "por_unidade": 8},
+        {"codigo": "FG005", "descricao": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_unidade": 4.57},
+        {"codigo": "FG006", "descricao": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_unidade": 1.14},
+        {"codigo": "FG007", "descricao": "PARAF. Ø1/2\" x 2\" A307",     "por_unidade": 2.29}
+      ],
+      "nota": "Mesma proporção de parafusos por joist. Os fixadores são usados no momento do içamento."
+    },
+    "VIGAS": {
+      "descricao": "Cada viga montada consome fixadores conforme tipo (APOIO 40% ou INTERMEDIÁRIA 60%). Proporção derivada do IFC: 120 APOIO / 300 total = 0.4, 180 INTERM / 300 = 0.6.",
+      "proporcao_apoio": 0.4,
+      "proporcao_interm": 0.6,
+      "itens_apoio": [
+        {"codigo": "FG021", "descricao": "PORCA Ø1\" A194-2H", "por_viga": 4},
+        {"codigo": "FG023", "descricao": "ARRUELA Ø1\" LISA",  "por_viga": 4}
+      ],
+      "itens_interm": [
+        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_viga": 4},
+        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_viga": 4},
+        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_viga": 4}
+      ],
+      "nota": "Média ponderada por viga: APOIO consume FG021(1.6) + FG023(1.6); INTERM consume FG012(2.4) + FG017(2.4) + FG020(2.4)."
+    }
+  },
   "limites_ifc": {
     "joists_por_rua_faixa_maximo": 6,
     "joists_por_rua_maximo": 42,

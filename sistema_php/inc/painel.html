@@ -193,7 +193,7 @@
 
     <!-- Baixa automática por IFC -->
     <div class="bloco-cab"><h2>Baixa automática por IFC</h2>
-      <span class="nota" id="estIfcNota">Consumo teórico = eventos de produção × regras de baixa. Base de projeto: IFC do galpão.</span></div>
+      <span class="nota" id="estIfcNota">Consumo teórico = eventos de produção × regras de baixa. Base de projeto: IFC do galpão. Ao lançar produção (VIGAS, PREMONTAGEM, IÇAMENTO JOIST), a baixa de fixadores é gerada automaticamente na aba MOVIMENTAÇÃO ESTOQUE.</span></div>
     <div class="tiles" id="estIfcTiles"></div>
     <div class="barra-acoes">
       <p class="nota" id="estIfcResumo"></p>
@@ -224,10 +224,11 @@
     <div class="bloco-cab"><h2>Materiais controlados no sistema</h2></div>
     <div class="tiles" id="estTiles"></div>
     <div class="barra-acoes">
-      <p class="nota">Saldo = saldo inicial + entradas − saídas ± ajustes − consumo pela produção lançada (produção × consumo por unidade). Necessidade calculada pela meta da semana da data de referência.</p>
+      <p class="nota">Saldo = saldo inicial + entradas − saídas ± ajustes − consumo pela produção (produção × coef). A baixa automática cria saídas ao lançar produção de VIGAS, PREMONTAGEM e IÇAMENTO JOIST. Use "Auto-popular materiais IFC" para cadastrar os fixadores.</p>
       <div class="acoes">
         <button class="btn" data-novo="movimentos">+ Movimentação</button>
         <button class="btn primario" data-novo="materiais">+ Material</button>
+        <button class="btn" id="btnSemearMat" title="Cadastra automaticamente os materiais (fixadores) do IFC com códigos FGxxx">Auto-popular materiais IFC</button>
       </div>
     </div>
     <div class="bloco">

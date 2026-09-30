@@ -94,6 +94,67 @@ class ErroValidacao(Exception):
 
 # ------------------------------------------------------------------ ações
 
+def _gerar_baixa_auto(emp, cols, alteracoes_producao, m):
+    """Gera movimentações automáticas de SAÍDA para materiais consumidos pela produção.
+
+    Retorna (alteracoes_extras, resumo_baixa) onde resumo_baixa é lista de dicts para feedback.
+    """
+    regras = xio.carregar_regras_baixa()
+    if not regras or not regras.get("consumo_por_servico"):
+        return [], []
+
+    deltas = {}
+    for a in alteracoes_producao:
+        col_a, data, valor = a.get("col"), a.get("data"), a.get("valor")
+        if col_a not in cols:
+            continue
+        servico = cols[col_a]["nome"]
+        antigo = emp["registros"].get(data, {}).get("v", {}).get(col_a)
+        antigo = antigo if isinstance(antigo, (int, float)) else 0
+        novo = valor if isinstance(valor, (int, float)) else 0
+        delta = novo - antigo
+        if delta > 0:
+            deltas.setdefault(servico, {})[data] = deltas.get(servico, {}).get(data, 0) + delta
+
+    if not deltas:
+        return [], []
+
+    hoje = dt.date.today().isoformat()
+    alteracoes, resumo, reservadas = [], [], []
+    spec = xio.TABELAS["movimentos"]
+    usadas = {r["linha"] for r in m["tabelas"]["movimentos"]}
+
+    for servico, datas in deltas.items():
+        for data, delta in datas.items():
+            itens = xio.calcular_consumo_servico(servico, delta, regras)
+            for item in itens:
+                lin = xio.LINHA_DADOS_TABELA
+                bloqueadas = usadas | set(reservadas)
+                while lin in bloqueadas:
+                    lin += 1
+                reservadas.append(lin)
+                campos = {
+                    "data": data,
+                    "codigo": item["codigo"],
+                    "tipo": "SAÍDA",
+                    "quantidade": item["quantidade"],
+                    "documento": f"BAIXA AUTO — {servico}",
+                    "empresa": emp["nome"],
+                    "obs": f"Baixa automática: {delta:.0f} {servico} em {data}",
+                }
+                for col_c, v, t in xio.valores_registro("movimentos", campos):
+                    alteracoes.append((spec["aba"], f"{col_c}{lin}", v, t))
+                resumo.append({
+                    "material": item["descricao"] or item["codigo"],
+                    "codigo": item["codigo"],
+                    "quantidade": item["quantidade"],
+                    "servico": servico,
+                    "data": data,
+                })
+
+    return alteracoes, resumo
+
+
 def acao_producao(corpo):
     m = modelo()
     emp = next((e for e in m["empresas"] if e["aba"] == corpo.get("aba")), None)
@@ -137,7 +198,17 @@ def acao_producao(corpo):
         total = sum(v for d, vals in novos.items() if meta["inicio"] <= d <= meta["fim"]
                     for c, v in vals.items() if c == col and isinstance(v, (int, float)))
         alteracoes.append((xio.ABA_METAS, f"L{meta['linha']}", total, None))
-    return gravar(alteracoes)
+
+    # Baixa automática de estoque baseada na produção.
+    _garantir()
+    baixa_alt, baixa_resumo = _gerar_baixa_auto(emp, cols, corpo.get("alteracoes", []), m)
+    alteracoes.extend(baixa_alt)
+
+    n = gravar(alteracoes)
+    resultado = {"celulas": n}
+    if baixa_resumo:
+        resultado["baixa_auto"] = baixa_resumo
+    return resultado
 
 
 def acao_metas(corpo):
@@ -222,6 +293,40 @@ def _preparar_campos(tabela, campos):
         if campos["tipo"] not in ("ENTRADA", "SAÍDA", "AJUSTE"):
             raise ErroValidacao("Tipo de movimentação deve ser ENTRADA, SAÍDA ou AJUSTE.")
     return campos
+
+
+def acao_semear_materiais(corpo):
+    """Auto-popula a tabela ESTOQUE MATERIAIS com os materiais do IFC (fixadores)."""
+    _garantir()
+    regras = xio.carregar_regras_baixa()
+    if not regras or not regras.get("consumo_por_servico"):
+        raise ErroValidacao("Arquivo regras_baixa.json não encontrado ou sem consumo_por_servico.")
+    m = modelo()
+    existentes = {mt.get("codigo") for mt in m["tabelas"]["materiais"]}
+    todos = {}
+    for servico, conf in regras["consumo_por_servico"].items():
+        for item in conf.get("itens", []) + conf.get("itens_apoio", []) + conf.get("itens_interm", []):
+            cod = item["codigo"]
+            if cod not in todos:
+                todos[cod] = {"codigo": cod, "material": item.get("descricao", cod),
+                              "unidade": "UN", "servico": servico, "coef": 0,
+                              "obs": "Cadastrado automaticamente via regras_baixa.json (baixa automática por movimentação)"}
+    novos = {c: v for c, v in todos.items() if c not in existentes}
+    if not novos:
+        return {"materiais_criados": 0, "msg": "Todos os materiais do IFC já estão cadastrados."}
+    spec = xio.TABELAS["materiais"]
+    alteracoes, reservadas = [], []
+    usadas = {r["linha"] for r in m["tabelas"]["materiais"]}
+    for campos in novos.values():
+        lin = xio.LINHA_DADOS_TABELA
+        bloqueadas = usadas | set(reservadas)
+        while lin in bloqueadas:
+            lin += 1
+        reservadas.append(lin)
+        for col, v, t in xio.valores_registro("materiais", campos):
+            alteracoes.append((spec["aba"], f"{col}{lin}", v, t))
+    gravar(alteracoes)
+    return {"materiais_criados": len(novos), "codigos": list(novos.keys())}
 
 
 def acao_semear_bm(corpo):
@@ -387,6 +492,7 @@ ACOES = {
     "/api/metas": acao_metas,
     "/api/impacto": acao_impacto,
     "/api/referencia": acao_referencia,
+    "/api/estoque/semear-materiais": acao_semear_materiais,
 }
 
 
