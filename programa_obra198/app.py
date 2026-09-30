@@ -305,6 +305,8 @@ def acao_semear_materiais(corpo):
     existentes = {mt.get("codigo") for mt in m["tabelas"]["materiais"]}
     todos = {}
     for servico, conf in regras["consumo_por_servico"].items():
+        if not isinstance(conf, dict):
+            continue
         for item in conf.get("itens", []) + conf.get("itens_apoio", []) + conf.get("itens_interm", []):
             cod = item["codigo"]
             if cod not in todos:
