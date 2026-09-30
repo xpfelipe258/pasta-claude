@@ -10,6 +10,7 @@ import mimetypes
 import os
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -803,6 +804,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         caminho = urlparse(self.path).path
         try:
+            if caminho == "/api/atualizacao":
+                return self._json(200, estado_atualizacao())
             if caminho == "/api/versao":
                 return self._json(200, {"versao": versao(), "codigo": codigo_versao()})
             if caminho == "/api/dados":
@@ -868,6 +871,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(dados)
 
     def do_POST(self):
+        if urlparse(self.path).path == "/api/atualizacao/verificar":   # fora da trava: faz rede e pode reiniciar
+            try:
+                return self._json(200, acao_atualizar_agora({}))
+            except ErroValidacao as e:
+                return self._json(400, {"erro": str(e)})
         acao = ACOES.get(urlparse(self.path).path)
         if not acao:
             return self._json(404, {"erro": "Ação desconhecida."})
@@ -922,34 +930,72 @@ _reiniciar = threading.Event()
 MARCA_REINICIO = os.path.join(BASE, ".reiniciado")
 
 
+_atual = {"srv": None, "cfg": {}, "intervalo": 0, "proxima": None, "ativo": False}
+_trava_atual = threading.Lock()
+
+
+def _verificar_agora(manual=False):
+    """Confere o GitHub e aplica o que houver. Mudança só de tela vale na hora (as páginas recarregam sozinhas);
+    mudança de código reinicia o servidor e as páginas voltam sozinhas na versão nova."""
+    if not _trava_atual.acquire(blocking=False):
+        return
+    try:
+        try:
+            alterados = atualizador.atualizar(BASE, _atual["cfg"], silencioso=not manual)
+        except Exception as e:
+            atualizador._estado("erro", f"Falha inesperada: {e.__class__.__name__}: {e}")
+            print(f" Falha ao verificar atualização: {e.__class__.__name__}: {e}")
+            return
+        if alterados and any(not a.startswith("static/") for a in alterados):
+            print(" Código novo instalado; reiniciando o servidor...")
+            with _trava:   # espera uma gravação em andamento terminar
+                try:
+                    open(MARCA_REINICIO, "w").close()
+                except OSError:
+                    pass
+                _reiniciar.set()
+                threading.Thread(target=_atual["srv"].shutdown, daemon=True).start()
+    finally:
+        _trava_atual.release()
+
+
+def estado_atualizacao():
+    e = dict(atualizador.ESTADO)
+    e.update({"codigo": codigo_versao(), "ativo": _atual["ativo"], "intervalo": _atual["intervalo"],
+              "proxima": _atual["proxima"], "agora": time.time()})
+    return e
+
+
+def acao_atualizar_agora(corpo):
+    if not _atual["ativo"]:
+        raise ErroValidacao("Atualização automática desligada (config.json ou OBRA198_SEM_ATUALIZAR).")
+    _verificar_agora(manual=True)
+    return estado_atualizacao()
+
+
 def vigiar_atualizacao(srv):
-    """Com o programa aberto, confere o GitHub a cada poucos minutos. Mudança só de tela (static/) vale na hora: as
-    páginas abertas se recarregam sozinhas. Mudança de código reinicia o servidor (INICIAR reabre) e as páginas
-    voltam sozinhas na versão nova, sem fechar e abrir o programa."""
+    """Com o programa aberto, confere o GitHub a cada poucos minutos (1 min com token, 3 sem)."""
+    _atual["srv"] = srv
     if os.environ.get("OBRA198_SEM_ATUALIZAR"):
+        atualizador._estado("desligada", "Desligada por OBRA198_SEM_ATUALIZAR")
         return
     _, arquivo = _config_atualizacao()
     cfg_at = arquivo.get("atualizacao") or {}
     if not cfg_at.get("ativo", True):
+        atualizador._estado("desligada", "Desligada no config.json")
         return
     intervalo = max(30, int(cfg_at.get("intervalo_segundos") or (60 if cfg_at.get("token") else 180)))
+    _atual.update({"cfg": cfg_at, "intervalo": intervalo, "ativo": True})
+    if atualizador.ESTADO["resultado"] == "nunca":
+        atualizador._estado("ok", "Verificado ao abrir o programa")
 
     def laco():
-        while not _reiniciar.wait(intervalo):
-            try:
-                alterados = atualizador.atualizar(BASE, cfg_at, silencioso=True)
-            except Exception:
-                continue
-            if alterados and any(not a.startswith("static/") for a in alterados):
-                print(" Código novo instalado; reiniciando o servidor...")
-                with _trava:   # espera uma gravação em andamento terminar
-                    try:
-                        open(MARCA_REINICIO, "w").close()
-                    except OSError:
-                        pass
-                    _reiniciar.set()
-                    threading.Thread(target=srv.shutdown, daemon=True).start()
+        print(f" Atualização automática em tempo real: confere o GitHub a cada {intervalo}s.")
+        while True:
+            _atual["proxima"] = time.time() + intervalo
+            if _reiniciar.wait(intervalo):
                 return
+            _verificar_agora()
     threading.Thread(target=laco, daemon=True, name="atualizacao").start()
 
 

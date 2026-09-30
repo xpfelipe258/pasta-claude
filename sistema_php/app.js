@@ -226,6 +226,37 @@ async function postarBruto(url, corpo) {
   return j;
 }
 
+// Situação da atualização automática do programa (só existe no servidor local)
+async function mostrarAtualizacao() {
+  try {
+    const r = await fetch(API + 'atualizacao', { cache: 'no-store' });
+    if (!r.ok) return;
+    const e = await r.json(), el = $('#atualiz');
+    el.hidden = false;
+    const ver = e.codigo ? e.codigo.slice(0, 7) : '—';
+    const quando = e.verificado_em ? Math.max(0, Math.round((e.agora - e.verificado_em) / 60)) : null;
+    const ha = quando == null ? '' : quando < 1 ? 'agora há pouco' : `há ${quando} min`;
+    let txt, cls = '';
+    if (!e.ativo) { txt = `Programa ${ver} · atualização automática desligada`; cls = 'aviso'; }
+    else if (e.resultado === 'erro') { txt = `Programa ${ver} · sem conseguir atualizar: ${e.detalhe}`; cls = 'erro'; }
+    else txt = `Programa ${ver} · atualização automática ligada · conferido ${ha}`;
+    $('#atualizTxt').textContent = txt;
+    el.className = 'arquivo atualiz ' + cls;
+    $('#btnAtualizar').hidden = !e.ativo;
+  } catch { }
+}
+async function verificarAtualizacaoAgora() {
+  const b = $('#btnAtualizar'); b.disabled = true; b.textContent = 'Verificando…';
+  try {
+    const antes = CODIGO;
+    const e = await postar(API + 'atualizacao/verificar', {});
+    await mostrarAtualizacao();
+    if (e.resultado === 'erro') toast(e.detalhe, true, 9000);
+    else if (e.codigo && e.codigo !== antes) toast('Nova versão instalada. Atualizando a tela…', false, 3000);
+    else toast('O programa já está na versão mais recente.');
+  } catch (err) { toast(err.message, true); }
+  b.disabled = false; b.textContent = 'Verificar atualização';
+}
 let CODIGO = null, avisouCodigo = false;   // versão do código carregada nesta página
 async function verificarVersao() {
   if (salvando || !D) return;
@@ -3005,4 +3036,6 @@ function ligarEventos() {
   patchDatas();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
   setInterval(verificarVersao, 4000);
+  mostrarAtualizacao(); setInterval(mostrarAtualizacao, 20000);
+  $('#btnAtualizar').onclick = verificarAtualizacaoAgora;
 })();

@@ -418,3 +418,8 @@ dialog.grade { width: min(760px, calc(100vw - 32px)); }
 .gr-ej { color: #3b82f6; } .gr-cmm { color: #d97706; }
 .gr-in { width: 100%; min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
 .gr-in.preenchido { background: var(--acento-suave); border-color: var(--acento); font-weight: 700; }
+
+.atualiz { font-size: .72rem; color: var(--fg3); }
+.atualiz.erro { color: var(--vermelho); font-weight: 600; }
+.atualiz.aviso { color: var(--amarelo); }
+.atualiz .link { font-size: inherit; }

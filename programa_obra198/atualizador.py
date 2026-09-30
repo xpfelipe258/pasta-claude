@@ -7,7 +7,9 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -55,43 +57,93 @@ def aplicar_pacote(conteudo_zip, pasta_repo, destino):
     return alterados
 
 
+# Estado da última verificação (mostrado na tela, em /api/atualizacao)
+ESTADO = {"verificado_em": None, "resultado": "nunca", "detalhe": "", "remoto": ""}
+_ultimo_erro = [None]
+
+
+def _estado(resultado, detalhe="", remoto=""):
+    ESTADO.update({"verificado_em": time.time(), "resultado": resultado, "detalhe": detalhe, "remoto": remoto})
+
+
+def _aplicar_incremental(api, atual, sha, token, pasta_repo, destino):
+    """Baixa só os arquivos do programa que mudaram entre duas versões (KB em vez de todo o repositório).
+    Devolve a lista de alterados ou None se não der (aí usa o pacote completo)."""
+    try:
+        cmp = _get(f"{api}/compare/{atual}...{sha}", token)
+        arquivos = cmp.get("files") or []
+        if len(arquivos) >= 300 or cmp.get("status") not in ("ahead", "identical", "diverged", "behind"):
+            return None
+        alterados = []
+        for f in arquivos:
+            nome = f["filename"]
+            if not nome.startswith(pasta_repo + "/") or f.get("status") == "removed":
+                continue
+            rel = nome[len(pasta_repo) + 1:]
+            if not rel or rel in PROTEGIDOS or rel.startswith("backups_obra198/") or ".." in rel.split("/"):
+                continue
+            req = urllib.request.Request(f"{api}/contents/{urllib.parse.quote(nome)}?ref={sha}",
+                                         headers={"User-Agent": "obra198-atualizador", "Accept": "application/vnd.github.raw"})
+            if token:
+                req.add_header("Authorization", f"Bearer {token}")
+            with urllib.request.urlopen(req, timeout=30) as r:
+                novo = r.read()
+            alvo = os.path.join(destino, *rel.split("/"))
+            os.makedirs(os.path.dirname(alvo), exist_ok=True)
+            with open(alvo + ".novo", "wb") as out:
+                out.write(novo)
+            os.replace(alvo + ".novo", alvo)
+            alterados.append(rel)
+        return alterados
+    except Exception:
+        return None
+
+
 def atualizar(base, cfg_at, silencioso=False):
-    """Devolve a lista de arquivos alterados (vazia/False se nada mudou). Com `silencioso`, não escreve nada
-    quando já está na versão mais recente (usado na verificação periódica)."""
+    """Devolve a lista de arquivos alterados (vazia/False se nada mudou). Com `silencioso`, só escreve no console
+    quando há novidade ou um erro diferente do anterior (usado na verificação periódica)."""
     at = dict(PADRAO)
     at.update(cfg_at or {})
     if not at.get("ativo") or not at.get("repositorio"):
+        _estado("desligada", "Atualização automática desligada no config.json")
         return False
     arq_versao = os.path.join(base, ".versao")
     atual = open(arq_versao).read().strip() if os.path.exists(arq_versao) else ""
     api = f"https://api.github.com/repos/{at['repositorio']}"
+
+    def falha(msg):
+        _estado("erro", msg)
+        if not silencioso or _ultimo_erro[0] != msg:
+            print(" " + msg)
+        _ultimo_erro[0] = msg
+        return False
+
     try:
         sha = _get(f"{api}/commits/{at['ramo']}", at["token"])["sha"]
         if sha == atual:
+            _ultimo_erro[0] = None
+            _estado("ok", "Na versão mais recente", sha)
             if not silencioso:
                 print(" Programa atualizado (versão " + sha[:7] + ").")
             return False
-        print(" Nova versão encontrada. Baixando atualização...")
-        pacote = _get(f"{api}/zipball/{sha}", at["token"], bruto=True)
+        print(f" Nova versão encontrada ({sha[:7]}). Baixando atualização...")
+        alterados = _aplicar_incremental(api, atual, sha, at["token"], at["pasta"], base) if atual else None
+        if alterados is None:
+            alterados = aplicar_pacote(_get(f"{api}/zipball/{sha}", at["token"], bruto=True), at["pasta"], base)
     except urllib.error.HTTPError as e:
-        if silencioso:
-            return False
         if e.code in (401, 403, 404):
-            print(" Atualização automática: acesso negado ao repositório. Confira o token em config.json.")
-        else:
-            print(f" Atualização automática indisponível agora (HTTP {e.code}). Seguindo com a versão atual.")
-        return False
+            return falha("Atualização automática: acesso negado ao repositório (HTTP %d). Confira o token em config.json." % e.code
+                         if e.code != 403 else "Atualização automática: acesso negado ou limite de consultas do GitHub (HTTP 403). Confira o token em config.json.")
+        return falha(f"Atualização automática indisponível agora (HTTP {e.code}). Seguindo com a versão atual.")
     except Exception as e:
-        if silencioso:
-            return False
-        print(f" Sem conexão para verificar atualizações ({e.__class__.__name__}). Seguindo com a versão atual.")
-        return False
-    alterados = aplicar_pacote(pacote, at["pasta"], base)
+        return falha(f"Sem conexão para verificar atualizações ({e.__class__.__name__}). Seguindo com a versão atual.")
     with open(arq_versao, "w") as f:
         f.write(sha)
     if "requirements.txt" in alterados:
         subprocess.call([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
                          "-r", os.path.join(base, "requirements.txt")])
+    _ultimo_erro[0] = None
+    _estado("atualizado", f"{len(alterados)} arquivo(s) atualizado(s)", sha)
     print(f" Atualização aplicada ({len(alterados)} arquivo(s)).")
     return alterados
 
