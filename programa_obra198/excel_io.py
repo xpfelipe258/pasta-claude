@@ -186,19 +186,6 @@ def calcular_consumo_servico(servico, delta, regras):
             if q > 0:
                 resultado.append({"codigo": item["codigo"], "descricao": item.get("descricao", ""),
                                   "quantidade": q})
-    elif servico == "VIGAS":
-        pa = conf.get("proporcao_apoio", 0.4)
-        pi = conf.get("proporcao_interm", 0.6)
-        for item in conf.get("itens_apoio", []):
-            q = round(item["por_viga"] * pa * delta, 2)
-            if q > 0:
-                resultado.append({"codigo": item["codigo"], "descricao": item.get("descricao", ""),
-                                  "quantidade": q})
-        for item in conf.get("itens_interm", []):
-            q = round(item["por_viga"] * pi * delta, 2)
-            if q > 0:
-                resultado.append({"codigo": item["codigo"], "descricao": item.get("descricao", ""),
-                                  "quantidade": q})
     return resultado
 
 

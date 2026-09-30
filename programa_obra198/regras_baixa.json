@@ -109,20 +109,30 @@
       ],
       "nota": "8 parafusos Ø1/2\" por joist (4 por ponta). Proporção por faixa: FG005 (BC,CD,DE,FG) 4/7, FG006 (GH) 1/7, FG007 (AB,EF) 2/7. Porcas e arruelas 1:1 com parafuso."
     },
-    "VIGAS": {
-      "descricao": "Cada viga montada consome fixadores conforme tipo (APOIO 40% ou INTERMEDIÁRIA 60%). Proporção derivada do IFC: 120 APOIO / 300 total = 0.4, 180 INTERM / 300 = 0.6.",
-      "proporcao_apoio": 0.4,
-      "proporcao_interm": 0.6,
-      "itens_apoio": [
-        {"codigo": "FG021", "descricao": "PORCA Ø1\" A194-2H", "por_viga": 4},
-        {"codigo": "FG023", "descricao": "ARRUELA Ø1\" LISA",  "por_viga": 4}
-      ],
-      "itens_interm": [
-        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_viga": 4},
-        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_viga": 4},
-        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_viga": 4}
-      ],
-      "nota": "Média ponderada por viga: APOIO consume FG021(1.6) + FG023(1.6); INTERM consume FG012(2.4) + FG017(2.4) + FG020(2.4)."
+    "VIGAS APOIO": {
+      "descricao": "Viga de apoio principal montada. 4 porcas Ø1\" + 4 arruelas Ø1\" por viga. Total no galpão: 120 vigas.",
+      "itens": [
+        {"codigo": "FG021", "descricao": "PORCA Ø1\" A194-2H", "por_unidade": 4},
+        {"codigo": "FG023", "descricao": "ARRUELA Ø1\" LISA",  "por_unidade": 4}
+      ]
+    },
+    "VIGAS INTERMEDIÁRIAS": {
+      "descricao": "Viga intermediária montada. 8 parafusos + 8 porcas + 8 arruelas Ø7/8\" por viga. Total no galpão: 180 vigas.",
+      "itens": [
+        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_unidade": 8},
+        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_unidade": 8},
+        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_unidade": 8}
+      ]
+    },
+    "VIGAS VC01": {
+      "descricao": "Viga VC01 (borda, apoiada). 2 porcas Ø3/4\" + 2 arruelas Ø3/4\" + 4 parafusos Ø7/8\" + 4 porcas Ø7/8\" + 4 arruelas Ø7/8\". Posições A e H em cada eixo.",
+      "itens": [
+        {"codigo": "FG022", "descricao": "PORCA Ø3/4\" A194-2H",   "por_unidade": 2},
+        {"codigo": "FG024", "descricao": "ARRUELA Ø3/4\" F-436",   "por_unidade": 2},
+        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",     "por_unidade": 4},
+        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H",   "por_unidade": 4},
+        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",    "por_unidade": 4}
+      ]
     }
   },
   "limites_ifc": {
