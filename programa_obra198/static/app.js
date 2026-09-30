@@ -2453,7 +2453,7 @@ const FORMS = {
   // multi: um cabeçalho (remessa / semana) e vários itens (TAG escolhida entre as já existentes + quantidade)
   est_planilha_remessa: { tit: 'itens na remessa', endpoint: 'estoque-planilha/remessa', multi: { cab: ['remessa', 'Nome/Nº da remessa (escolha uma existente ou digite uma nova)', 'listaMultiCab'], fonte: () => EP.remessas.itens, cabLista: () => EP.remessas.colunas }, campos: [
     ['remessa', 'Nome/Nº da remessa', 'text', 1]] },
-  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', multi: { cab: ['semana', 'Semana (ex: 14/08 a 18/08)', 'listaMultiCab'], empresa: true, qtdRot: 'Quantidade consumida', fonte: () => EP.consumo_fisico.itens, cabLista: () => EP.consumo_fisico.semanas }, campos: [
+  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', multi: { grade: true, cab: ['semana', 'Nova semana / coluna (ex: 28/09 a 02/10) — ou escolha uma existente para somar', 'listaMultiCab'], empresa: true, qtdRot: 'Quantidade consumida', fonte: () => EP.consumo_fisico.itens, cabLista: () => EP.consumo_fisico.semanas }, campos: [
     ['semana', 'Semana', 'text', 1]] },
 };
 
@@ -2469,7 +2469,65 @@ function multiDescTag(m, tag) {
   const it = m.fonte().find(i => i.tag === tag.trim().toUpperCase());
   return it ? [it.produto, it.material].filter(Boolean).join(' · ') : '';
 }
+// ---- grade: uma coluna nova (semana) e o consumo lançado direto nas linhas, EJ e CMM, sem repetir TAG
+function abrirDialogoGrade(tabela) {
+  const def = FORMS[tabela], m = def.multi, dlg = $('#dlg');
+  dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi', 'grade');
+  $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
+  $('#listaMultiCab').innerHTML = [...m.cabLista()].reverse().map(c => `<option value="${esc(c)}">`).join('');
+  const linhas = m.fonte().map(i => `<tr data-tag="${esc(i.tag)}"><td><b>${esc(i.tag)}</b></td><td class="gr-prod">${esc(i.produto || '')}</td>
+    <td><input class="gr-in" data-emp="EJ" inputmode="decimal" aria-label="${esc(i.tag)} EJ"></td>
+    <td><input class="gr-in" data-emp="CMM" inputmode="decimal" aria-label="${esc(i.tag)} CMM"></td></tr>`).join('');
+  $('#dlgCampos').innerHTML = `<label class="largo"><span class="obrig">${m.cab[1]}</span><input name="${m.cab[0]}" list="listaMultiCab" autocomplete="off" required></label>
+    <div class="largo gr-barra"><input type="search" id="grFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto…" autocomplete="off">
+      <span class="nota" id="grTot"></span></div>
+    <div class="largo tabela-rolagem gr-caixa"><table class="gr-tab"><thead><tr><th>TAG</th><th>Produto</th><th class="n gr-ej">EJ</th><th class="n gr-cmm">CMM</th></tr></thead><tbody>${linhas}</tbody></table></div>
+    <p class="largo nota">Digite só onde houve consumo; linhas vazias são ignoradas. Enter desce para a linha de baixo na mesma coluna. O que já existir na semana escolhida é somado.</p>`;
+  $('#dlgExcluir').hidden = true;
+  dlg.showModal();
+  dlg.querySelector('input[name=' + m.cab[0] + ']').focus();
+}
+function gradeTotais() {
+  const cel = [...document.querySelectorAll('.gr-in')].filter(i => i.value.trim());
+  const soma = emp => cel.filter(i => i.dataset.emp === emp).reduce((s, i) => s + (Number(i.value.replace(/\./g, '').replace(',', '.')) || 0), 0);
+  const el = $('#grTot'); if (el) el.textContent = cel.length ? `${cel.length} lançamento(s) · EJ ${nf(soma('EJ'))} · CMM ${nf(soma('CMM'))}` : 'Nada lançado ainda';
+}
+function gradeColetar(tabela) {
+  const m = FORMS[tabela].multi, itens = [];
+  let erro = null;
+  document.querySelectorAll('.gr-in').forEach(i => {
+    const v = i.value.trim();
+    if (!v) return;
+    const q = Number(v.replace(/\./g, '').replace(',', '.')), tag = i.closest('tr').dataset.tag;
+    if (!(q > 0)) erro ||= `${tag} (${i.dataset.emp}): quantidade inválida.`;
+    else itens.push({ tag, empresa: i.dataset.emp, quantidade: q });
+  });
+  if (!erro && !itens.length) erro = 'Nenhum consumo lançado.';
+  return { itens, erro };
+}
+function ligarGrade() {
+  const dlg = $('#dlg');
+  dlg.addEventListener('input', ev => {
+    if (!dlg.classList.contains('grade')) return;
+    if (ev.target.classList.contains('gr-in')) { ev.target.classList.toggle('preenchido', !!ev.target.value.trim()); gradeTotais(); }
+    if (ev.target.id === 'grFiltro') {
+      const f = ev.target.value.trim().toUpperCase();
+      dlg.querySelectorAll('.gr-tab tbody tr').forEach(tr => tr.hidden = !!f && !tr.textContent.toUpperCase().includes(f) && !tr.querySelector('.gr-in.preenchido'));
+    }
+  });
+  dlg.addEventListener('keydown', ev => {
+    if (!dlg.classList.contains('grade') || !ev.target.classList?.contains('gr-in') || ev.key !== 'Enter') return;
+    ev.preventDefault();   // Enter desce na mesma coluna em vez de salvar
+    let tr = ev.target.closest('tr').nextElementSibling;
+    while (tr && tr.hidden) tr = tr.nextElementSibling;
+    const prox = tr?.querySelector(`.gr-in[data-emp="${ev.target.dataset.emp}"]`);
+    if (prox) { prox.focus(); prox.select(); }
+  });
+  dlg.addEventListener('close', () => dlg.classList.remove('grade'));
+}
+
 function abrirDialogoMulti(tabela) {
+  if (FORMS[tabela].multi.grade) return abrirDialogoGrade(tabela);
   const def = FORMS[tabela], m = def.multi, dlg = $('#dlg');
   dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi');
   $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
@@ -2577,7 +2635,7 @@ async function salvarDialogo(ev) {
   const dlg = $('#dlg'), f = $('#dlgForm');
   const tabela = dlg.dataset.tabela, linha = dlg.dataset.linha ? +dlg.dataset.linha : null;
   if (FORMS[tabela].multi) {
-    const m = FORMS[tabela].multi, { itens, erro } = multiColetar(tabela);
+    const m = FORMS[tabela].multi, { itens, erro } = m.grade ? gradeColetar(tabela) : multiColetar(tabela);
     if (erro) { toast(erro, true); return; }
     try {
       const r = await postar(API + FORMS[tabela].endpoint, { [m.cab[0]]: f.elements[m.cab[0]].value.trim(), itens });
@@ -2914,6 +2972,7 @@ function ligarEventos() {
   $('#dlgForm').addEventListener('submit', salvarDialogo);
   $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
   ligarDialogoMulti();
+  ligarGrade();
   $('#dlgExcluir').onclick = excluirDialogo;
   $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); document.querySelectorAll('.scroll-topo').forEach(e => e.scrollLeft = 0); }));
   $('#dlgForm').addEventListener('input', ev => {

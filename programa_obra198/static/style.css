@@ -406,3 +406,15 @@ dialog.multi { width: min(860px, calc(100vw - 32px)); }
 .mi-desc { font-weight: 400; color: var(--fg3); min-height: 1.1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mi-desc.erro { color: var(--vermelho); }
 @media (max-width: 560px) { .multi-linha, .multi-linha:has(.multi-emp) { grid-template-columns: 1fr 1fr 34px; } .multi-tag { grid-column: 1 / -1; } }
+
+/* grade de consumo: coluna nova com lançamento direto nas linhas */
+dialog.grade { width: min(760px, calc(100vw - 32px)); }
+.gr-barra { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.gr-caixa { max-height: 52vh; overflow: auto; border: 1px solid var(--linha); border-radius: var(--r); }
+.gr-tab { width: 100%; border-collapse: collapse; }
+.gr-tab thead th { position: sticky; top: 0; background: var(--card); z-index: 1; border-bottom: 1px solid var(--linha-forte); padding: 6px 8px; font-size: .7rem; text-transform: uppercase; }
+.gr-tab td { padding: 3px 8px; border-bottom: 1px solid var(--linha); }
+.gr-prod { color: var(--fg2); font-size: .8rem; }
+.gr-ej { color: #3b82f6; } .gr-cmm { color: #d97706; }
+.gr-in { width: 100%; min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.gr-in.preenchido { background: var(--acento-suave); border-color: var(--acento); font-weight: 700; }
