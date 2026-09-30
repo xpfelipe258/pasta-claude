@@ -76,7 +76,30 @@
   "consumo_por_servico": {
     "_descricao": "Mapeamento: nome do serviço no controle de produção → materiais consumidos automaticamente por unidade produzida. Quando lançamentos são salvos, o sistema cria movimentações de SAÍDA automaticamente.",
     "PREMONTAGEM": {
-      "descricao": "Cada joist pré-montada consome fixadores de fixação (parafusos Ø1/2\", porcas Ø1/2\" e arruelas Ø1/2\"). É o serviço de maior impacto em quantidade de material.",
+      "descricao": "Pré-montagem de joist: monta componentes estruturais e fixadores internos Ø3/8\". Maior impacto em quantidade de material. Fonte: aba Consumo_Joists (J01-J04 têm mesma composição).",
+      "itens": [
+        {"codigo": "BZ001", "descricao": "BANZO JOIST CR132#1.50",       "por_unidade": 2},
+        {"codigo": "BZ002", "descricao": "BANZO JOIST CR132#1.25",       "por_unidade": 2},
+        {"codigo": "DN001", "descricao": "DIAGONAL JOIST UE127#1.25",    "por_unidade": 4},
+        {"codigo": "DN002", "descricao": "DIAGONAL JOIST UE127#1.25",    "por_unidade": 4},
+        {"codigo": "DN003", "descricao": "DIAGONAL JOIST UE127#0.95",    "por_unidade": 52},
+        {"codigo": "RF001", "descricao": "REFORÇO JOIST CH1.55X86.88",   "por_unidade": 64},
+        {"codigo": "RF003", "descricao": "REFORÇO JOIST CH2.3X144.84",   "por_unidade": 8},
+        {"codigo": "TV001", "descricao": "TRAVAMENTO JOIST CR45#0.95",   "por_unidade": 15},
+        {"codigo": "TV002", "descricao": "TRAVAMENTO JOIST CR45#0.95",   "por_unidade": 15},
+        {"codigo": "TV003", "descricao": "TRAVAMENTO JOIST L30X30X1.25", "por_unidade": 60},
+        {"codigo": "SJ01",  "descricao": "SUPORTE JOIST CH6.4X123.68",   "por_unidade": 4},
+        {"codigo": "SJ02",  "descricao": "SUPORTE JOIST CH6.4X123.68",   "por_unidade": 4},
+        {"codigo": "FJ001", "descricao": "PARAF. Ø3/8\" X 1\" GR.8",    "por_unidade": 16},
+        {"codigo": "FJ002", "descricao": "PARAF. Ø3/8\" X 3/4\" A307",  "por_unidade": 376},
+        {"codigo": "FJ003", "descricao": "PORCA Ø3/8\" A307",           "por_unidade": 392},
+        {"codigo": "FJ005", "descricao": "ARRUELA Ø3/8\" LISA",         "por_unidade": 392},
+        {"codigo": "FJ006", "descricao": "PF AB PONTA 1 12x14x3/4",    "por_unidade": 256}
+      ],
+      "nota": "Composição extraída da aba Consumo_Joists. J01-J04 têm mesma quantidade de componentes. BZ005 e SPD01 variam por tipo (não incluídos na média geral). Total ~1432 fixadores Ø3/8\" + ~234 componentes estruturais por joist."
+    },
+    "IÇAMENTO JOIST": {
+      "descricao": "Içamento/instalação da joist nas vigas. Consome fixadores Ø1/2\" de apoio (parafusos que prendem a joist na viga).",
       "itens": [
         {"codigo": "FG015", "descricao": "PORCA Ø1/2\" A307",   "por_unidade": 8},
         {"codigo": "FG018", "descricao": "ARRUELA Ø1/2\" LISA", "por_unidade": 8},
@@ -84,12 +107,7 @@
         {"codigo": "FG006", "descricao": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_unidade": 1.14},
         {"codigo": "FG007", "descricao": "PARAF. Ø1/2\" x 2\" A307",     "por_unidade": 2.29}
       ],
-      "nota": "Proporção de parafusos calculada pela distribuição de faixas no IFC: FG005 (BC,CD,DE,FG) 4/7, FG006 (GH) 1/7, FG007 (AB,EF) 2/7 — total 8 por joist."
-    },
-    "IÇAMENTO JOIST": {
-      "descricao": "Içamento/instalação da joist. Os fixadores já foram consumidos na PREMONTAGEM.",
-      "itens": [],
-      "nota": "Sem baixa automática de fixadores — já descontados na pré-montagem."
+      "nota": "8 parafusos Ø1/2\" por joist (4 por ponta). Proporção por faixa: FG005 (BC,CD,DE,FG) 4/7, FG006 (GH) 1/7, FG007 (AB,EF) 2/7. Porcas e arruelas 1:1 com parafuso."
     },
     "VIGAS": {
       "descricao": "Cada viga montada consome fixadores conforme tipo (APOIO 40% ou INTERMEDIÁRIA 60%). Proporção derivada do IFC: 120 APOIO / 300 total = 0.4, 180 INTERM / 300 = 0.6.",
