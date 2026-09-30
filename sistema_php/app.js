@@ -34,6 +34,22 @@ const minD = (a, b) => (a < b ? a : b);
 const maxD = (a, b) => (a > b ? a : b);
 function fd(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [, m, d] = s.split('-'); return `${d}/${m}`; }
 function fdA(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; }
+function isoDeTexto(t) { const m = t.match(/^(\d{1,2})\/?(\d{1,2})\/?(\d{4})$/); return m ? `${m[3]}-${p2(m[2])}-${p2(m[1])}` : null; }
+function patchDatas() {
+  document.querySelectorAll('input[type="date"]:not([data-patched])').forEach(inp => {
+    inp.setAttribute('data-patched', '1');
+    const txt = document.createElement('input');
+    txt.type = 'text'; txt.className = inp.className; txt.placeholder = 'dd/mm/aaaa';
+    txt.style.cssText = inp.style.cssText;
+    txt.value = inp.value ? fdA(inp.value) : '';
+    inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden';
+    inp.parentNode.insertBefore(txt, inp.nextSibling);
+    txt.addEventListener('change', () => { const iso = isoDeTexto(txt.value.trim()); if (iso && ehISO(iso)) { inp.value = iso; inp.dispatchEvent(new Event('change', {bubbles:true})); txt.value = fdA(iso); } });
+    txt.addEventListener('focus', () => { inp.style.position = ''; inp.style.opacity = ''; inp.style.pointerEvents = ''; inp.style.width = ''; inp.style.height = ''; inp.style.overflow = ''; txt.style.display = 'none'; inp.focus(); });
+    inp.addEventListener('blur', () => { inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden'; txt.style.display = ''; txt.value = inp.value ? fdA(inp.value) : ''; });
+    inp.addEventListener('change', () => { txt.value = inp.value ? fdA(inp.value) : ''; });
+  });
+}
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
 function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
@@ -1435,6 +1451,7 @@ function abrirDialogo(tabela, linha, preset = {}) {
   $('#dlgExcluir').textContent = 'Excluir';
   if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
   dlg.showModal();
+  patchDatas();
 }
 
 function autoCustoUso(form) {
@@ -1762,6 +1779,7 @@ function ligarEventos() {
 (async function iniciar() {
   ref = hoje();
   ligarEventos();
+  patchDatas();
   let aba = 'painel';
   try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
   $('#refData').value = ref;
