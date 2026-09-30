@@ -190,7 +190,7 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
@@ -206,9 +206,10 @@ async function carregar() {
     document.body.classList.toggle('somente-leitura', u.perfil === 'leitura');
   }
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
+  document.querySelectorAll('[data-aba=apont]').forEach(b => b.hidden = !!rec.online);
   preencherListas();
   renderTudo();
-  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; if (abaAtual === 'estoque') renderEstoquePlanilha(); }).catch(() => {});
+  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarContadorKpi(); if (abaAtual === 'estoque') renderEstoquePlanilha(); else if (abaAtual === 'kpi') renderKPI(); }).catch(() => {});
 }
 
 async function postar(url, corpo) {
@@ -297,19 +298,26 @@ function renderTudo() {
   const rExt = estoqueExternoResumo();
   const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho').length + (rExt ? rExt.etapas.filter(e => e.nivel === 'vermelho').length + rExt.fixCrit.length : 0);
   $('#estCont').hidden = !falta; $('#estCont').textContent = falta;
-  const c = corte();
-  const ksG = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c));
-  const kpiAlerts = ksG.filter(k => k.pct != null && k.pct < 90).length + abertos + (EP ? EP.materiais.filter(m => m.status_logistico === 'Crítico').length : 0);
-  const kpiC = document.getElementById('kpiCont');
-  if (kpiC) { kpiC.hidden = !kpiAlerts; kpiC.textContent = kpiAlerts; }
+  atualizarContadorKpi();
   atualizarPendentes();
   renderAba();
+}
+
+// Mesmo cálculo do painel KPI: serviços < 90% + impactos abertos + materiais críticos (quando o estoque já carregou).
+function atualizarContadorKpi() {
+  const kpiC = document.getElementById('kpiCont');
+  if (!kpiC || !M) return;
+  const c = corte();
+  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+  const n = ks.filter(k => k.pct != null && k.pct < 90).length + M.impactos.filter(i => !i.solucionado).length
+    + (EP ? EP.materiais.filter(m => m.status_logistico === 'Crítico').length : 0);
+  kpiC.hidden = !n; kpiC.textContent = n;
 }
 
 function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente,
-     estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI })[abaAtual]();
+     estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -920,14 +928,13 @@ function renderEstoqueIfc() {
       return `<tr><td><b>${ru}</b></td>${tds}<td class="n">${tot}</td></tr>`;
     }).join('') + '</tbody>';
 
-  // últimos eventos
-  const evs = [...(T.estoque_eventos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))).slice(0, 20);
-  tabEv.innerHTML = `<thead><tr><th>Data</th><th>Tipo</th><th>Rua/Eixo</th><th>Letra/Faixa</th><th class="n">Joists</th><th>Empresa</th><th></th></tr></thead><tbody>` +
-    (evs.length ? evs.map(e => `<tr><td>${fdA(e.data)}</td><td>${esc(e.tipo || '')}</td>
-      <td>${esc(e.rua || e.eixo || '')}</td><td>${esc(e.letra || e.faixa || '')}</td>
-      <td class="n">${e.n_joists == null ? '—' : nf(e.n_joists, 0)}</td><td>${esc(e.empresa || '')}</td>
-      <td><button class="link" data-editar-reg="estoque_eventos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="7" class="vazio">Nenhum evento apontado.</td></tr>') + '</tbody>';
+  // últimos apontamentos de montagem (editar/excluir em Produção > Apontar montagem)
+  const evs = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 20);
+  tabEv.innerHTML = `<thead><tr><th>Data</th><th>Tipo</th><th>Rua/Eixo</th><th>Letra/Faixa</th><th class="n">Qtd</th><th>Empresa</th></tr></thead><tbody>` +
+    (evs.length ? evs.map(e => `<tr><td>${fdA(e.data)}</td><td>${(e.tipo || '').toUpperCase() === 'JOIST' ? 'Joist içada' : 'Viga montada'}</td>
+      <td>${esc(e.rua || e.eixo || '')}</td><td>${esc(e.letra || '')}${e.faixa ? ' · ' + esc(e.faixa) : ''}</td>
+      <td class="n">${nf(e.qtd, 0)}</td><td>${esc(e.empresa || '')}</td></tr>`).join('')
+      : '<tr><td colspan="6" class="vazio">Nenhum apontamento ainda. Use Produção > Apontar montagem.</td></tr>') + '</tbody>';
 
   al.innerHTML = r.alertas.length ? r.alertas.map(a => `<li class="alerta a-vermelho">${esc(a.mensagem)}</li>`).join('') : '';
 }
@@ -1152,27 +1159,44 @@ function derivarInventario(base, cv, cf) {
   };
 }
 
-// Consumo virtual por TAG = produção acumulada × regras_baixa.json. Só entram serviços que existem na produção;
-// itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
+// Consumo virtual por TAG. PREMONTAGEM = produção x composição. Montagem (joists e vigas) = apontamento por quadrante/tipo
+// de viga (exato); joists içadas ainda sem quadrante usam a divisão média (estimada). Vigas sem tipo apontado ainda não
+// têm consumo contabilizado. Itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
 function consumoVirtualPorTag(regras) {
   const servicos = regras.consumo_por_servico || {};
+  const cfgAp = regras.apontamento || {};
+  const aps = T.apontamentos || [];
+  const apJoists = soma0(aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd);
+  const apVigas = aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length;
+  const prodVigas = cfgAp.servico_viga ? prodServico(cfgAp.servico_viga, null, '0000-01-01', '9999-12-31') : 0;
+  const evCons = new Map(((M.estoque_ifc || {}).resumo?.materiais || []).filter(x => x.consumo_teorico).map(x => [x.codigo, x.consumo_teorico]));
+  const tagsViga = new Set((regras.eventos || []).filter(e => (e.codigo || '').startsWith('VIGA_')).flatMap(e => (e.baixa || []).map(b => b.codigo)));
+
   const acum = new Map();
+  const entrada = cod => { let o = acum.get(cod); if (!o) acum.set(cod, o = { qtd: 0, partes: [], estimado: false, parcial: false, apont: false }); return o; };
   Object.entries(servicos).forEach(([nome, conf]) => {
     if (nome.startsWith('_') || !conf.itens) return;
     if (!M.empresas.some(e => e.servicos.some(s => s.nome === nome))) return;
-    const n = prodServico(nome, null, '0000-01-01', '9999-12-31');
+    let n = prodServico(nome, null, '0000-01-01', '9999-12-31');
+    let rotulo = cap(nome);
+    if (nome === cfgAp.servico_joist) { n = Math.max(0, n - apJoists); rotulo += ' sem quadrante'; }
     conf.itens.forEach(it => {
-      const o = acum.get(it.codigo) || { qtd: 0, partes: [], estimado: false };
+      const o = entrada(it.codigo);
       o.qtd += it.por_unidade * n;
-      o.partes.push(`${nf(n)} ${cap(nome)} × ${nf(it.por_unidade, 2)}`);
-      if (it.estimado) o.estimado = true;
-      acum.set(it.codigo, o);
+      if (n > 0) o.partes.push(`${nf(n)} ${rotulo} × ${nf(it.por_unidade, 2)}`);
+      if (it.estimado && n > 0) o.estimado = true;
     });
   });
+  evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
+
   const mapa = new Map();
-  acum.forEach((o, tag) => mapa.set(tag, { cv: Math.round(o.qtd), origem: 'producao', estimado: o.estimado,
-    nota: o.partes.join(' + ') + (o.estimado ? ' (divisão entre tipos de parafuso estimada)' : '') }));
-  (regras.inventario_ajustes || []).forEach(a => mapa.set(a.tag, { cv: a.consumo_virtual, origem: 'ajuste', estimado: false, nota: a.motivo }));
+  acum.forEach((o, tag) => {
+    const parcial = o.apont && tagsViga.has(tag) && prodVigas > apVigas;
+    const nota = o.partes.join(' + ') + (o.estimado ? ' (joists sem quadrante: divisão entre tipos de parafuso estimada)' : '')
+      + (parcial ? ` (${nf(apVigas)} de ${nf(prodVigas)} vigas apontadas; as demais ainda não entram)` : '');
+    mapa.set(tag, { cv: Math.round(o.qtd), origem: o.apont ? 'apontamento' : 'producao', estimado: o.estimado, parcial, nota });
+  });
+  (regras.inventario_ajustes || []).forEach(a => mapa.set(a.tag, { cv: a.consumo_virtual, origem: 'ajuste', estimado: false, parcial: false, nota: a.motivo }));
   return mapa;
 }
 
@@ -1189,7 +1213,7 @@ function inventarioCalculado(regras) {
     const c = mapa.get(m.tag) || { cv: m.consumo_virtual, origem: 'planilha', estimado: false,
       nota: notas[m.tag] || 'Sem regra de consumo pela produção: mantido o valor da planilha.' };
     return { ...m, estoque_virtual_base: base, consumo_fisico: cf, consumo_virtual: c.cv, consumo_planilha: m.consumo_virtual,
-      delta: c.cv - m.consumo_virtual, origem: c.origem, estimado: c.estimado, nota: c.nota, ...derivarInventario(base, c.cv, cf) };
+      delta: c.cv - m.consumo_virtual, origem: c.origem, estimado: c.estimado, parcial: !!c.parcial, nota: c.nota, ...derivarInventario(base, c.cv, cf) };
   });
 }
 
@@ -1212,7 +1236,10 @@ function renderEstInventario() {
   const corrigidos = inv.filter(m => Math.abs(m.delta) >= 1).length;
   const acuMedia = avaliados.length ? soma0(avaliados, m => m.acuracidade || 0) / avaliados.length * 100 : 0;
   const prem = prodServico('PREMONTAGEM', null, '0000-01-01', '9999-12-31'), ic = prodServico('IÇAMENTO JOIST', null, '0000-01-01', '9999-12-31');
-  $('#estInvNota').textContent = `Consumo virtual = produção acumulada (${nf(prem)} joists pré-montadas, ${nf(ic)} içadas) × regras de baixa. Recebido e retirado vêm das abas Remessas e Consumo físico.`;
+  const cfgAp = regras.apontamento || {}, aps = T.apontamentos || [];
+  const pendJ = Math.max(0, ic - soma0(aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd));
+  const pendV = Math.max(0, prodServico(cfgAp.servico_viga || 'VIGAS', null, '0000-01-01', '9999-12-31') - aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length);
+  $('#estInvNota').textContent = `Consumo virtual = produção acumulada (${nf(prem)} joists pré-montadas, ${nf(ic)} içadas) × regras de baixa, com o tipo exato vindo do Apontamento de montagem. Faltam apontar ${nf(pendJ)} joists (quadrante) e ${nf(pendV)} vigas (tipo): por isso ≈ (parafusos estimados) e ≥ (fixadores de viga parciais).`;
   $('#estInvTiles').innerHTML =
     tile('Itens avaliados', avaliados.length, `${vis.length} visíveis`, 'var(--fg)') +
     tile('Acuracidade média', nf(acuMedia, 1) + '%', 'meta >= 98%', 'var(--acento)') +
@@ -1221,7 +1248,7 @@ function renderEstInventario() {
     tile('Consumo virtual corrigido', corrigidos, 'diferem da planilha', corrigidos ? 'var(--amarelo)' : 'var(--verde)');
 
   const farolAcu = s => ({ CONFORME: 'verde', ATENCAO: 'amarelo', CRITICO: 'vermelho' })[norm(s)] || 'pendente';
-  const ROT_ORIGEM = { producao: ['verde', 'Produção'], ajuste: ['amarelo', 'Ajuste'], planilha: ['pendente', 'Planilha'] };
+  const ROT_ORIGEM = { producao: ['verde', 'Produção'], apontamento: ['verde', 'Apontamento'], ajuste: ['amarelo', 'Ajuste'], planilha: ['pendente', 'Planilha'] };
   const sinal = v => (v > 0 ? '+' : '') + nf(v);
   $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th>Origem</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
@@ -1229,7 +1256,7 @@ function renderEstInventario() {
       return `<tr>
       <td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
       <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.estoque_virtual_base)}</td><td class="n">${nf(m.estoque_fisico)}</td>
-      <td class="n"><b>${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}${Math.abs(m.delta) >= 1 ? `<br><span class="nota">planilha ${nf(m.consumo_planilha)} (${sinal(m.delta)})</span>` : ''}</td>
+      <td class="n"><b>${m.parcial ? '≥ ' : ''}${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}${Math.abs(m.delta) >= 1 ? `<br><span class="nota">planilha ${nf(m.consumo_planilha)} (${sinal(m.delta)})</span>` : ''}</td>
       <td>${m.origem ? `<span class="farol f-${oc}" title="${esc(m.nota)}">${ot}</span>` : ''}</td>
       <td class="n">${nf(m.consumo_fisico)}</td><td class="n">${nf(m.estoque_virtual_atual)}</td>
       <td class="n ${m.perda_real < 0 ? 'valor-neg' : ''}">${nf(m.perda_real)}</td>
@@ -1289,6 +1316,274 @@ function renderEstCriticos() {
       <td class="n ${i.saldo < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldo)}</b></td>
       <td class="n">${nf(i.cobertura, 1)}%</td>
       <td><span class="farol f-${i.nivel}">${i.status}</span></td></tr>`).join('') + '</tbody>';
+}
+
+// ------------------------------------------------------------ APONTAMENTO DE MONTAGEM
+// Fonte única da montagem: cada apontamento (joists por quadrante, vigas por eixo/letra) soma na grade de produção
+// (de onde vêm BM, cronograma e dashboards) e define os fixadores baixados no estoque.
+const apEst = { modo: 'joist', data: null, empresa: null, rua: '11-12', faixa: 'BC', eixo: '11', qtds: {}, sel: new Set(), regular: false, obs: '' };
+const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
+
+function apContexto(regras) {
+  const cfg = regras.apontamento, crit = regras.criterio_por_letra, pos = regras.faixas_posicoes;
+  const aps = T.apontamentos || [];
+  const joists = aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST');
+  const vigas = aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA');
+  const vigaMontada = new Map(vigas.map(a => [a.viga_id, a]));
+  const porPos = new Map();
+  joists.forEach(a => { const k = `${a.rua}/${a.faixa}/${a.letra}`; porPos.set(k, (porPos.get(k) || 0) + (a.qtd || 0)); });
+  const vigaId = (eixo, letra) => `E${eixo}-${letra}-${crit[letra].viga}`;
+  const ruas = cfg.eixos.slice(0, -1).map((e, i) => `${e}-${cfg.eixos[i + 1]}`);
+  const quadrante = (rua, faixa) => {
+    const [a, b] = rua.split('-');
+    const n = pos[faixa].reduce((s, l) => s + (porPos.get(`${rua}/${faixa}/${l}`) || 0), 0);
+    const faltam = [a, b].flatMap(e => pos[faixa].filter(l => !vigaMontada.has(vigaId(e, l))).map(l => vigaId(e, l)));
+    return { n, faltam, liberado: !faltam.length };
+  };
+  return { cfg, crit, pos, joists, vigas, vigaMontada, porPos, vigaId, ruas, quadrante,
+    limite: regras.limites_ifc?.joists_por_rua_faixa_maximo || 6, empresaFaixa: regras.empresa_por_faixa || {},
+    evento: cod => (regras.eventos || []).find(e => e.codigo === cod) || {} };
+}
+
+const apServico = ctx => apEst.modo === 'joist' ? ctx.cfg.servico_joist : ctx.cfg.servico_viga;
+const apEmpresas = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));
+
+function apGarantirEstado(ctx) {
+  if (!apEst.data) apEst.data = M.datas.includes(ref) ? ref : (M.datas.filter(d => d <= hoje()).pop() || M.datas[0]);
+  const nomes = apEmpresas(apServico(ctx)).map(e => e.nome);
+  if (!nomes.includes(apEst.empresa)) apEst.empresa = nomes[0] || null;
+  if (!ctx.ruas.includes(apEst.rua)) apEst.rua = ctx.ruas[0];
+  if (!ctx.pos[apEst.faixa]) apEst.faixa = Object.keys(ctx.pos)[0];
+  if (!ctx.cfg.eixos.includes(apEst.eixo)) apEst.eixo = ctx.cfg.eixos[0];
+}
+
+function apBaixa(regras, ctx) {
+  const baixa = new Map();
+  const soma = (cod, q) => baixa.set(cod, (baixa.get(cod) || 0) + q);
+  let delta = 0;
+  if (apEst.modo === 'joist') {
+    const extras = (ctx.evento('JOIST_ICADA').baixa_por_joist || []).filter(b => b.codigo !== 'PARAFUSO_FIX_JOIST');
+    ctx.pos[apEst.faixa].forEach(l => {
+      const n = +apEst.qtds[l] || 0;
+      if (!n) return;
+      delta += n;
+      soma(ctx.crit[l].parafuso, 8 * n);
+      extras.forEach(b => soma(b.codigo, b.quantidade * n));
+    });
+  } else {
+    apEst.sel.forEach(l => {
+      delta += 1;
+      (ctx.evento(ctx.crit[l].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
+    });
+  }
+  return { baixa, delta };
+}
+
+function apEfeitosHtml(regras, ctx) {
+  const { baixa, delta } = apBaixa(regras, ctx);
+  if (!delta) return '<p class="vazio">Informe as quantidades para ver o efeito na produção, no BM e no estoque.</p>';
+  const servico = apServico(ctx), emp = apEst.empresa, e = empresa(emp), data = apEst.data;
+  const itens = [], avisos = [];
+  const somar = !apEst.regular;
+  const meta = M.metas.find(m => m.empresa === emp && m.servico === servico && m.inicio <= data && m.fim >= data);
+  const col = e && colDe(e, servico);
+  if (somar) {
+    let t = `<b>Produção e cronograma:</b> +${nf(delta)} em ${esc(cap(servico))} · ${esc(emp)} em ${fdA(data)}.`;
+    if (meta && col) {
+      const real = soma(e, col, meta.inicio, meta.fim), alvo = metaSemanaTotal(meta);
+      t += ` Semana: ${nf(real)} → ${nf(real + delta)} de ${nf(alvo, 1)} previstos${alvo ? ` (${nf((real + delta) / alvo * 100, 0)}%)` : ''}.`;
+    } else t += ' Sem meta para essa semana.';
+    itens.push(t);
+  } else itens.push('<b>Produção e cronograma:</b> regularização, não soma de novo (já está no Lançamentos).');
+
+  const ats = bmAtiv(emp).filter(a => a.controle === servico);
+  const perBm = bmPeriodos(emp).find(p => data >= p.ini && data <= p.fim);
+  let tb = `<b>Medição (BM):</b> `;
+  if (!ats.length) tb += `sem atividade do catálogo ligada a ${esc(cap(servico))}.`;
+  else {
+    const a = ats[0], acum = bmRealizado(a, '9999-12-31');
+    tb += `${esc(a.atividade)} — ${somar ? `acumulado ${nf(acum, 1)} → ${nf(acum + delta, 1)}` : `acumulado ${nf(acum, 1)}`} de ${nf(a.qtd, 1)} ${esc(a.unidade || '')}.`;
+    if (perBm) tb += ` Data no BM${perBm.n} (${perBm.fechado ? 'fechado' : 'em aberto'}).`;
+  }
+  itens.push(tb);
+  if (somar && perBm && perBm.fechado) avisos.push(`A data cai no BM${perBm.n}, já fechado: a produção entra como ajuste no BM em aberto.`);
+
+  itens.push(`<b>Estoque:</b> ${[...baixa].map(([c, q]) => `${esc(c)} ×${nf(q)}`).join(' · ')}.`);
+
+  if (apEst.modo === 'joist') {
+    const q = ctx.quadrante(apEst.rua, apEst.faixa), total = q.n + delta;
+    if (total > ctx.limite) avisos.push(`Rua ${apEst.rua} faixa ${apEst.faixa} ficaria com ${total} joists (limite do projeto: ${ctx.limite}).`);
+    if (q.faltam.length) avisos.push(`Vigas ainda não apontadas neste quadrante: ${q.faltam.join(', ')}.`);
+  }
+  const padrao = apEst.modo === 'joist' ? ctx.empresaFaixa[apEst.faixa] : null;
+  if (padrao && padrao !== emp) avisos.push(`Pela malha do projeto essa faixa é de ${padrao}.`);
+  return `<ul class="ap-efeitos">${itens.map(t => `<li>${t}</li>`).join('')}</ul>` +
+    (avisos.length ? `<ul class="alertas">${avisos.map(a => `<li><span class="farol f-amarelo">Atenção</span><span>${esc(a)}</span></li>`).join('')}</ul>` : '');
+}
+
+function apFormHtml(regras, ctx) {
+  const s = apEst, emps = apEmpresas(apServico(ctx));
+  const selEmp = `<label class="rot-sel">Empresa <select id="apEmp">${emps.map(e => `<option ${e.nome === s.empresa ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}</select></label>`;
+  const data = `<label class="rot-sel">Data <input type="date" id="apData" value="${s.data}" min="${M.datas[0]}" max="${M.datas[M.datas.length - 1]}"></label>`;
+  let h = '<div class="ap-linha">' + data + selEmp;
+  if (s.modo === 'joist') {
+    h += `<label class="rot-sel">Rua <select id="apRua">${ctx.ruas.map(r => `<option ${r === s.rua ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+      <label class="rot-sel">Faixa <select id="apFaixa">${Object.keys(ctx.pos).map(f => `<option ${f === s.faixa ? 'selected' : ''}>${f}</option>`).join('')}</select></label></div>
+      <p class="nota">Informe quantas joists foram fixadas em cada viga de apoio do quadrante (rua entre dois eixos × faixa). O tipo de parafuso vem da viga.</p>
+      <div class="ap-pos">${ctx.pos[s.faixa].map(l => {
+        const c = ctx.crit[l], ja = ctx.porPos.get(`${s.rua}/${s.faixa}/${l}`) || 0;
+        return `<label class="ap-posicao"><span><b>${l}</b> · ${c.viga} · ${AP_TIPO[c.evento_viga]}<br><span class="nota">parafuso ${c.parafuso} · já apontadas: ${ja}</span></span>
+          <input type="number" min="0" max="${ctx.limite}" step="1" inputmode="numeric" data-ap-pos="${l}" value="${s.qtds[l] ?? ''}" placeholder="0"></label>`;
+      }).join('')}</div>`;
+  } else {
+    h += `<label class="rot-sel">Eixo <select id="apEixo">${ctx.cfg.eixos.map(x => `<option ${x === s.eixo ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
+      <p class="nota">Marque as vigas montadas neste eixo. Cada viga só pode ser apontada uma vez; o kit de fixadores vem do tipo.</p>
+      <div class="ap-chips">${Object.keys(ctx.crit).map(l => {
+        const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(s.eixo, l));
+        return `<button type="button" class="ap-chip ${s.sel.has(l) ? 'sel' : ''} ${m ? 'feita' : ''}" data-ap-letra="${l}" ${m ? 'disabled' : ''}
+          title="${m ? `Montada em ${fdA(m.data)} (${esc(m.empresa || '')})` : ''}"><b>${l}</b><small>${c.viga} · ${AP_TIPO[c.evento_viga]}</small>${m ? '<small>✓ ' + fd(m.data) + '</small>' : ''}</button>`;
+      }).join('')}</div>`;
+  }
+  h += `<div class="ap-linha"><label class="ap-check"><input type="checkbox" id="apRegular" ${s.regular ? 'checked' : ''}> Regularização: já está no Lançamentos, não somar de novo na produção</label>
+    <input type="text" id="apObs" class="input-filtro" placeholder="Observação / nº RDO" value="${esc(s.obs)}">
+    <button class="btn primario" id="apSalvar">Salvar apontamento</button></div>
+    <div id="apEfeitos">${apEfeitosHtml(regras, ctx)}</div>`;
+  return h;
+}
+
+function apMapaHtml(ctx) {
+  if (apEst.modo === 'joist') {
+    const faixas = Object.keys(ctx.pos);
+    const legenda = `<div class="ap-legenda"><span><i class="ap-cel ap-ok"></i>completa</span><span><i class="ap-cel ap-parc"></i>em andamento</span><span><i class="ap-cel ap-lib"></i>liberada (vigas ok)</span><span><i class="ap-cel ap-blq"></i>faltam vigas</span><span><i class="ap-cel ap-exc"></i>acima do projeto</span></div>`;
+    return `<table class="ap-mapa"><thead><tr><th>Rua</th>${faixas.map(f => `<th class="n">${f}</th>`).join('')}</tr></thead><tbody>` +
+      ctx.ruas.map(r => `<tr><td><b>${r}</b></td>${faixas.map(f => {
+        const q = ctx.quadrante(r, f);
+        const cls = q.n > ctx.limite ? 'ap-exc' : q.n >= ctx.limite ? 'ap-ok' : q.n > 0 ? 'ap-parc' : q.liberado ? 'ap-lib' : 'ap-blq';
+        return `<td class="n"><button type="button" class="ap-cel ${cls}" data-ap-quad="${r}/${f}" title="${q.faltam.length ? 'Faltam vigas: ' + q.faltam.join(', ') : 'Vigas apontadas nos dois eixos'}">${q.n}/${ctx.limite}</button></td>`;
+      }).join('')}</tr>`).join('') + '</tbody></table>' + legenda;
+  }
+  const letras = Object.keys(ctx.crit);
+  return `<table class="ap-mapa"><thead><tr><th>Eixo</th>${letras.map(l => `<th class="n" title="${ctx.crit[l].viga} · ${AP_TIPO[ctx.crit[l].evento_viga]}">${l}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
+    ctx.cfg.eixos.map(x => {
+      let n = 0;
+      const tds = letras.map(l => {
+        const m = ctx.vigaMontada.get(ctx.vigaId(x, l));
+        if (m) n++;
+        return `<td class="n"><button type="button" class="ap-cel ${m ? 'ap-ok' : 'ap-blq'}" data-ap-eixo="${x}" title="${ctx.vigaId(x, l)}${m ? ' · montada em ' + fdA(m.data) : ''}">${m ? '✓' : '·'}</button></td>`;
+      }).join('');
+      return `<tr><td><b>${x}</b></td>${tds}<td class="n">${n}/${letras.length}</td></tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function renderApont() {
+  if (!M) return;
+  const regras = regrasBaixa(renderApont);
+  if (!regras) { $('#apForm').innerHTML = '<p class="vazio">Carregando regras...</p>'; return; }
+  if (!regras.faixas_posicoes) { $('#apForm').innerHTML = '<p class="vazio">regras_baixa.json sem as regras de apontamento.</p>'; return; }
+  const ctx = apContexto(regras);
+  apGarantirEstado(ctx);
+
+  const { cfg } = ctx;
+  const prodJ = prodServico(cfg.servico_joist, null, '0000-01-01', '9999-12-31'), prodV = prodServico(cfg.servico_viga, null, '0000-01-01', '9999-12-31');
+  const apJ = soma0(ctx.joists, a => a.qtd), apV = ctx.vigas.length;
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const dif = (prod, ap) => prod >= ap ? `${nf(prod - ap)} a apontar` : `apontadas ${nf(ap - prod)} acima da produção: confira`;
+  const cor = (prod, ap) => prod === ap ? 'var(--verde)' : prod > ap ? 'var(--amarelo)' : 'var(--vermelho)';
+  let lib = 0, comp = 0, tot = 0;
+  ctx.ruas.forEach(r => Object.keys(ctx.pos).forEach(f => { const q = ctx.quadrante(r, f); tot++; if (q.liberado) lib++; if (q.n >= ctx.limite) comp++; }));
+  $('#apTiles').innerHTML =
+    tile('Joists içadas (produção)', nf(prodJ), `${nf(apJ)} apontadas por quadrante · ${dif(prodJ, apJ)}`, cor(prodJ, apJ)) +
+    tile('Vigas montadas (produção)', nf(prodV), `${nf(apV)} apontadas por tipo · ${dif(prodV, apV)}`, cor(prodV, apV)) +
+    tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)') +
+    tile('Quadrantes completos', `${comp}/${tot}`, `${ctx.limite} joists por rua × faixa (IFC)`, 'var(--verde)');
+
+  $('#segApModo').innerHTML = [['joist', 'Joists por quadrante'], ['viga', 'Vigas por tipo']]
+    .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
+  $('#apForm').innerHTML = apFormHtml(regras, ctx);
+  $('#apMapaTit').textContent = apEst.modo === 'joist' ? 'Situação por quadrante (rua × faixa)' : 'Situação das vigas (eixo × letra)';
+  $('#apMapa').innerHTML = apMapaHtml(ctx);
+
+  const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
+  $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
+    (hist.length ? hist.map(a => {
+      const joist = (a.tipo || '').toUpperCase() === 'JOIST';
+      const c = ctx.crit[a.letra] || {};
+      return `<tr><td>${fdA(a.data)}</td><td>${esc(a.empresa)}</td><td>${joist ? 'Joist' : 'Viga'}</td>
+        <td>${joist ? `Rua ${esc(a.rua)} · faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
+        <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
+        <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
+    }).join('') : '<tr><td colspan="8" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
+  patchDatas();
+  requestAnimationFrame(syncScrollTopo);
+}
+
+function apAtualizarEfeitos() {
+  const regras = window._regras_baixa;
+  if (!regras) return;
+  const ctx = apContexto(regras);
+  $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
+}
+
+async function salvarApontamento() {
+  const regras = window._regras_baixa, ctx = apContexto(regras), s = apEst;
+  const corpo = s.modo === 'joist'
+    ? { tipo: 'JOIST', rua: s.rua, faixa: s.faixa, itens: ctx.pos[s.faixa].map(l => ({ letra: l, n: +s.qtds[l] || 0 })).filter(i => i.n > 0) }
+    : { tipo: 'VIGA', eixo: s.eixo, letras: [...s.sel] };
+  Object.assign(corpo, { data: s.data, empresa: s.empresa, lanca_producao: !s.regular, obs: s.obs.trim() || null });
+  if ((corpo.itens && !corpo.itens.length) || (corpo.letras && !corpo.letras.length)) { toast('Informe ao menos uma joist ou marque uma viga.', true); return; }
+  const b = $('#apSalvar');
+  b.disabled = true;
+  try {
+    const r = await postar(API + 'apontamento', corpo);
+    s.qtds = {}; s.sel = new Set(); s.obs = '';
+    await carregar();
+    toast(`${r.salvos} apontamento(s) salvo(s)${r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''}`, !!r.avisos?.length, r.avisos?.length ? 9000 : undefined);
+  } catch (err) { toast(err.message, true); b.disabled = false; }
+}
+
+function ligarApontamento() {
+  const sec = document.getElementById('aba-apont');
+  sec.addEventListener('click', async ev => {
+    const modo = ev.target.closest('[data-ap-modo]');
+    if (modo) { apEst.modo = modo.dataset.apModo; return renderApont(); }
+    const letra = ev.target.closest('[data-ap-letra]');
+    if (letra) {
+      const l = letra.dataset.apLetra;
+      apEst.sel.has(l) ? apEst.sel.delete(l) : apEst.sel.add(l);
+      const pad = window._regras_baixa?.empresa_por_letra?.[l];
+      if (pad && apEst.sel.size === 1) apEst.empresa = pad;
+      return renderApont();
+    }
+    const quad = ev.target.closest('[data-ap-quad]');
+    if (quad) { [apEst.rua, apEst.faixa] = quad.dataset.apQuad.split('/'); apEst.modo = 'joist'; apEst.qtds = {}; apEst.empresa = window._regras_baixa?.empresa_por_faixa?.[apEst.faixa] || apEst.empresa; renderApont(); return $('#apForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    const eixo = ev.target.closest('[data-ap-eixo]');
+    if (eixo) { apEst.eixo = eixo.dataset.apEixo; apEst.sel = new Set(); return renderApont(); }
+    if (ev.target.id === 'apSalvar') return salvarApontamento();
+    const ex = ev.target.closest('[data-ap-excluir]');
+    if (ex) {
+      if (!ex.dataset.confirmar) { ex.dataset.confirmar = '1'; ex.textContent = 'Confirmar exclusão'; return; }
+      try { await postar(API + 'apontamento', { excluir: true, linha: +ex.dataset.apExcluir }); await carregar(); toast('Apontamento excluído e produção ajustada'); }
+      catch (err) { toast(err.message, true); }
+    }
+  });
+  sec.addEventListener('change', ev => {
+    const id = ev.target.id;
+    if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarEfeitos(); }
+    if (id === 'apEmp') { apEst.empresa = ev.target.value; return apAtualizarEfeitos(); }
+    if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarEfeitos(); }
+    if (id === 'apRua') { apEst.rua = ev.target.value; apEst.qtds = {}; return renderApont(); }
+    if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
+    if (id === 'apFaixa') {
+      apEst.faixa = ev.target.value; apEst.qtds = {};
+      const pad = window._regras_baixa?.empresa_por_faixa?.[apEst.faixa];
+      if (pad) apEst.empresa = pad;
+      return renderApont();
+    }
+  });
+  sec.addEventListener('input', ev => {
+    if (ev.target.dataset.apPos) { apEst.qtds[ev.target.dataset.apPos] = ev.target.value; return apAtualizarEfeitos(); }
+    if (ev.target.id === 'apObs') apEst.obs = ev.target.value;
+  });
 }
 
 // ------------------------------------------------------------ KPI / INSIGHTS GERAL
@@ -1364,9 +1659,7 @@ function renderKPI() {
   if (!alertas.length) alertas.push('<li class="vazio">Nenhum alerta no momento.</li>');
   document.getElementById('kpiAlertas').innerHTML = alertas.join('');
 
-  const cont = document.getElementById('kpiCont');
-  const total = atrasados + impAbertos + estCrit;
-  cont.hidden = !total; cont.textContent = total;
+  atualizarContadorKpi();
 }
 
 function renderKpiProntidao() {
@@ -2292,6 +2585,7 @@ function ligarEventos() {
 
   $('#selServ').addEventListener('change', renderTendencia);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAba);
+  ligarApontamento();
   window.addEventListener('resize', () => requestAnimationFrame(syncScrollTopo));
 }
 

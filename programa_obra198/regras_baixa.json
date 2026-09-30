@@ -7,20 +7,21 @@
     "O IFC não modela os parafusos das joists; para eles a regra vale sem contraconferência (só pela porca/arruela onde couber).",
     "Letras A/H = VC01 (apoio de borda). BC/CD/DE/FG são INTERMEDIÁRIAS. As demais são APOIO."
   ],
-  "letras_ordem": ["A", "B", "BC", "C", "CD", "D", "DE", "E", "F", "FG", "G", "H"],
+  "letras_ordem": ["A", "B", "BC", "C", "CD", "D", "DE", "E", "EF", "F", "FG", "G", "H"],
   "criterio_por_letra": {
-    "A":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
-    "B":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4 },
-    "BC": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
-    "C":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
-    "CD": { "viga": "VC03", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
-    "D":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
-    "DE": { "viga": "VC05", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
-    "E":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
-    "F":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 },
-    "FG": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4 },
-    "G":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4 },
-    "H":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4 }
+    "A":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_VC01_MONTADA" },
+    "B":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "BC": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_INTERM_MONTADA" },
+    "C":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "CD": { "viga": "VC03", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_INTERM_MONTADA" },
+    "D":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "DE": { "viga": "VC05", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_INTERM_MONTADA" },
+    "E":  { "viga": "VC04", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "EF": { "viga": "VC03", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_INTERM_MONTADA" },
+    "F":  { "viga": "VC02", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "FG": { "viga": "VC07", "tipo": "INTERMEDIARIA", "parafuso": "FG005", "descricao_parafuso": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_INTERM_MONTADA" },
+    "G":  { "viga": "VC06", "tipo": "APOIO",         "parafuso": "FG006", "descricao_parafuso": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_ponta": 4, "evento_viga": "VIGA_APOIO_MONTADA" },
+    "H":  { "viga": "VC01", "tipo": "APOIO",         "parafuso": "FG007", "descricao_parafuso": "PARAF. Ø1/2\" x 2\" A307",     "por_ponta": 4, "evento_viga": "VIGA_VC01_MONTADA" }
   },
   "letra_para_faixa_do_par": {
     "A":  "AB", "B":  "AB",
@@ -28,9 +29,21 @@
     "C":  "BC", "D":  "CD",
     "CD": "CD",
     "DE": "DE",
-    "E":  "DE", "F":  "EF",
+    "E":  "DE", "EF": "EF", "F":  "EF",
     "FG": "FG",
     "G":  "FG", "H":  "GH"
+  },
+  "faixas_posicoes": {
+    "AB": ["A", "B"], "BC": ["B", "BC", "C"], "CD": ["C", "CD", "D"], "DE": ["D", "DE", "E"],
+    "EF": ["E", "EF", "F"], "FG": ["F", "FG", "G"], "GH": ["G", "H"]
+  },
+  "empresa_por_faixa": { "AB": "EJ", "BC": "EJ", "CD": "EJ", "DE": "", "EF": "CMM", "FG": "CMM", "GH": "CMM" },
+  "empresa_por_letra": { "A": "EJ", "B": "EJ", "BC": "EJ", "C": "EJ", "CD": "EJ", "D": "EJ", "DE": "", "E": "CMM", "EF": "CMM", "F": "CMM", "FG": "CMM", "G": "CMM", "H": "CMM" },
+  "apontamento": {
+    "eixos": ["01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"],
+    "servico_joist": "IÇAMENTO JOIST",
+    "servico_viga": "VIGAS",
+    "nota": "empresa_por_faixa/letra vazio = faixa DE (cumeeira): a empresa é escolhida no apontamento. O apontamento soma na coluna do serviço da empresa no controle de produção (base do BM e do cronograma)."
   },
   "eventos": [
     {
@@ -49,6 +62,19 @@
       "chave": ["viga_id"],
       "gatilho": "aponte de montagem no par (eixo, letra) com tipo INTERMEDIARIA",
       "baixa": [
+        { "codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "quantidade": 4, "base": "por viga montada" },
+        { "codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "quantidade": 4, "base": "por viga montada" },
+        { "codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "quantidade": 4, "base": "por viga montada" }
+      ]
+    },
+    {
+      "codigo": "VIGA_VC01_MONTADA",
+      "origem": "IFC (porcas/arruelas Ø3/4\" e Ø7/8\" nos eixos) — letras A e H",
+      "chave": ["viga_id"],
+      "gatilho": "aponte de montagem de viga VC01 (letras A e H)",
+      "baixa": [
+        { "codigo": "FG022", "descricao": "PORCA Ø3/4\" A194-2H", "quantidade": 2, "base": "por viga montada" },
+        { "codigo": "FG024", "descricao": "ARRUELA Ø3/4\" F-436", "quantidade": 2, "base": "por viga montada" },
         { "codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "quantidade": 4, "base": "por viga montada" },
         { "codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "quantidade": 4, "base": "por viga montada" },
         { "codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "quantidade": 4, "base": "por viga montada" }
@@ -117,11 +143,11 @@
       ]
     },
     "VIGAS INTERMEDIÁRIAS": {
-      "descricao": "Viga intermediária montada. 8 parafusos + 8 porcas + 8 arruelas Ø7/8\" por viga. Total no galpão: 180 vigas.",
+      "descricao": "Viga intermediária montada. 4 parafusos + 4 porcas + 4 arruelas Ø7/8\" por viga (mesmo valor do evento VIGA_INTERM_MONTADA).",
       "itens": [
-        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_unidade": 8},
-        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_unidade": 8},
-        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_unidade": 8}
+        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_unidade": 4},
+        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_unidade": 4},
+        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_unidade": 4}
       ]
     },
     "VIGAS VC01": {

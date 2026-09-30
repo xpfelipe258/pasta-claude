@@ -37,6 +37,7 @@
         <button data-aba="painel" class="ativa">Painel</button>
         <button data-aba="semana">Programação semanal</button>
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
+        <button data-aba="apont">Apontar montagem</button>
         <button data-aba="avanco">Avanço físico</button>
         <button data-aba="cliente">Dashboard cliente</button>
         <button data-aba="tendencia">Tendências</button>
@@ -158,6 +159,23 @@
   </section>
 
   <!-- AVANÇO -->
+  <section id="aba-apont" hidden>
+    <div class="tiles" id="apTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segApModo"></div>
+      <span class="nota">Um apontamento alimenta produção, cronograma, medição (BM) e baixa de fixadores.</span>
+    </div>
+    <div class="bloco pilha" id="apForm"></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2 id="apMapaTit"></h2></div>
+      <div class="tabela-rolagem" id="apMapa"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Últimos apontamentos</h2></div>
+      <div class="tabela-rolagem"><table id="tabApHist"></table></div>
+    </div>
+  </section>
+
   <section id="aba-avanco" hidden>
     <div class="bloco">
       <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
@@ -287,7 +305,7 @@
         <div class="acoes">
           <button class="btn" data-novo="estoque_inventario">+ Inventario fisico</button>
           <button class="btn" data-novo="estoque_remessas">+ Remessa</button>
-          <button class="btn primario" data-novo="estoque_eventos">+ Evento de producao</button>
+          <button class="btn primario" data-ir-aba="apont">Apontar montagem</button>
         </div>
       </div>
       <ul class="alertas" id="estIfcAlertas"></ul>

@@ -317,3 +317,28 @@ tr.grupo-item td { background: var(--bg); font-size: .82rem; }
 .grade-lanc input[data-fechado] { background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--linha-forte) 5px 6px); box-shadow: inset 2px 0 0 var(--vermelho); }
 .linha-info td { color: var(--fg2); font-size: .85rem; }
 .status-bm { display: inline-flex; }
+
+/* apontamento de montagem */
+.ap-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ap-linha input[type="date"], .ap-linha input[type="text"] { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); font: inherit; }
+.ap-check { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--fg2); }
+.ap-pos { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.ap-posicao { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--linha); border-radius: var(--r); padding: 10px 12px; background: var(--bg); }
+.ap-posicao input { width: 72px; padding: 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); font: inherit; font-size: 1.1rem; text-align: right; }
+.ap-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-chip { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 88px; padding: 8px 10px; border: 1px solid var(--linha-forte); border-radius: var(--r); background: var(--card); color: var(--fg); cursor: pointer; font: inherit; }
+.ap-chip small { font-size: .68rem; color: var(--fg3); }
+.ap-chip.sel { background: var(--acento); border-color: var(--acento); color: #fff; }
+.ap-chip.sel small { color: #fff; }
+.ap-chip.feita { background: var(--verde-bg); border-color: var(--verde); color: var(--verde); cursor: default; }
+.ap-efeitos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: .85rem; }
+.ap-efeitos li { padding: 8px 10px; border-radius: 6px; background: var(--bg); }
+.ap-mapa { width: auto; min-width: 100%; }
+.ap-cel { display: inline-block; min-width: 46px; padding: 4px 6px; border: 1px solid var(--linha); border-radius: 5px; background: var(--card); color: var(--fg2); font: inherit; font-size: .78rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; margin-right: 4px; cursor: default; }
+.ap-cel.ap-ok { background: var(--verde-bg); border-color: var(--verde); color: var(--verde); font-weight: 700; }
+.ap-cel.ap-parc { background: var(--amarelo-bg); border-color: var(--amarelo); color: var(--amarelo); font-weight: 700; }
+.ap-cel.ap-lib { border-color: var(--acento); color: var(--acento); }
+.ap-cel.ap-blq { background: var(--pend-bg); color: var(--fg3); }
+.ap-cel.ap-exc { background: var(--vermelho-bg); border-color: var(--vermelho); color: var(--vermelho); font-weight: 700; }
+.ap-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: .75rem; color: var(--fg2); }

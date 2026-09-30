@@ -63,5 +63,5 @@ de ~118 mil peças contra 112 mil explicadas pela produção); FG007 passa a CON
 - **D. Fixadores Ø3/8".** As retiradas equivalem a ~314 joists e a produção registra 299: 15 joists a mais
   (~5,8 mil parafusos, ~5,9 mil porcas/arruelas). Ou a produção está subapontada, ou saiu material em excesso.
 
-Proposta para A e B: apontar joists içadas por rua/faixa/posição (eventos `JOIST_ICADA`) e vigas por tipo, no
-próprio lançamento diário. O motor de eventos já existe e está vazio.
+Para A e B: implementado em `docs/fluxo_apontamento_montagem.md` (Produção > Apontar montagem): joists por
+rua/faixa/posição e vigas por tipo, somando na produção, no BM e no estoque.

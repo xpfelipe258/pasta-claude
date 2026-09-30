@@ -196,10 +196,9 @@ def _consumo_evento(ev, regras):
     faixa = (ev.get("faixa") or "").upper()
     consumo = collections.Counter()
 
-    if tipo in ("VIGA_APOIO_MONTADA", "VIGA_INTERM_MONTADA"):
-        alvo = "VIGA_APOIO_MONTADA" if tipo.endswith("APOIO_MONTADA") else "VIGA_INTERM_MONTADA"
+    if tipo.startswith("VIGA_") and tipo.endswith("_MONTADA"):
         for e in regras.get("eventos", []):
-            if e["codigo"] == alvo:
+            if e["codigo"] == tipo:
                 for b in e.get("baixa", []):
                     consumo[b["codigo"]] += b["quantidade"]
                 break
@@ -234,6 +233,23 @@ def _consumo_evento(ev, regras):
         return consumo
 
     return consumo
+
+
+def eventos_de_apontamentos(apontamentos, regras):
+    """Converte as linhas de APONTAMENTO MONTAGEM nos eventos que o motor de baixa entende."""
+    crit = (regras or {}).get("criterio_por_letra", {})
+    saida = []
+    for a in apontamentos or []:
+        tipo = (a.get("tipo") or "").upper()
+        base = {"data": a.get("data"), "empresa": a.get("empresa"), "letra": a.get("letra")}
+        if tipo == "JOIST":
+            saida.append({**base, "tipo": "JOIST_ICADA", "rua": a.get("rua"), "faixa": a.get("faixa"),
+                          "n_joists": a.get("qtd")})
+        elif tipo == "VIGA":
+            ev = (crit.get((a.get("letra") or "").upper()) or {}).get("evento_viga")
+            if ev:
+                saida.append({**base, "tipo": ev, "eixo": a.get("eixo"), "viga_id": a.get("viga_id")})
+    return saida
 
 
 def resumir_estoque_ifc(eventos, remessas, inventarios, regras, inv_ifc):
@@ -407,8 +423,9 @@ def _montar_modelo(wb):
     tabelas = ler_tabelas(wb)
     inv_ifc = carregar_inventario_ifc()
     regras = carregar_regras_baixa()
+    eventos = list(tabelas.get("estoque_eventos") or []) + eventos_de_apontamentos(tabelas.get("apontamentos"), regras)
     resumo = resumir_estoque_ifc(
-        tabelas.get("estoque_eventos"), tabelas.get("estoque_remessas"),
+        eventos, tabelas.get("estoque_remessas"),
         tabelas.get("estoque_inventario"), regras, inv_ifc) if regras else None
     return {
         "datas": sorted(datas.values()),
@@ -622,6 +639,18 @@ TABELAS = {
             ("letra", "Letra do eixo / faixa", "txt", 8), ("rua", "Rua (par de eixos, ex.: 10-11)", "txt", 10),
             ("faixa", "Faixa (AB..GH)", "txt", 6), ("n_joists", "Qtd de joists (0..6)", "num", 8),
             ("viga_id", "ID da viga (opcional)", "txt", 14), ("obs", "Observação / nº RDO", "txt", 34),
+        ],
+    },
+    "apontamentos": {
+        "aba": "APONTAMENTO MONTAGEM",
+        "titulo": "APONTAMENTO DE MONTAGEM (não edite à mão). Joists por rua/faixa/viga de apoio e vigas por eixo/letra, gravados pela tela Apontamento de montagem. Cada linha soma na coluna IÇAMENTO JOIST ou VIGAS do controle de produção (base do BM e do cronograma) e define a baixa de fixadores.",
+        "cor": "FF7F6000",
+        "campos": [
+            ("data", "Data", "data", 12), ("empresa", "Empresa", "txt", 14), ("tipo", "Tipo (JOIST ou VIGA)", "txt", 12),
+            ("rua", "Rua (par de eixos, ex.: 11-12)", "txt", 12), ("faixa", "Faixa (AB..GH)", "txt", 8),
+            ("eixo", "Eixo da viga", "txt", 8), ("letra", "Letra da viga (posição)", "txt", 8),
+            ("viga_id", "ID da viga", "txt", 16), ("qtd", "Quantidade", "num", 10),
+            ("lanca_producao", "Somou na produção? (SIM/NÃO)", "txt", 14), ("obs", "Observação / nº RDO", "txt", 34),
         ],
     },
     "estoque_remessas": {

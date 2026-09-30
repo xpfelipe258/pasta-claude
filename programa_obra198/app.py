@@ -155,7 +155,7 @@ def _gerar_baixa_auto(emp, cols, alteracoes_producao, m):
     return alteracoes, resumo
 
 
-def acao_producao(corpo):
+def acao_producao(corpo, extras=None):
     m = modelo()
     emp = next((e for e in m["empresas"] if e["aba"] == corpo.get("aba")), None)
     if not emp:
@@ -203,6 +203,7 @@ def acao_producao(corpo):
     _garantir()
     baixa_alt, baixa_resumo = _gerar_baixa_auto(emp, cols, corpo.get("alteracoes", []), m)
     alteracoes.extend(baixa_alt)
+    alteracoes.extend(extras or [])
 
     n = gravar(alteracoes)
     resultado = {"celulas": n}
@@ -566,6 +567,140 @@ def acao_estoque_consumo(corpo):
     return {"ok": True}
 
 
+def _corpo_soma_grade(emp, servico, data, delta):
+    """Corpo de acao_producao que soma `delta` na célula (empresa, serviço, dia) do controle de produção."""
+    col = next((s["col"] for s in emp["servicos"] if s["nome"] == servico), None)
+    if not col:
+        raise ErroValidacao(f"{emp['nome']} não tem o serviço {servico} no controle de produção.")
+    atual = emp["registros"].get(data, {}).get("v", {}).get(col)
+    if isinstance(atual, str):
+        raise ErroValidacao(f"A célula de {servico} de {emp['nome']} em {data} contém texto ('{atual}'). Corrija no Lançamentos.")
+    atual = atual if isinstance(atual, (int, float)) else 0
+    novo = max(0, atual + delta)
+    return {"aba": emp["aba"], "alteracoes": [{"data": data, "col": col, "valor": novo or None}]}
+
+
+def _rua_valida(rua, eixos):
+    partes = str(rua or "").split("-")
+    return (len(partes) == 2 and all(p in eixos for p in partes)
+            and int(partes[1]) == int(partes[0]) + 1)
+
+
+def _apontamento_excluir(m, corpo):
+    alvo = corpo.get("linhas") if corpo.get("linhas") is not None else [corpo.get("linha")]
+    por_linha = {r["linha"]: r for r in m["tabelas"]["apontamentos"]}
+    if not alvo or any(lin not in por_linha for lin in alvo):
+        raise ErroValidacao("Apontamento não encontrado (a planilha pode ter sido alterada). Recarregue a tela.")
+    cfg = (xio.carregar_regras_baixa() or {}).get("apontamento") or {}
+    spec = xio.TABELAS["apontamentos"]
+    limpar = [(spec["aba"], f"{xio.col_letra(i)}{lin}", None, None) for lin in alvo for i in range(1, len(spec["campos"]) + 1)]
+    somas = {}
+    for lin in alvo:
+        r = por_linha[lin]
+        if (r.get("lanca_producao") or "").upper() == "SIM" and r.get("data") and r.get("empresa"):
+            servico = cfg.get("servico_joist") if (r.get("tipo") or "").upper() == "JOIST" else cfg.get("servico_viga")
+            chave = (r["empresa"], servico, r["data"])
+            somas[chave] = somas.get(chave, 0) - (r.get("qtd") or 0)
+    grupos = list(somas.items())
+    if not grupos:
+        return {"celulas": gravar(limpar), "avisos": []}
+    for i, ((nome, servico, dia), delta) in enumerate(grupos):
+        emp = next((e for e in modelo()["empresas"] if e["nome"] == nome), None)
+        if not emp:
+            raise ErroValidacao(f"Empresa {nome} não existe mais no controle de produção.")
+        ultimo = i == len(grupos) - 1
+        n = acao_producao(_corpo_soma_grade(emp, servico, dia, delta), extras=limpar if ultimo else None)["celulas"]
+    return {"celulas": n, "avisos": []}
+
+
+def acao_apontamento(corpo):
+    """Apontamento de montagem: joists por rua/faixa/viga de apoio e vigas por eixo/letra.
+
+    Grava em APONTAMENTO MONTAGEM e soma na coluna do serviço da empresa no controle de produção,
+    que é de onde o BM, o cronograma e os dashboards leem a produção."""
+    _garantir()
+    m = modelo()
+    if corpo.get("excluir"):
+        return _apontamento_excluir(m, corpo)
+    regras = xio.carregar_regras_baixa() or {}
+    cfg, posicoes, crit = regras.get("apontamento"), regras.get("faixas_posicoes"), regras.get("criterio_por_letra")
+    if not (cfg and posicoes and crit):
+        raise ErroValidacao("regras_baixa.json sem as regras de apontamento (faixas_posicoes, criterio_por_letra, apontamento).")
+    tipo = str(corpo.get("tipo") or "").upper()
+    data = corpo.get("data")
+    if not _eh_data(data) or data not in m["linhas_por_data"]:
+        raise ErroValidacao("Data fora do calendário da planilha.")
+    emp = next((e for e in m["empresas"] if e["nome"] == corpo.get("empresa")), None)
+    if not emp:
+        raise ErroValidacao("Escolha a empresa que executou a montagem.")
+    lanca = corpo.get("lanca_producao", True)
+    existentes = m["tabelas"]["apontamentos"]
+    avisos, linhas_novas = [], []
+    base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
+
+    if tipo == "JOIST":
+        rua, faixa = str(corpo.get("rua") or ""), str(corpo.get("faixa") or "").upper()
+        if not _rua_valida(rua, cfg["eixos"]):
+            raise ErroValidacao("Rua inválida: use eixos consecutivos, ex.: 11-12.")
+        if faixa not in posicoes:
+            raise ErroValidacao("Faixa inválida (AB a GH).")
+        for it in corpo.get("itens") or []:
+            letra, n = str(it.get("letra") or "").upper(), xio.numero(it.get("n"))
+            if not n:
+                continue
+            if letra not in posicoes[faixa]:
+                raise ErroValidacao(f"A viga {letra} não é apoio da faixa {faixa} (apoios: {', '.join(posicoes[faixa])}).")
+            if n < 0 or not float(n).is_integer():
+                raise ErroValidacao("Quantidade de joists deve ser inteira e positiva.")
+            linhas_novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": int(n)})
+        if not linhas_novas:
+            raise ErroValidacao("Informe ao menos uma joist.")
+        limite = (regras.get("limites_ifc") or {}).get("joists_por_rua_faixa_maximo") or 6
+        total = sum(a.get("qtd") or 0 for a in existentes if (a.get("tipo") or "").upper() == "JOIST"
+                    and a.get("rua") == rua and a.get("faixa") == faixa) + sum(r["qtd"] for r in linhas_novas)
+        if total > limite:
+            avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas, acima do limite do projeto (IFC: {limite}). Confira o apontamento.")
+        servico, delta = cfg["servico_joist"], sum(r["qtd"] for r in linhas_novas)
+        padrao = (regras.get("empresa_por_faixa") or {}).get(faixa)
+    elif tipo == "VIGA":
+        eixo = str(corpo.get("eixo") or "")
+        if eixo not in cfg["eixos"]:
+            raise ErroValidacao("Eixo inválido (01 a 20).")
+        ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
+        letras = [str(l).upper() for l in corpo.get("letras") or []]
+        if not letras:
+            raise ErroValidacao("Marque ao menos uma viga.")
+        for letra in dict.fromkeys(letras):
+            if letra not in crit:
+                raise ErroValidacao(f"Letra de viga inválida: {letra}.")
+            vid = f"E{eixo}-{letra}-{crit[letra]['viga']}"
+            if vid in ja:
+                quando = ja[vid].get("data")
+                raise ErroValidacao(f"A viga {vid} já foi apontada" + (f" em {quando[8:]}/{quando[5:7]}/{quando[:4]}." if quando else "."))
+            linhas_novas.append({**base, "tipo": "VIGA", "eixo": eixo, "letra": letra, "viga_id": vid, "qtd": 1})
+        servico, delta = cfg["servico_viga"], len(linhas_novas)
+        por_letra = regras.get("empresa_por_letra") or {}
+        padroes = {por_letra.get(r["letra"]) for r in linhas_novas} - {"", None}
+        padrao = padroes.pop() if len(padroes) == 1 else (emp["nome"] if emp["nome"] in padroes else (sorted(padroes)[0] if padroes else None))
+    else:
+        raise ErroValidacao("Tipo de apontamento inválido (JOIST ou VIGA).")
+
+    if padrao is not None and padrao and padrao != emp["nome"]:
+        avisos.append(f"Pela malha do projeto essa posição é de {padrao}; apontado para {emp['nome']}.")
+
+    aba, reservadas, celulas = xio.TABELAS["apontamentos"]["aba"], [], []
+    for campos in linhas_novas:
+        lin = _proxima_linha_livre("apontamentos", reservadas)
+        reservadas.append(lin)
+        for col, v, t in xio.valores_registro("apontamentos", campos):
+            celulas.append((aba, f"{col}{lin}", v, t))
+    if lanca:
+        n = acao_producao(_corpo_soma_grade(emp, servico, data, delta), extras=celulas)["celulas"]
+    else:
+        n = gravar(celulas)
+    return {"celulas": n, "avisos": avisos, "salvos": len(linhas_novas), "linhas": reservadas}
+
+
 ACOES = {
     "/api/registro": acao_registro,
     "/api/equip/importar": acao_importar_equip,
@@ -574,6 +709,7 @@ ACOES = {
     "/api/bm/fechar": acao_bm_fechar,
     "/api/bm/reabrir": acao_bm_reabrir,
     "/api/producao": acao_producao,
+    "/api/apontamento": acao_apontamento,
     "/api/metas": acao_metas,
     "/api/impacto": acao_impacto,
     "/api/referencia": acao_referencia,
