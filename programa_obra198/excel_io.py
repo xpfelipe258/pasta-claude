@@ -651,6 +651,7 @@ TABELAS = {
             ("eixo", "Eixo da viga", "txt", 8), ("letra", "Letra da viga (posição)", "txt", 8),
             ("viga_id", "ID da viga", "txt", 16), ("qtd", "Quantidade", "num", 10),
             ("lanca_producao", "Somou na produção? (SIM/NÃO)", "txt", 14), ("obs", "Observação / nº RDO", "txt", 34),
+            ("slot", "Nº da joist na rua (1 a 43)", "num", 12),
         ],
     },
     "estoque_remessas": {

@@ -1321,26 +1321,33 @@ function renderEstCriticos() {
 // Fonte única da montagem: cada apontamento (joists por quadrante, vigas por eixo/letra) soma na grade de produção
 // (de onde vêm BM, cronograma e dashboards) e define os fixadores baixados no estoque.
 // A empresa é indicada em cada clique ("pincel" na barra do topo): quem montou é quem entra no BM.
-// Modos: 'mapa' (clicar na planta), 'joist' e 'viga' (digitação, alternativa rápida para regularizar histórico).
-const apEst = { modo: 'mapa', data: null, empresa: null, rua: '11-12', faixa: 'BC', eixo: '11', qtds: {}, sel: new Set(),
-  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', regular: false, obs: '' };
+// Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
+const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
+  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '' };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
-// geometria do mapa (px): largura da rua, altura entre estações de viga, margens, barras de joist por posição
-const APM = { colW: 78, yFaixa: 74, mEsq: 70, mTop: 44, barH: 5, barGap: 2, pad: 5, slots: 3 };
+// geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
+const APM_PASSO = { compacto: 10, normal: 14, grande: 19 };
+const APM = { mEsq: 70, mTop: 44, pad: 6 };
 const corSelEmp = emp => `var(${COR_EMP[emp] || '--acento'})`;
 
 function apContexto(regras) {
   const cfg = regras.apontamento, crit = regras.criterio_por_letra, pos = regras.faixas_posicoes;
+  const layout = Object.entries(regras.layout_joists || {}).filter(([f]) => f !== 'nota').flatMap(([f, ls]) => ls.map(l => ({ faixa: f, letra: l })));
   const aps = T.apontamentos || [];
   const joists = aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST');
   const vigas = aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA');
   const vigaMontada = new Map(vigas.map(a => [a.viga_id, a]));
-  const porPos = new Map(), porPosEmp = new Map(), totalRua = new Map();
+  const porPos = new Map(), totalRua = new Map(), slotRow = new Map();
   joists.forEach(a => {
     const k = `${a.rua}/${a.faixa}/${a.letra}`, q = a.qtd || 0;
     porPos.set(k, (porPos.get(k) || 0) + q);
-    const pe = porPosEmp.get(k) || {}; pe[a.empresa || '?'] = (pe[a.empresa || '?'] || 0) + q; porPosEmp.set(k, pe);
     totalRua.set(a.rua, (totalRua.get(a.rua) || 0) + q);
+    if (a.slot) slotRow.set(`${a.rua}|${a.slot}`, a);
+  });
+  // registros antigos sem número de joist ocupam os primeiros retângulos livres da mesma viga de apoio
+  joists.filter(a => !a.slot).forEach(a => {
+    let n = a.qtd || 0;
+    layout.forEach((p, i) => { if (n > 0 && p.faixa === a.faixa && p.letra === a.letra && !slotRow.has(`${a.rua}|${i + 1}`)) { slotRow.set(`${a.rua}|${i + 1}`, a); n--; } });
   });
   const vigaId = (eixo, letra) => `E${eixo}-${letra}-${crit[letra].viga}`;
   const ruas = cfg.eixos.slice(0, -1).map((e, i) => `${e}-${cfg.eixos[i + 1]}`);
@@ -1351,8 +1358,8 @@ function apContexto(regras) {
     return { n, faltam, liberado: !faltam.length };
   };
   const lim = regras.limites_ifc || {};
-  return { cfg, crit, pos, joists, vigas, vigaMontada, porPos, porPosEmp, totalRua, vigaId, ruas, quadrante, letras: Object.keys(crit),
-    limFaixa: lim.joists_por_rua_faixa_maximo || 7, limRua: lim.joists_por_rua_maximo || 43, limGalpao: lim.joists_no_galpao_maximo || 817,
+  return { cfg, crit, pos, layout, joists, vigas, vigaMontada, porPos, totalRua, slotRow, vigaId, ruas, quadrante, letras: Object.keys(crit),
+    limRua: lim.joists_por_rua_maximo || 43, limGalpao: lim.joists_no_galpao_maximo || 817,
     evento: cod => (regras.eventos || []).find(e => e.codigo === cod) || {} };
 }
 
@@ -1362,40 +1369,36 @@ const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.no
 function apGarantirEstado(ctx) {
   if (!apEst.data) apEst.data = M.datas.includes(ref) ? ref : (M.datas.filter(d => d <= hoje()).pop() || M.datas[0]);
   if (!apEmpresas(ctx).some(e => e.nome === apEst.empresa)) apEst.empresa = null;
-  if (!ctx.ruas.includes(apEst.rua)) apEst.rua = ctx.ruas[0];
-  if (!ctx.pos[apEst.faixa]) apEst.faixa = Object.keys(ctx.pos)[0];
   if (!ctx.cfg.eixos.includes(apEst.eixo)) apEst.eixo = ctx.cfg.eixos[0];
 }
 
 // Seleção atual convertida em peças (cada uma com a empresa que montou) e em grupos empresa + serviço.
 function apSelecao(ctx) {
-  const extrasJ = (ctx.evento('JOIST_ICADA').baixa_por_joist || []).filter(b => b.codigo !== 'PARAF_FIX_JOIST' && b.codigo !== 'PARAFUSO_FIX_JOIST');
+  const extrasJ = (ctx.evento('JOIST_ICADA').baixa_por_joist || []).filter(b => b.codigo !== 'PARAFUSO_FIX_JOIST');
   const joists = [], vigas = [];
   if (apEst.modo === 'mapa') {
-    apEst.mapaJ.forEach((v, k) => { const [rua, faixa, letra] = k.split('|'); joists.push({ rua, faixa, letra, n: v.n, emp: v.emp }); });
+    apEst.mapaJ.forEach((emp, k) => { const [rua, slot] = k.split('|'), p = ctx.layout[+slot - 1]; joists.push({ rua, slot: +slot, faixa: p.faixa, letra: p.letra, n: 1, emp }); });
     apEst.mapaV.forEach((emp, k) => { const [eixo, letra] = k.split('|'); vigas.push({ eixo, letra, emp }); });
-  } else if (apEst.modo === 'joist') {
-    ctx.pos[apEst.faixa].forEach(l => { const n = +apEst.qtds[l] || 0; if (n > 0) joists.push({ rua: apEst.rua, faixa: apEst.faixa, letra: l, n, emp: apEst.empresa }); });
   } else apEst.sel.forEach(l => vigas.push({ eixo: apEst.eixo, letra: l, emp: apEst.empresa }));
 
   const grupos = new Map(), baixa = new Map();
   const soma = (cod, q) => baixa.set(cod, (baixa.get(cod) || 0) + q);
   const grupo = (emp, servico) => { const k = (emp || '') + '|' + servico; if (!grupos.has(k)) grupos.set(k, { emp, servico, delta: 0 }); return grupos.get(k); };
   joists.forEach(j => {
-    grupo(j.emp, ctx.cfg.servico_joist).delta += j.n;
-    soma(ctx.crit[j.letra].parafuso, 8 * j.n);
-    extrasJ.forEach(b => soma(b.codigo, b.quantidade * j.n));
+    grupo(j.emp, ctx.cfg.servico_joist).delta += 1;
+    soma(ctx.crit[j.letra].parafuso, 8);
+    extrasJ.forEach(b => soma(b.codigo, b.quantidade));
   });
   vigas.forEach(v => {
     grupo(v.emp, ctx.cfg.servico_viga).delta += 1;
     (ctx.evento(ctx.crit[v.letra].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
   });
   const porEmp = {};
-  joists.forEach(j => porEmp[j.emp || '?'] = (porEmp[j.emp || '?'] || 0) + j.n);
+  joists.forEach(j => porEmp[j.emp || '?'] = (porEmp[j.emp || '?'] || 0) + 1);
   vigas.forEach(v => porEmp[v.emp || '?'] = (porEmp[v.emp || '?'] || 0) + 1);
   return { joists, vigas, grupos: [...grupos.values()], baixa, porEmp,
     semEmpresa: joists.some(j => !j.emp) || vigas.some(v => !v.emp),
-    nJ: soma0(joists, j => j.n), nV: vigas.length };
+    nJ: joists.length, nV: vigas.length };
 }
 
 function apEfeitosHtml(regras, ctx) {
@@ -1426,15 +1429,9 @@ function apEfeitosHtml(regras, ctx) {
   itens.push(`<b>Estoque:</b> ${[...sel.baixa].map(([c, q]) => `${esc(c)} ×${nf(q)}`).join(' · ')}.`);
 
   const idsSel = new Set(sel.vigas.map(v => ctx.vigaId(v.eixo, v.letra)));
-  const quads = new Map(), ruas = new Map();
-  sel.joists.forEach(j => { const k = `${j.rua}/${j.faixa}`; quads.set(k, (quads.get(k) || 0) + j.n); ruas.set(j.rua, (ruas.get(j.rua) || 0) + j.n); });
-  ruas.forEach((n, rua) => {
-    const total = (ctx.totalRua.get(rua) || 0) + n;
-    if (total > ctx.limRua) avisos.push(`Rua ${rua} ficaria com ${total} joists, acima das ${ctx.limRua} do projeto: o salvamento será recusado.`);
-  });
-  quads.forEach((n, k) => {
+  const quads = new Set(sel.joists.map(j => `${j.rua}/${j.faixa}`));
+  quads.forEach(k => {
     const [rua, faixa] = k.split('/'), q = ctx.quadrante(rua, faixa);
-    if (q.n + n > ctx.limFaixa) avisos.push(`Rua ${rua} faixa ${faixa} ficaria com ${q.n + n} joists (o normal é até ${ctx.limFaixa} por faixa).`);
     const falta = q.faltam.filter(id => !idsSel.has(id));
     if (falta.length) avisos.push(`Rua ${rua} faixa ${faixa}: vigas ainda não apontadas (${falta.join(', ')}).`);
   });
@@ -1467,17 +1464,7 @@ function apFormHtml(regras, ctx) {
   let h = '';
   if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
-      <p class="nota">Escolha a empresa na barra do topo e clique nas barras (joists) e nos quadrados (vigas) do mapa. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
-  } else if (s.modo === 'joist') {
-    h += `<div class="ap-linha">${data}
-      <label class="rot-sel">Rua <select id="apRua">${ctx.ruas.map(r => `<option ${r === s.rua ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
-      <label class="rot-sel">Faixa <select id="apFaixa">${Object.keys(ctx.pos).map(f => `<option ${f === s.faixa ? 'selected' : ''}>${f}</option>`).join('')}</select></label></div>
-      <p class="nota">Informe quantas joists foram fixadas em cada viga de apoio do quadrante (a empresa é a da barra do topo). O tipo de parafuso vem da viga. Esta rua: ${ctx.totalRua.get(s.rua) || 0}/${ctx.limRua}.</p>
-      <div class="ap-pos">${ctx.pos[s.faixa].map(l => {
-        const c = ctx.crit[l], ja = ctx.porPos.get(`${s.rua}/${s.faixa}/${l}`) || 0;
-        return `<label class="ap-posicao"><span><b>${l}</b> · ${c.viga} · ${AP_TIPO[c.evento_viga]}<br><span class="nota">parafuso ${c.parafuso} · já apontadas: ${ja}</span></span>
-          <input type="number" min="0" max="${ctx.limRua}" step="1" inputmode="numeric" data-ap-pos="${l}" value="${s.qtds[l] ?? ''}" placeholder="0"></label>`;
-      }).join('')}</div><div class="ap-linha">${rodape}</div>`;
+      <p class="nota">Escolha a empresa na barra do topo e clique nos retângulos (joists) e nos quadrados (vigas) do mapa; dá para arrastar o mouse sobre várias joists. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
   } else {
     h += `<div class="ap-linha">${data}
       <label class="rot-sel">Eixo <select id="apEixo">${ctx.cfg.eixos.map(x => `<option ${x === s.eixo ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
@@ -1494,18 +1481,25 @@ function apFormHtml(regras, ctx) {
 // ---- mapa em planta: eixos na horizontal, estações de viga (A, B, BC, C ... H) na vertical
 function apMapaSvg(ctx) {
   const eixos = apEst.fase === 'fase1' ? ctx.cfg.eixos.filter(e => +e >= 11) : ctx.cfg.eixos;
-  const { colW, yFaixa, mEsq, mTop, barH, barGap, pad, slots } = APM;
+  const passo = APM_PASSO[apEst.zoom] || APM_PASSO.normal, { mEsq, mTop, pad } = APM;
+  const n = ctx.layout.length, altRua = n * passo, barH = passo - 3, colW = Math.round(passo * 7 + 6);
+  // estações de viga alinhadas aos retângulos: cada faixa ocupa o trecho dos seus joists (em unidades de joist)
   const posL = {};
-  ctx.letras.filter(l => l.length === 1).forEach((l, i) => posL[l] = i);
-  ctx.letras.filter(l => l.length > 1).forEach(l => posL[l] = (posL[l[0]] + posL[l[1]]) / 2);
-  const yEst = l => mTop + posL[l] * yFaixa;
+  let acum = 0;
+  Object.entries(ctx.pos).forEach(([f, ps]) => {
+    const qtd = ctx.layout.filter(p => p.faixa === f).length;
+    posL[ps[0]] = acum; posL[ps[ps.length - 1]] = acum + qtd;
+    ps.slice(1, -1).forEach(l => posL[l] = acum + qtd / 2);
+    acum += qtd;
+  });
+  const yEst = l => mTop + posL[l] * passo;
   const xEixo = e => mEsq + eixos.indexOf(e) * colW;
-  const larg = mEsq + (eixos.length - 1) * colW + 36, alt = mTop + Math.max(...Object.values(posL)) * yFaixa + 40;
+  const larg = mEsq + (eixos.length - 1) * colW + 36, alt = mTop + altRua + 40;
   const ruas = eixos.slice(0, -1).map((e, i) => `${e}-${eixos[i + 1]}`);
-  const yFim = yEst(ctx.letras[ctx.letras.length - 1]);
+  const yFim = mTop + altRua;
   const selRua = new Map();
-  apEst.mapaJ.forEach((v, k) => { const r = k.split('|')[0]; selRua.set(r, (selRua.get(r) || 0) + v.n); });
-  const s = [`<svg class="apm" viewBox="0 0 ${larg} ${alt}" width="${larg}" height="${alt}" role="img" aria-label="Mapa de montagem: eixos por estações de viga">`];
+  apEst.mapaJ.forEach((emp, k) => { const r = k.split('|')[0]; selRua.set(r, (selRua.get(r) || 0) + 1); });
+  const s = [`<svg class="apm" viewBox="0 0 ${larg} ${alt}" width="${larg}" height="${alt}" role="img" aria-label="Mapa de montagem: 43 joists por rua, eixos por estações de viga">`];
 
   Object.entries(ctx.pos).forEach(([f, ps]) => {
     const y0 = yEst(ps[0]), y1 = yEst(ps[ps.length - 1]);
@@ -1514,28 +1508,21 @@ function apMapaSvg(ctx) {
   });
   eixos.forEach(e => {
     const x = xEixo(e);
-    s.push(`<line class="apm-eixo" x1="${x}" x2="${x}" y1="${yEst(ctx.letras[0])}" y2="${yFim}"/>`);
+    s.push(`<line class="apm-eixo" x1="${x}" x2="${x}" y1="${mTop}" y2="${yFim}"/>`);
     s.push(`<g class="apm-eixo-rot" data-ap-eixosel="${e}"><title>Eixo ${e}: clique para marcar todas as vigas pendentes</title><circle cx="${x}" cy="${mTop - 22}" r="12"/><text x="${x}" y="${mTop - 18}" text-anchor="middle">${e}</text></g>`);
   });
   ctx.letras.forEach(l => s.push(`<text class="apm-est-rot" x="${mEsq - 10}" y="${yEst(l) + 3}" text-anchor="end">${l}</text>`));
 
   ruas.forEach((rua, i) => {
     const xl = xEixo(eixos[i]) + pad, xr = xEixo(eixos[i + 1]) - pad;
-    Object.entries(ctx.pos).forEach(([faixa, ps]) => {
-      const yTop = yEst(ps[0]), yBot = yEst(ps[ps.length - 1]);
-      ps.forEach((letra, j) => {
-        const key = `${rua}|${faixa}|${letra}`, m = ctx.porPos.get(`${rua}/${faixa}/${letra}`) || 0, sel = apEst.mapaJ.get(key), n = sel ? sel.n : 0;
-        const total = Math.max(slots, m), gh = total * barH + (total - 1) * barGap;
-        const y0 = j === 0 ? yTop + pad : j === ps.length - 1 ? yBot - pad - gh : yEst(letra) - gh / 2;
-        const c = ctx.crit[letra], pe = ctx.porPosEmp.get(`${rua}/${faixa}/${letra}`) || {};
-        const quem = Object.entries(pe).map(([e, q]) => `${e} ${q}`).join(', ');
-        for (let k = 1; k <= total; k++) {
-          const y = y0 + (k - 1) * (barH + barGap), est = k <= m ? 'feita' : k <= m + n ? 'sel' : 'pend';
-          s.push(`<g class="apm-slot ${est}" ${est === 'sel' ? `style="--sel:${corSelEmp(sel.emp)}"` : ''} data-ap-slot="${key}|${k}"><title>Rua ${rua} · faixa ${faixa} · apoio ${letra} (${c.viga}, ${c.parafuso}): ${m} montada(s)${quem ? ' (' + quem + ')' : ''}${n ? ' + ' + n + ' selecionada(s) de ' + sel.emp : ''}</title>` +
-            `<rect class="hit" x="${xl}" y="${y - 1}" width="${xr - xl}" height="${barH + barGap + 1}"/><rect class="bar" x="${xl}" y="${y}" width="${xr - xl}" height="${barH}" rx="2"/></g>`);
-        }
-      });
-    });
+    for (let k = 1; k <= n; k++) {
+      const p = ctx.layout[k - 1], row = ctx.slotRow.get(`${rua}|${k}`), emp = apEst.mapaJ.get(`${rua}|${k}`);
+      const est = row ? 'feita' : emp ? 'sel' : 'pend', y = mTop + (k - 1) * passo + 1.5, c = ctx.crit[p.letra];
+      const info = `Rua ${rua} · joist ${k} de ${n} · faixa ${p.faixa} · apoio ${p.letra} (${c.viga} · ${AP_TIPO[c.evento_viga]}) · parafuso ${c.parafuso} · ` +
+        (row ? `montada${row.empresa ? ' (' + row.empresa + ')' : ''}${row.data ? ' em ' + fdA(row.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
+      s.push(`<g class="apm-slot ${est}" ${est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : ''} data-ap-slot="${rua}|${k}" data-ap-info="${esc(info)}">` +
+        `<rect class="hit" x="${xl}" y="${y - 1.5}" width="${xr - xl}" height="${passo}"/><rect class="bar" x="${xl}" y="${y}" width="${xr - xl}" height="${barH}" rx="3"/></g>`);
+    }
     const tot = ctx.totalRua.get(rua) || 0, sr = selRua.get(rua) || 0, xm = (xEixo(eixos[i]) + xEixo(eixos[i + 1])) / 2;
     const cls = tot + sr > ctx.limRua ? 'exc' : tot >= ctx.limRua ? 'ok' : tot + sr > 0 ? 'parc' : '';
     s.push(`<text class="apm-rua-tot ${cls}" x="${xm}" y="${yFim + 30}" text-anchor="middle">${tot}${sr ? '+' + sr : ''}/${ctx.limRua}<title>Rua ${rua}: ${tot} joists apontadas${sr ? ', ' + sr + ' selecionadas' : ''} de ${ctx.limRua} previstas</title></text>`);
@@ -1545,8 +1532,9 @@ function apMapaSvg(ctx) {
   eixos.forEach(e => ctx.letras.forEach(l => {
     const id = ctx.vigaId(e, l), m = ctx.vigaMontada.get(id), c = ctx.crit[l], emp = apEst.mapaV.get(`${e}|${l}`);
     const est = m ? 'feita' : emp ? 'sel' : 'pend';
-    const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 8 : 12;
-    s.push(`<g class="apm-viga ${est} ${c.evento_viga === 'VIGA_INTERM_MONTADA' ? 'interm' : ''}" ${est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : ''} data-ap-viga="${e}|${l}"><title>${id} · ${AP_TIPO[c.evento_viga]}${m ? ' · montada em ' + fdA(m.data) + ' (' + (m.empresa || '?') + ')' : emp ? ' · selecionada (' + emp + ')' : ''}</title>` +
+    const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 9 : 13;
+    const info = `${id} · ${AP_TIPO[c.evento_viga]} · ` + (m ? `montada${m.empresa ? ' (' + m.empresa + ')' : ''}${m.data ? ' em ' + fdA(m.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
+    s.push(`<g class="apm-viga ${est} ${c.evento_viga === 'VIGA_INTERM_MONTADA' ? 'interm' : ''}" ${est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : ''} data-ap-viga="${e}|${l}" data-ap-info="${esc(info)}">` +
       `<rect x="${xEixo(e) - tam / 2 - 3}" y="${yEst(l) - tam / 2 - 3}" width="${tam + 6}" height="${tam + 6}" class="hit"/><rect class="q" x="${xEixo(e) - tam / 2}" y="${yEst(l) - tam / 2}" width="${tam}" height="${tam}" rx="2"/></g>`);
   }));
   return s.join('') + '</svg>';
@@ -1556,24 +1544,13 @@ function apMapaHtml(ctx) {
   if (apEst.modo === 'mapa') {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
     const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
-    return `<div class="ap-linha ap-mapa-barra"><div class="seg" id="segApFase">${[['fase1', 'Eixos 11 a 20 (fase 1)'], ['todos', 'Todos os eixos']]
-      .map(([k, r]) => `<button data-ap-fase="${k}" class="${k === apEst.fase ? 'ativa' : ''}">${r}</button>`).join('')}</div>
+    const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
+    return `<div class="ap-linha ap-mapa-barra">${seg('segApFase', [['fase1', 'Eixos 11 a 20 (fase 1)'], ['todos', 'Todos os eixos']], apEst.fase, 'data-ap-fase')}
+      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
       <div class="ap-legenda">${leg('joist feita', 'joist montada')}${leg('viga feita', 'viga montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
+      <div id="apMapaInfo" class="ap-info">${AP_INFO_PADRAO}</div>
       <div id="apMapaSvg" class="tabela-rolagem apm-caixa">${apMapaSvg(ctx)}</div>
-      <p class="nota">Barras: joists, agrupadas junto da viga de apoio (o tipo de parafuso vem da posição). Quadrados: vigas nos eixos (maior = apoio/VC01, menor = intermediária). Embaixo de cada rua: joists apontadas/${ctx.limRua}. Clique no número do eixo para marcar todas as vigas pendentes dele.</p>`;
-  }
-  if (apEst.modo === 'joist') {
-    const faixas = Object.keys(ctx.pos);
-    const legenda = `<div class="ap-legenda"><span><i class="ap-cel ap-parc"></i>com joists</span><span><i class="ap-cel ap-lib"></i>liberada (vigas ok)</span><span><i class="ap-cel ap-blq"></i>faltam vigas</span><span><i class="ap-cel ap-exc"></i>acima do normal</span></div>`;
-    return `<div class="tabela-rolagem"><table class="ap-mapa"><thead><tr><th>Rua</th>${faixas.map(f => `<th class="n">${f}</th>`).join('')}<th class="n">Total da rua</th></tr></thead><tbody>` +
-      ctx.ruas.map(r => {
-        const t = ctx.totalRua.get(r) || 0;
-        return `<tr><td><b>${r}</b></td>${faixas.map(f => {
-          const q = ctx.quadrante(r, f);
-          const cls = q.n > ctx.limFaixa ? 'ap-exc' : q.n > 0 ? 'ap-parc' : q.liberado ? 'ap-lib' : 'ap-blq';
-          return `<td class="n"><button type="button" class="ap-cel ${cls}" data-ap-quad="${r}/${f}" title="${q.faltam.length ? 'Faltam vigas: ' + q.faltam.join(', ') : 'Vigas apontadas nos dois eixos'}">${q.n}</button></td>`;
-        }).join('')}<td class="n"><span class="ap-cel ${t > ctx.limRua ? 'ap-exc' : t >= ctx.limRua ? 'ap-ok' : t > 0 ? 'ap-parc' : 'ap-blq'}">${t}/${ctx.limRua}</span></td></tr>`;
-      }).join('') + '</tbody></table></div>' + legenda;
+      <p class="nota">Cada retângulo é uma joist: são ${ctx.layout.length} por rua, da estação A (topo) à H (base); a posição do retângulo define a viga de apoio e o tipo de parafuso. Quadrados nos eixos: vigas (maior = apoio/VC01, menor = intermediária). Embaixo de cada rua: joists apontadas/${ctx.limRua}. Clique no número do eixo para marcar todas as vigas pendentes dele.</p>`;
   }
   return `<div class="tabela-rolagem"><table class="ap-mapa"><thead><tr><th>Eixo</th>${ctx.letras.map(l => `<th class="n" title="${ctx.crit[l].viga} · ${AP_TIPO[ctx.crit[l].evento_viga]}">${l}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
     ctx.cfg.eixos.map(x => {
@@ -1586,6 +1563,7 @@ function apMapaHtml(ctx) {
       return `<tr><td><b>${x}</b></td>${tds}<td class="n">${n}/${ctx.letras.length}</td></tr>`;
     }).join('') + '</tbody></table></div>';
 }
+const AP_INFO_PADRAO = 'Passe o mouse sobre uma joist ou viga para ver a posição e o tipo.';
 
 // Conciliação: o que foi lançado na produção (grade, base do BM) x o que foi apontado no mapa, por empresa.
 function apConciliacaoHtml(ctx) {
@@ -1658,11 +1636,11 @@ function renderApont() {
     tile('Ruas completas', `${completas}/${ctx.ruas.length}`, `${ctx.limRua} joists por rua · ${nf(ctx.limGalpao)} no galpão`, 'var(--verde)') +
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
-  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['joist', 'Digitar joists'], ['viga', 'Digitar vigas']]
+  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas']]
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
-  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : apEst.modo === 'joist' ? 'Situação por quadrante (rua × faixa)' : 'Situação das vigas (eixo × letra)';
+  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : 'Situação das vigas (eixo × letra)';
   $('#apMapa').innerHTML = apMapaHtml(ctx);
   $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
   $('#apDefEmp').innerHTML = apDefHtml(ctx);
@@ -1673,7 +1651,7 @@ function renderApont() {
       const joist = (a.tipo || '').toUpperCase() === 'JOIST';
       const c = ctx.crit[a.letra] || {};
       return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${joist ? 'Joist' : 'Viga'}</td>
-        <td>${joist ? `Rua ${esc(a.rua)} · faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
+        <td>${joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
     }).join('') : '<tr><td colspan="8" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
@@ -1697,9 +1675,9 @@ async function salvarApontamento() {
   if (sel.semEmpresa) { toast('Indique a empresa que montou (barra no topo) antes de salvar.', true); return; }
   const lote = [], porQuad = new Map(), porEixo = new Map();
   sel.joists.forEach(j => {
-    const k = `${j.rua}|${j.faixa}|${j.emp}`;
-    if (!porQuad.has(k)) porQuad.set(k, { tipo: 'JOIST', empresa: j.emp, rua: j.rua, faixa: j.faixa, itens: [] });
-    porQuad.get(k).itens.push({ letra: j.letra, n: j.n });
+    const k = `${j.rua}|${j.emp}`;
+    if (!porQuad.has(k)) porQuad.set(k, { tipo: 'JOIST', empresa: j.emp, rua: j.rua, slots: [] });
+    porQuad.get(k).slots.push(j.slot);
   });
   sel.vigas.forEach(v => {
     const k = `${v.eixo}|${v.emp}`;
@@ -1711,7 +1689,7 @@ async function salvarApontamento() {
   b.disabled = true; b.textContent = 'Salvando…';
   try {
     const r = await postar(API + 'apontamento', { data: s.data, lanca_producao: !s.regular, obs: s.obs.trim() || null, lote });
-    s.qtds = {}; s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.obs = '';
+    s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.obs = '';
     await carregar();
     toast(`${r.salvos} apontamento(s) salvo(s)${r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''}`, !!r.avisos?.length, r.avisos?.length ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
@@ -1725,16 +1703,15 @@ function apExigirEmpresa() {
   return false;
 }
 
-function apClicarSlot(ctx, chave) {
-  const partes = chave.split('|'), k = +partes.pop(), grupo = partes.join('|');
-  const [rua, faixa, letra] = partes;
-  const m = ctx.porPos.get(`${rua}/${faixa}/${letra}`) || 0;
-  if (k <= m) { toast('Essa joist já está apontada. Para corrigir, exclua o apontamento no histórico.'); return; }
-  const atual = apEst.mapaJ.get(grupo), n0 = atual ? atual.n : 0, alvo = k - m;
-  // outra empresa no mesmo grupo: reatribui em vez de desfazer
-  const novo = atual && atual.emp !== apEst.empresa ? alvo : (alvo === n0 ? n0 - 1 : alvo);
-  novo > 0 ? apEst.mapaJ.set(grupo, { n: novo, emp: apEst.empresa }) : apEst.mapaJ.delete(grupo);
+// Marca/desmarca um retângulo (joist) com a empresa atual; `modo` força 'add' ou 'remove' (arrastar).
+function apMarcarSlot(ctx, chave, modo) {
+  const [rua, slot] = chave.split('|');
+  if (ctx.slotRow.has(chave)) return false;
+  const atual = apEst.mapaJ.get(chave), remover = modo ? modo === 'remove' : atual === apEst.empresa;
+  remover ? apEst.mapaJ.delete(chave) : apEst.mapaJ.set(chave, apEst.empresa);
+  return true;
 }
+let apArraste = null;
 
 function ligarApontamento() {
   const sec = document.getElementById('aba-apont');
@@ -1746,12 +1723,9 @@ function ligarApontamento() {
     if (modo) { apEst.modo = modo.dataset.apModo; return renderApont(); }
     const fase = ev.target.closest('[data-ap-fase]');
     if (fase) { apEst.fase = fase.dataset.apFase; return renderApont(); }
-    const slot = ev.target.closest('[data-ap-slot]');
-    if (slot && regras()) {
-      if (!apExigirEmpresa()) return;
-      apClicarSlot(apContexto(regras()), slot.dataset.apSlot);
-      return apAtualizarSelecao(true);
-    }
+    const zoom = ev.target.closest('[data-ap-zoom]');
+    if (zoom) { apEst.zoom = zoom.dataset.apZoom; return renderApont(); }
+    if (ev.target.closest('[data-ap-slot]')) return;   // joists são tratadas em mousedown/arraste
     const viga = ev.target.closest('[data-ap-viga]');
     if (viga && regras()) {
       const ctx = apContexto(regras()), [e, l] = viga.dataset.apViga.split('|');
@@ -1776,8 +1750,6 @@ function ligarApontamento() {
       apEst.sel.has(l) ? apEst.sel.delete(l) : apEst.sel.add(l);
       return renderApont();
     }
-    const quad = ev.target.closest('[data-ap-quad]');
-    if (quad) { [apEst.rua, apEst.faixa] = quad.dataset.apQuad.split('/'); apEst.modo = 'joist'; apEst.qtds = {}; renderApont(); return $('#apForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     const eixo = ev.target.closest('[data-ap-eixo]');
     if (eixo) { apEst.eixo = eixo.dataset.apEixo; apEst.modo = 'viga'; apEst.sel = new Set(); return renderApont(); }
     if (ev.target.id === 'apDefAplicar' && regras()) {
@@ -1788,7 +1760,7 @@ function ligarApontamento() {
       catch (err) { toast(err.message, true); }
       return;
     }
-    if (ev.target.id === 'apLimpar') { apEst.qtds = {}; apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); return renderApont(); }
+    if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); return renderApont(); }
     if (ev.target.id === 'apSalvar') return salvarApontamento();
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
@@ -1807,12 +1779,28 @@ function ligarApontamento() {
     }
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
-    if (id === 'apRua') { apEst.rua = ev.target.value; apEst.qtds = {}; return renderApont(); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
-    if (id === 'apFaixa') { apEst.faixa = ev.target.value; apEst.qtds = {}; return renderApont(); }
   });
+  // joists: clique e arraste pintam vários retângulos; o primeiro decide se está marcando ou desmarcando
+  sec.addEventListener('mousedown', ev => {
+    const slot = ev.target.closest('[data-ap-slot]');
+    if (!slot || !regras() || ev.button) return;
+    ev.preventDefault();
+    if (!apExigirEmpresa()) return;
+    const ctx = apContexto(regras()), k = slot.dataset.apSlot;
+    if (ctx.slotRow.has(k)) { toast('Essa joist já está apontada. Para corrigir, exclua o apontamento no histórico.'); return; }
+    apArraste = apEst.mapaJ.get(k) === apEst.empresa ? 'remove' : 'add';
+    apMarcarSlot(ctx, k, apArraste);
+    apAtualizarSelecao(true);
+  });
+  sec.addEventListener('mouseover', ev => {
+    const alvo = ev.target.closest('[data-ap-info]'), info = $('#apMapaInfo');
+    if (info) info.textContent = alvo ? alvo.dataset.apInfo : AP_INFO_PADRAO;
+    const slot = ev.target.closest('[data-ap-slot]');
+    if (apArraste && slot && regras() && apMarcarSlot(apContexto(regras()), slot.dataset.apSlot, apArraste)) apAtualizarSelecao(true);
+  });
+  document.addEventListener('mouseup', () => { apArraste = null; });
   sec.addEventListener('input', ev => {
-    if (ev.target.dataset.apPos) { apEst.qtds[ev.target.dataset.apPos] = ev.target.value; return apAtualizarSelecao(false); }
     if (ev.target.id === 'apObs') apEst.obs = ev.target.value;
   });
 }

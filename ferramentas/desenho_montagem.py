@@ -25,17 +25,18 @@ FAIXAS = ["AB", "BC", "CD", "DE", "EF", "FG", "GH"]
 ESTACOES = list("ABCDEFGH")
 # vigas (letras) que pertencem a cada segmento entre estações consecutivas
 LETRAS_SEGMENTO = [["A"], ["B", "BC"], ["C", "CD"], ["D", "DE"], ["E", "EF"], ["F", "FG"], ["G", "H"]]
-POSICOES = {"AB": ["A", "B"], "BC": ["B", "BC", "C"], "CD": ["C", "CD", "D"], "DE": ["D", "DE", "E"],
-            "EF": ["E", "EF", "F"], "FG": ["F", "FG", "G"], "GH": ["G", "H"]}
 LADO_EJ_FAIXAS = {"AB", "BC", "CD", "DE"}
 LADO_EJ_LETRAS = {"A", "B", "BC", "C", "CD", "D", "DE"}
-JOISTS_POR_FAIXA = 6
-# Como as 6 joists de cada faixa se distribuem entre as vigas de apoio (de cima para baixo). O desenho não mostra em
-# qual viga cada joist apoia; este padrão (1/4/1 nas faixas com viga intermediária, 3/3 nas de borda) é o que mais
-# se aproxima das retiradas físicas de parafuso FG005/FG006/FG007 (erro de 12 pontos percentuais, contra 46 dos
-# terços iguais e 19 do padrão 1/3/2 da planilha). É uma estimativa: corrija no mapa se souber a distribuição real.
-DISTRIBUICAO = {3: [1, 4, 1], 2: [3, 3]}
-COBERTURA_BARRA = 0.42  # fração amarela mínima de uma faixa horizontal para contar a barra como montada
+JOISTS_POR_RUA = 43
+COBERTURA_BARRA = 0.35  # fração amarela mínima de uma das 6 bandas nominais de uma faixa para contá-la como montada
+
+
+def _layout():
+    """43 posições por rua (de cima para baixo): (faixa, viga de apoio). Vem de regras_baixa.json (layout_joists)."""
+    regras = json.load(open(os.path.join(RAIZ, "programa_obra198", "regras_baixa.json"), encoding="utf-8"))
+    lay = [(f, l) for f, letras in regras["layout_joists"].items() if f != "nota" for l in letras]
+    assert len(lay) == JOISTS_POR_RUA
+    return lay
 
 
 def _mascaras(png):
@@ -112,20 +113,24 @@ def extrair(png):
     ys = [est[e] for e in ESTACOES]
     joists, vigas = {}, {}
     numeros = sorted(eixos)
+    y_a, y_h = ys[0], ys[-1]
+    passo = (y_h - y_a) / JOISTS_POR_RUA
+    layout = _layout()
+    faixa_slots = {f: [i for i, (ff, _) in enumerate(layout) if ff == f] for f in FAIXAS}
     for e in numeros[:-1]:
         xa, xb = eixos[e] + 9, min(eixos[e] + 40, eixos[e + 1] - 6)
         lin = amarelo[:, xa:xb].mean(axis=1)
-        rua = f"{e:02d}-{e + 1:02d}"
-        por_faixa = {}
+        # cobertura amarela de cada um dos 43 retângulos (faixas uniformes de altura entre as estações A e H)
+        cob = [lin[int(round(y_a + i * passo)): max(int(round(y_a + (i + 1) * passo)), int(round(y_a + i * passo)) + 1)].mean() for i in range(JOISTS_POR_RUA)]
+        marcados = []
         for k, f in enumerate(FAIXAS):
             a, b = ys[k], ys[k + 1]
-            slots = []
-            for j in range(JOISTS_POR_FAIXA):
-                ya, yb = int(round(a + (b - a) * j / JOISTS_POR_FAIXA)), int(round(a + (b - a) * (j + 1) / JOISTS_POR_FAIXA))
-                slots.append(int(lin[ya:yb].mean() > COBERTURA_BARRA))
-            por_faixa[f] = slots
-        if any(any(s) for s in por_faixa.values()):
-            joists[rua] = por_faixa
+            # quantas das 6 barras nominais da faixa estão amarelas (contagem robusta a fase e a blocos fundidos)
+            n = sum(lin[int(round(a + (b - a) * j / 6)): int(round(a + (b - a) * (j + 1) / 6))].mean() > COBERTURA_BARRA for j in range(6))
+            escolhidos = sorted(faixa_slots[f], key=lambda i: (-cob[i], i))[:n]
+            marcados += escolhidos
+        if marcados:
+            joists[f"{e:02d}-{e + 1:02d}"] = sorted(i + 1 for i in marcados)
     for e in numeros:
         xa, xb = eixos[e] - 3, eixos[e] + 4
         letras = []
@@ -151,48 +156,38 @@ def extrair(png):
             e = max((n for n in numeros if eixos[n] < cx), default=None)
             if e is None or e + 1 not in eixos:
                 continue
-            k = next((i for i in range(7) if ys[i] <= (c["y0"] + c["y1"]) / 2 < ys[i + 1]), None)
-            if k is None:
-                continue
             n_pontos = max(1, round(c["px"] / 80))
             for i in range(n_pontos):
                 y = c["y0"] + (c["y1"] - c["y0"]) * (i + 0.5) / n_pontos
-                j = min(JOISTS_POR_FAIXA - 1, int((y - ys[k]) / (ys[k + 1] - ys[k]) * JOISTS_POR_FAIXA))
-                verde_joists.append({"rua": f"{e:02d}-{e + 1:02d}", "faixa": FAIXAS[k], "slot": j})
+                if not y_a <= y <= y_h:
+                    continue
+                verde_joists.append({"rua": f"{e:02d}-{e + 1:02d}", "slot": min(JOISTS_POR_RUA, int((y - y_a) / passo) + 1)})
     return {
         "fonte": os.path.basename(png), "gerado_em": dt.date.today().isoformat(),
-        "metodo": "cor: amarelo=montada, verde=marcada à mão como feita, cinza=pendente; 6 barras por faixa (slots de cima para baixo)",
+        "metodo": "cor: amarelo=montada, verde=marcada à mão como feita, cinza=pendente; 43 retângulos por rua (slot 1 = topo, estação A)",
         "eixos_px": {str(k): v for k, v in eixos.items()}, "estacoes_px": est,
         "joists_amarelo": joists, "vigas_amarelo": vigas,
         "verde": {"vigas": verde_vigas, "joists": verde_joists},
     }
 
 
-def _letra_do_slot(faixa, j):
-    pos, acumulado = POSICOES[faixa], 0
-    for letra, n in zip(pos, DISTRIBUICAO[len(pos)]):
-        acumulado += n
-        if j < acumulado:
-            return letra
-    return pos[-1]
-
-
 def linhas_do_desenho(dados, rotulo):
     """Devolve as linhas de apontamento (um registro por rua/faixa/viga de apoio e por viga)."""
     obs = f"Histórico conciliado com o desenho de {rotulo}"
-    cont = {}
-    for rua, faixas in dados["joists_amarelo"].items():
-        for f, slots in faixas.items():
-            for j, feito in enumerate(slots):
-                if feito:
-                    cont[(rua, f, _letra_do_slot(f, j))] = cont.get((rua, f, _letra_do_slot(f, j)), 0) + 1
-    for p in dados["verde"]["joists"]:
-        chave = (p["rua"], p["faixa"], _letra_do_slot(p["faixa"], p["slot"]))
-        cont[chave] = cont.get(chave, 0) + 1
+    layout = _layout()
+    slots = {rua: set(ss) for rua, ss in dados["joists_amarelo"].items()}
+    for p in dados["verde"]["joists"]:  # ponto verde: retângulo livre mais próximo da mesma faixa
+        ocupados = slots.setdefault(p["rua"], set())
+        faixa = layout[p["slot"] - 1][0]
+        livres = [i + 1 for i, (f, _) in enumerate(layout) if f == faixa and i + 1 not in ocupados]
+        if livres:
+            ocupados.add(min(livres, key=lambda s: abs(s - p["slot"])))
     linhas = []
-    for (rua, f, letra), n in sorted(cont.items()):
-        linhas.append({"data": None, "empresa": "EJ" if f in LADO_EJ_FAIXAS else "CMM", "tipo": "JOIST", "rua": rua,
-                       "faixa": f, "letra": letra, "qtd": n, "lanca_producao": "NÃO", "obs": obs})
+    for rua in sorted(slots):
+        for s in sorted(slots[rua]):
+            faixa, letra = layout[s - 1]
+            linhas.append({"data": None, "empresa": "EJ" if faixa in LADO_EJ_FAIXAS else "CMM", "tipo": "JOIST", "rua": rua,
+                           "faixa": faixa, "letra": letra, "qtd": 1, "slot": s, "lanca_producao": "NÃO", "obs": obs})
     vigas = {e: set(ls) for e, ls in dados["vigas_amarelo"].items()}
     for e, ls in dados["verde"]["vigas"].items():
         vigas.setdefault(e, set()).update(ls)
@@ -226,6 +221,8 @@ def carregar(dados, planilha, rotulo, refazer=False):
     antigos = [r for r in existentes if (r.get("obs") or "").startswith("Histórico conciliado com o desenho")]
     if antigos and not refazer:
         sys.exit("A planilha já tem apontamentos de histórico do desenho. Use --refazer para substituí-los.")
+    cab = xio.TABELAS["apontamentos"]["campos"][-1][1]  # cabeçalho da última coluna (slot), ausente em planilhas antigas
+    celulas.append((aba, f"{xio.col_letra(len(xio.TABELAS['apontamentos']['campos']))}2", cab, None))
     for r in antigos:
         celulas += [(aba, f"{xio.col_letra(i)}{r['linha']}", None, None) for i in range(1, len(xio.TABELAS["apontamentos"]["campos"]) + 1)]
     existentes = [r for r in existentes if r not in antigos]

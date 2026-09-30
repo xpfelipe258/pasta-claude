@@ -37,6 +37,16 @@
     "AB": ["A", "B"], "BC": ["B", "BC", "C"], "CD": ["C", "CD", "D"], "DE": ["D", "DE", "E"],
     "EF": ["E", "EF", "F"], "FG": ["F", "FG", "G"], "GH": ["G", "H"]
   },
+  "layout_joists": {
+    "nota": "Cada rua tem 43 joists (retângulos), numeradas de 1 a 43 de cima (estação A) para baixo (H). Esta tabela diz em qual viga de apoio cada faixa apoia suas joists, de cima para baixo; a posição define o tipo de parafuso. É uma estimativa calibrada com as retiradas físicas de FG005/006/007 (1 joist na viga de cima, o miolo na intermediária, 1 na viga de baixo; 3/3 em AB e GH). A faixa DE (cumeeira) tem a 43ª joist.",
+    "AB": ["A", "A", "A", "B", "B", "B"],
+    "BC": ["B", "BC", "BC", "BC", "BC", "C"],
+    "CD": ["C", "CD", "CD", "CD", "CD", "D"],
+    "DE": ["D", "DE", "DE", "DE", "DE", "DE", "E"],
+    "EF": ["E", "EF", "EF", "EF", "EF", "F"],
+    "FG": ["F", "FG", "FG", "FG", "FG", "G"],
+    "GH": ["G", "G", "G", "H", "H", "H"]
+  },
   "apontamento": {
     "eixos": ["01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"],
     "servico_joist": "IÇAMENTO JOIST",

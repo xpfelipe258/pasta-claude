@@ -649,14 +649,18 @@ def acao_apontamento(corpo):
         raise ErroValidacao("Data fora do calendário da planilha.")
     lanca = corpo.get("lanca_producao", True)
     lim = regras.get("limites_ifc") or {}
-    limite_faixa, limite_rua = lim.get("joists_por_rua_faixa_maximo") or 7, lim.get("joists_por_rua_maximo") or 43
+    limite_rua = lim.get("joists_por_rua_maximo") or 43
     existentes = m["tabelas"]["apontamentos"]
     vigas_ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
-    joists_rf, joists_rua = {}, {}
+    layout = [(f, l) for f, letras in (regras.get("layout_joists") or {}).items() if f != "nota" for l in letras]
+    if not layout:
+        raise ErroValidacao("regras_baixa.json sem layout_joists.")
+    joists_rua, slots_rua = {}, {}
     for a in existentes:
         if (a.get("tipo") or "").upper() == "JOIST":
-            joists_rf[(a.get("rua"), a.get("faixa"))] = joists_rf.get((a.get("rua"), a.get("faixa")), 0) + (a.get("qtd") or 0)
             joists_rua[a.get("rua")] = joists_rua.get(a.get("rua"), 0) + (a.get("qtd") or 0)
+            if a.get("slot"):
+                slots_rua.setdefault(a.get("rua"), set()).add(int(a["slot"]))
     avisos, linhas_novas, grupos = [], [], {}
 
     for item in corpo.get("lote") or [corpo]:
@@ -667,32 +671,27 @@ def acao_apontamento(corpo):
         base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
         novas = []
         if tipo == "JOIST":
-            rua, faixa = str(item.get("rua") or ""), str(item.get("faixa") or "").upper()
+            rua = str(item.get("rua") or "")
             if not _rua_valida(rua, cfg["eixos"]):
                 raise ErroValidacao("Rua inválida: use eixos consecutivos, ex.: 11-12.")
-            if faixa not in posicoes:
-                raise ErroValidacao("Faixa inválida (AB a GH).")
-            for it in item.get("itens") or []:
-                letra, n = str(it.get("letra") or "").upper(), xio.numero(it.get("n"))
-                if not n:
-                    continue
-                if letra not in posicoes[faixa]:
-                    raise ErroValidacao(f"A viga {letra} não é apoio da faixa {faixa} (apoios: {', '.join(posicoes[faixa])}).")
-                if n < 0 or not float(n).is_integer():
-                    raise ErroValidacao("Quantidade de joists deve ser inteira e positiva.")
-                novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": int(n)})
-            if not novas:
+            try:
+                slots = sorted({int(s) for s in item.get("slots") or []})
+            except (TypeError, ValueError):
+                raise ErroValidacao("Joists inválidas: informe os números de 1 a 43.")
+            if not slots:
                 continue
-            novas_n = sum(r["qtd"] for r in novas)
-            total_rua = joists_rua.get(rua, 0) + novas_n
+            for s in slots:
+                if not 1 <= s <= len(layout):
+                    raise ErroValidacao(f"Joist {s} fora da rua (1 a {len(layout)}).")
+                if s in slots_rua.get(rua, set()):
+                    raise ErroValidacao(f"A joist {s} da rua {rua} já foi apontada.")
+                faixa, letra = layout[s - 1]
+                novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": 1, "slot": s})
+            slots_rua.setdefault(rua, set()).update(slots)
+            total_rua = joists_rua.get(rua, 0) + len(slots)
             if total_rua > limite_rua:
-                raise ErroValidacao(f"Rua {rua}: {total_rua} joists apontadas, acima das {limite_rua} por rua do projeto "
-                                    f"(faltam apontar {max(0, limite_rua - joists_rua.get(rua, 0))}). Confira o apontamento.")
+                raise ErroValidacao(f"Rua {rua}: {total_rua} joists apontadas, acima das {limite_rua} por rua do projeto. Confira o apontamento.")
             joists_rua[rua] = total_rua
-            total = joists_rf.get((rua, faixa), 0) + novas_n
-            joists_rf[(rua, faixa)] = total
-            if total > limite_faixa:
-                avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas (o normal é até {limite_faixa} por faixa). Confira o apontamento.")
             servico = cfg["servico_joist"]
         elif tipo == "VIGA":
             eixo = str(item.get("eixo") or "")
