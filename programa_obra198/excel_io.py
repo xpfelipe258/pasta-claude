@@ -600,12 +600,13 @@ TABELAS = {
     },
     "bm_deducoes": {
         "aba": "BM DEDUÇÕES",
-        "titulo": "BM — DEDUÇÕES MANUAIS (adiantamento, refeição, outros). Equipamentos e combustível são descontados automaticamente a partir de USO EQUIPAMENTOS.",
+        "titulo": "BM — DESCONTOS DO BM (equipamento emprestado, faturamento direto, diesel, sinal de contrato, medição antecipada, almoço...), como nas planilhas de medição. Valor negativo = crédito. Com % preenchido, o desconto é esse percentual do medido no período. Equipamentos lançados em USO EQUIPAMENTOS também são descontados automaticamente.",
         "cor": "FF1F4E79",
         "campos": [
             ("empresa", "Empresa", "txt", 14), ("bm", "Nº do BM", "num", 10), ("data", "Data", "data", 12),
             ("tipo", "Tipo", "txt", 16), ("descricao", "Descrição", "txt", 40), ("valor", "Valor a deduzir (R$)", "num", 16),
             ("contrato", "Contrato (RÓTULA, QPC ou AMBOS)", "txt", 18),
+            ("percentual", "% do medido no período (ex.: 10 = sinal de contrato; vazio = usa o valor)", "num", 18),
         ],
     },
     "bm_fechamentos": {

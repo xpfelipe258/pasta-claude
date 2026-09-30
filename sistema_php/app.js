@@ -2211,7 +2211,7 @@ async function importarEquip() {
 // atividades (realizado acumulado / quantidade contratada, limitado a 100%) e o valor medido é o avanço do
 // item x valor do item em cada contrato (QPC e RÓTULA). Equipamento e combustível lançados no sistema são
 // descontados do contrato RÓTULA em cada período.
-const BM_CONTRATOS = ['QPC', 'RÓTULA'];
+const BM_CONTRATOS = ['RÓTULA'];   // a medição e o pagamento são só do contrato RÓTULA (QPC não é mais usado na tela)
 const BM_DESCONTA_EQUIP = 'RÓTULA';
 let bmEmp = null, bmSub = 'boletim', bmPerSel = null, lancModo = 'grade';
 const bmPend = new Map();      // `${empresa}|${codigo}|${data}` -> texto digitado no lançamento por serviço
@@ -2289,7 +2289,9 @@ function bmPeriodos(emp) {
   return lista;
 }
 
-function bmDeducoes(emp, p) {
+// Desconto como nas planilhas: valor fixo ou % do medido no período (ex.: sinal de contrato 10%). Negativo = crédito.
+const bmValorDeducao = (d, medido) => d.percentual != null && d.percentual !== '' ? medido * d.percentual / 100 : (d.valor || 0);
+function bmDeducoes(emp, p, medido = 0) {
   let equip, comb, litros, usos = null;
   if (p.fechado && p.fech) {
     equip = p.fech.equip || 0; comb = p.fech.comb || 0; litros = p.fech.litros || 0;
@@ -2300,9 +2302,9 @@ function bmDeducoes(emp, p) {
   const manuais = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
   const total = {};
   BM_CONTRATOS.forEach(c => {
-    total[c] = (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => d.valor);
+    total[c] = (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => bmValorDeducao(d, medido));
   });
-  return { equip, comb, litros, manuais, total, usos };
+  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos };
 }
 
 // BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
@@ -2335,7 +2337,7 @@ function bmCalc(emp, p) {
     tot[c] = { contrato, acum, ant: antV, per: acum - antV, ajuste: soma0(itens, it => it.pctAjuste * it.valor[c]),
       pctAcum: contrato ? acum / contrato : 0, pctPer: contrato ? (acum - antV) / contrato : 0 };
   });
-  const ded = bmDeducoes(emp, p);
+  const ded = bmDeducoes(emp, p, tot['RÓTULA'].per);
   const faturar = {};
   BM_CONTRATOS.forEach(c => faturar[c] = tot[c].per - ded.total[c]);
   return { p, itens, tot, ded, faturar, prev };
@@ -2378,70 +2380,79 @@ function renderBMBoletim(box) {
   const emp = bmEmp, ps = bmPeriodos(emp);
   if (!ps.some(p => p.chave === bmPerSel)) bmPerSel = ps[ps.length - 1].chave;
   const p = ps.find(x => x.chave === bmPerSel), r = bmCalc(emp, p);
+  const R = 'RÓTULA', tot = r.tot[R];
   const cc = corEmp(emp);
   const pc = v => nf(v * 100, 1) + '%';
   const idx = ps.findIndex(x => x.chave === p.chave);
   const podeFechar = p.cortado && !p.fechado && ps.slice(0, idx).every(x => x.fechado);
   const podeReabrir = p.fechado && !ps.some(x => x.fechado && x.n > p.n);
+  const anteriores = ps.slice(0, idx).filter(x => x.fechado);
 
   let h = `<div class="barra-acoes"><label class="rot-sel">Medição <select id="selBmPer">${ps.map(x => `<option value="${x.chave}" ${x.chave === bmPerSel ? 'selected' : ''}>${esc(x.rot)}</option>`).join('')}</select></label>
     <span class="status-bm">${p.fechado ? `<span class="farol f-verde">FECHADO em ${fdA(p.fech.fechado_em)}</span>` : `<span class="farol f-amarelo">EM ABERTO</span>`}</span>
-    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento.' : 'Realizado vem do lançamento de produção.'}</span>
-    <span class="acoes">${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}</span></div>`;
+    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento (já medido e pago).' : 'Acumulado da produção lançada, menos o que já foi medido nos BMs anteriores.'}</span>
+    <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}</span></div>`;
   h += '<div class="tiles">' +
-    BM_CONTRATOS.map(c => bmTile(`Contrato ${c}`, rs(r.tot[c].contrato), `Medido acumulado ${rs(r.tot[c].acum)} · <b>${pc(r.tot[c].pctAcum)}</b>`, c === 'QPC' ? 'var(--fg3)' : cc)).join('') +
-    bmTile('Medido no período', rs(r.tot['RÓTULA'].per), `RÓTULA · QPC ${rs(r.tot['QPC'].per)}`, 'var(--fg)') +
-    bmTile('Deduções (RÓTULA)', rs(r.ded.total['RÓTULA']), `Equip. ${rs(r.ded.equip)} · comb. ${rs(r.ded.comb)} · outras ${rs(soma0(r.ded.manuais.filter(d => d.contrato !== 'QPC'), d => d.valor))}`, 'var(--vermelho)') +
-    bmTile('Valor a faturar (RÓTULA)', rs(r.faturar['RÓTULA']), `QPC ${rs(r.faturar['QPC'])} · medido − deduções`, 'var(--verde)') + '</div>';
+    bmTile('Contrato RÓTULA', rs(tot.contrato), `${esc(emp)} · medição só no contrato RÓTULA`, cc) +
+    bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
+    bmTile('Já medido (BMs anteriores)', rs(tot.ant), anteriores.length ? anteriores.map(x => 'BM' + x.n).join(' + ') + ' · já pago' : 'nenhum BM anterior', 'var(--fg3)') +
+    bmTile(`Medição do BM${p.n}`, rs(tot.per), `acumulado − já medido · ${pc(tot.pctPer)} do contrato`, 'var(--acento)') +
+    bmTile('Descontos', rs(r.ded.total[R]), `${r.ded.manuais.length} lançamento(s)${r.ded.equip + r.ded.comb ? ' + equipamentos' : ''}`, 'var(--vermelho)') +
+    bmTile('Valor a faturar', rs(r.faturar[R]), 'medição − descontos', 'var(--verde)') + '</div>';
 
   const alertas = [];
   r.itens.filter(it => it.pesosAjustados).forEach(it => alertas.push(`Item ${it.item}: os pesos das atividades somam ${nf(it.somaPesos * 100, 1)}% (o sistema normaliza para 100%). Corrija no catálogo.`));
   r.itens.filter(it => it.excedeu).forEach(it => alertas.push(`Item ${it.item}: há atividade com realizado acima da quantidade contratada (limitado a 100% no cálculo).`));
-  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum corte de BM cadastrado para esta empresa: o boletim mostra o acumulado até a data de referência. Cadastre em "Períodos e deduções".');
-  const ajQ = r.tot['QPC'].ajuste, ajR = r.tot['RÓTULA'].ajuste;
-  if (Math.abs(ajQ) + Math.abs(ajR) > 0.5) {
+  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum BM registrado para esta empresa: o boletim mostra o acumulado até a data de referência.');
+  if (Math.abs(tot.ajuste) > 0.5) {
     const its = r.itens.filter(it => Math.abs(it.pctAjuste) > 1e-9).map(it => it.item).join(', ');
-    alertas.push(`Ajuste de períodos anteriores: correções em datas de ${r.prev ? 'BM' + r.prev.n + ' (já fechado)' : 'períodos fechados'} somam RÓTULA ${rs(ajR)} e QPC ${rs(ajQ)} (itens ${its}). Entram neste BM sem alterar o fechado.`);
+    alertas.push(`A produção lançada até o corte do ${r.prev ? 'BM' + r.prev.n : 'BM anterior'} (${r.prev ? fdA(r.prev.fim) : ''}) difere do que foi medido nele em ${rs(tot.ajuste)} (itens ${its}). Essa diferença entra neste BM, porque a medição é o acumulado menos o que já foi medido.`);
   }
   if (p.cortado && !p.fechado && !podeFechar) alertas.push(`Para fechar o BM${p.n}, feche antes os BMs anteriores.`);
   if (alertas.length) h += `<div class="bloco"><div class="bloco-cab"><h2>Pontos de atenção</h2></div><ul class="alertas">${alertas.map(a => `<li><span class="farol f-amarelo">Atenção</span><span>${esc(a)}</span></li>`).join('')}</ul></div>`;
 
-  h += `<div class="bloco"><div class="bloco-cab"><h2>Evolução da medição acumulada</h2><div class="legenda"><span><i style="--c:${cc}"></i>RÓTULA</span><span><i style="--c:var(--fg3)"></i>QPC</span></div></div><div class="grafico"><canvas id="gBM"></canvas></div></div>`;
+  h += `<div class="bloco"><div class="bloco-cab"><h2>Evolução da medição acumulada (RÓTULA)</h2></div><div class="grafico"><canvas id="gBM"></canvas></div></div>`;
 
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
-    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n">% anterior</th><th class="n">% período</th><th class="n">% acumulado</th>
-    <th class="n">QPC período</th><th class="n">QPC acumulado</th><th class="n">RÓTULA período</th><th class="n">RÓTULA acumulado</th></tr></thead><tbody>`;
+    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th>
+    <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th></tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
-      <td class="n">${rs(it.pctPer * it.valor['QPC'])}</td><td class="n">${rs(it.pct * it.valor['QPC'])}</td><td class="n">${rs(it.pctPer * it.valor['RÓTULA'])}</td><td class="n">${rs(it.pct * it.valor['RÓTULA'])}</td></tr>`;
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td></tr>`;
     if (aberto) it.ats.forEach(x => {
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${nf(x.a.qtd, 1)} ${esc(x.a.unidade)}</td><td class="n">${nf(x.real - x.realAnt, 1)}</td><td class="n">${nf(x.real, 1)}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="4"></td></tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="3"></td></tr>`;
     });
   });
-  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n">${pc(r.tot['RÓTULA'].ant / (r.tot['RÓTULA'].contrato || 1))}</td><td class="n">${pc(r.tot['RÓTULA'].pctPer)}</td><td class="n"><b>${pc(r.tot['RÓTULA'].pctAcum)}</b></td>
-    <td class="n">${rs(r.tot['QPC'].per)}</td><td class="n">${rs(r.tot['QPC'].acum)}</td><td class="n">${rs(r.tot['RÓTULA'].per)}</td><td class="n">${rs(r.tot['RÓTULA'].acum)}</td></tr></tfoot></table></div></div>`;
+  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
+    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
 
-  const dd = r.ded;
-  h += `<div class="bloco"><div class="bloco-cab"><h2>Deduções e valor a faturar</h2><span class="nota">Equipamentos e combustível vêm de "Uso de equipamentos" no período; empresa compartilhada (EJ/CMM) divide o custo. Descontados do contrato ${BM_DESCONTA_EQUIP}.</span></div>
-    <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">QPC</th><th class="n">RÓTULA</th></tr></thead><tbody>
-    <tr><td><b>Medido no período</b></td><td class="n">${rs(r.tot['QPC'].per)}</td><td class="n">${rs(r.tot['RÓTULA'].per)}</td></tr>` +
-    (Math.abs(ajQ) + Math.abs(ajR) > 0.5 ? `<tr class="linha-info"><td>↳ dos quais ajuste de períodos anteriores</td><td class="n">${rs(ajQ)}</td><td class="n">${rs(ajR)}</td></tr>` : '') + `
-    <tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s)'}</span></td><td class="n">—</td><td class="n">${rs(dd.equip)}</td></tr>
-    <tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">—</td><td class="n">${rs(dd.comb)}</td></tr>` +
-    dd.manuais.map(d => `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}: ${esc(d.descricao || '')} <span class="nota">${d.data ? fdA(d.data) : ''}</span> <button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button></td>
-      <td class="n">${d.contrato === 'RÓTULA' ? '—' : rs(d.valor)}</td><td class="n">${d.contrato === 'QPC' ? '—' : rs(d.valor)}</td></tr>`).join('') +
-    `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar['QPC'])}</b></td><td class="n"><b>${rs(r.faturar['RÓTULA'])}</b></td></tr></tfoot></table></div></div>`;
+  const dd = r.ded, med = tot.per;
+  const linhaDesc = d => {
+    const v = bmValorDeducao(d, med), pct = d.percentual != null && d.percentual !== '';
+    return `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''} ${pct ? `<span class="nota">${nf(d.percentual, 1)}% do medido</span>` : ''}
+      ${p.fechado ? '' : `<button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button>`}</td><td class="n ${v < 0 ? 'valor-pos' : ''}">${rs(-v)}</td></tr>`;
+  };
+  h += `<div class="bloco"><div class="bloco-cab"><h2>Descontos e valor a faturar — BM${p.n}</h2>
+      <div class="acoes"><button class="btn primario" data-novo="bm_deducoes" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, data: p.fim, contrato: R }))}'>+ Desconto</button></div></div>
+    <p class="nota">Como nas planilhas de medição: equipamento emprestado da Rótula, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
+    <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">RÓTULA</th></tr></thead><tbody>
+    <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
+    <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
+    <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
+    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos'}</span></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
+    (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
+    (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>') +
+    `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
   box.innerHTML = h;
 
   const ev = bmEvolucao(emp);
   if (ev.length) trocarGrafico('gBM', {
     type: 'line',
     data: { labels: ev.map(x => fd(x.dia)), datasets: [
-      { label: 'RÓTULA', data: ev.map(x => +x['RÓTULA'].toFixed(2)), borderColor: corEmpHex(emp), backgroundColor: corEmpHex(emp), tension: .25, pointRadius: 2 },
-      { label: 'QPC', data: ev.map(x => +x['QPC'].toFixed(2)), borderColor: cor('--fg3'), backgroundColor: cor('--fg3'), borderDash: [5, 4], tension: .25, pointRadius: 2 }] },
+      { label: 'RÓTULA', data: ev.map(x => +x['RÓTULA'].toFixed(2)), borderColor: corEmpHex(emp), backgroundColor: corEmpHex(emp), tension: .25, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}` } } },
       scales: eixos({ ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }) },
@@ -2459,12 +2470,12 @@ function renderBMPeriodos(box) {
     (ps.length ? ps.map(p => { const f = bmFech(emp, p.bm); return `<tr><td><b>BM${p.bm ?? ''}</b></td><td>${fdA(p.corte)}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
       : '<tr><td colspan="5" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
     `</tbody></table></div></div>
-    <div class="bloco"><div class="bloco-cab"><h2>Deduções manuais</h2><button class="btn primario" data-novo="bm_deducoes">+ Dedução</button></div>
-      <p class="nota">Adiantamento, refeição fornecida no canteiro e outros descontos. Equipamentos e combustível entram sozinhos, a partir dos lançamentos em Equipamentos.</p>
-      <div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>BM</th><th>Tipo</th><th>Descrição</th><th class="n">Valor</th><th>Contrato</th><th></th></tr></thead><tbody>` +
-    (ds.length ? ds.map(d => `<tr><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${esc(cap(d.tipo || ''))}</td><td>${esc(d.descricao || '')}</td><td class="n">${rs(d.valor)}</td><td>${esc(d.contrato || '')}</td>
+    <div class="bloco"><div class="bloco-cab"><h2>Descontos dos BMs</h2><button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></div>
+      <p class="nota">Equipamento emprestado, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço... Valor negativo é crédito. Equipamentos lançados em Equipamentos entram sozinhos.</p>
+      <div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>BM</th><th>Tipo</th><th>Descrição</th><th class="n">Valor / %</th><th></th></tr></thead><tbody>` +
+    (ds.length ? ds.map(d => `<tr><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${esc(cap(d.tipo || ''))}</td><td>${esc(d.descricao || '')}</td><td class="n">${d.percentual != null ? nf(d.percentual, 1) + '%' : rs(d.valor)}</td>
       <td><button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="7" class="vazio">Nenhuma dedução manual.</td></tr>') + `</tbody></table></div></div></div>`;
+      : '<tr><td colspan="6" class="vazio">Nenhum desconto lançado.</td></tr>') + `</tbody></table></div></div></div>`;
 }
 
 function renderBMCatalogo(box) {
@@ -2473,7 +2484,7 @@ function renderBMCatalogo(box) {
     <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na mesma coluna da grade de produção.</p>
     <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un.</th><th class="n">Quantidade</th><th class="n">Peso</th><th>Coluna no controle</th><th></th></tr></thead><tbody>`;
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">QPC ${rs(it.valor['QPC'])} · RÓTULA ${rs(it.valor['RÓTULA'])}</td>
+    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">RÓTULA ${rs(it.valor['RÓTULA'])}</td>
       <td colspan="2">${it.pesosAjustados ? `<span class="farol f-amarelo">pesos somam ${nf(it.somaPesos * 100, 1)}%</span>` : ''}</td></tr>`;
     it.ats.forEach(x => h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${esc(x.a.unidade)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
       <td>${esc(x.a.controle || '')}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`);
@@ -2578,10 +2589,11 @@ const FORMS = {
     ['custo_combustivel', 'Custo combustível (R$) — calculado se vazio', 'num'], ['operador', 'Operador', 'text'], ['obs', 'Observação', 'text', 0, 'largo']] },
   bm_periodos: { tit: 'período de medição (BM)', campos: [
     ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM', 'num', 1], ['corte', 'Data de corte', 'date', 1], ['obs', 'Observação', 'text', 0, 'largo']] },
-  bm_deducoes: { tit: 'dedução do BM', campos: [
+  bm_deducoes: { tit: 'desconto do BM', campos: [
     ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM (vazio = pela data)', 'num'], ['data', 'Data', 'date', 1],
-    ['tipo', 'Tipo', 'select:ADIANTAMENTO,REFEIÇÃO,EQUIPAMENTO,COMBUSTÍVEL,OUTROS', 1], ['valor', 'Valor a deduzir (R$)', 'num', 1],
-    ['contrato', 'Contrato', 'select:RÓTULA,QPC,AMBOS', 1], ['descricao', 'Descrição', 'text', 0, 'largo']] },
+    ['tipo', 'Tipo', 'select:EQUIPAMENTO EMPRESTADO,FATURAMENTO DIRETO,COMBUSTÍVEL,SINAL DE CONTRATO,MEDIÇÃO ANTECIPADA,REFEIÇÃO,ADIANTAMENTO,OUTROS', 1],
+    ['valor', 'Valor a descontar (R$) — negativo = crédito', 'num'], ['percentual', '% do medido no período (ex.: 10 = sinal de contrato; vazio = usa o valor)', 'num'],
+    ['contrato', 'Contrato', 'select:RÓTULA', 1], ['descricao', 'Descrição', 'text', 0, 'largo']] },
   bm_atividades: { tit: 'atividade do catálogo do BM', campos: [
     ['codigo', 'Código (único)', 'text', 1], ['empresa', 'Empresa', 'empresa', 1], ['item', 'Item do BM (ex.: 3.1.1)', 'text', 1],
     ['item_desc', 'Descrição do item', 'text', 1, 'largo'], ['atividade', 'Atividade (serviço)', 'text', 1, 'largo'], ['unidade', 'Unidade', 'text', 1],
@@ -2893,7 +2905,11 @@ function ligarEventos() {
     const ir = ev.target.closest('[data-ir-aba]');
     if (ir) mudarAba(ir.dataset.irAba);
     const novo = ev.target.closest('[data-novo]');
-    if (novo) abrirDialogo(novo.dataset.novo, null, novo.dataset.novo.startsWith('bm_') && bmEmp ? { empresa: bmEmp } : {});
+    if (novo) {
+      let preset = novo.dataset.novo.startsWith('bm_') && bmEmp ? { empresa: bmEmp } : {};
+      if (novo.dataset.preset) { try { preset = { ...preset, ...JSON.parse(novo.dataset.preset) }; } catch { } }
+      abrirDialogo(novo.dataset.novo, null, preset);
+    }
     const ed = ev.target.closest('[data-editar-reg]');
     if (ed) abrirDialogo(ed.dataset.editarReg, +ed.dataset.linha);
     const mv = ev.target.closest('[data-mov]');

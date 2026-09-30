@@ -67,7 +67,7 @@ function tabelas_spec()
         'bm_periodos' => ['empresa' => 'txt', 'bm' => 'num', 'corte' => 'data', 'obs' => 'txt'],
         'bm_apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'codigo' => 'txt', 'quantidade' => 'num', 'obs' => 'txt'],
         'bm_deducoes' => ['empresa' => 'txt', 'bm' => 'num', 'data' => 'data', 'tipo' => 'txt', 'descricao' => 'txt',
-            'valor' => 'num', 'contrato' => 'txt'],
+            'valor' => 'num', 'contrato' => 'txt', 'percentual' => 'num'],
         'bm_fechamentos' => ['empresa' => 'txt', 'bm' => 'num', 'fechado_em' => 'data', 'equip' => 'num', 'comb' => 'num',
             'litros' => 'num', 'obs' => 'txt'],
         'bm_fech_atividades' => ['empresa' => 'txt', 'bm' => 'num', 'codigo' => 'txt', 'item' => 'txt', 'realizado' => 'num',
@@ -81,7 +81,7 @@ function tabelas_spec()
     ];
 }
 
-const ESQUEMA_VERSAO = 4;
+const ESQUEMA_VERSAO = 5;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
@@ -135,6 +135,24 @@ function criar_esquema(PDO $pdo, $driver)
     }
     foreach ($sql as $s) {
         $pdo->exec($s);
+    }
+    // instalações antigas: acrescenta as colunas que as tabelas ganharam depois
+    foreach (tabelas_spec() as $nome => $campos) {
+        $existentes = [];
+        if ($driver === 'sqlite') {
+            foreach ($pdo->query("PRAGMA table_info($nome)") as $r) {
+                $existentes[] = $r['name'];
+            }
+        } else {
+            foreach ($pdo->query("SHOW COLUMNS FROM $nome") as $r) {
+                $existentes[] = $r['Field'];
+            }
+        }
+        foreach ($campos as $campo => $tipo) {
+            if (!in_array($campo, $existentes, true)) {
+                $pdo->exec("ALTER TABLE $nome ADD COLUMN $campo " . $tipos[$tipo]);
+            }
+        }
     }
 }
 

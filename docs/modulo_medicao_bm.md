@@ -26,6 +26,29 @@ Mesma regra da aba `BM2-MC MONTAGEM` das planilhas de medição
 (`docs/fluxo_boletim_medicao.md`). Conferido com a produção real da EJ: cobertura
 33,2%, valor QPC R$ 345.958 e RÓTULA R$ 417.855 no acumulado.
 
+## Só RÓTULA, acumulado menos o já medido
+
+A tela Medição (BM) trabalha apenas com o contrato RÓTULA (o QPC saiu da tela; os valores continuam no catálogo).
+
+```
+medição do BM  = acumulado da produção (% do item x valor RÓTULA)  −  já medido nos BMs anteriores
+valor a faturar = medição − descontos
+```
+
+- **BM1 já medido e pago (EJ e CMM):** registrado a partir das planilhas de medição com corte em 03/09/2026
+  (`dados/bm_medido_bm1.json`, carregado por `ferramentas/registrar_bm_medido.py`). Cada atividade guarda a
+  quantidade acumulada medida no BM1 (EJ R$ 295.710,74 e CMM R$ 151.515,53, conferidos com as planilhas) e os descontos
+  do BM1 (EJ a faturar R$ 132.956,77 e CMM R$ 93.537,52, iguais aos da planilha). O BM1 fica fechado.
+- **BM2 em aberto:** é o acumulado da produção lançada até a data de referência menos o BM1. Se a produção lançada até
+  o corte do BM1 difere do que foi medido nele, o boletim avisa e a diferença entra no BM2.
+- **GLOBO AÇOS:** a planilha de medição não tem nada medido (BM1 previsto para 10/10/2026); segue em aberto.
+- **Descontos como nas planilhas:** equipamento emprestado da Rótula, faturamento direto, diesel, sinal de contrato
+  (percentual do medido, ex.: 10%), medição antecipada, almoço. Valor negativo é crédito. Botão "+ Desconto" no boletim.
+  Os descontos do BM2 da EJ vieram do rascunho da planilha (marcados "conferir"; o diesel está como crédito de
+  R$ 3.376 na planilha, confirmar o sinal).
+- **Próximo BM:** no BM em aberto, "Definir corte do BMn" grava a data de corte e "Fechar BMn" congela o BM; o BM seguinte
+  abre sozinho.
+
 ## Onde ficam os dados (abas criadas na planilha)
 
 | Aba | Conteúdo |

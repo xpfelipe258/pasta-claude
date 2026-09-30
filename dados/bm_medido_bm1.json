@@ -1,0 +1,286 @@
+{
+ "fonte": "planilhas de medição BM1 (EJ, CMM)",
+ "corte": "2026-09-03",
+ "fechado_em": "2026-09-03",
+ "empresas": {
+  "EJ": {
+   "bm": 1,
+   "realizado": {
+    "EJ-3.1.1-01": 50.0,
+    "EJ-3.1.1-02": 81.0,
+    "EJ-3.1.1-03": 112.0,
+    "EJ-3.1.1-04": 23.0,
+    "EJ-3.1.1-05": 0.0,
+    "EJ-3.1.2-01": 0.0,
+    "EJ-3.1.2-02": 0.0,
+    "EJ-3.1.2-03": 0.0,
+    "EJ-3.1.2-04": 0.0,
+    "EJ-3.1.2-05": 0.0,
+    "EJ-3.1.3-01": 0.0,
+    "EJ-3.1.3-02": 0.0,
+    "EJ-3.1.3-03": 0.0,
+    "EJ-3.1.3-04": 0.0,
+    "EJ-3.1.3-05": 0.0,
+    "EJ-3.1.3-06": 0.0,
+    "EJ-3.1.4-01": 0.0,
+    "EJ-3.1.4-02": 0.0,
+    "EJ-3.3.1-01": 0.0,
+    "EJ-3.3.1-02": 0.0,
+    "EJ-3.3.1-03": 0.0,
+    "EJ-3.3.1-04": 0.0,
+    "EJ-3.3.1-05": 0.0,
+    "EJ-3.3.2-01": 0.0,
+    "EJ-3.3.2-02": 0.0,
+    "EJ-3.3.3-01": 0.0,
+    "EJ-3.3.3-02": 0.0,
+    "EJ-3.3.3-03": 0.0,
+    "EJ-3.3.3-04": 0.0,
+    "EJ-3.3.4-01": 0.0,
+    "EJ-3.3.4-02": 0.0,
+    "EJ-3.3.5-01": 0.0,
+    "EJ-3.3.5-02": 0.0,
+    "EJ-3.3.5-03": 0.0,
+    "EJ-3.3.6-01": 0.0,
+    "EJ-3.3.6-02": 0.0,
+    "EJ-3.3.6-03": 0.0,
+    "EJ-3.3.7-01": 0.0,
+    "EJ-3.3.7-02": 0.0,
+    "EJ-3.3.7-03": 0.0,
+    "EJ-3.3.7-04": 0.0,
+    "EJ-3.3.8-01": 0.0,
+    "EJ-3.3.8-02": 0.0,
+    "EJ-3.3.8-03": 0.0,
+    "EJ-3.3.8-04": 0.0,
+    "EJ-3.3.9-01": 0.0,
+    "EJ-3.3.9-02": 0.0,
+    "EJ-3.3.9-03": 0.0,
+    "EJ-3.3.9-04": 0.0,
+    "EJ-3.3.9-05": 0.0,
+    "EJ-3.3.9-06": 0.0,
+    "EJ-3.3.10-01": 0.0,
+    "EJ-3.3.10-02": 0.0,
+    "EJ-3.3.11-01": 0.0,
+    "EJ-3.3.11-02": 0.0,
+    "EJ-3.3.11-03": 0.0,
+    "EJ-3.3.11-04": 0.0,
+    "EJ-3.3.13-01": 0.0,
+    "EJ-3.3.13-02": 0.0,
+    "EJ-3.3.13-03": 0.0,
+    "EJ-3.3.13-04": 0.0,
+    "EJ-3.3.15-01": 0.0,
+    "EJ-3.3.15-02": 0.0,
+    "EJ-3.3.15-03": 0.0,
+    "EJ-3.3.15-04": 0.0,
+    "EJ-3.3.17-01": 0.0,
+    "EJ-3.3.17-02": 0.0,
+    "EJ-3.3.17-03": 0.0,
+    "EJ-3.3.17-04": 0.0
+   },
+   "medido": 295710.74,
+   "a_faturar": 132956.77,
+   "linhas": [
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTOS EMPRESTADO DA RÓTULA - MOBILIZAÇÃO PTA SKYJACK - 28/07 À 31/07 - $950 RATEADO COM A CMM",
+     "valor": 475,
+     "percentual": null,
+     "valor_planilha": -475
+    },
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTOS EMPRESTADO DA RÓTULA - PTA SKYJACK - 28/07 À 31/07 - $300 CADA DIÁRIA",
+     "valor": 1200,
+     "percentual": null,
+     "valor_planilha": -1200
+    },
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTOS EMPRESTADO DA RÓTULA - PTA SKYJACK - 01/08 À 20/08 - $300 CADA DIÁRIA",
+     "valor": 6000,
+     "percentual": null,
+     "valor_planilha": -6000
+    },
+    {
+     "tipo": "FATURAMENTO DIRETO",
+     "descricao": "FATURAMENTO DIRETO - PTA LOCAR 15/08/2026 a 31/08/2026",
+     "valor": 7906.67,
+     "percentual": null,
+     "valor_planilha": -7906.67
+    },
+    {
+     "tipo": "FATURAMENTO DIRETO",
+     "descricao": "FATURAMENTO DIRETO - MOBILIZAÇÃO PTA LOCAR DATA 15/08/2026",
+     "valor": 950,
+     "percentual": null,
+     "valor_planilha": -950
+    },
+    {
+     "tipo": "COMBUSTÍVEL",
+     "descricao": "DIESEL USADO DA CAVALO MARINHO R$ 7,174/LITRO - 490 LITROS DIA 24/08 E DIA 29/08 PEGANDO 484 LITROS",
+     "valor": 6987.48,
+     "percentual": null,
+     "valor_planilha": -6987.48
+    },
+    {
+     "tipo": "SINAL DE CONTRATO",
+     "descricao": "DESCONTO ABATENDO SINAL DE CONTRATO (R$ 173.285,79 ) - 10%",
+     "valor": null,
+     "percentual": 10.0,
+     "valor_planilha": -29571.07
+    },
+    {
+     "tipo": "MEDIÇÃO ANTECIPADA",
+     "descricao": "DESCONTO ABATENDO MEDIÇÃO DE CONTRATO -  MEDIÇÃO ANTECIPADA PELA RÓTULA PAGO DIA 08/09 R$ 100.000,00",
+     "valor": 100000,
+     "percentual": null,
+     "valor_planilha": -100000
+    },
+    {
+     "tipo": "REFEIÇÃO",
+     "descricao": "ALMOÇO FORNECIDO NO CANTEIRO DA OBRA 01/08 A 31/08",
+     "valor": 7557.15,
+     "percentual": null,
+     "valor_planilha": -7557.15
+    },
+    {
+     "tipo": "REFEIÇÃO",
+     "descricao": "ALMOÇO FORNECIDO NO CANTEIRO DA OBRA 21/07 A 31/07",
+     "valor": 2106.6,
+     "percentual": null,
+     "valor_planilha": -2106.6
+    }
+   ]
+  },
+  "CMM": {
+   "bm": 1,
+   "realizado": {
+    "CMM-3.1.1-01": 12.0,
+    "CMM-3.1.1-02": 112.0,
+    "CMM-3.1.1-03": 42.0,
+    "CMM-3.1.1-04": 0.0,
+    "CMM-3.1.1-05": 0.0,
+    "CMM-3.1.2-01": 0.0,
+    "CMM-3.1.2-02": 0.0,
+    "CMM-3.1.2-03": 0.0,
+    "CMM-3.1.2-04": 0.0,
+    "CMM-3.1.2-05": 0.0,
+    "CMM-3.1.3-01": 0.0,
+    "CMM-3.1.3-02": 0.0,
+    "CMM-3.1.3-03": 0.0,
+    "CMM-3.1.3-04": 0.0,
+    "CMM-3.1.3-05": 0.0,
+    "CMM-3.1.3-06": 0.0
+   },
+   "medido": 151515.53,
+   "a_faturar": 93537.52,
+   "linhas": [
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTO  EMPRESTADO DA RÓTULA - GUINDASTE SANY - 6 DIÁRIAS - $3.000 CADA DIÁRIA E 2 MEIA DIÁRIAS R$1.500",
+     "valor": 18000,
+     "percentual": null,
+     "valor_planilha": -18000
+    },
+    {
+     "tipo": "FATURAMENTO DIRETO",
+     "descricao": "FATURAMENTO DIRETO - MOBILIZAÇÃO PTA LOCAR 29/08/2026",
+     "valor": 950,
+     "percentual": null,
+     "valor_planilha": -950
+    },
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTO  EMPRESTADO DA RÓTULA - MOBILIZAÇÃO SKYJACK - $950 RATEADO COM A EJ MONTAGENS",
+     "valor": 475,
+     "percentual": null,
+     "valor_planilha": -475
+    },
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTO EMPRESTADO DA RÓTULA - PTA SKYJACK -  $300 CADA DIÁRIA , TOTAL DE 11 DIÁRIAS, PERÍODO 21/08 À 31/08 -",
+     "valor": 3300,
+     "percentual": null,
+     "valor_planilha": -3300
+    },
+    {
+     "tipo": "FATURAMENTO DIRETO",
+     "descricao": "FATURAMENTO DIRETO - PTA LOCAR NO PERIODO DE 29/08/2026 a 31/08/2026",
+     "valor": 2900,
+     "percentual": null,
+     "valor_planilha": -2900
+    },
+    {
+     "tipo": "COMBUSTÍVEL",
+     "descricao": "DIESEL USADO DA CAVALO MARINHO  R$ 7,54/LITRO  - 150 LITROS DIA 24/08 E DIA 29/08 PEGANDO 77 LITROS",
+     "valor": 1711.58,
+     "percentual": null,
+     "valor_planilha": -1711.58
+    },
+    {
+     "tipo": "SINAL DE CONTRATO",
+     "descricao": "DESCONTO ABATENDO SINAL DE CONTRATO (R$ 140.540,10) - 10% + OUTRO SINAL PAGO 04/09 DE R$70.270,05 (5%) - TOTAL 15%",
+     "valor": null,
+     "percentual": 15.0,
+     "valor_planilha": -22727.33
+    },
+    {
+     "tipo": "REFEIÇÃO",
+     "descricao": "ALMOÇO FORNECIDO NO CANTEIRO DA OBRA JULHO/26",
+     "valor": 170.8,
+     "percentual": null,
+     "valor_planilha": -170.8
+    },
+    {
+     "tipo": "REFEIÇÃO",
+     "descricao": "ALMOÇO FORNECIDO NO CANTEIRO DA OBRA AGOSTO/26",
+     "valor": 7743.3,
+     "percentual": null,
+     "valor_planilha": -7743.3
+    }
+   ]
+  }
+ },
+ "bm2_rascunho": {
+  "EJ": {
+   "medido": 147900.41,
+   "a_faturar": 97864.36,
+   "linhas": [
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTOS EMPRESTADO DA RÓTULA - SANY  - $3000 CADA DIÁRIA + OPERADOR DE MUNCK 1 DIÁRIA E 1 MEIA DIARIA",
+     "valor": 26522,
+     "percentual": null,
+     "valor_planilha": -26522
+    },
+    {
+     "tipo": "EQUIPAMENTO EMPRESTADO",
+     "descricao": "DESCONTO DE USO DE EQUIPAMENTOS EMPRESTADO DA RÓTULA - PTA SKYJACK - 28/07 À 31/07 - $300 CADA DIÁRIA",
+     "valor": 2100,
+     "percentual": null,
+     "valor_planilha": -2100
+    },
+    {
+     "tipo": "FATURAMENTO DIRETO",
+     "descricao": "FATURAMENTO DIRETO - MOBILIZAÇÃO PTA LOCAR DATA 15/09/2026",
+     "valor": 10000,
+     "percentual": null,
+     "valor_planilha": -10000
+    },
+    {
+     "tipo": "COMBUSTÍVEL",
+     "descricao": "DIESEL USADO DA CAVALO MARINHO R$ 8,64/LITRO -",
+     "valor": -3376,
+     "percentual": null,
+     "valor_planilha": 3376
+    },
+    {
+     "tipo": "SINAL DE CONTRATO",
+     "descricao": "DESCONTO ABATENDO SINAL DE CONTRATO (R$ 173.285,79 ) - 10%",
+     "valor": null,
+     "percentual": 10.0,
+     "valor_planilha": -14790.04
+    }
+   ]
+  }
+ }
+}
