@@ -614,6 +614,11 @@ class Handler(BaseHTTPRequestHandler):
                     "modificado": dt.datetime.fromtimestamp(os.path.getmtime(CFG["planilha"])).isoformat(timespec="seconds"),
                     "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
                 })
+            if caminho == "/api/regras-baixa":
+                regras = xio.carregar_regras_baixa()
+                if regras is None:
+                    return self._json(404, {"erro": "regras_baixa.json não encontrado."})
+                return self._json(200, regras)
             if caminho == "/api/estoque-planilha":
                 arq = os.path.join(os.path.dirname(BASE), "dados", "estoque_obra198.json")
                 if os.path.exists(arq):

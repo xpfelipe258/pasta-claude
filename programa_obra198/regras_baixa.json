@@ -103,11 +103,11 @@
       "itens": [
         {"codigo": "FG015", "descricao": "PORCA Ø1/2\" A307",   "por_unidade": 8},
         {"codigo": "FG018", "descricao": "ARRUELA Ø1/2\" LISA", "por_unidade": 8},
-        {"codigo": "FG005", "descricao": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_unidade": 4.57},
-        {"codigo": "FG006", "descricao": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_unidade": 1.14},
-        {"codigo": "FG007", "descricao": "PARAF. Ø1/2\" x 2\" A307",     "por_unidade": 2.29}
+        {"codigo": "FG005", "descricao": "PARAF. Ø1/2\" x 1 3/4\" A307", "por_unidade": 4.5714285714, "estimado": true},
+        {"codigo": "FG006", "descricao": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_unidade": 1.1428571429, "estimado": true},
+        {"codigo": "FG007", "descricao": "PARAF. Ø1/2\" x 2\" A307",     "por_unidade": 2.2857142857, "estimado": true}
       ],
-      "nota": "8 parafusos Ø1/2\" por joist (4 por ponta). Proporção por faixa: FG005 (BC,CD,DE,FG) 4/7, FG006 (GH) 1/7, FG007 (AB,EF) 2/7. Porcas e arruelas 1:1 com parafuso."
+      "nota": "8 parafusos Ø1/2\" por joist (4 por ponta). O total (8 por joist) é exato; a divisão entre FG005/FG006/FG007 é ESTIMADA (4/7, 1/7, 2/7) porque a produção não informa em qual viga/quadrante cada joist foi fixada. O tipo certo vem do apontamento por quadrante (eventos JOIST_ICADA). Porcas e arruelas 1:1 com parafuso."
     },
     "VIGAS APOIO": {
       "descricao": "Viga de apoio principal montada. 4 porcas Ø1\" + 4 arruelas Ø1\" por viga. Total no galpão: 120 vigas.",
@@ -142,5 +142,21 @@
     "vigas_apoio_no_galpao": 120,
     "vigas_intermediarias_no_galpao": 180,
     "fonte": "dados/ifc_r0d_inventario.json"
+  },
+  "inventario_ajustes": [
+    {
+      "tag": "FG019",
+      "consumo_virtual": 0,
+      "motivo": "A planilha (Consumo_Quadrantes, linha FG019) lança nesse código o consumo da coluna FG005 dos quadrantes e ainda soma duas vezes (Controle_Materiais + Consumo_Quadrantes = 1.158). Sem fluxo definido para FG019 (Ø1/2\" x 1 1/2\" A325) na produção, o consumo virtual fica em 0; as retiradas físicas de FG019 aparecem como perda a investigar. Confirmar se FG019 substitui FG005 em parte das vigas intermediárias."
+    }
+  ],
+  "inventario_notas": {
+    "FG008": "Valor digitado (160) na planilha, sem regra de consumo na produção.",
+    "FG011": "Planilha: travamentos apontados (50) x 2. A produção não registra travamentos.",
+    "FG012": "Planilha: vigas intermediárias (25) x 8. As regras/eventos usam 4 por viga intermediária e a produção só registra 'VIGAS' (sem tipo).",
+    "FG017": "Igual ao FG012 (planilha repete o valor).",
+    "FG020": "Igual ao FG012 (planilha repete o valor).",
+    "FG021": "Planilha: vigas pilar (35) x 4. Montagem_Vigas tem 51 vigas de apoio montadas; a produção só registra 'VIGAS' (sem tipo).",
+    "FG023": "Igual ao FG021 (planilha repete o valor)."
   }
 }

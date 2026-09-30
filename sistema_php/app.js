@@ -75,6 +75,20 @@ function toast(msg, erro = false, duracao) {
   toast._t = setTimeout(() => t.className = 'toast' + (erro ? ' erro' : ''), duracao || (erro ? 6000 : 2600));
 }
 
+// ------------------------------------------------------------ regras de baixa (regras_baixa.json)
+// Devolve as regras já carregadas; se ainda não, busca uma vez e chama `refazer` ao terminar.
+function regrasBaixa(refazer) {
+  if (window._regras_baixa) return window._regras_baixa;
+  if (!window._regras_pend) {
+    window._regras_pend = fetch(API + 'regras-baixa', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : {})
+      .catch(() => ({}))
+      .then(j => { window._regras_baixa = j; });
+  }
+  window._regras_pend.then(refazer);
+  return null;
+}
+
 // ------------------------------------------------------------ scroll topo sincronizado
 function syncScrollTopo() {
   document.querySelectorAll('.tabela-rolagem:not(.grade-lanc)').forEach(el => {
@@ -1012,7 +1026,11 @@ function _filtroMatEtapa() { return ($('#estMatEtapa')?.value || ''); }
 function _filtroMatStatus() { return ($('#estMatStatus')?.value || ''); }
 
 function renderEstMateriais() {
-  if (!EP) return;
+  if (!EP || !M) return;
+  const regras = regrasBaixa(renderEstMateriais);
+  const cvMapa = regras ? consumoVirtualPorTag(regras) : new Map();
+  const consumidoDe = m => cvMapa.has(m.tag) ? cvMapa.get(m.tag).cv : m.consumido;
+  const posBaixaDe = m => cvMapa.has(m.tag) ? m.chegou - cvMapa.get(m.tag).cv : m.estoque_pos_baixa;
   const itens = EP.materiais;
   const f = _filtroMat(), fe = _filtroMatEtapa(), fs = _filtroMatStatus();
   const vis = itens.filter(m => {
@@ -1049,8 +1067,8 @@ function renderEstMateriais() {
   $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr>
       <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>
-      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(m.consumido)}</td>
-      <td class="n ${m.estoque_pos_baixa < 0 ? 'valor-neg' : ''}">${nf(m.estoque_pos_baixa)}</td>
+      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
+      <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
       <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
       <td>${esc(m.prioridade || '')}</td></tr>`).join('')
@@ -1122,80 +1140,135 @@ function renderEstConsumo() {
   }
 }
 
+// Colunas derivadas do INVENTARIO (mesma lógica da planilha): base = recebido, cv = consumo virtual, cf = retirado fisico.
+function derivarInventario(base, cv, cf) {
+  const fis = base - cf, virt = base - cv, perda = virt - fis;
+  const taxa = virt !== 0 ? perda / virt : (fis !== 0 ? 1 : 0);
+  const acu = Math.max(0, 1 - Math.abs(taxa));
+  return {
+    estoque_fisico: fis, estoque_virtual_atual: virt, perda_real: perda, taxa_perda: taxa, acuracidade: acu,
+    status: acu >= 0.98 ? 'CONFORME' : acu >= 0.95 ? 'ATENÇÃO' : 'CRÍTICO',
+    acao: perda > 0 ? 'INVESTIGAR PERDA / SAÍDA NÃO APONTADA' : perda < 0 ? 'VALIDAR SOBRA / ENTRADA / BAIXA' : 'OK',
+  };
+}
+
+// Consumo virtual por TAG = produção acumulada × regras_baixa.json. Só entram serviços que existem na produção;
+// itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
+function consumoVirtualPorTag(regras) {
+  const servicos = regras.consumo_por_servico || {};
+  const acum = new Map();
+  Object.entries(servicos).forEach(([nome, conf]) => {
+    if (nome.startsWith('_') || !conf.itens) return;
+    if (!M.empresas.some(e => e.servicos.some(s => s.nome === nome))) return;
+    const n = prodServico(nome, null, '0000-01-01', '9999-12-31');
+    conf.itens.forEach(it => {
+      const o = acum.get(it.codigo) || { qtd: 0, partes: [], estimado: false };
+      o.qtd += it.por_unidade * n;
+      o.partes.push(`${nf(n)} ${cap(nome)} × ${nf(it.por_unidade, 2)}`);
+      if (it.estimado) o.estimado = true;
+      acum.set(it.codigo, o);
+    });
+  });
+  const mapa = new Map();
+  acum.forEach((o, tag) => mapa.set(tag, { cv: Math.round(o.qtd), origem: 'producao', estimado: o.estimado,
+    nota: o.partes.join(' + ') + (o.estimado ? ' (divisão entre tipos de parafuso estimada)' : '') }));
+  (regras.inventario_ajustes || []).forEach(a => mapa.set(a.tag, { cv: a.consumo_virtual, origem: 'ajuste', estimado: false, nota: a.motivo }));
+  return mapa;
+}
+
+// Inventário: recebido e retirado vêm das abas Remessas e Consumo físico (editáveis).
+function inventarioCalculado(regras) {
+  const mapa = consumoVirtualPorTag(regras);
+  const notas = regras.inventario_notas || {};
+  const recebido = new Map(EP.remessas.itens.map(r => [r.tag, r.total_recebido]));
+  const retirado = new Map(EP.consumo_fisico.itens.map(c => [c.tag, c.total_consumo]));
+  return EP.inventario.map(m => {
+    if (!m.status) return { ...m, origem: null, delta: 0 };
+    const base = recebido.has(m.tag) ? recebido.get(m.tag) : m.estoque_virtual_base;
+    const cf = retirado.has(m.tag) ? retirado.get(m.tag) : m.consumo_fisico;
+    const c = mapa.get(m.tag) || { cv: m.consumo_virtual, origem: 'planilha', estimado: false,
+      nota: notas[m.tag] || 'Sem regra de consumo pela produção: mantido o valor da planilha.' };
+    return { ...m, estoque_virtual_base: base, consumo_fisico: cf, consumo_virtual: c.cv, consumo_planilha: m.consumo_virtual,
+      delta: c.cv - m.consumo_virtual, origem: c.origem, estimado: c.estimado, nota: c.nota, ...derivarInventario(base, c.cv, cf) };
+  });
+}
+
 function renderEstInventario() {
-  if (!EP) return;
-  const inv = EP.inventario;
+  if (!EP || !M) return;
+  const regras = regrasBaixa(renderEstInventario);
+  if (!regras) { $('#tabEstInv').innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>'; return; }
+  const inv = inventarioCalculado(regras);
+  const norm = s => (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const f = ($('#estInvFiltro')?.value || '').toUpperCase();
   const fs = ($('#estInvStatus')?.value || '');
   const vis = inv.filter(m => {
     if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
-    if (fs) {
-      const st = (m.status || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      if (fs === 'CRITICO' && st !== 'CRITICO') return false;
-      if (fs === 'ATENCAO' && st !== 'ATENCAO') return false;
-      if (fs === 'CONFORME' && st !== 'CONFORME') return false;
-    }
-    return true;
+    return !fs || norm(m.status) === fs;
   });
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const criticos = inv.filter(m => (m.status || '').toUpperCase().includes('CRIT')).length;
-  const atencao = inv.filter(m => (m.status || '').toUpperCase().includes('ATEN')).length;
-  const conformes = inv.filter(m => (m.status || '').toUpperCase().includes('CONFORME')).length;
-  const acuMedia = inv.length ? soma0(inv, m => m.acuracidade || 0) / inv.length * 100 : 0;
+  const avaliados = inv.filter(m => m.status);
+  const criticos = avaliados.filter(m => norm(m.status) === 'CRITICO').length;
+  const conformes = avaliados.filter(m => norm(m.status) === 'CONFORME').length;
+  const corrigidos = inv.filter(m => Math.abs(m.delta) >= 1).length;
+  const acuMedia = avaliados.length ? soma0(avaliados, m => m.acuracidade || 0) / avaliados.length * 100 : 0;
+  const prem = prodServico('PREMONTAGEM', null, '0000-01-01', '9999-12-31'), ic = prodServico('IÇAMENTO JOIST', null, '0000-01-01', '9999-12-31');
+  $('#estInvNota').textContent = `Consumo virtual = produção acumulada (${nf(prem)} joists pré-montadas, ${nf(ic)} içadas) × regras de baixa. Recebido e retirado vêm das abas Remessas e Consumo físico.`;
   $('#estInvTiles').innerHTML =
-    tile('Itens inventariados', inv.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile('Itens avaliados', avaliados.length, `${vis.length} visíveis`, 'var(--fg)') +
     tile('Acuracidade média', nf(acuMedia, 1) + '%', 'meta >= 98%', 'var(--acento)') +
     tile('Críticos', criticos, 'acuracidade < 95%', 'var(--vermelho)') +
-    tile('Conformes', conformes, 'acuracidade >= 98%', 'var(--verde)');
+    tile('Conformes', conformes, 'acuracidade >= 98%', 'var(--verde)') +
+    tile('Consumo virtual corrigido', corrigidos, 'diferem da planilha', corrigidos ? 'var(--amarelo)' : 'var(--verde)');
 
-  const farolAcu = s => {
-    const u = (s || '').toUpperCase();
-    if (u.includes('CONFORME')) return 'verde';
-    if (u.includes('ATEN')) return 'amarelo';
-    if (u.includes('CRIT')) return 'vermelho';
-    return 'pendente';
-  };
-  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th class="n">Planejado</th><th class="n">Est. Virtual Base</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
-    (vis.length ? vis.map(m => `<tr>
-      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td>
+  const farolAcu = s => ({ CONFORME: 'verde', ATENCAO: 'amarelo', CRITICO: 'vermelho' })[norm(s)] || 'pendente';
+  const ROT_ORIGEM = { producao: ['verde', 'Produção'], ajuste: ['amarelo', 'Ajuste'], planilha: ['pendente', 'Planilha'] };
+  const sinal = v => (v > 0 ? '+' : '') + nf(v);
+  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th>Origem</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
+    (vis.length ? vis.map(m => {
+      const [oc, ot] = ROT_ORIGEM[m.origem] || ['pendente', '—'];
+      return `<tr>
+      <td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
       <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.estoque_virtual_base)}</td><td class="n">${nf(m.estoque_fisico)}</td>
-      <td class="n">${nf(m.consumo_virtual)}</td><td class="n">${nf(m.consumo_fisico)}</td>
-      <td class="n">${nf(m.estoque_virtual_atual)}</td>
+      <td class="n"><b>${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}${Math.abs(m.delta) >= 1 ? `<br><span class="nota">planilha ${nf(m.consumo_planilha)} (${sinal(m.delta)})</span>` : ''}</td>
+      <td>${m.origem ? `<span class="farol f-${oc}" title="${esc(m.nota)}">${ot}</span>` : ''}</td>
+      <td class="n">${nf(m.consumo_fisico)}</td><td class="n">${nf(m.estoque_virtual_atual)}</td>
       <td class="n ${m.perda_real < 0 ? 'valor-neg' : ''}">${nf(m.perda_real)}</td>
-      <td class="n">${m.acuracidade != null ? nf(m.acuracidade * 100, 1) + '%' : '—'}</td>
-      <td><span class="farol f-${farolAcu(m.status)}">${esc(m.status || '—')}</span></td>
-      <td>${esc(m.acao || '')}</td></tr>`).join('')
+      <td class="n">${m.status ? nf(m.acuracidade * 100, 1) + '%' : '—'}</td>
+      <td>${m.status ? `<span class="farol f-${farolAcu(m.status)}">${esc(m.status)}</span>` : ''}</td>
+      <td>${esc(m.acao || '')}</td></tr>`;
+    }).join('')
     : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+  requestAnimationFrame(syncScrollTopo);
 }
 
 // ------------------------------------------------------------ FIXADORES CRÍTICOS (consumo JOIST premontagem)
 function renderEstCriticos() {
   if (!EP || !M) return;
-  const regras = window._regras_baixa;
+  const regras = regrasBaixa(renderEstCriticos);
   if (!regras) {
-    fetch(API.replace('api/', '') + 'regras_baixa.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => { if (j) { window._regras_baixa = j; renderEstCriticos(); } })
-      .catch(() => {});
     const box = document.getElementById('tabEstCrit');
     if (box) box.innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>';
     return;
   }
   const premont = regras.consumo_por_servico?.PREMONTAGEM;
-  if (!premont) return;
+  if (!premont) {
+    document.getElementById('tabEstCrit').innerHTML = '<tbody><tr><td class="vazio">Regras de baixa (regras_baixa.json) indisponíveis neste servidor.</td></tr></tbody>';
+    return;
+  }
   const totalJoists = prodServico('PREMONTAGEM', null, '2000-01-01', '2099-12-31');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const itens = premont.itens.map(item => {
     const teorico = Math.ceil(item.por_unidade * totalJoists);
     const remItem = EP.remessas.itens.find(r => r.tag === item.codigo);
     const recebido = remItem ? remItem.total_recebido : 0;
-    const matItem = EP.materiais.find(m => m.tag === item.codigo);
-    const consumoFisico = matItem ? (matItem.consumido || 0) : 0;
+    const regFisico = EP.consumo_fisico.itens.find(c => c.tag === item.codigo);
+    const consumoFisico = regFisico ? regFisico.total_consumo : null;
+    const desvio = regFisico ? consumoFisico - teorico : null;
     const saldo = recebido - teorico;
     const cobertura = totalJoists > 0 ? recebido / (item.por_unidade * totalJoists) * 100 : 100;
     const status = saldo >= 0 ? 'OK' : (recebido === 0 ? 'SEM ESTOQUE' : 'INSUFICIENTE');
     const nivel = saldo >= 0 ? 'verde' : (recebido === 0 ? 'vermelho' : 'amarelo');
-    return { ...item, teorico, recebido, consumoFisico, saldo, cobertura, status, nivel };
+    return { ...item, teorico, recebido, consumoFisico, desvio, saldo, cobertura, status, nivel };
   });
   const criticos = itens.filter(i => i.nivel === 'vermelho').length;
   const insuf = itens.filter(i => i.nivel === 'amarelo').length;
@@ -1207,11 +1280,12 @@ function renderEstCriticos() {
     tile('OK', ok, 'estoque atende', 'var(--verde)');
   const sorted = [...itens].sort((a, b) => a.saldo - b.saldo);
   document.getElementById('tabEstCrit').innerHTML =
-    `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Consumo teorico</th><th class="n">Recebido (remessas)</th><th class="n">Consumo fisico</th><th class="n">Saldo</th><th class="n">Cobertura</th><th>Status</th></tr></thead><tbody>` +
+    `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Consumo teorico</th><th class="n">Recebido (remessas)</th><th class="n">Retirado (fisico)</th><th class="n">Retirado − teorico</th><th class="n">Saldo</th><th class="n">Cobertura</th><th>Status</th></tr></thead><tbody>` +
     sorted.map(i => `<tr>
       <td><b>${esc(i.codigo)}</b></td><td>${esc(i.descricao)}</td>
       <td class="n">${nf(i.por_unidade)}</td><td class="n">${nf(i.teorico)}</td>
-      <td class="n">${nf(i.recebido)}</td><td class="n">${nf(i.consumoFisico)}</td>
+      <td class="n">${nf(i.recebido)}</td><td class="n">${i.desvio == null ? '—' : nf(i.consumoFisico)}</td>
+      <td class="n ${i.desvio != null && i.desvio > i.teorico * 0.02 ? 'valor-neg' : ''}">${i.desvio == null ? '—' : (i.desvio > 0 ? '+' : '') + nf(i.desvio)}</td>
       <td class="n ${i.saldo < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldo)}</b></td>
       <td class="n">${nf(i.cobertura, 1)}%</td>
       <td><span class="farol f-${i.nivel}">${i.status}</span></td></tr>`).join('') + '</tbody>';
@@ -1302,11 +1376,8 @@ function renderKpiProntidao() {
   const proxFim = add(proxSeg, 5);
   const metasProx = M.metas.filter(m => m.inicio <= proxFim && m.fim >= proxSeg);
   if (!metasProx.length) { tab.innerHTML = '<tbody><tr><td class="vazio">Nenhuma atividade planejada para a próxima semana.</td></tr></tbody>'; return; }
-  const regras = window._regras_baixa;
+  const regras = regrasBaixa(renderKpiProntidao);
   if (!regras) {
-    fetch(API.replace('api/', '') + 'regras_baixa.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => { if (j) { window._regras_baixa = j; renderKpiProntidao(); } }).catch(() => {});
     tab.innerHTML = '<tbody><tr><td class="vazio">Carregando...</td></tr></tbody>';
     return;
   }
@@ -1324,9 +1395,8 @@ function renderKpiProntidao() {
       const necessario = Math.ceil(ci.por_unidade * metaTot);
       const remItem = EP.remessas.itens.find(r => r.tag === ci.codigo);
       const disp = remItem ? remItem.total_recebido : 0;
-      const matItem = EP.materiais.find(mt => mt.tag === ci.codigo);
-      const consumido = matItem ? (matItem.consumido || 0) : 0;
-      const saldoDisp = disp - consumido;
+      const retirado = EP.consumo_fisico.itens.find(c => c.tag === ci.codigo)?.total_consumo || 0;
+      const saldoDisp = disp - retirado;
       if (saldoDisp < necessario) { todosOk = false; faltam.push(`${ci.codigo} (falta ${nf(necessario - Math.max(saldoDisp, 0))})`); }
     });
     const sinal = todosOk ? 'verde' : 'vermelho';
