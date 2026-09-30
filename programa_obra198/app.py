@@ -502,69 +502,98 @@ def _salvar_estoque_json(dados):
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
 
+def _itens_do_corpo(corpo):
+    """Itens do lançamento: lista `itens` (vários) ou, por compatibilidade, o item único do próprio corpo."""
+    itens = corpo.get("itens")
+    if itens is None:
+        itens = [corpo]
+    if not isinstance(itens, list) or not itens:
+        raise ErroValidacao("Informe ao menos um item.")
+    return itens
+
+
+def _qtd_positiva(item, n):
+    try:
+        qtd = float(str(item.get("quantidade") or 0).replace(",", "."))
+    except ValueError:
+        qtd = 0
+    if qtd <= 0:
+        raise ErroValidacao(f"Item {n}: quantidade deve ser maior que zero.")
+    return qtd
+
+
 def acao_estoque_remessa(corpo):
+    """Soma vários itens (TAG + quantidade) numa remessa. Valida tudo antes de gravar: nada é salvo se um item falhar."""
     dados = _ler_estoque_json()
     nome = (corpo.get("remessa") or "").strip()
-    tag = (corpo.get("tag") or "").strip().upper()
-    qtd = float(corpo.get("quantidade") or 0)
     if not nome:
         raise ErroValidacao("Nome da remessa é obrigatório.")
-    if not tag:
-        raise ErroValidacao("TAG é obrigatória.")
-    if qtd <= 0:
-        raise ErroValidacao("Quantidade deve ser maior que zero.")
+    itens = _itens_do_corpo(corpo)
+    por_tag = {i["tag"]: i for i in dados["remessas"]["itens"]}
+    lancamentos = {}
+    for n, it in enumerate(itens, 1):
+        tag = (it.get("tag") or "").strip().upper()
+        if not tag:
+            raise ErroValidacao(f"Item {n}: escolha a TAG do material.")
+        if tag not in por_tag:
+            raise ErroValidacao(f"Item {n}: TAG {tag} não existe nas remessas. Escolha uma da lista.")
+        lancamentos[tag] = lancamentos.get(tag, 0) + _qtd_positiva(it, n)
     if nome not in dados["remessas"]["colunas"]:
         dados["remessas"]["colunas"].append(nome)
-    item = next((i for i in dados["remessas"]["itens"] if i["tag"] == tag), None)
-    if not item:
-        raise ErroValidacao(f"TAG {tag} não encontrada nas remessas.")
-    item["qtd_por_remessa"][nome] = item["qtd_por_remessa"].get(nome, 0) + qtd
-    item["total_recebido"] = sum(item["qtd_por_remessa"].values())
-    mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
-    if mat:
-        mat["chegou"] = item["total_recebido"]
-        mat["estoque_pos_baixa"] = mat["chegou"] - mat.get("consumido", 0)
-        mat["atendimento"] = mat["chegou"] / mat["planejado"] if mat.get("planejado") else None
-        if mat["atendimento"] and mat["atendimento"] >= 1:
-            mat["status_logistico"] = "Atendido"
-        elif mat["chegou"] > 0:
-            mat["status_logistico"] = "Recebimento Parcial"
+    for tag, qtd in lancamentos.items():
+        item = por_tag[tag]
+        item["qtd_por_remessa"][nome] = item["qtd_por_remessa"].get(nome, 0) + qtd
+        item["total_recebido"] = sum(item["qtd_por_remessa"].values())
+        mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
+        if mat:
+            mat["chegou"] = item["total_recebido"]
+            mat["estoque_pos_baixa"] = mat["chegou"] - mat.get("consumido", 0)
+            mat["atendimento"] = mat["chegou"] / mat["planejado"] if mat.get("planejado") else None
+            if mat["atendimento"] and mat["atendimento"] >= 1:
+                mat["status_logistico"] = "Atendido"
+            elif mat["chegou"] > 0:
+                mat["status_logistico"] = "Recebimento Parcial"
     _salvar_estoque_json(dados)
-    return {"ok": True}
+    return {"ok": True, "salvos": len(lancamentos)}
 
 
 def acao_estoque_consumo(corpo):
+    """Soma vários itens (TAG, empresa e quantidade) no consumo físico de uma semana. Tudo ou nada."""
     dados = _ler_estoque_json()
     semana = (corpo.get("semana") or "").strip()
-    tag = (corpo.get("tag") or "").strip().upper()
-    empresa = (corpo.get("empresa") or "").strip().upper()
-    qtd = float(corpo.get("quantidade") or 0)
     if not semana:
         raise ErroValidacao("Semana é obrigatória.")
-    if not tag:
-        raise ErroValidacao("TAG é obrigatória.")
-    if empresa not in ("EJ", "CMM"):
-        raise ErroValidacao("Empresa deve ser EJ ou CMM.")
-    if qtd <= 0:
-        raise ErroValidacao("Quantidade deve ser maior que zero.")
+    itens = _itens_do_corpo(corpo)
     cf = dados["consumo_fisico"]
+    por_tag = {i["tag"]: i for i in cf["itens"]}
+    lancamentos = {}
+    for n, it in enumerate(itens, 1):
+        tag = (it.get("tag") or "").strip().upper()
+        empresa = (it.get("empresa") or corpo.get("empresa") or "").strip().upper()
+        if not tag:
+            raise ErroValidacao(f"Item {n}: escolha a TAG do material.")
+        if tag not in por_tag:
+            raise ErroValidacao(f"Item {n}: TAG {tag} não existe no consumo. Escolha uma da lista.")
+        if empresa not in ("EJ", "CMM"):
+            raise ErroValidacao(f"Item {n}: empresa deve ser EJ ou CMM.")
+        chave = (tag, empresa)
+        lancamentos[chave] = lancamentos.get(chave, 0) + _qtd_positiva(it, n)
     if semana not in cf["semanas"]:
         cf["semanas"].append(semana)
-    item = next((i for i in cf["itens"] if i["tag"] == tag), None)
-    if not item:
-        raise ErroValidacao(f"TAG {tag} não encontrada no consumo.")
-    if semana not in item["consumo_semanas"]:
-        item["consumo_semanas"][semana] = {"EJ": 0, "CMM": 0, "total": 0}
-    entry = item["consumo_semanas"][semana]
-    entry[empresa] = entry.get(empresa, 0) + qtd
-    entry["total"] = entry.get("EJ", 0) + entry.get("CMM", 0)
-    item["total_consumo"] = sum(v.get("total", 0) for v in item["consumo_semanas"].values())
-    mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
-    if mat:
-        mat["consumido"] = item["total_consumo"]
-        mat["estoque_pos_baixa"] = mat.get("chegou", 0) - mat["consumido"]
+    for (tag, empresa), qtd in lancamentos.items():
+        item = por_tag[tag]
+        if semana not in item["consumo_semanas"]:
+            item["consumo_semanas"][semana] = {"EJ": 0, "CMM": 0, "total": 0}
+        entry = item["consumo_semanas"][semana]
+        entry[empresa] = entry.get(empresa, 0) + qtd
+        entry["total"] = entry.get("EJ", 0) + entry.get("CMM", 0)
+        item["total_consumo"] = sum(v.get("total", 0) for v in item["consumo_semanas"].values())
+        mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
+        if mat:
+            mat["consumido"] = item["total_consumo"]
+            mat["estoque_pos_baixa"] = mat.get("chegou", 0) - mat["consumido"]
     _salvar_estoque_json(dados)
-    return {"ok": True}
+    return {"ok": True, "salvos": len(lancamentos)}
 
 
 def _corpo_soma_grade(emp, servico, data, delta):

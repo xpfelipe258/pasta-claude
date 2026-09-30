@@ -396,3 +396,13 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-slot.feita .bar { stroke: #c79a00; stroke-width: 1; }
 .apm-slot.sel .bar { stroke: var(--fg); stroke-width: 1; }
 .apm-slot.pend:hover .bar { fill: var(--sel, var(--linha-forte)); opacity: .55; }
+
+/* diálogo de vários itens (remessa / consumo) */
+dialog.multi { width: min(860px, calc(100vw - 32px)); }
+.multi-itens { display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+.multi-linha { display: grid; grid-template-columns: minmax(0, 1fr) 150px 34px; gap: 10px; align-items: start; }
+.multi-linha:has(.multi-emp) { grid-template-columns: minmax(0, 1fr) 110px 150px 34px; }
+.multi-linha .btn-icone { margin-top: 18px; }
+.mi-desc { font-weight: 400; color: var(--fg3); min-height: 1.1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mi-desc.erro { color: var(--vermelho); }
+@media (max-width: 560px) { .multi-linha, .multi-linha:has(.multi-emp) { grid-template-columns: 1fr 1fr 34px; } .multi-tag { grid-column: 1 / -1; } }

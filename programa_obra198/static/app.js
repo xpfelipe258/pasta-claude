@@ -2440,18 +2440,86 @@ const FORMS = {
     ['data', 'Data', 'date', 1], ['codigo', 'Código do material', 'text', 1],
     ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
-  est_planilha_remessa: { tit: 'item na remessa', endpoint: 'estoque-planilha/remessa', campos: [
-    ['remessa', 'Nome/Nº da remessa', 'text', 1],
-    ['tag', 'TAG do material', 'text', 1],
-    ['quantidade', 'Quantidade', 'num', 1]] },
-  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', campos: [
-    ['semana', 'Semana (ex: 14/08 a 18/08)', 'text', 1],
-    ['tag', 'TAG do material', 'text', 1],
-    ['empresa', 'Empresa', 'select:,EJ,CMM', 1],
-    ['quantidade', 'Quantidade consumida', 'num', 1]] },
+  // multi: um cabeçalho (remessa / semana) e vários itens (TAG escolhida entre as já existentes + quantidade)
+  est_planilha_remessa: { tit: 'itens na remessa', endpoint: 'estoque-planilha/remessa', multi: { cab: ['remessa', 'Nome/Nº da remessa (escolha uma existente ou digite uma nova)', 'listaMultiCab'], fonte: () => EP.remessas.itens, cabLista: () => EP.remessas.colunas }, campos: [
+    ['remessa', 'Nome/Nº da remessa', 'text', 1]] },
+  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', multi: { cab: ['semana', 'Semana (ex: 14/08 a 18/08)', 'listaMultiCab'], empresa: true, qtdRot: 'Quantidade consumida', fonte: () => EP.consumo_fisico.itens, cabLista: () => EP.consumo_fisico.semanas }, campos: [
+    ['semana', 'Semana', 'text', 1]] },
 };
 
+// ---- diálogo de vários itens (remessa / consumo): TAG selecionável entre as existentes
+function multiLinhaHtml(m) {
+  return `<div class="multi-linha">
+    <label class="multi-tag"><span>TAG do material</span><input class="mi-tag" list="listaMultiTags" placeholder="Digite ou escolha…" autocomplete="off"><small class="mi-desc"></small></label>
+    ${m.empresa ? '<label class="multi-emp"><span>Empresa</span><select class="mi-emp"><option value="">—</option><option>EJ</option><option>CMM</option></select></label>' : ''}
+    <label class="multi-qtd"><span>${m.qtdRot || 'Quantidade'}</span><input class="mi-qtd" inputmode="decimal" placeholder="0"></label>
+    <button type="button" class="btn-icone multi-rem" title="Remover item" aria-label="Remover item">×</button></div>`;
+}
+function multiDescTag(m, tag) {
+  const it = m.fonte().find(i => i.tag === tag.trim().toUpperCase());
+  return it ? [it.produto, it.material].filter(Boolean).join(' · ') : '';
+}
+function abrirDialogoMulti(tabela) {
+  const def = FORMS[tabela], m = def.multi, dlg = $('#dlg');
+  dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi');
+  $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
+  $('#listaMultiTags').innerHTML = m.fonte().map(i => `<option value="${esc(i.tag)}">${esc([i.produto, i.material, i.etapa].filter(Boolean).join(' · '))}</option>`).join('');
+  $('#listaMultiCab').innerHTML = [...m.cabLista()].reverse().map(c => `<option value="${esc(c)}">`).join('');
+  $('#dlgCampos').innerHTML = `<label class="largo"><span class="obrig">${m.cab[1]}</span><input name="${m.cab[0]}" list="listaMultiCab" autocomplete="off" required></label>
+    <div class="largo multi-itens" id="dlgItens">${multiLinhaHtml(m)}</div>
+    <div class="largo"><button type="button" class="btn" id="dlgMaisItem">+ Adicionar item</button> <span class="nota" id="dlgMultiTot"></span></div>`;
+  $('#dlgExcluir').hidden = true;
+  dlg.showModal();
+  $('#dlgItens .mi-tag').focus();
+}
+function multiColetar(tabela) {
+  const m = FORMS[tabela].multi, itens = [];
+  let erro = null;
+  document.querySelectorAll('#dlgItens .multi-linha').forEach((ln, i) => {
+    const tag = ln.querySelector('.mi-tag').value.trim().toUpperCase();
+    const qv = ln.querySelector('.mi-qtd').value.trim();
+    const emp = ln.querySelector('.mi-emp')?.value || '';
+    if (!tag && !qv && !emp) return;   // linha em branco
+    const qtd = Number(qv.replace(/\./g, '').replace(',', '.'));
+    if (!tag || !m.fonte().some(x => x.tag === tag)) erro ||= `Item ${i + 1}: escolha uma TAG da lista.`;
+    else if (!(qtd > 0)) erro ||= `Item ${i + 1}: informe a quantidade.`;
+    else if (m.empresa && !emp) erro ||= `Item ${i + 1}: escolha a empresa.`;
+    itens.push({ tag, quantidade: qtd, empresa: emp || undefined });
+  });
+  if (!erro && !itens.length) erro = 'Informe ao menos um item.';
+  return { itens, erro };
+}
+function ligarDialogoMulti() {
+  const dlg = $('#dlg');
+  dlg.addEventListener('click', ev => {
+    if (!dlg.classList.contains('multi')) return;
+    const m = FORMS[dlg.dataset.tabela]?.multi;
+    if (!m) return;
+    if (ev.target.id === 'dlgMaisItem') {
+      $('#dlgItens').insertAdjacentHTML('beforeend', multiLinhaHtml(m));
+      $('#dlgItens').lastElementChild.querySelector('.mi-tag').focus();
+    }
+    const rem = ev.target.closest('.multi-rem');
+    if (rem) {
+      const ln = rem.closest('.multi-linha');
+      if (document.querySelectorAll('#dlgItens .multi-linha').length > 1) ln.remove();
+      else ln.querySelectorAll('input,select').forEach(e => e.value = '');
+    }
+  });
+  dlg.addEventListener('input', ev => {
+    if (!dlg.classList.contains('multi')) return;
+    const m = FORMS[dlg.dataset.tabela]?.multi;
+    if (ev.target.classList.contains('mi-tag') && m) {
+      const d = multiDescTag(m, ev.target.value), s = ev.target.parentElement.querySelector('.mi-desc');
+      s.textContent = d || (ev.target.value.trim() ? 'TAG não encontrada' : '');
+      s.classList.toggle('erro', !d && !!ev.target.value.trim());
+    }
+  });
+  dlg.addEventListener('close', () => dlg.classList.remove('multi'));
+}
+
 function abrirDialogo(tabela, linha, preset = {}) {
+  if (FORMS[tabela].multi) return abrirDialogoMulti(tabela);
   const def = FORMS[tabela];
   const reg = linha ? T[tabela].find(r => r.linha === linha) : null;
   const dados = { ...(reg || {}), ...preset };
@@ -2498,6 +2566,19 @@ async function salvarDialogo(ev) {
   ev.preventDefault();
   const dlg = $('#dlg'), f = $('#dlgForm');
   const tabela = dlg.dataset.tabela, linha = dlg.dataset.linha ? +dlg.dataset.linha : null;
+  if (FORMS[tabela].multi) {
+    const m = FORMS[tabela].multi, { itens, erro } = multiColetar(tabela);
+    if (erro) { toast(erro, true); return; }
+    try {
+      const r = await postar(API + FORMS[tabela].endpoint, { [m.cab[0]]: f.elements[m.cab[0]].value.trim(), itens });
+      dlg.close();
+      const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+      if (j) EP = j;
+      renderEstoquePlanilha();
+      toast(`${r.salvos ?? itens.length} item(ns) salvos ${ONDE}`);
+    } catch (err) { toast(err.message, true); }
+    return;
+  }
   const campos = {};
   FORMS[tabela].campos.forEach(([k, , tipo]) => {
     let v = f.elements[k].value.trim();
@@ -2822,6 +2903,7 @@ function ligarEventos() {
 
   $('#dlgForm').addEventListener('submit', salvarDialogo);
   $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
+  ligarDialogoMulti();
   $('#dlgExcluir').onclick = excluirDialogo;
   $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); document.querySelectorAll('.scroll-topo').forEach(e => e.scrollLeft = 0); }));
   $('#dlgForm').addEventListener('input', ev => {
