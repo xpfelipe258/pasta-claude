@@ -15,7 +15,8 @@ Apontamento (data, empresa, onde)
 ## Mapa selecionável (modo padrão)
 
 A tela abre num mapa em planta, como o desenho do cronograma: eixos na horizontal (11 a 20 por padrão, com a opção
-"Todos os eixos"), estações de viga na vertical (A, B, BC, C ... H) e as faixas (AB a GH) coloridas por empresa.
+"Todos os eixos"), estações de viga na vertical (A, B, BC, C ... H) e as faixas AB a GH. Embaixo de cada rua, o total de joists apontadas
+sobre as 43 previstas.
 
 - **Quadrados** sobre os eixos são as vigas (maior = apoio/VC01, menor = intermediária). Clique para marcar; clicar
   no número do eixo marca todas as vigas pendentes dele.
@@ -24,8 +25,11 @@ A tela abre num mapa em planta, como o desenho do cronograma: eixos na horizonta
   novo na última selecionada desfaz.
 - Amarelo = já montada, azul = selecionada para este salvamento, cinza/branco = pendente. Peça já montada não
   seleciona: para corrigir, exclua no histórico.
-- **Um único Salvar** grava tudo que foi selecionado (vários quadrantes, vigas, EJ e CMM). A empresa vem da malha;
-  só a cumeeira (faixa DE e viga DE) pede a empresa. A barra "Seleção / Salvar" fica fixa no topo durante a rolagem.
+- **Empresa a cada clique:** a barra fixa do topo tem "Empresa que montou" (EJ / CMM), sem valor inicial. Cada peça
+  clicada fica com a empresa escolhida naquele momento (azul EJ, laranja CMM) e pode mudar no mesmo salvamento;
+  clicar numa peça já selecionada por outra empresa passa a peça para a empresa atual. A empresa não vem da malha:
+  onde há montagem e frente liberada, quem montou é quem entra no BM.
+- **Um único Salvar** grava tudo que foi selecionado (vários quadrantes, vigas, EJ e CMM).
 - Pré-montagem segue por escrita no Lançamentos; "Digitar joists" e "Digitar vigas" continuam disponíveis para
   regularizar histórico em lote.
 
@@ -42,8 +46,10 @@ A tela abre num mapa em planta, como o desenho do cronograma: eixos na horizonta
 ## Regras e proteções
 
 - Viga já apontada não entra de novo (evita contar duas vezes a mesma viga).
-- Rua x faixa acima de 6 joists (limite do projeto/IFC) grava com aviso; empresa diferente da malha do projeto
-  (AB-CD = EJ, EF-GH = CMM, DE = cumeeira, a empresa é escolhida) grava com aviso.
+- **43 joists por rua** (19 ruas x 43 = 817, o plano): o servidor recusa o apontamento que passaria de 43 na rua,
+  somando o que já foi apontado (inclui regularização) e o lote inteiro. Por faixa o normal é até 7 (o IFC tem 6 por
+  faixa, e a 43ª da rua cai numa faixa); acima disso grava com aviso.
+- A empresa é obrigatória em todo apontamento.
 - Empresa sem a coluna do serviço, data fora do calendário e rua/faixa/letra inválidas são recusadas. O salvamento
   é atômico: se uma peça do lote é inválida (ex.: viga repetida), nada é gravado.
 - **Regularização:** marque quando a produção já está no Lançamentos (histórico). Grava só o local/tipo, sem somar

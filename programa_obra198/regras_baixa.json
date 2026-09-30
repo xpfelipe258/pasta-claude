@@ -37,13 +37,11 @@
     "AB": ["A", "B"], "BC": ["B", "BC", "C"], "CD": ["C", "CD", "D"], "DE": ["D", "DE", "E"],
     "EF": ["E", "EF", "F"], "FG": ["F", "FG", "G"], "GH": ["G", "H"]
   },
-  "empresa_por_faixa": { "AB": "EJ", "BC": "EJ", "CD": "EJ", "DE": "", "EF": "CMM", "FG": "CMM", "GH": "CMM" },
-  "empresa_por_letra": { "A": "EJ", "B": "EJ", "BC": "EJ", "C": "EJ", "CD": "EJ", "D": "EJ", "DE": "", "E": "CMM", "EF": "CMM", "F": "CMM", "FG": "CMM", "G": "CMM", "H": "CMM" },
   "apontamento": {
     "eixos": ["01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20"],
     "servico_joist": "IÇAMENTO JOIST",
     "servico_viga": "VIGAS",
-    "nota": "empresa_por_faixa/letra vazio = faixa DE (cumeeira): a empresa é escolhida no apontamento. O apontamento soma na coluna do serviço da empresa no controle de produção (base do BM e do cronograma)."
+    "nota": "A empresa é indicada em cada apontamento (quem montou), não vem da malha. O apontamento soma na coluna do serviço dessa empresa no controle de produção (base do BM e do cronograma)."
   },
   "eventos": [
     {
@@ -162,9 +160,10 @@
     }
   },
   "limites_ifc": {
-    "joists_por_rua_faixa_maximo": 6,
-    "joists_por_rua_maximo": 42,
-    "joists_no_galpao_maximo": 798,
+    "joists_por_rua_faixa_maximo": 7,
+    "joists_por_rua_maximo": 43,
+    "joists_no_galpao_maximo": 817,
+    "nota_joists": "Plano: 817 joists = 19 ruas x 43 por rua (trava do apontamento). O IFC tem 6 por faixa (42 por rua): a 43ª de cada rua cai numa faixa, por isso o aviso por faixa é 7.",
     "vigas_apoio_no_galpao": 120,
     "vigas_intermediarias_no_galpao": 180,
     "fonte": "dados/ifc_r0d_inventario.json"

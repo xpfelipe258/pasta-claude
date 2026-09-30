@@ -359,12 +359,12 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-slot .hit, .apm-viga .hit { fill: transparent; cursor: pointer; }
 .apm-slot .bar, .apm-viga .q { pointer-events: none; }
 .apm-slot.pend .bar { fill: var(--pend-bg); stroke: var(--linha-forte); stroke-width: 1; }
-.apm-slot.sel .bar { fill: var(--acento); }
+.apm-slot.sel .bar { fill: var(--sel, var(--acento)); }
 .apm-slot.feita .bar { fill: var(--amarelo); }
 .apm-slot.feita .hit { cursor: default; }
 .apm-slot:hover .bar { stroke: var(--acento); stroke-width: 1.5; }
 .apm-viga.pend .q { fill: var(--card); stroke: var(--fg2); stroke-width: 1.5; }
-.apm-viga.sel .q { fill: var(--acento); stroke: var(--acento); }
+.apm-viga.sel .q { fill: var(--sel, var(--acento)); stroke: var(--sel, var(--acento)); }
 .apm-viga.feita .q { fill: var(--verde); stroke: var(--verde); }
 .apm-viga.feita .hit { cursor: default; }
 .apm-viga:hover .q { stroke: var(--acento); stroke-width: 2; }
@@ -373,6 +373,17 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-leg.viga { width: 11px; height: 11px; border-radius: 2px; }
 .apm-leg.pend { background: var(--pend-bg); border: 1px solid var(--linha-forte); }
 .apm-leg.viga.pend { background: var(--card); border: 1.5px solid var(--fg2); }
-.apm-leg.sel { background: var(--acento); }
+.apm-leg.sel { background: var(--sel, var(--acento)); }
 .apm-leg.joist.feita { background: var(--amarelo); }
 .apm-leg.viga.feita { background: var(--verde); }
+
+.apm-rua-tot { fill: var(--fg3); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.apm-rua-tot.parc { fill: var(--amarelo); }
+.apm-rua-tot.ok { fill: var(--verde); }
+.apm-rua-tot.exc { fill: var(--vermelho); }
+.ap-pincel { display: inline-flex; align-items: center; gap: 8px; }
+.ap-pincel-rot { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
+.ap-pincel .seg button.ativa { background: var(--c, var(--fg)); color: #fff; }
+.ap-pincel.pede .seg { outline: 2px solid var(--amarelo); outline-offset: 1px; }
+.ap-pincel.pisca .seg { animation: apPisca .5s 3; }
+@keyframes apPisca { 50% { outline: 3px solid var(--vermelho); } }

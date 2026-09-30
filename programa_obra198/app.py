@@ -631,22 +631,24 @@ def acao_apontamento(corpo):
     if not _eh_data(data) or data not in m["linhas_por_data"]:
         raise ErroValidacao("Data fora do calendário da planilha.")
     lanca = corpo.get("lanca_producao", True)
-    limite = (regras.get("limites_ifc") or {}).get("joists_por_rua_faixa_maximo") or 6
+    lim = regras.get("limites_ifc") or {}
+    limite_faixa, limite_rua = lim.get("joists_por_rua_faixa_maximo") or 7, lim.get("joists_por_rua_maximo") or 43
     existentes = m["tabelas"]["apontamentos"]
     vigas_ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
-    joists_rf = {}
+    joists_rf, joists_rua = {}, {}
     for a in existentes:
         if (a.get("tipo") or "").upper() == "JOIST":
             joists_rf[(a.get("rua"), a.get("faixa"))] = joists_rf.get((a.get("rua"), a.get("faixa")), 0) + (a.get("qtd") or 0)
+            joists_rua[a.get("rua")] = joists_rua.get(a.get("rua"), 0) + (a.get("qtd") or 0)
     avisos, linhas_novas, grupos = [], [], {}
 
     for item in corpo.get("lote") or [corpo]:
         tipo = str(item.get("tipo") or "").upper()
         emp = next((e for e in m["empresas"] if e["nome"] == (item.get("empresa") or corpo.get("empresa"))), None)
         if not emp:
-            raise ErroValidacao("Escolha a empresa que executou a montagem.")
+            raise ErroValidacao("Indique a empresa que montou.")
         base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
-        novas, padrao = [], None
+        novas = []
         if tipo == "JOIST":
             rua, faixa = str(item.get("rua") or ""), str(item.get("faixa") or "").upper()
             if not _rua_valida(rua, cfg["eixos"]):
@@ -664,11 +666,17 @@ def acao_apontamento(corpo):
                 novas.append({**base, "tipo": "JOIST", "rua": rua, "faixa": faixa, "letra": letra, "qtd": int(n)})
             if not novas:
                 continue
-            total = joists_rf.get((rua, faixa), 0) + sum(r["qtd"] for r in novas)
+            novas_n = sum(r["qtd"] for r in novas)
+            total_rua = joists_rua.get(rua, 0) + novas_n
+            if total_rua > limite_rua:
+                raise ErroValidacao(f"Rua {rua}: {total_rua} joists apontadas, acima das {limite_rua} por rua do projeto "
+                                    f"(faltam apontar {max(0, limite_rua - joists_rua.get(rua, 0))}). Confira o apontamento.")
+            joists_rua[rua] = total_rua
+            total = joists_rf.get((rua, faixa), 0) + novas_n
             joists_rf[(rua, faixa)] = total
-            if total > limite:
-                avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas, acima do limite do projeto (IFC: {limite}). Confira o apontamento.")
-            servico, padrao = cfg["servico_joist"], (regras.get("empresa_por_faixa") or {}).get(faixa)
+            if total > limite_faixa:
+                avisos.append(f"Rua {rua} faixa {faixa}: {total} joists apontadas (o normal é até {limite_faixa} por faixa). Confira o apontamento.")
+            servico = cfg["servico_joist"]
         elif tipo == "VIGA":
             eixo = str(item.get("eixo") or "")
             if eixo not in cfg["eixos"]:
@@ -686,13 +694,8 @@ def acao_apontamento(corpo):
             if not novas:
                 continue
             servico = cfg["servico_viga"]
-            por_letra = regras.get("empresa_por_letra") or {}
-            padroes = {por_letra.get(r["letra"]) for r in novas} - {"", None}
-            padrao = emp["nome"] if emp["nome"] in padroes else (sorted(padroes)[0] if padroes else None)
         else:
             raise ErroValidacao("Tipo de apontamento inválido (JOIST ou VIGA).")
-        if padrao and padrao != emp["nome"]:
-            avisos.append(f"Pela malha do projeto essa posição é de {padrao}; apontado para {emp['nome']}.")
         linhas_novas += novas
         g = grupos.setdefault((emp["nome"], servico), {"emp": emp, "delta": 0, "linhas": []})
         g["delta"] += sum(r["qtd"] for r in novas)
