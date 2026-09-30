@@ -96,21 +96,40 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); ou
 .btn.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
 .btn.perigo { color: var(--vermelho); border-color: var(--vermelho); }
 
-.abas {
-  display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--linha);
-  overflow-x: auto; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+.sidebar-toggle {
+  display: none; position: fixed; top: 12px; left: 12px; z-index: 52; background: var(--card); border: 1px solid var(--linha-forte);
+  border-radius: 6px; width: 38px; height: 38px; font-size: 1.2rem; cursor: pointer; color: var(--fg);
 }
-.abas button {
-  background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 12px 10px;
-  font-weight: 600; color: var(--fg2); cursor: pointer; white-space: nowrap;
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 230px; background: var(--card); border-right: 1px solid var(--linha);
+  overflow-y: auto; z-index: 40; padding-top: 80px; transition: transform .2s;
 }
-.abas button.ativa { color: var(--fg); border-bottom-color: var(--acento); }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+.sidebar-grupo { border-radius: 6px; overflow: hidden; }
+.sidebar-titulo {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: .75rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--fg2); cursor: pointer; user-select: none;
+}
+.sidebar-titulo:hover { background: var(--bg); }
+.sidebar-icone { font-size: .9rem; width: 20px; text-align: center; flex: none; }
+.seta-grupo { margin-left: auto; font-size: .85rem; transition: transform .2s; transform: rotate(-90deg); }
+.sidebar-titulo.aberto .seta-grupo { transform: rotate(0deg); }
+.sidebar-itens { display: none; flex-direction: column; gap: 1px; padding-bottom: 4px; }
+.sidebar-itens.aberto { display: flex; }
+.sidebar-nav button {
+  background: none; border: 0; text-align: left; padding: 9px 12px 9px 40px; font-weight: 500;
+  color: var(--fg2); cursor: pointer; border-radius: 6px; font-size: .85rem; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-nav button:hover { background: var(--bg); color: var(--fg); }
+.sidebar-nav button.ativa { background: var(--acento-suave); color: var(--acento); font-weight: 700; }
 .contador { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--amarelo-bg); color: var(--amarelo); font-size: .72rem; margin-left: 4px; }
 .contador.alerta { background: var(--vermelho-bg); color: var(--vermelho); }
 
-.faixa { background: var(--amarelo-bg); color: var(--amarelo); padding: 10px 20px; font-weight: 600; }
+.topo { margin-left: 230px; }
+.faixa { background: var(--amarelo-bg); color: var(--amarelo); padding: 10px 20px; font-weight: 600; margin-left: 230px; }
 
-main { padding-block: 20px 60px; padding-inline: 20px; max-width: 1400px; margin: 0 auto; display: block; }
+main { padding-block: 20px 60px; padding-inline: 20px; max-width: 1400px; margin-left: 230px; display: block; }
 main > section { display: flex; flex-direction: column; gap: 16px; }
 
 .bloco { background: var(--card); border: 1px solid var(--linha); border-radius: var(--r); padding: 16px; box-shadow: var(--sombra); min-width: 0; }
@@ -209,15 +228,22 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
 .toast.mostra { opacity: 1; transform: none; }
 .toast.erro { background: var(--vermelho); color: #fff; }
 
+@media (max-width: 900px) {
+  .sidebar-toggle { display: grid; place-items: center; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,.2); }
+  .topo, main, .faixa, .periodo { margin-left: 0; }
+  .topo { padding-left: 56px; }
+}
 @media (max-width: 600px) {
-  .topo, .abas { padding-inline: 16px; }
+  .topo { padding-inline: 56px 16px; }
   main { padding-inline: 16px; }
   .tile .val { font-size: 1.6rem; }
 }
 
 .periodo {
   display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px;
-  padding: 12px 20px; background: var(--acento-suave); border-bottom: 1px solid var(--linha);
+  padding: 12px 20px; background: var(--acento-suave); border-bottom: 1px solid var(--linha); margin-left: 230px;
 }
 .periodo label { display: flex; flex-direction: column; gap: 2px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
 .periodo .nota { align-self: center; }

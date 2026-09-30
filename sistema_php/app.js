@@ -1640,7 +1640,13 @@ function renderTendencia() {
 
 // ------------------------------------------------------------ eventos
 function ligarEventos() {
-  $('#abas').addEventListener('click', ev => { const b = ev.target.closest('button[data-aba]'); if (b) mudarAba(b.dataset.aba); });
+  $('#abas').addEventListener('click', ev => { const b = ev.target.closest('button[data-aba]'); if (b) { mudarAba(b.dataset.aba); const sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('aberta'); } });
+  document.querySelectorAll('.sidebar-titulo').forEach(t => t.addEventListener('click', () => {
+    const grp = document.getElementById('grp-' + t.dataset.grupo);
+    if (grp) { grp.classList.toggle('aberto'); t.classList.toggle('aberto'); }
+  }));
+  const sbToggle = document.getElementById('sidebarToggle');
+  if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));
