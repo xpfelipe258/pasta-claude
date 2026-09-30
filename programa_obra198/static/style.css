@@ -423,4 +423,3 @@ dialog.grade { width: min(760px, calc(100vw - 32px)); }
 .atualiz.erro { color: var(--vermelho); font-weight: 600; }
 .atualiz.aviso { color: var(--amarelo); }
 .atualiz .link { font-size: inherit; }
-/* e2e-b */

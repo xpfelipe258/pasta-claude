@@ -40,6 +40,8 @@ Como o repositório é privado, é preciso um token de leitura (uma vez só):
 - mudança só de tela: a página aberta se recarrega sozinha em poucos segundos;
 - mudança de regras ou do programa: o servidor reinicia sozinho (a janela do `INICIAR.bat` continua aberta) e a página volta já na versão nova, sem abrir outra aba.
 
+No cabeçalho aparece a versão do programa e quando foi a última conferência, com o botão **Verificar atualização** para conferir na hora. Se a atualização não estiver funcionando (token errado, limite do GitHub, sem internet), o motivo aparece ali em vermelho e na janela do `INICIAR.bat`. Só baixa os arquivos que mudaram, então leva poucos segundos.
+
 Se houver alterações ainda não salvas na tela, ela só recarrega depois que você salvar ou descartar. O intervalo pode ser mudado em `config.json`, em `"atualizacao"`, com `"intervalo_segundos"` (mínimo 30).
 
 Sem internet, o programa segue normalmente com a versão atual.
