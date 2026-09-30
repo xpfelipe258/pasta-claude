@@ -67,6 +67,14 @@
       </div>
     </div>
     <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="kpi">
+        <span class="sidebar-icone">&#9733;</span>KPI / Insights<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-kpi">
+        <button data-aba="kpi">Visão Geral <span class="contador alerta" id="kpiCont" hidden></span></button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
       <div class="sidebar-titulo aberto" data-grupo="gestao">
         <span class="sidebar-icone">&#9670;</span>Gestão<span class="seta-grupo">&#8249;</span>
       </div>
@@ -194,6 +202,7 @@
       <button class="sub-aba" data-sub="est-remessas">Remessas</button>
       <button class="sub-aba" data-sub="est-consumo">Consumo Fisico</button>
       <button class="sub-aba" data-sub="est-inventario">Inventario</button>
+      <button class="sub-aba" data-sub="est-criticos">Fixadores Criticos</button>
       <button class="sub-aba" data-sub="est-sistema">Sistema (baixa auto)</button>
     </div>
 
@@ -215,6 +224,9 @@
       <div class="tiles" id="estRemTiles"></div>
       <div class="barra-acoes">
         <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
+        <div class="acoes">
+          <button class="btn primario" id="btnNovaRemessa">+ Nova remessa</button>
+        </div>
       </div>
       <div class="bloco">
         <div class="tabela-rolagem tabela-larga"><table id="tabEstRem"></table></div>
@@ -226,6 +238,9 @@
       <div class="tiles" id="estConsTiles"></div>
       <div class="barra-acoes">
         <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
+        <div class="acoes">
+          <button class="btn primario" id="btnNovoConsumo">+ Registrar consumo</button>
+        </div>
       </div>
       <div class="bloco">
         <div class="bloco-cab"><h2>Consumo por semana (EJ + CMM)</h2></div>
@@ -234,6 +249,16 @@
       <div class="bloco">
         <div class="bloco-cab"><h2>Inventario fisico semanal</h2></div>
         <div class="tabela-rolagem"><table id="tabEstConsInv"></table></div>
+      </div>
+    </div>
+
+    <!-- SUB-ABA: FIXADORES CRÍTICOS -->
+    <div class="sub-conteudo" id="est-criticos" hidden>
+      <div class="tiles" id="estCritTiles"></div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Fixadores criticos — consumo JOIST (premontagem)</h2>
+          <span class="nota">Consumo teorico baseado na producao de joists × regras de baixa. Comparado com remessas recebidas.</span></div>
+        <div class="tabela-rolagem"><table id="tabEstCrit"></table></div>
       </div>
     </div>
 
@@ -382,6 +407,30 @@
       </div>
     </form>
     <div class="bloco"><div class="tabela-rolagem"><table id="tabImp"></table></div></div>
+  </section>
+
+  <!-- KPI / INSIGHTS GERAL -->
+  <section id="aba-kpi" hidden>
+    <div class="tiles" id="kpiTiles"></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Prontidao de materiais — proxima semana</h2>
+        <span class="nota">Verifica se os materiais necessarios para as atividades planejadas estao disponiveis em estoque ou foram recebidos (remessas).</span></div>
+      <div class="tabela-rolagem"><table id="tabKpiProntidao"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farois de producao</h2></div>
+        <div class="tabela-rolagem"><table id="tabKpiProd"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farois de estoque</h2></div>
+        <div class="tabela-rolagem"><table id="tabKpiEstoque"></table></div>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Prazos e alertas</h2></div>
+      <ul class="alertas" id="kpiAlertas"></ul>
+    </div>
   </section>
 
   <!-- TENDÊNCIAS -->

@@ -19,7 +19,7 @@ const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const COR_EMP = { 'EJ': '--ej', 'CMM': '--cmm', 'GLOBO AÇOS': '--ga' };
 const API = window.API_BASE || 'api/';
 let ONDE = 'na planilha';
-const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia']);
+const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia', 'kpi']);
 
 // ------------------------------------------------------------ utilidades
 const $ = s => document.querySelector(s);
@@ -263,6 +263,11 @@ function renderTudo() {
   const rExt = estoqueExternoResumo();
   const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho').length + (rExt ? rExt.etapas.filter(e => e.nivel === 'vermelho').length + rExt.fixCrit.length : 0);
   $('#estCont').hidden = !falta; $('#estCont').textContent = falta;
+  const c = corte();
+  const ksG = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c));
+  const kpiAlerts = ksG.filter(k => k.pct != null && k.pct < 90).length + abertos + (EP ? EP.materiais.filter(m => m.status_logistico === 'Crítico').length : 0);
+  const kpiC = document.getElementById('kpiCont');
+  if (kpiC) { kpiC.hidden = !kpiAlerts; kpiC.textContent = kpiAlerts; }
   atualizarPendentes();
   renderAba();
 }
@@ -270,7 +275,7 @@ function renderTudo() {
 function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente,
-     estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia })[abaAtual]();
+     estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI })[abaAtual]();
 }
 
 // ------------------------------------------------------------ PAINEL (por período)
@@ -302,7 +307,8 @@ function renderPainel() {
     if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
     const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
     const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
-    h += `<tr><td>${esc(cap(k.serv))}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
+    const atrasado = k.prev > 0 && k.real === 0 && c >= per.ini;
+    h += `<tr><td>${esc(cap(k.serv))}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
       <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
       <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
       <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
@@ -339,6 +345,11 @@ function renderAlertas(ks, c) {
   }
   contratoLinhas(c).filter(x => x.status === 'ATRASO').forEach(x =>
     al.push(['vermelho', `<b>${esc(cap(x.servico))}</b>: no ritmo atual termina em ${fdA(x.projecao)}, depois do prazo ${fdA(x.prazo)}. Necessário ${nf(x.necessario, 2)}/dia; ritmo atual ${nf(x.ritmo, 2)}/dia.`]));
+
+  M.cliente.filter(cl => cl.inicio_plan && cl.inicio_plan <= hoje()).forEach(cl => {
+    const produzido = prodServico(cl.servico, null, '2000-01-01', hoje());
+    if (produzido === 0) al.push(['vermelho', `<b>${esc(cap(cl.servico))}</b>: planejado iniciar em ${fd(cl.inicio_plan)} mas ainda não iniciado — <span class="farol f-vermelho">ATRASADO</span>`]);
+  });
 
   $('#alertas').innerHTML = al.length
     ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
@@ -421,8 +432,13 @@ function renderSemana() {
   $('#tabSemana').innerHTML = h + '</tbody>';
 
   const plan = ks.filter(k => k.semana > 0);
-  $('#planejado').innerHTML = plan.length ? plan.map(k => `<li><span><span class="emp-tag" style="--c:${corEmp(k.m.empresa)}">${esc(k.m.empresa)}</span> ${esc(cap(k.m.servico))}</span>
-      <span>${nf(k.m.meta_dia, 2)}/dia × ${nf(k.m.du)} dias${k.m.gap ? ` + GAP ${nf(k.m.gap, 1)}` : ''} = <b>${nf(k.semana, 1)}</b></span></li>`).join('')
+  const responsavelDe = serv => { const cl = M.cliente.find(c => c.servico === serv); return cl?.responsavel || ''; };
+  $('#planejado').innerHTML = plan.length ? plan.map(k => {
+    const resp = responsavelDe(k.m.servico);
+    const atrasado = k.pct != null && k.pct < 90 && ref > k.m.inicio;
+    return `<li><span><span class="emp-tag" style="--c:${corEmp(k.m.empresa)}">${esc(k.m.empresa)}</span> ${esc(cap(k.m.servico))}${resp ? ` <small>(${esc(resp)})</small>` : ''}${atrasado ? ' <span class="farol f-vermelho">ATRASADO</span>' : ''}</span>
+      <span>${nf(k.m.meta_dia, 2)}/dia × ${nf(k.m.du)} dias${k.m.gap ? ` + GAP ${nf(k.m.gap, 1)}` : ''} = <b>${nf(k.semana, 1)}</b> · realizado <b>${nf(k.realSemana, 1)}</b> (${k.pct != null ? nf(k.pct, 0) + '%' : '—'})</span></li>`;
+  }).join('')
     : '<li class="vazio">Nenhum serviço com meta nesta semana.</li>';
 
   const fim = add(s, 6);
@@ -967,6 +983,7 @@ function renderEstoquePlanilha() {
   renderEstRemessas();
   renderEstConsumo();
   renderEstInventario();
+  renderEstCriticos();
 }
 
 function _filtroMat() { return ($('#estMatFiltro')?.value || '').toUpperCase(); }
@@ -1128,6 +1145,178 @@ function renderEstInventario() {
       <td><span class="farol f-${farolAcu(m.status)}">${esc(m.status || '—')}</span></td>
       <td>${esc(m.acao || '')}</td></tr>`).join('')
     : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+}
+
+// ------------------------------------------------------------ FIXADORES CRÍTICOS (consumo JOIST premontagem)
+function renderEstCriticos() {
+  if (!EP || !M) return;
+  const regras = window._regras_baixa;
+  if (!regras) {
+    fetch(API.replace('api/', '') + 'regras_baixa.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j) { window._regras_baixa = j; renderEstCriticos(); } })
+      .catch(() => {});
+    const box = document.getElementById('tabEstCrit');
+    if (box) box.innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>';
+    return;
+  }
+  const premont = regras.consumo_por_servico?.PREMONTAGEM;
+  if (!premont) return;
+  const totalJoists = prodServico('PREMONTAGEM', null, '2000-01-01', '2099-12-31');
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const itens = premont.itens.map(item => {
+    const teorico = Math.ceil(item.por_unidade * totalJoists);
+    const remItem = EP.remessas.itens.find(r => r.tag === item.codigo);
+    const recebido = remItem ? remItem.total_recebido : 0;
+    const matItem = EP.materiais.find(m => m.tag === item.codigo);
+    const consumoFisico = matItem ? (matItem.consumido || 0) : 0;
+    const saldo = recebido - teorico;
+    const cobertura = totalJoists > 0 ? recebido / (item.por_unidade * totalJoists) * 100 : 100;
+    const status = saldo >= 0 ? 'OK' : (recebido === 0 ? 'SEM ESTOQUE' : 'INSUFICIENTE');
+    const nivel = saldo >= 0 ? 'verde' : (recebido === 0 ? 'vermelho' : 'amarelo');
+    return { ...item, teorico, recebido, consumoFisico, saldo, cobertura, status, nivel };
+  });
+  const criticos = itens.filter(i => i.nivel === 'vermelho').length;
+  const insuf = itens.filter(i => i.nivel === 'amarelo').length;
+  const ok = itens.filter(i => i.nivel === 'verde').length;
+  document.getElementById('estCritTiles').innerHTML =
+    tile('Joists produzidas', nf(totalJoists), 'PREMONTAGEM acumulado', 'var(--acento)') +
+    tile('Sem estoque', criticos, 'nenhuma peca recebida', 'var(--vermelho)') +
+    tile('Insuficientes', insuf, 'recebido < consumo teorico', 'var(--amarelo)') +
+    tile('OK', ok, 'estoque atende', 'var(--verde)');
+  const sorted = [...itens].sort((a, b) => a.saldo - b.saldo);
+  document.getElementById('tabEstCrit').innerHTML =
+    `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Consumo teorico</th><th class="n">Recebido (remessas)</th><th class="n">Consumo fisico</th><th class="n">Saldo</th><th class="n">Cobertura</th><th>Status</th></tr></thead><tbody>` +
+    sorted.map(i => `<tr>
+      <td><b>${esc(i.codigo)}</b></td><td>${esc(i.descricao)}</td>
+      <td class="n">${nf(i.por_unidade)}</td><td class="n">${nf(i.teorico)}</td>
+      <td class="n">${nf(i.recebido)}</td><td class="n">${nf(i.consumoFisico)}</td>
+      <td class="n ${i.saldo < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldo)}</b></td>
+      <td class="n">${nf(i.cobertura, 1)}%</td>
+      <td><span class="farol f-${i.nivel}">${i.status}</span></td></tr>`).join('') + '</tbody>';
+}
+
+// ------------------------------------------------------------ KPI / INSIGHTS GERAL
+function renderKPI() {
+  if (!M) return;
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const c = corte();
+  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+  const totPrev = soma0(ks, k => k.prev);
+  const totReal = soma0(ks, k => k.real);
+  const pctGeral = totPrev > 0 ? Math.round(100 * totReal / totPrev) : 0;
+  const atrasados = ks.filter(k => k.pct != null && k.pct < 90).length;
+  const noPrazo = ks.filter(k => k.pct != null && k.pct >= 90).length;
+  const impAbertos = M.impactos.filter(i => !i.solucionado).length;
+  let estCrit = 0, estOk = 0;
+  if (EP) {
+    estCrit = EP.materiais.filter(m => m.status_logistico === 'Crítico').length;
+    estOk = EP.materiais.filter(m => m.status_logistico === 'Atendido' || m.status_logistico === 'Excedente').length;
+  }
+  const tilesH =
+    tile('Producao geral', pctGeral + '%', `${nf(totReal)} de ${nf(totPrev)} previstos`, pctGeral >= 90 ? 'var(--verde)' : pctGeral >= 70 ? 'var(--amarelo)' : 'var(--vermelho)') +
+    tile('Atrasados', atrasados, 'servicos < 90% do previsto', atrasados ? 'var(--vermelho)' : 'var(--verde)') +
+    tile('No prazo', noPrazo, 'servicos >= 90%', 'var(--verde)') +
+    tile('Impactos abertos', impAbertos, impAbertos ? 'requerem atenção' : 'nenhum pendente', impAbertos ? 'var(--amarelo)' : 'var(--verde)') +
+    tile('Materiais criticos', estCrit, 'nenhuma peça recebida', estCrit ? 'var(--vermelho)' : 'var(--verde)') +
+    tile('Materiais OK', estOk, 'totalmente atendidos', 'var(--acento)');
+  document.getElementById('kpiTiles').innerHTML = tilesH;
+
+  // Faróis de produção
+  let hProd = '<thead><tr><th>Empresa</th><th>Servico</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">%</th><th>Farol</th></tr></thead><tbody>';
+  ks.sort((a, b) => (a.pct || 0) - (b.pct || 0)).forEach(k => {
+    const [fc, ft] = farol(k.pct, k.prev === 0);
+    hProd += `<tr><td><span class="emp-tag" style="--c:${corEmp(k.emp)}">${esc(k.emp)}</span></td><td>${esc(cap(k.serv))}</td>
+      <td class="n">${nf(k.prev, 1)}</td><td class="n">${nf(k.real, 1)}</td>
+      <td class="n">${k.pct != null ? nf(k.pct, 1) + '%' : '—'}</td><td><span class="farol f-${fc}">${ft}</span></td></tr>`;
+  });
+  document.getElementById('tabKpiProd').innerHTML = hProd + '</tbody>';
+
+  // Faróis de estoque
+  let hEst = '<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Status</th></tr></thead><tbody>';
+  if (EP) {
+    const critMats = EP.materiais.filter(m => m.status_logistico === 'Crítico' || m.status_logistico === 'Recebimento Parcial')
+      .sort((a, b) => (a.atendimento || 0) - (b.atendimento || 0)).slice(0, 20);
+    critMats.forEach(m => {
+      const fc = m.status_logistico === 'Crítico' ? 'vermelho' : 'amarelo';
+      hEst += `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
+        <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td>
+        <td><span class="farol f-${fc}">${esc(m.status_logistico)}</span></td></tr>`;
+    });
+    if (!critMats.length) hEst += '<tr><td colspan="5" class="vazio">Todos os materiais atendidos.</td></tr>';
+  } else {
+    hEst += '<tr><td colspan="5" class="vazio">Dados de estoque não carregados.</td></tr>';
+  }
+  document.getElementById('tabKpiEstoque').innerHTML = hEst + '</tbody>';
+
+  // Prontidão de materiais (próxima semana)
+  renderKpiProntidao();
+
+  // Alertas gerais
+  const alertas = [];
+  ks.filter(k => k.pct != null && k.pct < 90).forEach(k => {
+    const dias = k.prev > 0 ? Math.ceil((k.prev - k.real) / Math.max(k.real / 5, 0.1)) : 0;
+    alertas.push(`<li class="alerta vermelho"><b>${esc(k.emp)} — ${esc(cap(k.serv))}</b>: ${nf(k.pct, 1)}% do previsto. Desvio de ${nf(k.prev - k.real, 1)} un.</li>`);
+  });
+  if (impAbertos) alertas.push(`<li class="alerta amarelo"><b>${impAbertos} impacto(s) em aberto</b> — verificar solucao.</li>`);
+  M.cliente.forEach(cl => {
+    if (!cl.prazo) return;
+    const diasP = Math.ceil((dU(cl.prazo) - dU(hoje())) / 86400000);
+    if (diasP <= 7 && diasP > 0) alertas.push(`<li class="alerta amarelo"><b>${esc(cl.servico)}</b>: prazo em ${diasP} dia(s) (${fd(cl.prazo)}).</li>`);
+    if (diasP <= 0) alertas.push(`<li class="alerta vermelho"><b>${esc(cl.servico)}</b>: prazo vencido em ${fd(cl.prazo)}.</li>`);
+  });
+  if (estCrit) alertas.push(`<li class="alerta vermelho"><b>${estCrit} material(is) critico(s)</b> — nenhuma peça recebida, verificar remessas.</li>`);
+  if (!alertas.length) alertas.push('<li class="vazio">Nenhum alerta no momento.</li>');
+  document.getElementById('kpiAlertas').innerHTML = alertas.join('');
+
+  const cont = document.getElementById('kpiCont');
+  const total = atrasados + impAbertos + estCrit;
+  cont.hidden = !total; cont.textContent = total;
+}
+
+function renderKpiProntidao() {
+  const tab = document.getElementById('tabKpiProntidao');
+  if (!M || !EP) { tab.innerHTML = '<tbody><tr><td class="vazio">Dados não disponíveis.</td></tr></tbody>'; return; }
+  const proxSeg = add(segunda(ref), 7);
+  const proxFim = add(proxSeg, 5);
+  const metasProx = M.metas.filter(m => m.inicio <= proxFim && m.fim >= proxSeg);
+  if (!metasProx.length) { tab.innerHTML = '<tbody><tr><td class="vazio">Nenhuma atividade planejada para a próxima semana.</td></tr></tbody>'; return; }
+  const regras = window._regras_baixa;
+  if (!regras) {
+    fetch(API.replace('api/', '') + 'regras_baixa.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j) { window._regras_baixa = j; renderKpiProntidao(); } }).catch(() => {});
+    tab.innerHTML = '<tbody><tr><td class="vazio">Carregando...</td></tr></tbody>';
+    return;
+  }
+  let h = '<thead><tr><th>Servico</th><th>Empresa</th><th>Meta semana</th><th>Materiais necessarios</th><th>Disponivel</th><th>Sinal</th></tr></thead><tbody>';
+  metasProx.forEach(m => {
+    const metaTot = metaSemanaTotal(m);
+    const consumo = regras.consumo_por_servico?.[m.servico];
+    if (!consumo || !consumo.itens) {
+      h += `<tr><td>${esc(cap(m.servico))}</td><td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td>
+        <td class="n">${nf(metaTot, 1)}</td><td colspan="2" class="sub">Sem regra de consumo</td><td><span class="farol f-verde">OK</span></td></tr>`;
+      return;
+    }
+    let todosOk = true, faltam = [];
+    consumo.itens.forEach(ci => {
+      const necessario = Math.ceil(ci.por_unidade * metaTot);
+      const remItem = EP.remessas.itens.find(r => r.tag === ci.codigo);
+      const disp = remItem ? remItem.total_recebido : 0;
+      const matItem = EP.materiais.find(mt => mt.tag === ci.codigo);
+      const consumido = matItem ? (matItem.consumido || 0) : 0;
+      const saldoDisp = disp - consumido;
+      if (saldoDisp < necessario) { todosOk = false; faltam.push(`${ci.codigo} (falta ${nf(necessario - Math.max(saldoDisp, 0))})`); }
+    });
+    const sinal = todosOk ? 'verde' : 'vermelho';
+    const sinTxt = todosOk ? 'PODE INICIAR' : 'SOLICITAR MATERIAL';
+    h += `<tr><td>${esc(cap(m.servico))}</td><td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td>
+      <td class="n">${nf(metaTot, 1)}</td>
+      <td>${todosOk ? 'Todos disponíveis' : faltam.slice(0, 3).join(', ') + (faltam.length > 3 ? ` +${faltam.length - 3}` : '')}</td>
+      <td>${todosOk ? '<span class="farol f-verde">SIM</span>' : '<span class="farol f-vermelho">NÃO</span>'}</td>
+      <td><span class="farol f-${sinal}">${sinTxt}</span></td></tr>`;
+  });
+  tab.innerHTML = h + '</tbody>';
 }
 
 // ------------------------------------------------------------ EQUIPAMENTOS
@@ -1619,6 +1808,15 @@ const FORMS = {
     ['data', 'Data', 'date', 1], ['codigo', 'Código do material', 'text', 1],
     ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
+  est_planilha_remessa: { tit: 'item na remessa', endpoint: 'estoque-planilha/remessa', campos: [
+    ['remessa', 'Nome/Nº da remessa', 'text', 1],
+    ['tag', 'TAG do material', 'text', 1],
+    ['quantidade', 'Quantidade', 'num', 1]] },
+  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', campos: [
+    ['semana', 'Semana (ex: 14/08 a 18/08)', 'text', 1],
+    ['tag', 'TAG do material', 'text', 1],
+    ['empresa', 'Empresa', 'select:,EJ,CMM', 1],
+    ['quantidade', 'Quantidade consumida', 'num', 1]] },
 };
 
 function abrirDialogo(tabela, linha, preset = {}) {
@@ -1676,9 +1874,18 @@ async function salvarDialogo(ev) {
     campos[k] = v || null;
   });
   try {
-    await postar(API + 'registro', { tabela, linha, campos });
-    dlg.close();
-    await carregar();
+    const def = FORMS[tabela];
+    if (def.endpoint) {
+      await postar(API + def.endpoint, campos);
+      dlg.close();
+      const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+      if (j) EP = j;
+      renderEstoquePlanilha();
+    } else {
+      await postar(API + 'registro', { tabela, linha, campos });
+      dlg.close();
+      await carregar();
+    }
     toast(`Salvo ${ONDE}`);
   } catch (err) { toast(err.message, true); }
 }
@@ -1879,6 +2086,10 @@ function ligarEventos() {
     const el = document.getElementById(id);
     if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstInventario());
   });
+  const btnRem = document.getElementById('btnNovaRemessa');
+  if (btnRem) btnRem.addEventListener('click', () => abrirDialogo('est_planilha_remessa'));
+  const btnCons = document.getElementById('btnNovoConsumo');
+  if (btnCons) btnCons.addEventListener('click', () => abrirDialogo('est_planilha_consumo'));
 
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));

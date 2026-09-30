@@ -483,6 +483,89 @@ def acao_importar_equip(corpo):
     return {"importados": len(novos)}
 
 
+def _arq_estoque_json():
+    return os.path.join(os.path.dirname(BASE), "dados", "estoque_obra198.json")
+
+
+def _ler_estoque_json():
+    arq = _arq_estoque_json()
+    if not os.path.exists(arq):
+        raise ErroValidacao("Dados de estoque não importados.")
+    with open(arq, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _salvar_estoque_json(dados):
+    arq = _arq_estoque_json()
+    with open(arq, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def acao_estoque_remessa(corpo):
+    dados = _ler_estoque_json()
+    nome = (corpo.get("remessa") or "").strip()
+    tag = (corpo.get("tag") or "").strip().upper()
+    qtd = float(corpo.get("quantidade") or 0)
+    if not nome:
+        raise ErroValidacao("Nome da remessa é obrigatório.")
+    if not tag:
+        raise ErroValidacao("TAG é obrigatória.")
+    if qtd <= 0:
+        raise ErroValidacao("Quantidade deve ser maior que zero.")
+    if nome not in dados["remessas"]["colunas"]:
+        dados["remessas"]["colunas"].append(nome)
+    item = next((i for i in dados["remessas"]["itens"] if i["tag"] == tag), None)
+    if not item:
+        raise ErroValidacao(f"TAG {tag} não encontrada nas remessas.")
+    item["qtd_por_remessa"][nome] = item["qtd_por_remessa"].get(nome, 0) + qtd
+    item["total_recebido"] = sum(item["qtd_por_remessa"].values())
+    mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
+    if mat:
+        mat["chegou"] = item["total_recebido"]
+        mat["estoque_pos_baixa"] = mat["chegou"] - mat.get("consumido", 0)
+        mat["atendimento"] = mat["chegou"] / mat["planejado"] if mat.get("planejado") else None
+        if mat["atendimento"] and mat["atendimento"] >= 1:
+            mat["status_logistico"] = "Atendido"
+        elif mat["chegou"] > 0:
+            mat["status_logistico"] = "Recebimento Parcial"
+    _salvar_estoque_json(dados)
+    return {"ok": True}
+
+
+def acao_estoque_consumo(corpo):
+    dados = _ler_estoque_json()
+    semana = (corpo.get("semana") or "").strip()
+    tag = (corpo.get("tag") or "").strip().upper()
+    empresa = (corpo.get("empresa") or "").strip().upper()
+    qtd = float(corpo.get("quantidade") or 0)
+    if not semana:
+        raise ErroValidacao("Semana é obrigatória.")
+    if not tag:
+        raise ErroValidacao("TAG é obrigatória.")
+    if empresa not in ("EJ", "CMM"):
+        raise ErroValidacao("Empresa deve ser EJ ou CMM.")
+    if qtd <= 0:
+        raise ErroValidacao("Quantidade deve ser maior que zero.")
+    cf = dados["consumo_fisico"]
+    if semana not in cf["semanas"]:
+        cf["semanas"].append(semana)
+    item = next((i for i in cf["itens"] if i["tag"] == tag), None)
+    if not item:
+        raise ErroValidacao(f"TAG {tag} não encontrada no consumo.")
+    if semana not in item["consumo_semanas"]:
+        item["consumo_semanas"][semana] = {"EJ": 0, "CMM": 0, "total": 0}
+    entry = item["consumo_semanas"][semana]
+    entry[empresa] = entry.get(empresa, 0) + qtd
+    entry["total"] = entry.get("EJ", 0) + entry.get("CMM", 0)
+    item["total_consumo"] = sum(v.get("total", 0) for v in item["consumo_semanas"].values())
+    mat = next((m for m in dados["materiais"] if m["tag"] == tag), None)
+    if mat:
+        mat["consumido"] = item["total_consumo"]
+        mat["estoque_pos_baixa"] = mat.get("chegou", 0) - mat["consumido"]
+    _salvar_estoque_json(dados)
+    return {"ok": True}
+
+
 ACOES = {
     "/api/registro": acao_registro,
     "/api/equip/importar": acao_importar_equip,
@@ -495,6 +578,8 @@ ACOES = {
     "/api/impacto": acao_impacto,
     "/api/referencia": acao_referencia,
     "/api/estoque/semear-materiais": acao_semear_materiais,
+    "/api/estoque-planilha/remessa": acao_estoque_remessa,
+    "/api/estoque-planilha/consumo": acao_estoque_consumo,
 }
 
 
