@@ -76,12 +76,7 @@
   "consumo_por_servico": {
     "_descricao": "Mapeamento: nome do serviço no controle de produção → materiais consumidos automaticamente por unidade produzida. Quando lançamentos são salvos, o sistema cria movimentações de SAÍDA automaticamente.",
     "PREMONTAGEM": {
-      "descricao": "Pré-montagem de joist. Os componentes estruturais (BZ/DN/RF/TV/SPD) devem ser cadastrados na aba ESTOQUE MATERIAIS com servico=PREMONTAGEM e coef correspondente. Os fixadores de fixação (parafusos/porcas/arruelas Ø1/2\") são consumidos no IÇAMENTO JOIST.",
-      "itens": [],
-      "nota": "Sem baixa automática de fixadores na pré-montagem. Para dar baixa dos componentes estruturais, cadastre-os como materiais com coef na tabela de estoque."
-    },
-    "IÇAMENTO JOIST": {
-      "descricao": "Cada joist içada/instalada consome os mesmos fixadores da pré-montagem (são os parafusos que prendem a joist às vigas).",
+      "descricao": "Cada joist pré-montada consome fixadores de fixação (parafusos Ø1/2\", porcas Ø1/2\" e arruelas Ø1/2\"). É o serviço de maior impacto em quantidade de material.",
       "itens": [
         {"codigo": "FG015", "descricao": "PORCA Ø1/2\" A307",   "por_unidade": 8},
         {"codigo": "FG018", "descricao": "ARRUELA Ø1/2\" LISA", "por_unidade": 8},
@@ -89,7 +84,12 @@
         {"codigo": "FG006", "descricao": "PARAF. Ø1/2\" x 2 1/4\" A307", "por_unidade": 1.14},
         {"codigo": "FG007", "descricao": "PARAF. Ø1/2\" x 2\" A307",     "por_unidade": 2.29}
       ],
-      "nota": "Mesma proporção de parafusos por joist. Os fixadores são usados no momento do içamento."
+      "nota": "Proporção de parafusos calculada pela distribuição de faixas no IFC: FG005 (BC,CD,DE,FG) 4/7, FG006 (GH) 1/7, FG007 (AB,EF) 2/7 — total 8 por joist."
+    },
+    "IÇAMENTO JOIST": {
+      "descricao": "Içamento/instalação da joist. Os fixadores já foram consumidos na PREMONTAGEM.",
+      "itens": [],
+      "nota": "Sem baixa automática de fixadores — já descontados na pré-montagem."
     },
     "VIGAS": {
       "descricao": "Cada viga montada consome fixadores conforme tipo (APOIO 40% ou INTERMEDIÁRIA 60%). Proporção derivada do IFC: 120 APOIO / 300 total = 0.4, 180 INTERM / 300 = 0.6.",
