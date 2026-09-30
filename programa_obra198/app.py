@@ -613,6 +613,21 @@ def _apontamento_excluir(m, corpo):
     return {"celulas": n, "avisos": []}
 
 
+def _apontamento_reatribuir(m, corpo):
+    """Define a empresa de apontamentos de regularização (histórico), que não somaram na grade de produção."""
+    nome = corpo.get("empresa")
+    if nome not in {e["nome"] for e in m["empresas"]}:
+        raise ErroValidacao("Indique a empresa que montou.")
+    linhas = corpo.get("linhas") or []
+    por_linha = {r["linha"]: r for r in m["tabelas"]["apontamentos"]}
+    if not linhas or any(lin not in por_linha for lin in linhas):
+        raise ErroValidacao("Apontamento não encontrado (a planilha pode ter sido alterada). Recarregue a tela.")
+    if any((por_linha[lin].get("lanca_producao") or "").upper() == "SIM" for lin in linhas):
+        raise ErroValidacao("Só dá para redefinir a empresa de apontamentos de regularização (que não somaram na produção). Exclua e refaça os demais.")
+    col = xio.valores_registro("apontamentos", {"empresa": nome})[0][0]
+    return {"celulas": gravar([(xio.TABELAS["apontamentos"]["aba"], f"{col}{lin}", nome, None) for lin in linhas]), "avisos": [], "salvos": len(linhas)}
+
+
 def acao_apontamento(corpo):
     """Apontamento de montagem: joists por rua/faixa/viga de apoio e vigas por eixo/letra.
 
@@ -623,6 +638,8 @@ def acao_apontamento(corpo):
     m = modelo()
     if corpo.get("excluir"):
         return _apontamento_excluir(m, corpo)
+    if corpo.get("reatribuir"):
+        return _apontamento_reatribuir(m, corpo)
     regras = xio.carregar_regras_baixa() or {}
     cfg, posicoes, crit = regras.get("apontamento"), regras.get("faixas_posicoes"), regras.get("criterio_por_letra")
     if not (cfg and posicoes and crit):

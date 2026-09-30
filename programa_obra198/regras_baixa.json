@@ -60,9 +60,9 @@
       "chave": ["viga_id"],
       "gatilho": "aponte de montagem no par (eixo, letra) com tipo INTERMEDIARIA",
       "baixa": [
-        { "codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "quantidade": 4, "base": "por viga montada" },
-        { "codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "quantidade": 4, "base": "por viga montada" },
-        { "codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "quantidade": 4, "base": "por viga montada" }
+        { "codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "quantidade": 8, "base": "por viga montada (8 confirmado pelas retiradas físicas: FG012 405 retirados, 40 intermediárias no desenho)" },
+        { "codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "quantidade": 8, "base": "por viga montada" },
+        { "codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "quantidade": 8, "base": "por viga montada" }
       ]
     },
     {
@@ -141,11 +141,11 @@
       ]
     },
     "VIGAS INTERMEDIÁRIAS": {
-      "descricao": "Viga intermediária montada. 4 parafusos + 4 porcas + 4 arruelas Ø7/8\" por viga (mesmo valor do evento VIGA_INTERM_MONTADA).",
+      "descricao": "Viga intermediária montada. 8 parafusos + 8 porcas + 8 arruelas Ø7/8\" por viga (mesmo valor do evento VIGA_INTERM_MONTADA).",
       "itens": [
-        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_unidade": 4},
-        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_unidade": 4},
-        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_unidade": 4}
+        {"codigo": "FG012", "descricao": "PARAF. Ø7/8\" A325",   "por_unidade": 8},
+        {"codigo": "FG017", "descricao": "PORCA Ø7/8\" A194-2H", "por_unidade": 8},
+        {"codigo": "FG020", "descricao": "ARRUELA Ø7/8\" LISA",  "por_unidade": 8}
       ]
     },
     "VIGAS VC01": {
@@ -172,7 +172,7 @@
     {
       "tag": "FG019",
       "consumo_virtual": 0,
-      "motivo": "A planilha (Consumo_Quadrantes, linha FG019) lança nesse código o consumo da coluna FG005 dos quadrantes e ainda soma duas vezes (Controle_Materiais + Consumo_Quadrantes = 1.158). Sem fluxo definido para FG019 (Ø1/2\" x 1 1/2\" A325) na produção, o consumo virtual fica em 0; as retiradas físicas de FG019 aparecem como perda a investigar. Confirmar se FG019 substitui FG005 em parte das vigas intermediárias."
+      "motivo": "A planilha (Consumo_Quadrantes, linha FG019) lança nesse código o consumo da coluna FG005 dos quadrantes e ainda soma duas vezes (Controle_Materiais + Consumo_Quadrantes = 1.158). Sem fluxo definido para FG019 (Ø1/2\" x 1 1/2\" A325) na produção, o consumo virtual fica em 0; as retiradas físicas de FG019 aparecem como perda a investigar. Indício forte de que FG019 substitui FG005 em parte das joists nas vigas intermediárias: as retiradas físicas de FG005 + FG019 somadas se aproximam do consumo virtual de FG005, e o total de parafusos Ø1/2\" retirados bate com 8 por joist içada."
     }
   ],
   "inventario_notas": {

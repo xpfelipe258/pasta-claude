@@ -1326,7 +1326,7 @@ const apEst = { modo: 'mapa', data: null, empresa: null, rua: '11-12', faixa: 'B
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', regular: false, obs: '' };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
 // geometria do mapa (px): largura da rua, altura entre estações de viga, margens, barras de joist por posição
-const APM = { colW: 96, yUnit: 56, mEsq: 70, mTop: 44, barH: 6, barGap: 2, pad: 9, slots: 3 };
+const APM = { colW: 78, yFaixa: 74, mEsq: 70, mTop: 44, barH: 5, barGap: 2, pad: 5, slots: 3 };
 const corSelEmp = emp => `var(${COR_EMP[emp] || '--acento'})`;
 
 function apContexto(regras) {
@@ -1494,10 +1494,13 @@ function apFormHtml(regras, ctx) {
 // ---- mapa em planta: eixos na horizontal, estações de viga (A, B, BC, C ... H) na vertical
 function apMapaSvg(ctx) {
   const eixos = apEst.fase === 'fase1' ? ctx.cfg.eixos.filter(e => +e >= 11) : ctx.cfg.eixos;
-  const { colW, yUnit, mEsq, mTop, barH, barGap, pad, slots } = APM;
-  const idx = l => ctx.letras.indexOf(l), yEst = l => mTop + idx(l) * yUnit;
+  const { colW, yFaixa, mEsq, mTop, barH, barGap, pad, slots } = APM;
+  const posL = {};
+  ctx.letras.filter(l => l.length === 1).forEach((l, i) => posL[l] = i);
+  ctx.letras.filter(l => l.length > 1).forEach(l => posL[l] = (posL[l[0]] + posL[l[1]]) / 2);
+  const yEst = l => mTop + posL[l] * yFaixa;
   const xEixo = e => mEsq + eixos.indexOf(e) * colW;
-  const larg = mEsq + (eixos.length - 1) * colW + 36, alt = mTop + (ctx.letras.length - 1) * yUnit + 40;
+  const larg = mEsq + (eixos.length - 1) * colW + 36, alt = mTop + Math.max(...Object.values(posL)) * yFaixa + 40;
   const ruas = eixos.slice(0, -1).map((e, i) => `${e}-${eixos[i + 1]}`);
   const yFim = yEst(ctx.letras[ctx.letras.length - 1]);
   const selRua = new Map();
@@ -1542,7 +1545,7 @@ function apMapaSvg(ctx) {
   eixos.forEach(e => ctx.letras.forEach(l => {
     const id = ctx.vigaId(e, l), m = ctx.vigaMontada.get(id), c = ctx.crit[l], emp = apEst.mapaV.get(`${e}|${l}`);
     const est = m ? 'feita' : emp ? 'sel' : 'pend';
-    const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 9 : 13;
+    const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 8 : 12;
     s.push(`<g class="apm-viga ${est} ${c.evento_viga === 'VIGA_INTERM_MONTADA' ? 'interm' : ''}" ${est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : ''} data-ap-viga="${e}|${l}"><title>${id} · ${AP_TIPO[c.evento_viga]}${m ? ' · montada em ' + fdA(m.data) + ' (' + (m.empresa || '?') + ')' : emp ? ' · selecionada (' + emp + ')' : ''}</title>` +
       `<rect x="${xEixo(e) - tam / 2 - 3}" y="${yEst(l) - tam / 2 - 3}" width="${tam + 6}" height="${tam + 6}" class="hit"/><rect class="q" x="${xEixo(e) - tam / 2}" y="${yEst(l) - tam / 2}" width="${tam}" height="${tam}" rx="2"/></g>`);
   }));
@@ -1584,6 +1587,55 @@ function apMapaHtml(ctx) {
     }).join('') + '</tbody></table></div>';
 }
 
+// Conciliação: o que foi lançado na produção (grade, base do BM) x o que foi apontado no mapa, por empresa.
+function apConciliacaoHtml(ctx) {
+  const nomes = apEmpresas(ctx).map(e => e.nome);
+  const vazia = x => !nomes.includes(x);
+  const semEmp = (T.apontamentos || []).filter(a => vazia(a.empresa));
+  const linhas = nomes.map(n => ({ n, lj: prodServico(ctx.cfg.servico_joist, n, '0000-01-01', '9999-12-31'), lv: prodServico(ctx.cfg.servico_viga, n, '0000-01-01', '9999-12-31'),
+    aj: soma0(ctx.joists.filter(a => a.empresa === n), a => a.qtd), av: ctx.vigas.filter(a => a.empresa === n).length }));
+  if (semEmp.length) linhas.push({ n: 'A DEFINIR', lj: 0, lv: 0, aj: soma0(semEmp.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd), av: semEmp.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length, semEmp: true });
+  const tot = linhas.reduce((o, l) => ({ lj: o.lj + l.lj, aj: o.aj + l.aj, lv: o.lv + l.lv, av: o.av + l.av }), { lj: 0, aj: 0, lv: 0, av: 0 });
+  const dif = (l, a, por) => {
+    if (por) return '<td class="n" colspan="1">—</td>';
+    const d = l - a;
+    return `<td class="n ${d === 0 ? 'valor-ok' : d > 0 ? '' : 'valor-neg'}"><b>${d > 0 ? '+' : ''}${nf(d)}</b></td>`;
+  };
+  const tr = (l, forte) => `<tr>${l.n === 'Total' ? '<td><b>Total</b></td>' : `<td><span class="emp-tag" style="--c:${corEmp(l.n)}">${esc(l.n)}</span></td>`}
+    <td class="n">${nf(l.lj)}</td><td class="n">${nf(l.aj)}</td>${dif(l.lj, l.aj, l.semEmp && !forte)}
+    <td class="n">${nf(l.lv)}</td><td class="n">${nf(l.av)}</td>${dif(l.lv, l.av, l.semEmp && !forte)}</tr>`;
+  return `<thead><tr><th>Empresa</th><th class="n">Joists lançadas</th><th class="n">Apontadas</th><th class="n">Dif.</th><th class="n">Vigas lançadas</th><th class="n">Apontadas</th><th class="n">Dif.</th></tr></thead><tbody>` +
+    linhas.map(l => tr(l)).join('') + tr({ n: 'Total', ...tot }, true) + '</tbody>';
+}
+
+const apDef = { tipo: 'VIGA', emp: '', e0: '', e1: '', l0: 'A', l1: 'H' };
+function apDefLinhas(ctx) {
+  const nomes = apEmpresas(ctx).map(e => e.nome);
+  const i0 = ctx.letras.indexOf(apDef.l0), i1 = ctx.letras.indexOf(apDef.l1);
+  return (T.apontamentos || []).filter(a => !nomes.includes(a.empresa) && (a.lanca_producao || '').toUpperCase() !== 'SIM' && (a.tipo || '').toUpperCase() === apDef.tipo).filter(a => {
+    const eixo = apDef.tipo === 'VIGA' ? a.eixo : (a.rua || '').split('-')[0], i = ctx.letras.indexOf(a.letra);
+    return eixo >= apDef.e0 && eixo <= apDef.e1 && i >= Math.min(i0, i1) && i <= Math.max(i0, i1);
+  });
+}
+function apDefHtml(ctx) {
+  const nomes = apEmpresas(ctx).map(e => e.nome);
+  const pend = (T.apontamentos || []).filter(a => !nomes.includes(a.empresa));
+  if (!pend.length) return '';
+  const tem = t => pend.some(a => (a.tipo || '').toUpperCase() === t);
+  if (!tem(apDef.tipo)) apDef.tipo = tem('VIGA') ? 'VIGA' : 'JOIST';
+  const eixos = ctx.cfg.eixos;
+  if (!eixos.includes(apDef.e0)) apDef.e0 = eixos.find(e => +e >= 11) || eixos[0];
+  if (!eixos.includes(apDef.e1)) apDef.e1 = eixos[eixos.length - 1];
+  const sel = (id, lista, val) => `<select data-ap-def="${id}">${lista.map(x => `<option ${x === val ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
+  return `<div class="ap-def"><p class="nota"><b>${nf(pend.length)} registro(s) do histórico sem empresa.</b> Defina quem montou por região (vale só para o histórico; o BM continua vindo dos lançamentos).</p>
+    <div class="ap-linha"><label class="rot-sel">Peça ${sel('tipo', ['VIGA', 'JOIST'].filter(tem), apDef.tipo)}</label>
+      <label class="rot-sel">Eixos de ${sel('e0', eixos, apDef.e0)} até ${sel('e1', eixos, apDef.e1)}</label>
+      <label class="rot-sel">Letras de ${sel('l0', ctx.letras, apDef.l0)} até ${sel('l1', ctx.letras, apDef.l1)}</label>
+      <label class="rot-sel">Empresa <select data-ap-def="emp"><option value="">— escolha —</option>${nomes.map(n => `<option ${n === apDef.emp ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+      <button class="btn primario" id="apDefAplicar">Definir empresa</button><span class="nota" id="apDefPrev">${apDefPrevTxt(ctx)}</span></div></div>`;
+}
+const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a.qtd || 0), 0); return `${nf(n)} ${apDef.tipo === 'VIGA' ? 'viga(s)' : 'joist(s)'} nessa região`; };
+
 function renderApont() {
   if (!M) return;
   const regras = regrasBaixa(renderApont);
@@ -1612,6 +1664,8 @@ function renderApont() {
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
   $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : apEst.modo === 'joist' ? 'Situação por quadrante (rua × faixa)' : 'Situação das vigas (eixo × letra)';
   $('#apMapa').innerHTML = apMapaHtml(ctx);
+  $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
+  $('#apDefEmp').innerHTML = apDefHtml(ctx);
 
   const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
   $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
@@ -1726,6 +1780,14 @@ function ligarApontamento() {
     if (quad) { [apEst.rua, apEst.faixa] = quad.dataset.apQuad.split('/'); apEst.modo = 'joist'; apEst.qtds = {}; renderApont(); return $('#apForm').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     const eixo = ev.target.closest('[data-ap-eixo]');
     if (eixo) { apEst.eixo = eixo.dataset.apEixo; apEst.modo = 'viga'; apEst.sel = new Set(); return renderApont(); }
+    if (ev.target.id === 'apDefAplicar' && regras()) {
+      const ctx = apContexto(regras()), linhas = apDefLinhas(ctx).map(a => a.linha);
+      if (!apDef.emp) { toast('Escolha a empresa que montou.', true); return; }
+      if (!linhas.length) { toast('Nenhuma peça sem empresa nessa região.', true); return; }
+      try { await postar(API + 'apontamento', { reatribuir: true, empresa: apDef.emp, linhas }); await carregar(); toast(`${linhas.length} registro(s) definidos como ${apDef.emp}`); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
     if (ev.target.id === 'apLimpar') { apEst.qtds = {}; apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); return renderApont(); }
     if (ev.target.id === 'apSalvar') return salvarApontamento();
     const ex = ev.target.closest('[data-ap-excluir]');
@@ -1737,6 +1799,12 @@ function ligarApontamento() {
   });
   sec.addEventListener('change', ev => {
     const id = ev.target.id;
+    if (ev.target.dataset.apDef) {
+      apDef[ev.target.dataset.apDef] = ev.target.value;
+      if (ev.target.dataset.apDef === 'tipo') return renderApont();
+      const p = $('#apDefPrev'); if (p && regras()) p.textContent = apDefPrevTxt(apContexto(regras()));
+      return;
+    }
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apRua') { apEst.rua = ev.target.value; apEst.qtds = {}; return renderApont(); }

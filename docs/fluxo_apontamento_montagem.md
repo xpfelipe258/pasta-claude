@@ -43,6 +43,16 @@ sobre as 43 previstas.
   FG012/FG017/FG020 x4.
 - Posições de cada faixa: AB = A,B; BC = B,BC,C; CD = C,CD,D; DE = D,DE,E; EF = E,EF,F; FG = F,FG,G; GH = G,H.
 
+## Histórico e conciliação
+
+- O estado de 30/09/2026 foi carregado a partir do desenho (`docs/conciliacao_desenho_2026-09-30.md`) como
+  regularização: 262 joists e 102 vigas já aparecem montadas no mapa, sem alterar a produção lançada.
+- O bloco **Conciliação com os lançamentos** (abaixo do mapa) compara, por empresa, o lançado na produção com o
+  apontado no mapa (joists e vigas) e mostra a diferença ("a apontar").
+- Registros do histórico sem empresa ficam como "A DEFINIR" (hoje, 48 vigas). O painel "Definir empresa do
+  histórico" atribui a empresa por região (peça, eixos, letras). Só vale para regularização; o BM vem dos lançamentos.
+- O mapa usa faixas de altura igual, proporcionais ao desenho.
+
 ## Regras e proteções
 
 - Viga já apontada não entra de novo (evita contar duas vezes a mesma viga).
@@ -71,7 +81,7 @@ Conferência: os ladrilhos da tela comparam produção x apontado. "A apontar" �
 
 ## Decisões assumidas (ajustáveis em `regras_baixa.json`)
 
-- Viga intermediária = 4 parafusos/porcas/arruelas Ø7/8" (valor dos eventos e do Consumo_Quadrantes), não 8.
+- Viga intermediária = 8 parafusos/porcas/arruelas Ø7/8". Confirmado com o desenho x retiradas físicas (ver `docs/conciliacao_desenho_2026-09-30.md`): com 4, FG012 daria 216 contra 405 retirados.
 - O parafuso baixa quando a joist é apontada no quadrante (fixação), não no içamento genérico.
 - Letra EF (VC03, FG005) adicionada: faltava no critério por letra.
 

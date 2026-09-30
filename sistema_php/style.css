@@ -360,7 +360,7 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-slot .bar, .apm-viga .q { pointer-events: none; }
 .apm-slot.pend .bar { fill: var(--pend-bg); stroke: var(--linha-forte); stroke-width: 1; }
 .apm-slot.sel .bar { fill: var(--sel, var(--acento)); }
-.apm-slot.feita .bar { fill: var(--amarelo); }
+.apm-slot.feita .bar { fill: #f5c518; }
 .apm-slot.feita .hit { cursor: default; }
 .apm-slot:hover .bar { stroke: var(--acento); stroke-width: 1.5; }
 .apm-viga.pend .q { fill: var(--card); stroke: var(--fg2); stroke-width: 1.5; }
@@ -374,7 +374,7 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-leg.pend { background: var(--pend-bg); border: 1px solid var(--linha-forte); }
 .apm-leg.viga.pend { background: var(--card); border: 1.5px solid var(--fg2); }
 .apm-leg.sel { background: var(--sel, var(--acento)); }
-.apm-leg.joist.feita { background: var(--amarelo); }
+.apm-leg.joist.feita { background: #f5c518; }
 .apm-leg.viga.feita { background: var(--verde); }
 
 .apm-rua-tot { fill: var(--fg3); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -387,3 +387,6 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .ap-pincel.pede .seg { outline: 2px solid var(--amarelo); outline-offset: 1px; }
 .ap-pincel.pisca .seg { animation: apPisca .5s 3; }
 @keyframes apPisca { 50% { outline: 3px solid var(--vermelho); } }
+
+.ap-def { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linha); display: flex; flex-direction: column; gap: 8px; }
+.ap-def select { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
