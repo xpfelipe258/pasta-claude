@@ -36,7 +36,8 @@ valor a faturar = medição − descontos
 ```
 
 - **BM1 já medido e pago (EJ e CMM):** registrado a partir das planilhas de medição com corte em 03/09/2026
-  (`dados/bm_medido_bm1.json`, carregado por `ferramentas/registrar_bm_medido.py`). Cada atividade guarda a
+  (`programa_obra198/bm_medido_bm1.json`). O programa registra esse BM1 sozinho ao abrir, nas empresas que ainda não têm nenhum
+  BM cadastrado (`ferramentas/registrar_bm_medido.py` faz o mesmo à mão). Cada atividade guarda a
   quantidade acumulada medida no BM1 (EJ R$ 295.710,74 e CMM R$ 151.515,53, conferidos com as planilhas) e os descontos
   do BM1 (EJ a faturar R$ 132.956,77 e CMM R$ 93.537,52, iguais aos da planilha). O BM1 fica fechado.
 - **BM2 em aberto:** é o acumulado da produção lançada até a data de referência menos o BM1. Se a produção lançada até
@@ -44,8 +45,10 @@ valor a faturar = medição − descontos
 - **GLOBO AÇOS:** a planilha de medição não tem nada medido (BM1 previsto para 10/10/2026); segue em aberto.
 - **Descontos como nas planilhas:** equipamento emprestado da Rótula, faturamento direto, diesel, sinal de contrato
   (percentual do medido, ex.: 10%), medição antecipada, almoço. Valor negativo é crédito. Botão "+ Desconto" no boletim.
-  Os descontos do BM2 da EJ vieram do rascunho da planilha (marcados "conferir"; o diesel está como crédito de
-  R$ 3.376 na planilha, confirmar o sinal).
+  Equipamentos e combustível lançados em Equipamentos entram sozinhos no BM em aberto (período do dia seguinte ao corte até a
+  data de referência); se a planilha de medição já traz esses descontos em linhas, não lance os dois. O rascunho de descontos
+  do BM2 da EJ está no arquivo, mas só é carregado com `--com-bm2-rascunho` (o diesel vem como crédito de R$ 3.376 na
+  planilha: confirmar o sinal).
 - **Próximo BM:** no BM em aberto, "Definir corte do BMn" grava a data de corte e "Fechar BMn" congela o BM; o BM seguinte
   abre sozinho.
 

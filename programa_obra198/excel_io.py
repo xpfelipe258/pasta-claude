@@ -1030,6 +1030,91 @@ def semear_catalogo_bm(caminho, pasta_backup=None):
     return len(atividades)
 
 
+BM_MEDIDO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bm_medido_bm1.json")
+
+
+def registrar_bm_medido(caminho, dados, empresas=None, refazer=False, com_bm2_rascunho=False, pasta_backup=None):
+    """Registra como fechado (medido e pago) o BM1 de cada empresa: corte, quantidade acumulada medida por atividade e
+    descontos do BM1. `dados` vem de bm_medido_bm1.json. Devolve o número de linhas gravadas por tabela."""
+    empresas = [e for e in (empresas or dados["empresas"]) if e in dados["empresas"]]
+    T = ler_planilha(caminho)["tabelas"]
+    catalogo = {}
+    for a in T["bm_atividades"]:
+        catalogo.setdefault(a["empresa"], []).append(a)
+    celulas = []
+
+    def limpar(tabela, linhas):
+        spec = TABELAS[tabela]
+        for r in linhas:
+            celulas.extend((spec["aba"], f"{col_letra(i)}{r['linha']}", None, None) for i in range(1, len(spec["campos"]) + 1))
+
+    antigos = {t: [r for r in T[t] if r["empresa"] in empresas and int(r.get("bm") or 0) == 1]
+               for t in ("bm_periodos", "bm_fechamentos", "bm_fech_atividades")}
+    ant_ded = [r for r in T["bm_deducoes"] if r["empresa"] in empresas and (r.get("descricao") or "").startswith("[planilha]")]
+    if (any(antigos.values()) or ant_ded) and not refazer:
+        raise ValueError("O BM1 já está registrado na planilha.")
+    for t, linhas in antigos.items():
+        limpar(t, linhas)
+    limpar("bm_deducoes", ant_ded)
+    reservadas = {**antigos, "bm_deducoes": ant_ded}
+
+    novos = {"bm_periodos": [], "bm_fechamentos": [], "bm_fech_atividades": [], "bm_deducoes": []}
+    for emp in empresas:
+        d = dados["empresas"][emp]
+        novos["bm_periodos"].append({"empresa": emp, "bm": 1, "corte": dados["corte"], "obs": "BM1 pago (planilha de medição)"})
+        novos["bm_fechamentos"].append({"empresa": emp, "bm": 1, "fechado_em": dados["fechado_em"], "equip": 0, "comb": 0, "litros": 0,
+                                        "obs": f"BM1 já medido e pago: R$ {d['medido']:,.2f} medido, R$ {d['a_faturar']:,.2f} faturado (descontos em BM DEDUÇÕES)"})
+        for a in catalogo.get(emp, []):
+            novos["bm_fech_atividades"].append({"empresa": emp, "bm": 1, "codigo": a["codigo"], "item": a["item"],
+                                                "realizado": d["realizado"].get(a["codigo"], 0.0), "qtd": a["qtd"], "peso": a["peso"],
+                                                "valor_qpc": a.get("valor_qpc"), "valor_rotula": a.get("valor_rotula")})
+        for l in d["linhas"]:
+            novos["bm_deducoes"].append({"empresa": emp, "bm": 1, "data": dados["corte"], "tipo": l["tipo"], "valor": l["valor"],
+                                         "percentual": l["percentual"], "contrato": "RÓTULA", "descricao": "[planilha] " + l["descricao"]})
+    if com_bm2_rascunho:
+        for emp, d in (dados.get("bm2_rascunho") or {}).items():
+            if emp not in empresas:
+                continue
+            for l in d["linhas"]:
+                novos["bm_deducoes"].append({"empresa": emp, "bm": 2, "data": dt.date.today().isoformat(), "tipo": l["tipo"], "valor": l["valor"],
+                                             "percentual": l["percentual"], "contrato": "RÓTULA",
+                                             "descricao": "[planilha] " + l["descricao"] + " (rascunho do BM2: conferir)"})
+    # cabeçalho da coluna "% do medido" (planilhas criadas antes do campo)
+    spec_d = TABELAS["bm_deducoes"]
+    celulas.append((spec_d["aba"], f"{col_letra(len(spec_d['campos']))}2", spec_d["campos"][-1][1], None))
+    for tabela, regs in novos.items():
+        spec = TABELAS[tabela]
+        livres_usadas = {r["linha"] for r in T[tabela]} - {r["linha"] for r in reservadas.get(tabela, [])}
+        lin = LINHA_DADOS_TABELA
+        for campos in regs:
+            while lin in livres_usadas:
+                lin += 1
+            for col, v, tp in valores_registro(tabela, campos):
+                celulas.append((spec["aba"], f"{col}{lin}", v, tp))
+            lin += 1
+    gravar_celulas(caminho, celulas, pasta_backup=pasta_backup)
+    return {t: len(r) for t, r in novos.items()}
+
+
+def semear_bm_medido(caminho, pasta_backup=None):
+    """Na primeira abertura, registra o BM1 já pago das empresas que ainda não têm nenhum BM cadastrado
+    (nem corte nem fechamento). Devolve as empresas registradas."""
+    import json
+    if not os.path.exists(BM_MEDIDO):
+        return []
+    with open(BM_MEDIDO, encoding="utf-8") as f:
+        dados = json.load(f)
+    T = ler_planilha(caminho)["tabelas"]
+    if not T["bm_atividades"]:
+        return []
+    com_bm = {r["empresa"] for r in T["bm_periodos"]} | {r["empresa"] for r in T["bm_fechamentos"]}
+    novas = [e for e in dados["empresas"] if e not in com_bm and any(a["empresa"] == e for a in T["bm_atividades"])]
+    if not novas:
+        return []
+    registrar_bm_medido(caminho, dados, empresas=novas, pasta_backup=pasta_backup)
+    return novas
+
+
 def _backup(caminho, pasta, manter):
     os.makedirs(pasta, exist_ok=True)
     base, ext = os.path.splitext(os.path.basename(caminho))

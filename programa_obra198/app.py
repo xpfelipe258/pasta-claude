@@ -1012,6 +1012,8 @@ def main():
         n = xio.semear_catalogo_bm(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
         if n:
             print(f" Catálogo de medição (BM) carregado: {n} atividades.")
+        for emp in xio.semear_bm_medido(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198")):
+            print(f" BM1 já pago registrado: {emp}.")
     except xio.PlanilhaBloqueada:
         print(" Aviso: planilha aberta no Excel; as abas novas serão criadas no primeiro salvamento.")
     modelo()

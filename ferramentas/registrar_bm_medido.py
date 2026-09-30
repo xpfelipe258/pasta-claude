@@ -6,7 +6,9 @@ e os descontos daquele BM (equipamento emprestado, faturamento direto, diesel, s
 
 Uso:
   python registrar_bm_medido.py extrair BM_EJ_BM1.xlsx BM_CMM.xlsx saida.json [BM_EJ_BM2_rascunho.xlsx]
-  python registrar_bm_medido.py carregar dados/bm_medido_bm1.json PLANO_DE_PRODUCAO.xlsm [--refazer]
+  python registrar_bm_medido.py carregar programa_obra198/bm_medido_bm1.json PLANO_DE_PRODUCAO.xlsm [--refazer]
+
+O programa também registra o BM1 sozinho ao abrir, nas empresas que ainda não têm nenhum BM cadastrado.
 
 O que é carregado na planilha de produção:
   BM PERÍODOS            BM1 de cada empresa com a data de corte
@@ -105,74 +107,17 @@ def extrair(ej_bm1, cmm_bm1, ej_bm2=None):
     return saida
 
 
-def carregar(dados, planilha, refazer=False):
+def carregar(dados, planilha, refazer=False, com_bm2=False):
     os.environ["OBRA198_SEM_ATUALIZAR"] = "1"
     sys.path.insert(0, os.path.join(RAIZ, "programa_obra198"))
     import excel_io as xio
     backups = os.path.join(os.path.dirname(os.path.abspath(planilha)), "backups_obra198")
     xio.garantir_abas(planilha, pasta_backup=backups)
     xio.semear_catalogo_bm(planilha, pasta_backup=backups)
-    T = xio.ler_planilha(planilha)["tabelas"]
-    catalogo = {}
-    for a in T["bm_atividades"]:
-        catalogo.setdefault(a["empresa"], []).append(a)
-    celulas = []
-
-    def limpar(tabela, linhas):
-        spec = xio.TABELAS[tabela]
-        for r in linhas:
-            celulas.extend((spec["aba"], f"{xio.col_letra(i)}{r['linha']}", None, None) for i in range(1, len(spec["campos"]) + 1))
-
-    def linhas_livres(tabela, reservadas):
-        spec = xio.TABELAS[tabela]
-        usadas = {r["linha"] for r in T[tabela]} - {r["linha"] for r in reservadas}
-        n = xio.LINHA_DADOS_TABELA
-        while True:
-            if n not in usadas:
-                yield n
-            n += 1
-
-    def escrever(tabela, registros, reservadas):
-        spec, livres = xio.TABELAS[tabela], linhas_livres(tabela, reservadas)
-        for campos in registros:
-            lin = next(livres)
-            for col, v, t in xio.valores_registro(tabela, campos):
-                celulas.append((spec["aba"], f"{col}{lin}", v, t))
-
-    # cabeçalho da coluna nova dos descontos (planilhas criadas antes do campo "% do medido")
-    spec_d = xio.TABELAS["bm_deducoes"]
-    celulas.append((spec_d["aba"], f"{xio.col_letra(len(spec_d['campos']))}2", spec_d["campos"][-1][1], None))
-
-    emps = list(dados["empresas"])
-    antigos = {t: [r for r in T[t] if r["empresa"] in emps and int(r.get("bm") or 0) == 1] for t in ("bm_periodos", "bm_fechamentos", "bm_fech_atividades")}
-    ant_ded = [r for r in T["bm_deducoes"] if r["empresa"] in emps and (r.get("descricao") or "").startswith("[planilha]")]
-    if any(antigos.values()) and not refazer:
-        sys.exit("O BM1 já está registrado na planilha. Use --refazer para substituir.")
-    for t, rs_ in antigos.items():
-        limpar(t, rs_)
-    limpar("bm_deducoes", ant_ded)
-
-    novos = {"bm_periodos": [], "bm_fechamentos": [], "bm_fech_atividades": [], "bm_deducoes": []}
-    for emp, d in dados["empresas"].items():
-        novos["bm_periodos"].append({"empresa": emp, "bm": 1, "corte": dados["corte"], "obs": "BM1 pago (planilha de medição)"})
-        novos["bm_fechamentos"].append({"empresa": emp, "bm": 1, "fechado_em": dados["fechado_em"], "equip": 0, "comb": 0, "litros": 0,
-                                        "obs": f"BM1 já medido e pago: R$ {d['medido']:,.2f} medido, R$ {d['a_faturar']:,.2f} faturado (descontos lançados em BM DEDUÇÕES)"})
-        for a in catalogo.get(emp, []):
-            novos["bm_fech_atividades"].append({"empresa": emp, "bm": 1, "codigo": a["codigo"], "item": a["item"],
-                                                "realizado": d["realizado"].get(a["codigo"], 0.0), "qtd": a["qtd"], "peso": a["peso"],
-                                                "valor_qpc": a.get("valor_qpc"), "valor_rotula": a.get("valor_rotula")})
-        for l in d["linhas"]:
-            novos["bm_deducoes"].append({"empresa": emp, "bm": 1, "data": dados["corte"], "tipo": l["tipo"], "valor": l["valor"],
-                                         "percentual": l["percentual"], "contrato": "RÓTULA", "descricao": "[planilha] " + l["descricao"]})
-    for emp, d in (dados.get("bm2_rascunho") or {}).items():
-        for l in d["linhas"]:
-            novos["bm_deducoes"].append({"empresa": emp, "bm": 2, "data": dt.date.today().isoformat(), "tipo": l["tipo"], "valor": l["valor"],
-                                         "percentual": l["percentual"], "contrato": "RÓTULA",
-                                         "descricao": "[planilha] " + l["descricao"] + " (rascunho do BM2: conferir)"})
-    for tabela, regs in novos.items():
-        escrever(tabela, regs, antigos.get(tabela, ant_ded if tabela == "bm_deducoes" else []))
-    xio.gravar_celulas(planilha, celulas, pasta_backup=backups)
-    return {t: len(r) for t, r in novos.items()}
+    try:
+        return xio.registrar_bm_medido(planilha, dados, refazer=refazer, com_bm2_rascunho=com_bm2, pasta_backup=backups)
+    except ValueError as e:
+        sys.exit(f"{e} Use --refazer para substituir.")
 
 
 def main():
@@ -187,6 +132,7 @@ def main():
     c.add_argument("json")
     c.add_argument("planilha")
     c.add_argument("--refazer", action="store_true")
+    c.add_argument("--com-bm2-rascunho", action="store_true", help="inclui os descontos do rascunho do BM2 da EJ (conferir)")
     a = ap.parse_args()
     if a.cmd == "extrair":
         d = extrair(a.ej_bm1, a.cmm_bm1, a.ej_bm2)
@@ -196,7 +142,7 @@ def main():
             print(f"{emp}: medido R$ {x['medido']:,.2f} · a faturar R$ {x['a_faturar']:,.2f} · {len(x['linhas'])} descontos · "
                   f"{sum(1 for v in x['realizado'].values() if v)} atividades com quantidade")
     else:
-        print("Gravado:", json.dumps(carregar(json.load(open(a.json, encoding="utf-8")), a.planilha, a.refazer)))
+        print("Gravado:", json.dumps(carregar(json.load(open(a.json, encoding="utf-8")), a.planilha, a.refazer, a.com_bm2_rascunho)))
 
 
 if __name__ == "__main__":

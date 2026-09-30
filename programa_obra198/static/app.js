@@ -2403,7 +2403,7 @@ function renderBMBoletim(box) {
   const alertas = [];
   r.itens.filter(it => it.pesosAjustados).forEach(it => alertas.push(`Item ${it.item}: os pesos das atividades somam ${nf(it.somaPesos * 100, 1)}% (o sistema normaliza para 100%). Corrija no catálogo.`));
   r.itens.filter(it => it.excedeu).forEach(it => alertas.push(`Item ${it.item}: há atividade com realizado acima da quantidade contratada (limitado a 100% no cálculo).`));
-  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum BM registrado para esta empresa: o boletim mostra o acumulado até a data de referência.');
+  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum BM anterior registrado para esta empresa: tudo o que foi produzido até a data aparece neste BM, sem descontar nada já medido. Se já houve medição paga, registre o corte do BM1 em "Períodos e deduções" (EJ e CMM: o programa carrega o BM1 pago ao abrir).');
   if (Math.abs(tot.ajuste) > 0.5) {
     const its = r.itens.filter(it => Math.abs(it.pctAjuste) > 1e-9).map(it => it.item).join(', ');
     alertas.push(`A produção lançada até o corte do ${r.prev ? 'BM' + r.prev.n : 'BM anterior'} (${r.prev ? fdA(r.prev.fim) : ''}) difere do que foi medido nele em ${rs(tot.ajuste)} (itens ${its}). Essa diferença entra neste BM, porque a medição é o acumulado menos o que já foi medido.`);
@@ -2442,7 +2442,7 @@ function renderBMBoletim(box) {
     <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
     <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
-    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos'}</span></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
+    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>') +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
