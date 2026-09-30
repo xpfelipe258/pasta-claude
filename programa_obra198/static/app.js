@@ -2451,7 +2451,7 @@ const FORMS = {
     ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
   // multi: um cabeçalho (remessa / semana) e vários itens (TAG escolhida entre as já existentes + quantidade)
-  est_planilha_remessa: { tit: 'itens na remessa', endpoint: 'estoque-planilha/remessa', multi: { cab: ['remessa', 'Nome/Nº da remessa (escolha uma existente ou digite uma nova)', 'listaMultiCab'], fonte: () => EP.remessas.itens, cabLista: () => EP.remessas.colunas }, campos: [
+  est_planilha_remessa: { tit: 'itens na remessa', endpoint: 'estoque-planilha/remessa', multi: { grade: true, cab: ['remessa', 'Nova remessa / coluna (ex: 19° REMESSA OE198-24 02/10) — ou escolha uma existente para somar', 'listaMultiCab'], qtdRot: 'Quantidade', fonte: () => EP.remessas.itens, cabLista: () => EP.remessas.colunas }, campos: [
     ['remessa', 'Nome/Nº da remessa', 'text', 1]] },
   est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', multi: { grade: true, cab: ['semana', 'Nova semana / coluna (ex: 28/09 a 02/10) — ou escolha uma existente para somar', 'listaMultiCab'], empresa: true, qtdRot: 'Quantidade consumida', fonte: () => EP.consumo_fisico.itens, cabLista: () => EP.consumo_fisico.semanas }, campos: [
     ['semana', 'Semana', 'text', 1]] },
@@ -2475,14 +2475,15 @@ function abrirDialogoGrade(tabela) {
   dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi', 'grade');
   $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
   $('#listaMultiCab').innerHTML = [...m.cabLista()].reverse().map(c => `<option value="${esc(c)}">`).join('');
-  const linhas = m.fonte().map(i => `<tr data-tag="${esc(i.tag)}"><td><b>${esc(i.tag)}</b></td><td class="gr-prod">${esc(i.produto || '')}</td>
-    <td><input class="gr-in" data-emp="EJ" inputmode="decimal" aria-label="${esc(i.tag)} EJ"></td>
-    <td><input class="gr-in" data-emp="CMM" inputmode="decimal" aria-label="${esc(i.tag)} CMM"></td></tr>`).join('');
+  const cols = m.empresa ? [['EJ', 'gr-ej'], ['CMM', 'gr-cmm']] : [['', '']];
+  const rotCols = m.empresa ? cols.map(([e, c]) => `<th class="n ${c}">${e}</th>`).join('') : `<th class="n">${m.qtdRot || 'Quantidade'}</th>`;
+  const linhas = m.fonte().map(i => `<tr data-tag="${esc(i.tag)}"><td><b>${esc(i.tag)}</b></td><td class="gr-prod">${esc([i.produto, m.empresa ? '' : i.material].filter(Boolean).join(' · '))}</td>` +
+    cols.map(([e]) => `<td><input class="gr-in" data-emp="${e}" inputmode="decimal" aria-label="${esc(i.tag + ' ' + e)}"></td>`).join('') + '</tr>').join('');
   $('#dlgCampos').innerHTML = `<label class="largo"><span class="obrig">${m.cab[1]}</span><input name="${m.cab[0]}" list="listaMultiCab" autocomplete="off" required></label>
     <div class="largo gr-barra"><input type="search" id="grFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto…" autocomplete="off">
       <span class="nota" id="grTot"></span></div>
-    <div class="largo tabela-rolagem gr-caixa"><table class="gr-tab"><thead><tr><th>TAG</th><th>Produto</th><th class="n gr-ej">EJ</th><th class="n gr-cmm">CMM</th></tr></thead><tbody>${linhas}</tbody></table></div>
-    <p class="largo nota">Digite só onde houve consumo; linhas vazias são ignoradas. Enter desce para a linha de baixo na mesma coluna. O que já existir na semana escolhida é somado.</p>`;
+    <div class="largo tabela-rolagem gr-caixa"><table class="gr-tab"><thead><tr><th>TAG</th><th>Produto</th>${rotCols}</tr></thead><tbody>${linhas}</tbody></table></div>
+    <p class="largo nota">Digite só onde houve lançamento; linhas vazias são ignoradas. Enter desce para a linha de baixo. O que já existir na coluna escolhida é somado.</p>`;
   $('#dlgExcluir').hidden = true;
   dlg.showModal();
   dlg.querySelector('input[name=' + m.cab[0] + ']').focus();
@@ -2490,7 +2491,9 @@ function abrirDialogoGrade(tabela) {
 function gradeTotais() {
   const cel = [...document.querySelectorAll('.gr-in')].filter(i => i.value.trim());
   const soma = emp => cel.filter(i => i.dataset.emp === emp).reduce((s, i) => s + (Number(i.value.replace(/\./g, '').replace(',', '.')) || 0), 0);
-  const el = $('#grTot'); if (el) el.textContent = cel.length ? `${cel.length} lançamento(s) · EJ ${nf(soma('EJ'))} · CMM ${nf(soma('CMM'))}` : 'Nada lançado ainda';
+  const emp = !!FORMS[$('#dlg').dataset.tabela]?.multi?.empresa;
+  const el = $('#grTot'); if (el) el.textContent = !cel.length ? 'Nada lançado ainda'
+    : emp ? `${cel.length} lançamento(s) · EJ ${nf(soma('EJ'))} · CMM ${nf(soma('CMM'))}` : `${cel.length} item(ns) · total ${nf(soma(''))}`;
 }
 function gradeColetar(tabela) {
   const m = FORMS[tabela].multi, itens = [];
@@ -2499,10 +2502,10 @@ function gradeColetar(tabela) {
     const v = i.value.trim();
     if (!v) return;
     const q = Number(v.replace(/\./g, '').replace(',', '.')), tag = i.closest('tr').dataset.tag;
-    if (!(q > 0)) erro ||= `${tag} (${i.dataset.emp}): quantidade inválida.`;
-    else itens.push({ tag, empresa: i.dataset.emp, quantidade: q });
+    if (!(q > 0)) erro ||= `${tag}${i.dataset.emp ? ' (' + i.dataset.emp + ')' : ''}: quantidade inválida.`;
+    else itens.push({ tag, empresa: i.dataset.emp || undefined, quantidade: q });
   });
-  if (!erro && !itens.length) erro = 'Nenhum consumo lançado.';
+  if (!erro && !itens.length) erro = 'Nada lançado.';
   return { itens, erro };
 }
 function ligarGrade() {
