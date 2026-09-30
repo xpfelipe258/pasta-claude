@@ -75,6 +75,26 @@ function toast(msg, erro = false, duracao) {
   toast._t = setTimeout(() => t.className = 'toast' + (erro ? ' erro' : ''), duracao || (erro ? 6000 : 2600));
 }
 
+// ------------------------------------------------------------ scroll topo sincronizado
+function syncScrollTopo() {
+  document.querySelectorAll('.tabela-rolagem:not(.grade-lanc)').forEach(el => {
+    const tem = el.scrollWidth > el.clientWidth + 2;
+    let topo = el.previousElementSibling;
+    if (topo && !topo.classList.contains('scroll-topo')) topo = null;
+    if (!tem) { if (topo) topo.remove(); return; }
+    if (!topo) {
+      topo = document.createElement('div');
+      topo.className = 'scroll-topo';
+      topo.innerHTML = '<div></div>';
+      el.parentNode.insertBefore(topo, el);
+      let syncing = false;
+      topo.addEventListener('scroll', () => { if (!syncing) { syncing = true; el.scrollLeft = topo.scrollLeft; syncing = false; } });
+      el.addEventListener('scroll', () => { if (!syncing) { syncing = true; topo.scrollLeft = el.scrollLeft; syncing = false; } });
+    }
+    topo.firstChild.style.width = el.scrollWidth + 'px';
+  });
+}
+
 // ------------------------------------------------------------ dados de produção
 function empresa(nome) { return M.empresas.find(e => e.nome === nome); }
 function colDe(e, serv) { const s = e && e.servicos.find(x => x.nome === serv); return s ? s.col : null; }
@@ -276,6 +296,7 @@ function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente,
      estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI })[abaAtual]();
+  requestAnimationFrame(syncScrollTopo);
 }
 
 // ------------------------------------------------------------ PAINEL (por período)
@@ -2191,7 +2212,7 @@ function ligarEventos() {
   $('#dlgForm').addEventListener('submit', salvarDialogo);
   $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
   $('#dlgExcluir').onclick = excluirDialogo;
-  $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); }));
+  $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); document.querySelectorAll('.scroll-topo').forEach(e => e.scrollLeft = 0); }));
   $('#dlgForm').addEventListener('input', ev => {
     if (ev.target.name === 'custo') ev.target.dataset.manual = ev.target.value ? '1' : '';
     if (['equipamento', 'uso', 'quantidade'].includes(ev.target.name)) autoCustoUso(ev.currentTarget);
@@ -2201,6 +2222,7 @@ function ligarEventos() {
 
   $('#selServ').addEventListener('change', renderTendencia);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAba);
+  window.addEventListener('resize', () => requestAnimationFrame(syncScrollTopo));
 }
 
 // ------------------------------------------------------------ início
