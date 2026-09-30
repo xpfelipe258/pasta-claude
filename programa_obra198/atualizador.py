@@ -55,8 +55,9 @@ def aplicar_pacote(conteudo_zip, pasta_repo, destino):
     return alterados
 
 
-def atualizar(base, cfg_at):
-    """Devolve True se o código foi atualizado (o programa deve reiniciar)."""
+def atualizar(base, cfg_at, silencioso=False):
+    """Devolve a lista de arquivos alterados (vazia/False se nada mudou). Com `silencioso`, não escreve nada
+    quando já está na versão mais recente (usado na verificação periódica)."""
     at = dict(PADRAO)
     at.update(cfg_at or {})
     if not at.get("ativo") or not at.get("repositorio"):
@@ -67,17 +68,22 @@ def atualizar(base, cfg_at):
     try:
         sha = _get(f"{api}/commits/{at['ramo']}", at["token"])["sha"]
         if sha == atual:
-            print(" Programa atualizado (versão " + sha[:7] + ").")
+            if not silencioso:
+                print(" Programa atualizado (versão " + sha[:7] + ").")
             return False
         print(" Nova versão encontrada. Baixando atualização...")
         pacote = _get(f"{api}/zipball/{sha}", at["token"], bruto=True)
     except urllib.error.HTTPError as e:
+        if silencioso:
+            return False
         if e.code in (401, 403, 404):
             print(" Atualização automática: acesso negado ao repositório. Confira o token em config.json.")
         else:
             print(f" Atualização automática indisponível agora (HTTP {e.code}). Seguindo com a versão atual.")
         return False
     except Exception as e:
+        if silencioso:
+            return False
         print(f" Sem conexão para verificar atualizações ({e.__class__.__name__}). Seguindo com a versão atual.")
         return False
     alterados = aplicar_pacote(pacote, at["pasta"], base)
@@ -86,8 +92,8 @@ def atualizar(base, cfg_at):
     if "requirements.txt" in alterados:
         subprocess.call([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
                          "-r", os.path.join(base, "requirements.txt")])
-    print(f" Atualização aplicada ({len(alterados)} arquivo(s)). Reiniciando...")
-    return bool(alterados)
+    print(f" Atualização aplicada ({len(alterados)} arquivo(s)).")
+    return alterados
 
 
 def configurar_token(caminho_config, cfg_arquivo):

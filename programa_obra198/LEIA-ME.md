@@ -35,6 +35,13 @@ Como o repositório é privado, é preciso um token de leitura (uma vez só):
 3. Em **Permissions → Repository permissions → Contents**, escolha **Read-only**. Gere e copie o token.
 4. Na primeira vez que abrir o `INICIAR.bat` com esta versão, cole o token quando ele pedir. Ele fica gravado no `config.json`, na seção `"atualizacao"`.
 
+**Em tempo real, sem fechar o programa:** com o programa aberto ele volta a conferir o GitHub sozinho (a cada 1 minuto com token, 3 minutos sem). Quando sai versão nova:
+
+- mudança só de tela: a página aberta se recarrega sozinha em poucos segundos;
+- mudança de regras ou do programa: o servidor reinicia sozinho (a janela do `INICIAR.bat` continua aberta) e a página volta já na versão nova, sem abrir outra aba.
+
+Se houver alterações ainda não salvas na tela, ela só recarrega depois que você salvar ou descartar. O intervalo pode ser mudado em `config.json`, em `"atualizacao"`, com `"intervalo_segundos"` (mínimo 30).
+
 Sem internet, o programa segue normalmente com a versão atual.
 
 ## Levar os dados para o sistema online

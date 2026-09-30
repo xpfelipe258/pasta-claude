@@ -804,13 +804,14 @@ class Handler(BaseHTTPRequestHandler):
         caminho = urlparse(self.path).path
         try:
             if caminho == "/api/versao":
-                return self._json(200, {"versao": versao()})
+                return self._json(200, {"versao": versao(), "codigo": codigo_versao()})
             if caminho == "/api/dados":
                 with _trava:
                     m = modelo()
                     v = _cache["chave"]
                 return self._json(200, {
                     "versao": v,
+                    "codigo": codigo_versao(),
                     "recursos": {"importar_mensal": True, "exportar": True},
                     "arquivo": os.path.basename(CFG["planilha"]),
                     "modificado": dt.datetime.fromtimestamp(os.path.getmtime(CFG["planilha"])).isoformat(timespec="seconds"),
@@ -889,17 +890,67 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"erro": f"Falha ao gravar: {e}"})
 
 
-def verificar_atualizacao():
-    if os.environ.get("OBRA198_SEM_ATUALIZAR"):
-        return
+def codigo_versao():
+    """Versão do código instalado (commit do GitHub). A tela compara com a que carregou e se recarrega sozinha."""
+    try:
+        with open(os.path.join(BASE, ".versao")) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _config_atualizacao():
     caminho = os.path.join(BASE, "config.json")
     arquivo = {}
     if os.path.exists(caminho):
         with open(caminho, encoding="utf-8") as f:
             arquivo = json.load(f)
+    return caminho, arquivo
+
+
+def verificar_atualizacao():
+    if os.environ.get("OBRA198_SEM_ATUALIZAR"):
+        return
+    caminho, arquivo = _config_atualizacao()
     arquivo = atualizador.configurar_token(caminho, arquivo)
     if atualizador.atualizar(BASE, arquivo.get("atualizacao")):
+        print(" Reiniciando...")
         sys.exit(3)  # INICIAR.bat reinicia com o código novo
+
+
+_reiniciar = threading.Event()
+MARCA_REINICIO = os.path.join(BASE, ".reiniciado")
+
+
+def vigiar_atualizacao(srv):
+    """Com o programa aberto, confere o GitHub a cada poucos minutos. Mudança só de tela (static/) vale na hora: as
+    páginas abertas se recarregam sozinhas. Mudança de código reinicia o servidor (INICIAR reabre) e as páginas
+    voltam sozinhas na versão nova, sem fechar e abrir o programa."""
+    if os.environ.get("OBRA198_SEM_ATUALIZAR"):
+        return
+    _, arquivo = _config_atualizacao()
+    cfg_at = arquivo.get("atualizacao") or {}
+    if not cfg_at.get("ativo", True):
+        return
+    intervalo = max(30, int(cfg_at.get("intervalo_segundos") or (60 if cfg_at.get("token") else 180)))
+
+    def laco():
+        while not _reiniciar.wait(intervalo):
+            try:
+                alterados = atualizador.atualizar(BASE, cfg_at, silencioso=True)
+            except Exception:
+                continue
+            if alterados and any(not a.startswith("static/") for a in alterados):
+                print(" Código novo instalado; reiniciando o servidor...")
+                with _trava:   # espera uma gravação em andamento terminar
+                    try:
+                        open(MARCA_REINICIO, "w").close()
+                    except OSError:
+                        pass
+                    _reiniciar.set()
+                    threading.Thread(target=srv.shutdown, daemon=True).start()
+                return
+    threading.Thread(target=laco, daemon=True, name="atualizacao").start()
 
 
 def main():
@@ -929,12 +980,22 @@ def main():
         print(" Acesso pela rede local habilitado (use o IP deste computador).")
     print(" Para encerrar, feche esta janela ou pressione Ctrl+C.")
     print("=" * 60)
-    if CFG["abrir_navegador"]:
+    reinicio = os.path.exists(MARCA_REINICIO)
+    if reinicio:
+        try:
+            os.remove(MARCA_REINICIO)
+        except OSError:
+            pass
+    if CFG["abrir_navegador"] and not reinicio:   # após reinício automático a aba já aberta volta sozinha
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    vigiar_atualizacao(srv)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+    if _reiniciar.is_set():
+        srv.server_close()
+        sys.exit(3)
 
 
 if __name__ == "__main__":

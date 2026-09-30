@@ -188,7 +188,7 @@ async function carregar() {
   if (r.status === 401) { location.href = 'login.php'; return; }
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
-  D = j; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
+  D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
@@ -226,12 +226,22 @@ async function postarBruto(url, corpo) {
   return j;
 }
 
+let CODIGO = null, avisouCodigo = false;   // versão do código carregada nesta página
 async function verificarVersao() {
   if (salvando || !D) return;
   try {
     const r = await fetch(API + 'versao', { cache: 'no-store' });
     const j = await r.json();
     $('#pontoSync').className = 'ponto ok';
+    // versão nova do programa instalada (automática): recarrega a página sem precisar fechar e abrir de novo
+    if (j.codigo) {
+      if (!CODIGO) CODIGO = j.codigo;
+      else if (j.codigo !== CODIGO) {
+        if (pend.size || metasPend.size || bmPend.size) {
+          if (!avisouCodigo) { avisouCodigo = true; toast('Nova versão do programa instalada. Salve ou descarte as alterações pendentes para recarregar.', false, 12000); }
+        } else { toast('Nova versão do programa instalada. Recarregando…', false, 3000); setTimeout(() => location.reload(), 800); return; }
+      }
+    }
     if (j.versao !== D.versao) {
       if (pend.size || metasPend.size) { $('#faixaExterna').hidden = false; return; }
       await carregar();
