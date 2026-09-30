@@ -12,6 +12,7 @@ let filtroImp = 'abertos';
 const pend = new Map();  // `${aba}|${data}|${col}` -> texto digitado
 const metasPend = new Map(); // linha -> {meta_dia, du, gap}
 const graficos = {};
+let EP = null;           // dados de estoque da planilha (/api/estoque-planilha)
 let salvando = false;
 
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -173,6 +174,7 @@ async function carregar() {
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
   preencherListas();
   renderTudo();
+  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; if (abaAtual === 'estoque') renderEstoquePlanilha(); }).catch(() => {});
 }
 
 async function postar(url, corpo) {
@@ -773,6 +775,7 @@ function estoqueLinhas() {
 }
 
 function renderEstoque() {
+  renderEstoquePlanilha();
   renderEstoqueExterno();
   renderEstoqueIfc();
   const ls = estoqueLinhas();
@@ -955,6 +958,176 @@ function renderEstoqueExterno() {
         <td class="n ${i.acuracidade < 0.8 ? 'valor-neg' : ''}">${nf(i.acuracidade * 100, 1)}%</td></tr>`).join('') + '</tbody></table></div></div>';
   }
   box.innerHTML = h;
+}
+
+// ------------------------------------------------------------ ESTOQUE PLANILHA (4 abas importadas)
+function renderEstoquePlanilha() {
+  if (!EP) return;
+  renderEstMateriais();
+  renderEstRemessas();
+  renderEstConsumo();
+  renderEstInventario();
+}
+
+function _filtroMat() { return ($('#estMatFiltro')?.value || '').toUpperCase(); }
+function _filtroMatEtapa() { return ($('#estMatEtapa')?.value || ''); }
+function _filtroMatStatus() { return ($('#estMatStatus')?.value || ''); }
+
+function renderEstMateriais() {
+  if (!EP) return;
+  const itens = EP.materiais;
+  const f = _filtroMat(), fe = _filtroMatEtapa(), fs = _filtroMatStatus();
+  const vis = itens.filter(m => {
+    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f) && !(m.etapa || '').toUpperCase().includes(f)) return false;
+    if (fe && m.etapa !== fe) return false;
+    if (fs && m.status_logistico !== fs) return false;
+    return true;
+  });
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const totPlan = soma0(itens, m => m.planejado);
+  const totCheg = soma0(itens, m => m.chegou);
+  const atend = totPlan ? Math.round(100 * totCheg / totPlan) : 0;
+  const criticos = itens.filter(m => m.status_logistico === 'Crítico').length;
+  const parciais = itens.filter(m => m.status_logistico === 'Recebimento Parcial').length;
+  $('#estMatTiles').innerHTML =
+    tile('Itens', itens.length, `${vis.length} visíveis no filtro`, 'var(--fg)') +
+    tile('Atendimento geral', atend + '%', `${nf(totCheg)} de ${nf(totPlan)} planejados`, 'var(--acento)') +
+    tile('Críticos', criticos, 'nenhuma peça chegou', 'var(--vermelho)') +
+    tile('Recebimento parcial', parciais, 'falta enviar', 'var(--amarelo)');
+
+  const etapas = [...new Set(itens.map(m => m.etapa).filter(Boolean))].sort();
+  const selE = $('#estMatEtapa');
+  if (selE && selE.options.length <= 1) etapas.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; selE.appendChild(o); });
+  const statuses = [...new Set(itens.map(m => m.status_logistico).filter(Boolean))].sort();
+  const selS = $('#estMatStatus');
+  if (selS && selS.options.length <= 1) statuses.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; selS.appendChild(o); });
+
+  const farolSt = s => {
+    if (s === 'Atendido' || s === 'Excedente') return 'verde';
+    if (s === 'Recebimento Parcial') return 'amarelo';
+    if (s === 'Crítico') return 'vermelho';
+    return 'pendente';
+  };
+  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th></tr></thead><tbody>` +
+    (vis.length ? vis.map(m => `<tr>
+      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>
+      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(m.consumido)}</td>
+      <td class="n ${m.estoque_pos_baixa < 0 ? 'valor-neg' : ''}">${nf(m.estoque_pos_baixa)}</td>
+      <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
+      <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
+      <td>${esc(m.prioridade || '')}</td></tr>`).join('')
+    : '<tr><td colspan="11" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+}
+
+function renderEstRemessas() {
+  if (!EP) return;
+  const rem = EP.remessas;
+  const cols = rem.colunas;
+  const f = ($('#estRemFiltro')?.value || '').toUpperCase();
+  const vis = rem.itens.filter(m => {
+    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
+    return true;
+  });
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const totRec = soma0(rem.itens, m => m.total_recebido);
+  $('#estRemTiles').innerHTML =
+    tile('Itens', rem.itens.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile('Remessas', cols.length, 'colunas de envio', 'var(--acento)') +
+    tile('Total recebido', nf(totRec), 'soma de todas as remessas', 'var(--verde)');
+
+  const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
+  $('#tabEstRem').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th>` +
+    cols.map(c => `<th class="n" title="${esc(c)}">${esc(abrev(c))}</th>`).join('') +
+    `<th class="n">Total</th></tr></thead><tbody>` +
+    (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
+      cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') +
+      `<td class="n"><b>${nf(m.total_recebido)}</b></td></tr>`).join('')
+    : `<tr><td colspan="${4 + cols.length + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+}
+
+function renderEstConsumo() {
+  if (!EP) return;
+  const cf = EP.consumo_fisico;
+  const sems = cf.semanas;
+  const f = ($('#estConsFiltro')?.value || '').toUpperCase();
+  const vis = cf.itens.filter(m => {
+    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
+    return true;
+  });
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const totCons = soma0(cf.itens, m => m.total_consumo);
+  $('#estConsTiles').innerHTML =
+    tile('Fixadores', cf.itens.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile('Semanas', sems.length, 'períodos registrados', 'var(--acento)') +
+    tile('Total consumido', nf(totCons), 'soma de todos os itens', 'var(--vermelho)');
+
+  const abrevS = s => s.length > 14 ? s.slice(0, 12) + '…' : s;
+  $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
+    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}">${esc(abrevS(s))}</th>`).join('') +
+    `<th class="n">Total</th></tr><tr><th></th><th></th>` +
+    sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
+    `<th></th></tr></thead><tbody>` +
+    (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
+      sems.map(s => { const d = m.consumo_semanas[s]; return `<td class="n">${d ? nf(d.EJ) : ''}</td><td class="n">${d ? nf(d.CMM) : ''}</td>`; }).join('') +
+      `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
+    : `<tr><td colspan="${2 + sems.length * 2 + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+
+  const invDatas = cf.inventarios_datas || [];
+  if (invDatas.length) {
+    $('#tabEstConsInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
+      invDatas.map(d => `<th class="n">${esc(d)}</th>`).join('') +
+      `</tr></thead><tbody>` +
+      vis.filter(m => Object.keys(m.inventarios_fisicos || {}).length).map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
+        invDatas.map(d => `<td class="n">${m.inventarios_fisicos[d] != null ? nf(m.inventarios_fisicos[d]) : ''}</td>`).join('') + `</tr>`).join('') + '</tbody>';
+  } else {
+    $('#tabEstConsInv').innerHTML = '';
+  }
+}
+
+function renderEstInventario() {
+  if (!EP) return;
+  const inv = EP.inventario;
+  const f = ($('#estInvFiltro')?.value || '').toUpperCase();
+  const fs = ($('#estInvStatus')?.value || '');
+  const vis = inv.filter(m => {
+    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
+    if (fs) {
+      const st = (m.status || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (fs === 'CRITICO' && st !== 'CRITICO') return false;
+      if (fs === 'ATENCAO' && st !== 'ATENCAO') return false;
+      if (fs === 'CONFORME' && st !== 'CONFORME') return false;
+    }
+    return true;
+  });
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const criticos = inv.filter(m => (m.status || '').toUpperCase().includes('CRIT')).length;
+  const atencao = inv.filter(m => (m.status || '').toUpperCase().includes('ATEN')).length;
+  const conformes = inv.filter(m => (m.status || '').toUpperCase().includes('CONFORME')).length;
+  const acuMedia = inv.length ? soma0(inv, m => m.acuracidade || 0) / inv.length * 100 : 0;
+  $('#estInvTiles').innerHTML =
+    tile('Itens inventariados', inv.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile('Acuracidade média', nf(acuMedia, 1) + '%', 'meta >= 98%', 'var(--acento)') +
+    tile('Críticos', criticos, 'acuracidade < 95%', 'var(--vermelho)') +
+    tile('Conformes', conformes, 'acuracidade >= 98%', 'var(--verde)');
+
+  const farolAcu = s => {
+    const u = (s || '').toUpperCase();
+    if (u.includes('CONFORME')) return 'verde';
+    if (u.includes('ATEN')) return 'amarelo';
+    if (u.includes('CRIT')) return 'vermelho';
+    return 'pendente';
+  };
+  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th class="n">Planejado</th><th class="n">Est. Virtual Base</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
+    (vis.length ? vis.map(m => `<tr>
+      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td>
+      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.estoque_virtual_base)}</td><td class="n">${nf(m.estoque_fisico)}</td>
+      <td class="n">${nf(m.consumo_virtual)}</td><td class="n">${nf(m.consumo_fisico)}</td>
+      <td class="n">${nf(m.estoque_virtual_atual)}</td>
+      <td class="n ${m.perda_real < 0 ? 'valor-neg' : ''}">${nf(m.perda_real)}</td>
+      <td class="n">${m.acuracidade != null ? nf(m.acuracidade * 100, 1) + '%' : '—'}</td>
+      <td><span class="farol f-${farolAcu(m.status)}">${esc(m.status || '—')}</span></td>
+      <td>${esc(m.acao || '')}</td></tr>`).join('')
+    : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 
 // ------------------------------------------------------------ EQUIPAMENTOS
@@ -1687,6 +1860,26 @@ function ligarEventos() {
   }));
   const sbToggle = document.getElementById('sidebarToggle');
   if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
+  const estSub = document.getElementById('estSubAbas');
+  if (estSub) estSub.addEventListener('click', ev => {
+    const b = ev.target.closest('.sub-aba');
+    if (!b) return;
+    estSub.querySelectorAll('.sub-aba').forEach(x => x.classList.toggle('ativa', x === b));
+    document.querySelectorAll('#aba-estoque > .sub-conteudo').forEach(d => d.hidden = d.id !== b.dataset.sub);
+  });
+  ['estMatFiltro', 'estMatEtapa', 'estMatStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstMateriais());
+  });
+  const estRemF = document.getElementById('estRemFiltro');
+  if (estRemF) estRemF.addEventListener('input', () => renderEstRemessas());
+  const estConsF = document.getElementById('estConsFiltro');
+  if (estConsF) estConsF.addEventListener('input', () => renderEstConsumo());
+  ['estInvFiltro', 'estInvStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstInventario());
+  });
+
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));

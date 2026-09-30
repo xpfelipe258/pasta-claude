@@ -189,55 +189,115 @@
 
   <!-- ESTOQUE -->
   <section id="aba-estoque" hidden>
-    <div id="estExterno"></div>
+    <div class="sub-abas" id="estSubAbas">
+      <button class="sub-aba ativa" data-sub="est-materiais">Controle de Materiais</button>
+      <button class="sub-aba" data-sub="est-remessas">Remessas</button>
+      <button class="sub-aba" data-sub="est-consumo">Consumo Fisico</button>
+      <button class="sub-aba" data-sub="est-inventario">Inventario</button>
+      <button class="sub-aba" data-sub="est-sistema">Sistema (baixa auto)</button>
+    </div>
 
-    <!-- Baixa automática por IFC -->
-    <div class="bloco-cab"><h2>Baixa automática por IFC</h2>
-      <span class="nota" id="estIfcNota">Consumo teórico = eventos de produção × regras de baixa. Base de projeto: IFC do galpão. Ao lançar produção (VIGAS, PREMONTAGEM, IÇAMENTO JOIST), a baixa de fixadores é gerada automaticamente na aba MOVIMENTAÇÃO ESTOQUE.</span></div>
-    <div class="tiles" id="estIfcTiles"></div>
-    <div class="barra-acoes">
-      <p class="nota" id="estIfcResumo"></p>
-      <div class="acoes">
-        <button class="btn" data-novo="estoque_inventario">+ Inventário físico</button>
-        <button class="btn" data-novo="estoque_remessas">+ Remessa</button>
-        <button class="btn primario" data-novo="estoque_eventos">+ Evento de produção</button>
-      </div>
-    </div>
-    <ul class="alertas" id="estIfcAlertas"></ul>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Consumo teórico × chegou × físico</h2>
-        <span class="nota">Uma linha por material. Saldo teórico = chegou − consumo. Perda = físico − saldo teórico.</span></div>
-      <div class="tabela-rolagem"><table id="tabEstIfc"></table></div>
-    </div>
-    <div class="grade-2">
-      <div class="bloco">
-        <div class="bloco-cab"><h2>Joists por rua e faixa</h2>
-          <span class="nota">Projetado (IFC) vs. apontado. Máx. 6 por faixa.</span></div>
-        <div class="tabela-rolagem"><table id="tabEstIfcRuas"></table></div>
+    <!-- SUB-ABA: CONTROLE DE MATERIAIS -->
+    <div class="sub-conteudo" id="est-materiais">
+      <div class="tiles" id="estMatTiles"></div>
+      <div class="barra-acoes">
+        <input type="text" id="estMatFiltro" class="input-filtro" placeholder="Filtrar por TAG, produto ou etapa...">
+        <select id="estMatEtapa" class="input-filtro"><option value="">Todas as etapas</option></select>
+        <select id="estMatStatus" class="input-filtro"><option value="">Todos os status</option></select>
       </div>
       <div class="bloco">
-        <div class="bloco-cab"><h2>Últimos eventos de produção</h2></div>
-        <div class="tabela-rolagem"><table id="tabEstEventos"></table></div>
+        <div class="tabela-rolagem"><table id="tabEstMat"></table></div>
       </div>
     </div>
 
-    <div class="bloco-cab"><h2>Materiais controlados no sistema</h2></div>
-    <div class="tiles" id="estTiles"></div>
-    <div class="barra-acoes">
-      <p class="nota">Saldo = saldo inicial + entradas − saídas ± ajustes − consumo pela produção (produção × coef). A baixa automática cria saídas ao lançar produção de VIGAS, PREMONTAGEM e IÇAMENTO JOIST. Use "Auto-popular materiais IFC" para cadastrar os fixadores.</p>
-      <div class="acoes">
-        <button class="btn" data-novo="movimentos">+ Movimentação</button>
-        <button class="btn primario" data-novo="materiais">+ Material</button>
-        <button class="btn" id="btnSemearMat" title="Cadastra automaticamente os materiais (fixadores) do IFC com códigos FGxxx">Auto-popular materiais IFC</button>
+    <!-- SUB-ABA: REMESSAS -->
+    <div class="sub-conteudo" id="est-remessas" hidden>
+      <div class="tiles" id="estRemTiles"></div>
+      <div class="barra-acoes">
+        <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
+      </div>
+      <div class="bloco">
+        <div class="tabela-rolagem tabela-larga"><table id="tabEstRem"></table></div>
       </div>
     </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Materiais × necessidade da semana</h2><span class="nota" id="estNota"></span></div>
-      <div class="tabela-rolagem"><table id="tabEstoque"></table></div>
+
+    <!-- SUB-ABA: CONSUMO FISICO -->
+    <div class="sub-conteudo" id="est-consumo" hidden>
+      <div class="tiles" id="estConsTiles"></div>
+      <div class="barra-acoes">
+        <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Consumo por semana (EJ + CMM)</h2></div>
+        <div class="tabela-rolagem tabela-larga"><table id="tabEstCons"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Inventario fisico semanal</h2></div>
+        <div class="tabela-rolagem"><table id="tabEstConsInv"></table></div>
+      </div>
     </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Últimas movimentações</h2></div>
-      <div class="tabela-rolagem"><table id="tabMov"></table></div>
+
+    <!-- SUB-ABA: INVENTARIO -->
+    <div class="sub-conteudo" id="est-inventario" hidden>
+      <div class="tiles" id="estInvTiles"></div>
+      <div class="barra-acoes">
+        <input type="text" id="estInvFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
+        <select id="estInvStatus" class="input-filtro"><option value="">Todos</option><option value="CRITICO">Critico</option><option value="ATENCAO">Atencao</option><option value="CONFORME">Conforme</option></select>
+      </div>
+      <div class="bloco">
+        <div class="tabela-rolagem"><table id="tabEstInv"></table></div>
+      </div>
+    </div>
+
+    <!-- SUB-ABA: SISTEMA (baixa automatica) -->
+    <div class="sub-conteudo" id="est-sistema" hidden>
+      <div id="estExterno"></div>
+      <div class="bloco-cab"><h2>Baixa automatica por IFC</h2>
+        <span class="nota" id="estIfcNota">Consumo teorico = eventos de producao x regras de baixa. Ao lancar producao, a baixa de fixadores e gerada automaticamente.</span></div>
+      <div class="tiles" id="estIfcTiles"></div>
+      <div class="barra-acoes">
+        <p class="nota" id="estIfcResumo"></p>
+        <div class="acoes">
+          <button class="btn" data-novo="estoque_inventario">+ Inventario fisico</button>
+          <button class="btn" data-novo="estoque_remessas">+ Remessa</button>
+          <button class="btn primario" data-novo="estoque_eventos">+ Evento de producao</button>
+        </div>
+      </div>
+      <ul class="alertas" id="estIfcAlertas"></ul>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Consumo teorico x chegou x fisico</h2>
+          <span class="nota">Uma linha por material. Saldo teorico = chegou - consumo.</span></div>
+        <div class="tabela-rolagem"><table id="tabEstIfc"></table></div>
+      </div>
+      <div class="grade-2">
+        <div class="bloco">
+          <div class="bloco-cab"><h2>Joists por rua e faixa</h2>
+            <span class="nota">Projetado (IFC) vs. apontado. Max. 6 por faixa.</span></div>
+          <div class="tabela-rolagem"><table id="tabEstIfcRuas"></table></div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-cab"><h2>Ultimos eventos de producao</h2></div>
+          <div class="tabela-rolagem"><table id="tabEstEventos"></table></div>
+        </div>
+      </div>
+      <div class="bloco-cab"><h2>Materiais controlados no sistema</h2></div>
+      <div class="tiles" id="estTiles"></div>
+      <div class="barra-acoes">
+        <p class="nota">Saldo = saldo inicial + entradas - saidas +/- ajustes. A baixa automatica cria saidas ao lancar producao.</p>
+        <div class="acoes">
+          <button class="btn" data-novo="movimentos">+ Movimentacao</button>
+          <button class="btn primario" data-novo="materiais">+ Material</button>
+          <button class="btn" id="btnSemearMat" title="Cadastra automaticamente os materiais (fixadores) do IFC">Auto-popular materiais IFC</button>
+        </div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Materiais x necessidade da semana</h2><span class="nota" id="estNota"></span></div>
+        <div class="tabela-rolagem"><table id="tabEstoque"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Ultimas movimentacoes</h2></div>
+        <div class="tabela-rolagem"><table id="tabMov"></table></div>
+      </div>
     </div>
   </section>
 

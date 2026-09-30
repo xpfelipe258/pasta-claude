@@ -529,6 +529,12 @@ class Handler(BaseHTTPRequestHandler):
                     "modificado": dt.datetime.fromtimestamp(os.path.getmtime(CFG["planilha"])).isoformat(timespec="seconds"),
                     "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
                 })
+            if caminho == "/api/estoque-planilha":
+                arq = os.path.join(os.path.dirname(BASE), "dados", "estoque_obra198.json")
+                if os.path.exists(arq):
+                    with open(arq, encoding="utf-8") as f:
+                        return self._json(200, json.load(f))
+                return self._json(404, {"erro": "Dados de estoque não importados. Execute importar_estoque.py."})
             if caminho == "/api/exportar":
                 with _trava:
                     m = modelo()
