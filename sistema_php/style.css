@@ -390,3 +390,9 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 
 .ap-def { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linha); display: flex; flex-direction: column; gap: 8px; }
 .ap-def select { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
+.ap-info { min-height: 1.6em; margin: 0 0 8px; padding: 6px 10px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--linha); font-size: .8rem; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.apm { user-select: none; -webkit-user-select: none; display: block; }
+.apm-slot .bar { transition: fill .08s; }
+.apm-slot.feita .bar { stroke: #c79a00; stroke-width: 1; }
+.apm-slot.sel .bar { stroke: var(--fg); stroke-width: 1; }
+.apm-slot.pend:hover .bar { fill: var(--sel, var(--linha-forte)); opacity: .55; }

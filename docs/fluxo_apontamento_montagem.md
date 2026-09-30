@@ -20,9 +20,11 @@ sobre as 43 previstas.
 
 - **Quadrados** sobre os eixos são as vigas (maior = apoio/VC01, menor = intermediária). Clique para marcar; clicar
   no número do eixo marca todas as vigas pendentes dele.
-- **Barras** são as joists de cada quadrante (rua entre dois eixos x faixa), agrupadas junto da viga que as apoia;
-  a posição da barra define o tipo de parafuso. Clicar na 2ª barra pendente de um grupo seleciona duas; clicar de
-  novo na última selecionada desfaz.
+- **Retângulos** são as joists: cada rua mostra 43 retângulos grossos, numerados de 1 a 43 de cima (A) para baixo
+  (H), e cada um é marcado individualmente. A posição do retângulo define a viga de apoio e o tipo de parafuso
+  (tabela `layout_joists` em `regras_baixa.json`). Clicar marca, clicar de novo desmarca, e **arrastar o mouse** pinta
+  vários de uma vez. Ao passar o mouse, a linha acima do mapa mostra rua, nº da joist, faixa, viga de apoio e
+  parafuso. Os botões Compacto / Normal / Grande mudam a altura dos retângulos.
 - Amarelo = já montada, azul = selecionada para este salvamento, cinza/branco = pendente. Peça já montada não
   seleciona: para corrigir, exclua no histórico.
 - **Empresa a cada clique:** a barra fixa do topo tem "Empresa que montou" (EJ / CMM), sem valor inicial. Cada peça
@@ -30,14 +32,13 @@ sobre as 43 previstas.
   clicar numa peça já selecionada por outra empresa passa a peça para a empresa atual. A empresa não vem da malha:
   onde há montagem e frente liberada, quem montou é quem entra no BM.
 - **Um único Salvar** grava tudo que foi selecionado (vários quadrantes, vigas, EJ e CMM).
-- Pré-montagem segue por escrita no Lançamentos; "Digitar joists" e "Digitar vigas" continuam disponíveis para
-  regularizar histórico em lote.
+- Pré-montagem segue por escrita no Lançamentos; "Digitar vigas" continua disponível para regularizar vigas em lote.
 
 ## O que se aponta
 
-- **Joists por quadrante:** rua (par de eixos consecutivos, `11-12`) x faixa (AB a GH) e, para cada viga de apoio da
-  faixa, quantas joists foram fixadas nela. O parafuso vem da viga (B=FG006, BC=FG005, C=FG007...): 8 por joist,
-  mais 8 porcas (FG015) e 8 arruelas (FG018).
+- **Joists por retângulo:** rua (par de eixos consecutivos, `11-12`) e nº da joist (1 a 43). Faixa e viga de apoio
+  saem do `layout_joists`. O parafuso vem da viga (B=FG006, BC=FG005, C=FG007...): 8 por joist, mais 8 porcas (FG015)
+  e 8 arruelas (FG018). A planilha guarda uma linha por joist, com o nº na coluna "Nº da joist na rua".
 - **Vigas por tipo:** eixo (01 a 20) e as letras montadas (A a H). Tipo e kit vêm da letra:
   VC01 (A, H): FG022/FG024 x2 + FG012/FG017/FG020 x4; apoio: FG021/FG023 x4; intermediária (BC, CD, DE, EF, FG):
   FG012/FG017/FG020 x4.
@@ -46,19 +47,19 @@ sobre as 43 previstas.
 ## Histórico e conciliação
 
 - O estado de 30/09/2026 foi carregado a partir do desenho (`docs/conciliacao_desenho_2026-09-30.md`) como
-  regularização: 262 joists e 102 vigas já aparecem montadas no mapa, sem alterar a produção lançada.
+  regularização: 266 joists e 102 vigas já aparecem montadas no mapa, sem alterar a produção lançada.
 - O bloco **Conciliação com os lançamentos** (abaixo do mapa) compara, por empresa, o lançado na produção com o
   apontado no mapa (joists e vigas) e mostra a diferença ("a apontar").
 - Registros do histórico sem empresa ficam como "A DEFINIR" (hoje, 48 vigas). O painel "Definir empresa do
   histórico" atribui a empresa por região (peça, eixos, letras). Só vale para regularização; o BM vem dos lançamentos.
-- O mapa usa faixas de altura igual, proporcionais ao desenho.
+- O mapa alinha as estações de viga (A a H) aos retângulos: cada faixa ocupa o trecho das suas joists (a DE tem 7).
 
 ## Regras e proteções
 
 - Viga já apontada não entra de novo (evita contar duas vezes a mesma viga).
-- **43 joists por rua** (19 ruas x 43 = 817, o plano): o servidor recusa o apontamento que passaria de 43 na rua,
-  somando o que já foi apontado (inclui regularização) e o lote inteiro. Por faixa o normal é até 7 (o IFC tem 6 por
-  faixa, e a 43ª da rua cai numa faixa); acima disso grava com aviso.
+- **43 joists por rua** (19 ruas x 43 = 817, o plano): são 43 retângulos por rua, e o servidor recusa a mesma joist
+  apontada duas vezes, número fora de 1 a 43 e rua que passaria de 43. O lote é atômico: se uma peça for recusada,
+  nada é gravado.
 - A empresa é obrigatória em todo apontamento.
 - Empresa sem a coluna do serviço, data fora do calendário e rua/faixa/letra inválidas são recusadas. O salvamento
   é atômico: se uma peça do lote é inválida (ex.: viga repetida), nada é gravado.
@@ -87,9 +88,9 @@ Conferência: os ladrilhos da tela comparam produção x apontado. "A apontar" �
 
 ## Limitações
 
-- O desenho é esquemático: a posição exata de cada joist no quadrante não é registrada, só a viga de apoio
-  (3 barras por viga são desenhadas; se houver mais apontadas, aparecem barras extras). A orientação assume a
-  letra A no topo.
+- A viga de apoio de cada joist vem do `layout_joists` (estimativa calibrada com as retiradas de FG005/006/007),
+  não do desenho: se a posição real for outra, ajuste a tabela. A orientação assume a letra A no topo.
+- Registros antigos, sem nº de joist, ocupam os primeiros retângulos livres da mesma viga de apoio.
 - O sistema PHP (online) não tem esta tela nem as rotas de estoque: o menu fica oculto nele.
 - O apontamento não altera o histórico do Lançamentos. Para classificar o que já foi produzido, aponte com
   "Regularização" marcada.

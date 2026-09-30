@@ -1475,7 +1475,7 @@ function apFormHtml(regras, ctx) {
           title="${m ? `Montada em ${fdA(m.data)} (${esc(m.empresa || '')})` : ''}"><b>${l}</b><small>${c.viga} · ${AP_TIPO[c.evento_viga]}</small>${m ? '<small>✓ ' + fd(m.data) + '</small>' : ''}</button>`;
       }).join('')}</div><div class="ap-linha">${rodape}</div>`;
   }
-  return h + `<div id="apEfeitos">${apEfeitosHtml(regras, ctx)}</div>`;
+  return h;
 }
 
 // ---- mapa em planta: eixos na horizontal, estações de viga (A, B, BC, C ... H) na vertical
@@ -1642,6 +1642,7 @@ function renderApont() {
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
   $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : 'Situação das vigas (eixo × letra)';
   $('#apMapa').innerHTML = apMapaHtml(ctx);
+  $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
   $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
   $('#apDefEmp').innerHTML = apDefHtml(ctx);
 
@@ -1711,7 +1712,28 @@ function apMarcarSlot(ctx, chave, modo) {
   remover ? apEst.mapaJ.delete(chave) : apEst.mapaJ.set(chave, apEst.empresa);
   return true;
 }
-let apArraste = null;
+let apArraste = null, apUltimo = null;
+// Arraste: marca todos os retângulos entre o último marcado e o atual (mouse rápido não pula joists), na mesma rua.
+function apArrastarAte(ctx, chave) {
+  const [rua, slot] = chave.split('|'), [ruaU, slotU] = (apUltimo || chave).split('|');
+  const de = ruaU === rua ? +slotU : +slot, ate = +slot, passo = de <= ate ? 1 : -1;
+  let mudou = false;
+  for (let s = de; s !== ate + passo; s += passo) {
+    const k = `${rua}|${s}`;
+    if (apMarcarSlot(ctx, k, apArraste)) {
+      const g = document.querySelector(`[data-ap-slot="${k}"]`);
+      if (g) apPintarSlot(g, k);
+      mudou = true;
+    }
+  }
+  apUltimo = chave;
+  if (mudou) apAtualizarSelecao(false);
+}
+function apPintarSlot(g, chave) {
+  const emp = apEst.mapaJ.get(chave);
+  g.classList.toggle('sel', !!emp); g.classList.toggle('pend', !emp);
+  emp ? g.style.setProperty('--sel', corSelEmp(emp)) : g.style.removeProperty('--sel');
+}
 
 function ligarApontamento() {
   const sec = document.getElementById('aba-apont');
@@ -1791,15 +1813,22 @@ function ligarApontamento() {
     if (ctx.slotRow.has(k)) { toast('Essa joist já está apontada. Para corrigir, exclua o apontamento no histórico.'); return; }
     apArraste = apEst.mapaJ.get(k) === apEst.empresa ? 'remove' : 'add';
     apMarcarSlot(ctx, k, apArraste);
-    apAtualizarSelecao(true);
+    apPintarSlot(slot, k);
+    apUltimo = k;
+    apAtualizarSelecao(false);
   });
   sec.addEventListener('mouseover', ev => {
     const alvo = ev.target.closest('[data-ap-info]'), info = $('#apMapaInfo');
     if (info) info.textContent = alvo ? alvo.dataset.apInfo : AP_INFO_PADRAO;
     const slot = ev.target.closest('[data-ap-slot]');
-    if (apArraste && slot && regras() && apMarcarSlot(apContexto(regras()), slot.dataset.apSlot, apArraste)) apAtualizarSelecao(true);
+    // durante o arraste só o retângulo muda (redesenhar o mapa trocaria o elemento sob o mouse e perderia retângulos)
+    if (apArraste && slot && regras()) apArrastarAte(apContexto(regras()), slot.dataset.apSlot);
   });
-  document.addEventListener('mouseup', () => { apArraste = null; });
+  document.addEventListener('mouseup', () => {
+    if (!apArraste) return;
+    apArraste = null; apUltimo = null;
+    if (regras()) apAtualizarSelecao(true);   // fim do arraste: atualiza contadores por rua
+  });
   sec.addEventListener('input', ev => {
     if (ev.target.id === 'apObs') apEst.obs = ev.target.value;
   });
