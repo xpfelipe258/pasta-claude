@@ -44,11 +44,13 @@ function patchDatas() {
     txt.value = inp.value ? fdA(inp.value) : '';
     inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden';
     inp.parentNode.insertBefore(txt, inp.nextSibling);
+    inp._txtPar = txt;
     txt.addEventListener('change', () => { const iso = isoDeTexto(txt.value.trim()); if (iso && ehISO(iso)) { inp.value = iso; inp.dispatchEvent(new Event('change', {bubbles:true})); txt.value = fdA(iso); } });
     txt.addEventListener('focus', () => { inp.style.position = ''; inp.style.opacity = ''; inp.style.pointerEvents = ''; inp.style.width = ''; inp.style.height = ''; inp.style.overflow = ''; txt.style.display = 'none'; inp.focus(); });
     inp.addEventListener('blur', () => { inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden'; txt.style.display = ''; txt.value = inp.value ? fdA(inp.value) : ''; });
     inp.addEventListener('change', () => { txt.value = inp.value ? fdA(inp.value) : ''; });
   });
+  document.querySelectorAll('input[type="date"][data-patched]').forEach(inp => { if (inp._txtPar) inp._txtPar.value = inp.value ? fdA(inp.value) : ''; });
 }
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
@@ -238,6 +240,7 @@ function definirPeriodo(ini, fim, atalho) {
   if (fim < ini) [ini, fim] = [fim, ini];
   per = { ini, fim };
   $('#perIni').value = ini; $('#perFim').value = fim;
+  patchDatas();
   document.querySelectorAll('#perAtalhos button').forEach(b => b.classList.toggle('ativa', b.dataset.p === atalho));
   $('#perTxt').textContent = `${diasEntre(ini, fim) + 1} dias · ${contarDiasUteis(add(ini, -1), fim)} dias úteis · resultados apurados até ${fdA(minD(fim, ref))}`;
   renderTudo();
@@ -1779,7 +1782,6 @@ function ligarEventos() {
 (async function iniciar() {
   ref = hoje();
   ligarEventos();
-  patchDatas();
   let aba = 'painel';
   try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
   $('#refData').value = ref;
@@ -1787,6 +1789,7 @@ function ligarEventos() {
   per = { ini: s, fim: add(s, 6) };
   try { await carregar(); definirRef(ref); }
   catch (err) { $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; }
+  patchDatas();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
   setInterval(verificarVersao, 4000);
 })();
