@@ -26,19 +26,57 @@
   </div>
 </header>
 
-<nav class="abas" id="abas">
-  <button data-aba="painel" class="ativa">Painel</button>
-  <button data-aba="semana">Programação semanal</button>
-  <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
-  <button data-aba="avanco">Avanço físico</button>
-  <button data-aba="cliente">Dashboard cliente</button>
-  <button data-aba="estoque">Estoque <span class="contador alerta" id="estCont" hidden></span></button>
-  <button data-aba="equip">Equipamentos</button>
-  <button data-aba="bm">Medição (BM)</button>
-  <button data-aba="metas">Metas</button>
-  <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
-  <button data-aba="tendencia">Tendências</button>
-</nav>
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
+<aside class="sidebar" id="sidebar">
+  <nav class="sidebar-nav" id="abas">
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="producao">
+        <span class="sidebar-icone">&#9783;</span>Produção<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-producao">
+        <button data-aba="painel" class="ativa">Painel</button>
+        <button data-aba="semana">Programação semanal</button>
+        <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
+        <button data-aba="avanco">Avanço físico</button>
+        <button data-aba="cliente">Dashboard cliente</button>
+        <button data-aba="tendencia">Tendências</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="suprimentos">
+        <span class="sidebar-icone">&#9744;</span>Suprimentos<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-suprimentos">
+        <button data-aba="estoque">Estoque e inventário <span class="contador alerta" id="estCont" hidden></span></button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="consumo">
+        <span class="sidebar-icone">&#9881;</span>Consumo<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-consumo">
+        <button data-aba="equip">Equipamentos</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="financeiro">
+        <span class="sidebar-icone">&#36;</span>Financeiro<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-financeiro">
+        <button data-aba="bm">Medição (BM)</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="gestao">
+        <span class="sidebar-icone">&#9670;</span>Gestão<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-gestao">
+        <button data-aba="metas">Metas</button>
+        <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
+      </div>
+    </div>
+  </nav>
+</aside>
 
 <div class="faixa" id="faixaExterna" hidden>
   A planilha foi alterada fora do sistema. Salve ou descarte seus lançamentos pendentes para recarregar.
