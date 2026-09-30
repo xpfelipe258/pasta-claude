@@ -146,7 +146,7 @@ main > section { display: flex; flex-direction: column; gap: 16px; }
 .tile .sub { font-size: .8rem; color: var(--fg2); }
 
 .tabela-rolagem { overflow-x: auto; position: relative; }
-.scroll-topo { overflow-x: auto; overflow-y: hidden; height: 12px; min-height: 12px; border-bottom: 1px solid var(--linha); }
+.scroll-topo { overflow-x: auto; overflow-y: hidden; height: 14px; min-height: 14px; border-bottom: 1px solid var(--linha); position: sticky; top: 0; z-index: 5; background: var(--bg); }
 .scroll-topo > div { height: 1px; }
 table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 th { text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--linha-forte); white-space: nowrap; background: var(--card); }
@@ -397,29 +397,13 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .apm-slot.sel .bar { stroke: var(--fg); stroke-width: 1; }
 .apm-slot.pend:hover .bar { fill: var(--sel, var(--linha-forte)); opacity: .55; }
 
-/* diálogo de vários itens (remessa / consumo) */
-dialog.multi { width: min(860px, calc(100vw - 32px)); }
-.multi-itens { display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
-.multi-linha { display: grid; grid-template-columns: minmax(0, 1fr) 150px 34px; gap: 10px; align-items: start; }
-.multi-linha:has(.multi-emp) { grid-template-columns: minmax(0, 1fr) 110px 150px 34px; }
-.multi-linha .btn-icone { margin-top: 18px; }
-.mi-desc { font-weight: 400; color: var(--fg3); min-height: 1.1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mi-desc.erro { color: var(--vermelho); }
-@media (max-width: 560px) { .multi-linha, .multi-linha:has(.multi-emp) { grid-template-columns: 1fr 1fr 34px; } .multi-tag { grid-column: 1 / -1; } }
-
-/* grade de consumo: coluna nova com lançamento direto nas linhas */
-dialog.grade { width: min(760px, calc(100vw - 32px)); }
-.gr-barra { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.gr-caixa { max-height: 52vh; overflow: auto; border: 1px solid var(--linha); border-radius: var(--r); }
-.gr-tab { width: 100%; border-collapse: collapse; }
-.gr-tab thead th { position: sticky; top: 0; background: var(--card); z-index: 1; border-bottom: 1px solid var(--linha-forte); padding: 6px 8px; font-size: .7rem; text-transform: uppercase; }
-.gr-tab td { padding: 3px 8px; border-bottom: 1px solid var(--linha); }
-.gr-prod { color: var(--fg2); font-size: .8rem; }
-.gr-ej { color: #3b82f6; } .gr-cmm { color: #d97706; }
-.gr-in { width: 100%; min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
-.gr-in.preenchido { background: var(--acento-suave); border-color: var(--acento); font-weight: 700; }
-
-.atualiz { font-size: .72rem; color: var(--fg3); }
-.atualiz.erro { color: var(--vermelho); font-weight: 600; }
-.atualiz.aviso { color: var(--amarelo); }
-.atualiz .link { font-size: inherit; }
+/* coluna nova digitada direto na tabela (remessa / consumo) */
+.ed-barra { position: sticky; top: 14px; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 14px; margin: 8px 0; background: var(--card); border: 1px solid var(--acento); border-radius: var(--r); box-shadow: var(--sombra); font-size: .85rem; }
+.ed-barra[hidden] { display: none; }
+.ed-barra .espaco { flex: 1; }
+.ed-resumo { color: var(--fg2); font-variant-numeric: tabular-nums; }
+th.col-nova, td.col-nova { background: var(--acento-suave); min-width: 130px; }
+.ed-cab, .ed-in { width: 100%; min-width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.ed-cab { text-align: center; font-weight: 700; text-transform: none; letter-spacing: 0; border-color: var(--acento); }
+.ed-in.preenchido { border-color: var(--acento); font-weight: 700; }
+td.col-nova { padding: 3px 6px; }

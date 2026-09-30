@@ -90,9 +90,12 @@ function regrasBaixa(refazer) {
 }
 
 // ------------------------------------------------------------ scroll topo sincronizado
+// Toda tabela larga (.tabela-rolagem) ganha uma barra de rolagem horizontal acima dela, que acompanha a tela
+// (fica grudada no topo enquanto a tabela estiver à vista). Reaplica sozinha quando a tela muda (abas, sub-abas,
+// filtros, colunas novas), sem precisar ser chamada em cada renderização.
 function syncScrollTopo() {
-  document.querySelectorAll('.tabela-rolagem:not(.grade-lanc)').forEach(el => {
-    const tem = el.scrollWidth > el.clientWidth + 2;
+  document.querySelectorAll('.tabela-rolagem').forEach(el => {
+    const tem = el.offsetParent !== null && el.scrollWidth > el.clientWidth + 2;
     let topo = el.previousElementSibling;
     if (topo && !topo.classList.contains('scroll-topo')) topo = null;
     if (!tem) { if (topo) topo.remove(); return; }
@@ -105,8 +108,21 @@ function syncScrollTopo() {
       topo.addEventListener('scroll', () => { if (!syncing) { syncing = true; el.scrollLeft = topo.scrollLeft; syncing = false; } });
       el.addEventListener('scroll', () => { if (!syncing) { syncing = true; topo.scrollLeft = el.scrollLeft; syncing = false; } });
     }
-    topo.firstChild.style.width = el.scrollWidth + 'px';
+    const w = el.scrollWidth + 'px';
+    if (topo.firstChild.style.width !== w) topo.firstChild.style.width = w;
   });
+}
+let _agendaScroll = 0;
+function agendarScrollTopo() {
+  if (_agendaScroll) return;
+  _agendaScroll = requestAnimationFrame(() => { _agendaScroll = 0; syncScrollTopo(); });
+}
+function vigiarScrollTopo() {
+  const main = document.querySelector('main');
+  if (!main) return;
+  new MutationObserver(agendarScrollTopo).observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  window.addEventListener('resize', agendarScrollTopo);
+  agendarScrollTopo();
 }
 
 // ------------------------------------------------------------ dados de produção
@@ -1139,13 +1155,117 @@ function renderEstRemessas() {
     tile('Total recebido', nf(totRec), 'soma de todas as remessas', 'var(--verde)');
 
   const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
+  const ed = estEdit.rem, cxR = $('#tabEstRem').closest('.tabela-rolagem'), sxR = cxR.scrollLeft;
   $('#tabEstRem').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th>` +
     cols.map(c => `<th class="n" title="${esc(c)}">${esc(abrev(c))}</th>`).join('') +
+    (ed ? `<th class="n col-nova"><input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
       cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') +
+      (ed ? `<td class="col-nova"><input class="ed-in" data-ed="rem" data-tag="${esc(m.tag)}" data-col="q" inputmode="decimal" value="${esc(ed.val.get(m.tag) || '')}" aria-label="${esc(m.tag)}"></td>` : '') +
       `<td class="n"><b>${nf(m.total_recebido)}</b></td></tr>`).join('')
-    : `<tr><td colspan="${4 + cols.length + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+    : `<tr><td colspan="${4 + cols.length + (ed ? 1 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+  cxR.scrollLeft = sxR;   // redesenhar (filtro, digitação) não pode voltar a tabela para o início
+  edBarra('rem');
+}
+
+// ---- edição direta na tabela: "+ Nova remessa" / "+ Registrar consumo" abrem uma coluna nova para digitar
+const estEdit = { rem: null, cons: null };   // { nome, val: Map } enquanto a coluna nova está aberta
+const ED = {
+  rem: { tabela: '#tabEstRem', barra: '#estRemEd', rotulo: 'remessa', endpoint: 'estoque-planilha/remessa', campo: 'remessa', render: () => renderEstRemessas() },
+  cons: { tabela: '#tabEstCons', barra: '#estConsEd', rotulo: 'semana', endpoint: 'estoque-planilha/consumo', campo: 'semana', render: () => renderEstConsumo() },
+};
+const edNum = v => Number(String(v).trim().replace(/\./g, '').replace(',', '.'));
+function edItens(k) {
+  const ed = estEdit[k], itens = [];
+  let erro = null;
+  ed.val.forEach((v, chave) => {
+    if (!String(v).trim()) return;
+    const [tag, emp] = chave.split('|'), q = edNum(v);
+    if (!(q > 0)) erro ||= `${tag}${emp ? ' (' + emp + ')' : ''}: quantidade inválida.`;
+    else itens.push({ tag, empresa: emp || undefined, quantidade: q });
+  });
+  return { itens, erro };
+}
+function edBarra(k) {
+  const box = $(ED[k].barra), ed = estEdit[k];
+  if (!box) return;
+  box.hidden = !ed;
+  if (!ed) { box.innerHTML = ''; return; }
+  const { itens } = edItens(k), tot = itens.reduce((s, i) => s + i.quantidade, 0);
+  const resumo = !itens.length ? 'Digite as quantidades na coluna nova' : k === 'cons'
+    ? `${itens.length} lançamento(s) · EJ ${nf(itens.filter(i => i.empresa === 'EJ').reduce((s, i) => s + i.quantidade, 0))} · CMM ${nf(itens.filter(i => i.empresa === 'CMM').reduce((s, i) => s + i.quantidade, 0))}`
+    : `${itens.length} item(ns) · total ${nf(tot)}`;
+  if (!box.dataset.pronto) {
+    box.dataset.pronto = '1';
+    box.innerHTML = `<span><b>${k === 'rem' ? 'Nova remessa' : 'Novo consumo'}:</b> preencha a coluna no fim da tabela e escreva o ${k === 'rem' ? 'nº da remessa' : 'período da semana'} no cabeçalho.</span>
+      <span class="ed-resumo"></span><span class="espaco"></span>
+      <button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>
+      <button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
+  }
+  box.querySelector('.ed-resumo').textContent = resumo;
+}
+function edAbrir(k) {
+  if (!EP) return;
+  if (!estEdit[k]) estEdit[k] = { nome: '', val: new Map() };
+  $(ED[k].barra).dataset.pronto = '';
+  ED[k].render();
+  const cab = $(ED[k].tabela).querySelector('.ed-cab');
+  const cx = $(ED[k].tabela).closest('.tabela-rolagem');
+  cx.scrollLeft = cx.scrollWidth;   // mostra as últimas colunas, com a nova à direita
+  if (cab) cab.focus({ preventScroll: true });
+  agendarScrollTopo();
+}
+function edFechar(k) { estEdit[k] = null; $(ED[k].barra).dataset.pronto = ''; ED[k].render(); }
+async function edSalvar(k) {
+  const ed = estEdit[k], nome = (ed?.nome || '').trim();
+  if (!nome) { toast(`Escreva ${k === 'rem' ? 'o nº da remessa' : 'a semana'} no cabeçalho da coluna nova.`, true); $(ED[k].tabela).querySelector('.ed-cab')?.focus(); return; }
+  const { itens, erro } = edItens(k);
+  if (erro) { toast(erro, true); return; }
+  if (!itens.length) { toast('Digite ao menos uma quantidade.', true); return; }
+  const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
+  try {
+    const r = await postar(API + ED[k].endpoint, { [ED[k].campo]: nome, itens });
+    const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+    if (j) EP = j;
+    estEdit[k] = null; $(ED[k].barra).dataset.pronto = '';
+    renderEstoquePlanilha();
+    toast(`${r.salvos ?? itens.length} lançamento(s) salvos ${ONDE}`);
+  } catch (err) { toast(err.message, true); b.disabled = false; }
+}
+function ligarEdicaoEstoque() {
+  const sec = $('#aba-estoque');
+  $('#btnNovaRemessa').onclick = () => edAbrir('rem');
+  $('#btnNovoConsumo').onclick = () => edAbrir('cons');
+  sec.addEventListener('input', ev => {
+    const el = ev.target, k = el.dataset.ed;
+    if (!k || !estEdit[k]) return;
+    if (el.classList.contains('ed-cab')) estEdit[k].nome = el.value;
+    else {
+      const chave = el.dataset.emp ? `${el.dataset.tag}|${el.dataset.emp}` : el.dataset.tag;
+      estEdit[k].val.set(chave, el.value);
+      el.classList.toggle('preenchido', !!el.value.trim());
+      edBarra(k);
+    }
+  });
+  sec.addEventListener('keydown', ev => {
+    const el = ev.target;
+    if (!el.classList?.contains('ed-in') || ev.key !== 'Enter') return;
+    ev.preventDefault();   // Enter desce na mesma coluna
+    let tr = el.closest('tr').nextElementSibling;
+    const seletor = `.ed-in[data-ed="${el.dataset.ed}"]${el.dataset.emp ? `[data-emp="${el.dataset.emp}"]` : ''}`;
+    const prox = tr?.querySelector(seletor);
+    if (prox) { prox.focus(); prox.select(); }
+  });
+  sec.addEventListener('click', ev => {
+    const c = ev.target.closest('[data-ed-cancelar]'), s = ev.target.closest('[data-ed-salvar]');
+    if (s) return edSalvar(s.dataset.edSalvar);
+    if (c) {
+      const k = c.dataset.edCancelar;
+      if (edItens(k).itens.length && !c.dataset.confirmar) { c.dataset.confirmar = '1'; c.textContent = 'Descartar o que digitei?'; return; }
+      edFechar(k);
+    }
+  });
 }
 
 function renderEstConsumo() {
@@ -1165,15 +1285,22 @@ function renderEstConsumo() {
     tile('Total consumido', nf(totCons), 'soma de todos os itens', 'var(--vermelho)');
 
   const abrevS = s => s.length > 14 ? s.slice(0, 12) + '…' : s;
+  const ed = estEdit.cons, cxC = $('#tabEstCons').closest('.tabela-rolagem'), sxC = cxC.scrollLeft;
+  const inp = (m, emp) => `<td class="col-nova"><input class="ed-in" data-ed="cons" data-tag="${esc(m.tag)}" data-emp="${emp}" inputmode="decimal" value="${esc(ed.val.get(m.tag + '|' + emp) || '')}" aria-label="${esc(m.tag)} ${emp}"></td>`;
   $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
     sems.map(s => `<th class="n" colspan="2" title="${esc(s)}">${esc(abrevS(s))}</th>`).join('') +
+    (ed ? `<th class="n col-nova" colspan="2"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
     `<th class="n">Total</th></tr><tr><th></th><th></th>` +
     sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
+    (ed ? `<th class="n col-nova" style="color:var(--ej)">EJ</th><th class="n col-nova" style="color:var(--cmm)">CMM</th>` : '') +
     `<th></th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
       sems.map(s => { const d = m.consumo_semanas[s]; return `<td class="n">${d ? nf(d.EJ) : ''}</td><td class="n">${d ? nf(d.CMM) : ''}</td>`; }).join('') +
+      (ed ? inp(m, 'EJ') + inp(m, 'CMM') : '') +
       `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
-    : `<tr><td colspan="${2 + sems.length * 2 + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+    : `<tr><td colspan="${2 + sems.length * 2 + (ed ? 2 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+  cxC.scrollLeft = sxC;
+  edBarra('cons');
 
   const invDatas = cf.inventarios_datas || [];
   if (invDatas.length) {
@@ -2480,148 +2607,10 @@ const FORMS = {
   estoque_inventario: { tit: 'contagem de inventário', campos: [
     ['data', 'Data', 'date', 1], ['codigo', 'Código do material', 'text', 1],
     ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
-    ['obs', 'Observação', 'text', 0, 'largo']] },
-  // multi: um cabeçalho (remessa / semana) e vários itens (TAG escolhida entre as já existentes + quantidade)
-  est_planilha_remessa: { tit: 'itens na remessa', endpoint: 'estoque-planilha/remessa', multi: { grade: true, cab: ['remessa', 'Nova remessa / coluna (ex: 19° REMESSA OE198-24 02/10) — ou escolha uma existente para somar', 'listaMultiCab'], qtdRot: 'Quantidade', fonte: () => EP.remessas.itens, cabLista: () => EP.remessas.colunas }, campos: [
-    ['remessa', 'Nome/Nº da remessa', 'text', 1]] },
-  est_planilha_consumo: { tit: 'consumo físico semanal', endpoint: 'estoque-planilha/consumo', multi: { grade: true, cab: ['semana', 'Nova semana / coluna (ex: 28/09 a 02/10) — ou escolha uma existente para somar', 'listaMultiCab'], empresa: true, qtdRot: 'Quantidade consumida', fonte: () => EP.consumo_fisico.itens, cabLista: () => EP.consumo_fisico.semanas }, campos: [
-    ['semana', 'Semana', 'text', 1]] },
+    ['obs', 'Observação', 'text', 0, 'largo']] }
 };
 
-// ---- diálogo de vários itens (remessa / consumo): TAG selecionável entre as existentes
-function multiLinhaHtml(m) {
-  return `<div class="multi-linha">
-    <label class="multi-tag"><span>TAG do material</span><input class="mi-tag" list="listaMultiTags" placeholder="Digite ou escolha…" autocomplete="off"><small class="mi-desc"></small></label>
-    ${m.empresa ? '<label class="multi-emp"><span>Empresa</span><select class="mi-emp"><option value="">—</option><option>EJ</option><option>CMM</option></select></label>' : ''}
-    <label class="multi-qtd"><span>${m.qtdRot || 'Quantidade'}</span><input class="mi-qtd" inputmode="decimal" placeholder="0"></label>
-    <button type="button" class="btn-icone multi-rem" title="Remover item" aria-label="Remover item">×</button></div>`;
-}
-function multiDescTag(m, tag) {
-  const it = m.fonte().find(i => i.tag === tag.trim().toUpperCase());
-  return it ? [it.produto, it.material].filter(Boolean).join(' · ') : '';
-}
-// ---- grade: uma coluna nova (semana) e o consumo lançado direto nas linhas, EJ e CMM, sem repetir TAG
-function abrirDialogoGrade(tabela) {
-  const def = FORMS[tabela], m = def.multi, dlg = $('#dlg');
-  dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi', 'grade');
-  $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
-  $('#listaMultiCab').innerHTML = [...m.cabLista()].reverse().map(c => `<option value="${esc(c)}">`).join('');
-  const cols = m.empresa ? [['EJ', 'gr-ej'], ['CMM', 'gr-cmm']] : [['', '']];
-  const rotCols = m.empresa ? cols.map(([e, c]) => `<th class="n ${c}">${e}</th>`).join('') : `<th class="n">${m.qtdRot || 'Quantidade'}</th>`;
-  const linhas = m.fonte().map(i => `<tr data-tag="${esc(i.tag)}"><td><b>${esc(i.tag)}</b></td><td class="gr-prod">${esc([i.produto, m.empresa ? '' : i.material].filter(Boolean).join(' · '))}</td>` +
-    cols.map(([e]) => `<td><input class="gr-in" data-emp="${e}" inputmode="decimal" aria-label="${esc(i.tag + ' ' + e)}"></td>`).join('') + '</tr>').join('');
-  $('#dlgCampos').innerHTML = `<label class="largo"><span class="obrig">${m.cab[1]}</span><input name="${m.cab[0]}" list="listaMultiCab" autocomplete="off" required></label>
-    <div class="largo gr-barra"><input type="search" id="grFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto…" autocomplete="off">
-      <span class="nota" id="grTot"></span></div>
-    <div class="largo tabela-rolagem gr-caixa"><table class="gr-tab"><thead><tr><th>TAG</th><th>Produto</th>${rotCols}</tr></thead><tbody>${linhas}</tbody></table></div>
-    <p class="largo nota">Digite só onde houve lançamento; linhas vazias são ignoradas. Enter desce para a linha de baixo. O que já existir na coluna escolhida é somado.</p>`;
-  $('#dlgExcluir').hidden = true;
-  dlg.showModal();
-  dlg.querySelector('input[name=' + m.cab[0] + ']').focus();
-}
-function gradeTotais() {
-  const cel = [...document.querySelectorAll('.gr-in')].filter(i => i.value.trim());
-  const soma = emp => cel.filter(i => i.dataset.emp === emp).reduce((s, i) => s + (Number(i.value.replace(/\./g, '').replace(',', '.')) || 0), 0);
-  const emp = !!FORMS[$('#dlg').dataset.tabela]?.multi?.empresa;
-  const el = $('#grTot'); if (el) el.textContent = !cel.length ? 'Nada lançado ainda'
-    : emp ? `${cel.length} lançamento(s) · EJ ${nf(soma('EJ'))} · CMM ${nf(soma('CMM'))}` : `${cel.length} item(ns) · total ${nf(soma(''))}`;
-}
-function gradeColetar(tabela) {
-  const m = FORMS[tabela].multi, itens = [];
-  let erro = null;
-  document.querySelectorAll('.gr-in').forEach(i => {
-    const v = i.value.trim();
-    if (!v) return;
-    const q = Number(v.replace(/\./g, '').replace(',', '.')), tag = i.closest('tr').dataset.tag;
-    if (!(q > 0)) erro ||= `${tag}${i.dataset.emp ? ' (' + i.dataset.emp + ')' : ''}: quantidade inválida.`;
-    else itens.push({ tag, empresa: i.dataset.emp || undefined, quantidade: q });
-  });
-  if (!erro && !itens.length) erro = 'Nada lançado.';
-  return { itens, erro };
-}
-function ligarGrade() {
-  const dlg = $('#dlg');
-  dlg.addEventListener('input', ev => {
-    if (!dlg.classList.contains('grade')) return;
-    if (ev.target.classList.contains('gr-in')) { ev.target.classList.toggle('preenchido', !!ev.target.value.trim()); gradeTotais(); }
-    if (ev.target.id === 'grFiltro') {
-      const f = ev.target.value.trim().toUpperCase();
-      dlg.querySelectorAll('.gr-tab tbody tr').forEach(tr => tr.hidden = !!f && !tr.textContent.toUpperCase().includes(f) && !tr.querySelector('.gr-in.preenchido'));
-    }
-  });
-  dlg.addEventListener('keydown', ev => {
-    if (!dlg.classList.contains('grade') || !ev.target.classList?.contains('gr-in') || ev.key !== 'Enter') return;
-    ev.preventDefault();   // Enter desce na mesma coluna em vez de salvar
-    let tr = ev.target.closest('tr').nextElementSibling;
-    while (tr && tr.hidden) tr = tr.nextElementSibling;
-    const prox = tr?.querySelector(`.gr-in[data-emp="${ev.target.dataset.emp}"]`);
-    if (prox) { prox.focus(); prox.select(); }
-  });
-  dlg.addEventListener('close', () => dlg.classList.remove('grade'));
-}
-
-function abrirDialogoMulti(tabela) {
-  if (FORMS[tabela].multi.grade) return abrirDialogoGrade(tabela);
-  const def = FORMS[tabela], m = def.multi, dlg = $('#dlg');
-  dlg.dataset.tabela = tabela; dlg.dataset.linha = ''; dlg.classList.add('multi');
-  $('#dlgTit').textContent = def.tit.charAt(0).toUpperCase() + def.tit.slice(1);
-  $('#listaMultiTags').innerHTML = m.fonte().map(i => `<option value="${esc(i.tag)}">${esc([i.produto, i.material, i.etapa].filter(Boolean).join(' · '))}</option>`).join('');
-  $('#listaMultiCab').innerHTML = [...m.cabLista()].reverse().map(c => `<option value="${esc(c)}">`).join('');
-  $('#dlgCampos').innerHTML = `<label class="largo"><span class="obrig">${m.cab[1]}</span><input name="${m.cab[0]}" list="listaMultiCab" autocomplete="off" required></label>
-    <div class="largo multi-itens" id="dlgItens">${multiLinhaHtml(m)}</div>
-    <div class="largo"><button type="button" class="btn" id="dlgMaisItem">+ Adicionar item</button> <span class="nota" id="dlgMultiTot"></span></div>`;
-  $('#dlgExcluir').hidden = true;
-  dlg.showModal();
-  $('#dlgItens .mi-tag').focus();
-}
-function multiColetar(tabela) {
-  const m = FORMS[tabela].multi, itens = [];
-  let erro = null;
-  document.querySelectorAll('#dlgItens .multi-linha').forEach((ln, i) => {
-    const tag = ln.querySelector('.mi-tag').value.trim().toUpperCase();
-    const qv = ln.querySelector('.mi-qtd').value.trim();
-    const emp = ln.querySelector('.mi-emp')?.value || '';
-    if (!tag && !qv && !emp) return;   // linha em branco
-    const qtd = Number(qv.replace(/\./g, '').replace(',', '.'));
-    if (!tag || !m.fonte().some(x => x.tag === tag)) erro ||= `Item ${i + 1}: escolha uma TAG da lista.`;
-    else if (!(qtd > 0)) erro ||= `Item ${i + 1}: informe a quantidade.`;
-    else if (m.empresa && !emp) erro ||= `Item ${i + 1}: escolha a empresa.`;
-    itens.push({ tag, quantidade: qtd, empresa: emp || undefined });
-  });
-  if (!erro && !itens.length) erro = 'Informe ao menos um item.';
-  return { itens, erro };
-}
-function ligarDialogoMulti() {
-  const dlg = $('#dlg');
-  dlg.addEventListener('click', ev => {
-    if (!dlg.classList.contains('multi')) return;
-    const m = FORMS[dlg.dataset.tabela]?.multi;
-    if (!m) return;
-    if (ev.target.id === 'dlgMaisItem') {
-      $('#dlgItens').insertAdjacentHTML('beforeend', multiLinhaHtml(m));
-      $('#dlgItens').lastElementChild.querySelector('.mi-tag').focus();
-    }
-    const rem = ev.target.closest('.multi-rem');
-    if (rem) {
-      const ln = rem.closest('.multi-linha');
-      if (document.querySelectorAll('#dlgItens .multi-linha').length > 1) ln.remove();
-      else ln.querySelectorAll('input,select').forEach(e => e.value = '');
-    }
-  });
-  dlg.addEventListener('input', ev => {
-    if (!dlg.classList.contains('multi')) return;
-    const m = FORMS[dlg.dataset.tabela]?.multi;
-    if (ev.target.classList.contains('mi-tag') && m) {
-      const d = multiDescTag(m, ev.target.value), s = ev.target.parentElement.querySelector('.mi-desc');
-      s.textContent = d || (ev.target.value.trim() ? 'TAG não encontrada' : '');
-      s.classList.toggle('erro', !d && !!ev.target.value.trim());
-    }
-  });
-  dlg.addEventListener('close', () => dlg.classList.remove('multi'));
-}
-
 function abrirDialogo(tabela, linha, preset = {}) {
-  if (FORMS[tabela].multi) return abrirDialogoMulti(tabela);
   const def = FORMS[tabela];
   const reg = linha ? T[tabela].find(r => r.linha === linha) : null;
   const dados = { ...(reg || {}), ...preset };
@@ -2668,19 +2657,6 @@ async function salvarDialogo(ev) {
   ev.preventDefault();
   const dlg = $('#dlg'), f = $('#dlgForm');
   const tabela = dlg.dataset.tabela, linha = dlg.dataset.linha ? +dlg.dataset.linha : null;
-  if (FORMS[tabela].multi) {
-    const m = FORMS[tabela].multi, { itens, erro } = m.grade ? gradeColetar(tabela) : multiColetar(tabela);
-    if (erro) { toast(erro, true); return; }
-    try {
-      const r = await postar(API + FORMS[tabela].endpoint, { [m.cab[0]]: f.elements[m.cab[0]].value.trim(), itens });
-      dlg.close();
-      const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
-      if (j) EP = j;
-      renderEstoquePlanilha();
-      toast(`${r.salvos ?? itens.length} item(ns) salvos ${ONDE}`);
-    } catch (err) { toast(err.message, true); }
-    return;
-  }
   const campos = {};
   FORMS[tabela].campos.forEach(([k, , tipo]) => {
     let v = f.elements[k].value.trim();
@@ -2901,10 +2877,7 @@ function ligarEventos() {
     const el = document.getElementById(id);
     if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstInventario());
   });
-  const btnRem = document.getElementById('btnNovaRemessa');
-  if (btnRem) btnRem.addEventListener('click', () => abrirDialogo('est_planilha_remessa'));
-  const btnCons = document.getElementById('btnNovoConsumo');
-  if (btnCons) btnCons.addEventListener('click', () => abrirDialogo('est_planilha_consumo'));
+  ligarEdicaoEstoque();
 
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
@@ -3005,8 +2978,6 @@ function ligarEventos() {
 
   $('#dlgForm').addEventListener('submit', salvarDialogo);
   $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
-  ligarDialogoMulti();
-  ligarGrade();
   $('#dlgExcluir').onclick = excluirDialogo;
   $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); document.querySelectorAll('.scroll-topo').forEach(e => e.scrollLeft = 0); }));
   $('#dlgForm').addEventListener('input', ev => {
@@ -3019,7 +2990,7 @@ function ligarEventos() {
   $('#selServ').addEventListener('change', renderTendencia);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAba);
   ligarApontamento();
-  window.addEventListener('resize', () => requestAnimationFrame(syncScrollTopo));
+  vigiarScrollTopo();
 }
 
 // ------------------------------------------------------------ início
