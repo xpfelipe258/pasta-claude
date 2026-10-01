@@ -40,6 +40,7 @@
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
         <button data-aba="apont">Apontar montagem</button>
         <button data-aba="avanco">Avanço físico</button>
+        <button data-aba="gantt">Cronograma (Gantt)</button>
         <button data-aba="cliente">Dashboard cliente</button>
         <button data-aba="tendencia">Tendências</button>
       </div>
@@ -460,6 +461,21 @@
     <div class="bloco">
       <div class="bloco-cab"><h2>Prazos e alertas</h2></div>
       <ul class="alertas" id="kpiAlertas"></ul>
+    </div>
+  </section>
+
+  <!-- CRONOGRAMA (GANTT) PREVISTO x REALIZADO -->
+  <section id="aba-gantt" hidden>
+    <div class="tiles" id="ganTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segGanZoom"></div>
+      <label class="check">Frente <select id="selGanFrente"></select></label>
+      <label class="check"><input type="checkbox" id="chkGanEmp"> Mostrar por empresa</label>
+      <div class="legenda" id="ganLegenda"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Cronograma previsto x realizado</h2><span class="nota" id="ganNota"></span></div>
+      <div class="tabela-rolagem gantt-rolagem"><div id="ganGrafico" class="gantt"></div></div>
     </div>
   </section>
 

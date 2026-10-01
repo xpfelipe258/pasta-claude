@@ -33,3 +33,19 @@ As telhas são contrato único da GLOBO, de A a H.
 | Montagem de telhas | 24,1% | — |
 | Calhas da cobertura | 15,5% | — |
 | Fechamento lateral (estrutura) | 13,8% | — |
+
+## Aba Cronograma (Gantt) — Produção
+
+Produção > Cronograma (Gantt) mostra, por serviço e agrupado por frente, o previsto x realizado:
+
+- **Previsto (barra cinza):** início planejado até o término pela meta do cliente (meta/dia x dias úteis), com o
+  preenchimento até a data de referência e o prazo contratual marcado por um losango.
+- **Realizado (barra colorida):** do primeiro dia com produção até a data de referência (ou até concluir), preenchida
+  pelo % do contrato produzido. Verde = no ritmo/adiantado, amarelo = no limite (até 5% abaixo), vermelho = atrasado,
+  azul = concluído.
+- **Projeção (tracejado):** término no ritmo das últimas duas semanas (limitada ao prazo final + 4 meses na escala).
+- Linha vermelha = data de referência. "Mostrar por empresa" abre uma linha por empresa (EJ, CMM, GLOBO) com o período
+  e a quantidade produzida. Filtro por frente e três níveis de zoom; a barra de rolagem fica no topo.
+
+A base é a tabela METAS CLIENTE (a mesma do Dashboard cliente); o PDF do cronograma completo (130 tarefas) continua em
+`dados/cronograma_rotula_19-08-26.json`.

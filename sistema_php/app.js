@@ -373,7 +373,7 @@ function atualizarContadorKpi() {
 
 function renderAba() {
   if (!M) return;
-  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente,
+  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
@@ -708,6 +708,125 @@ function contratoLinhas(ate = ref) {
   });
 }
 const COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'ATRASO': 'vermelho', 'ATRASADO': 'vermelho', 'SEM RITMO': 'amarelo', 'NÃO INICIADO': 'pendente', 'NO LIMITE': 'amarelo' };
+
+// ------------------------------------------------------------ CRONOGRAMA (GANTT) PREVISTO x REALIZADO
+// Previsto: início planejado até o término pela meta do cliente (meta/dia x dias úteis), com o prazo contratual marcado.
+// Realizado: primeiro dia com produção até a data de referência (ou até concluir), preenchido pelo % do contrato produzido.
+// Tracejado: término projetado no ritmo das últimas duas semanas.
+const ganEst = { zoom: 'normal', frente: '', porEmp: false };
+const GAN_PX = { semana: 2.2, normal: 4.5, detalhe: 11 };
+const GAN_ESQ = 300;
+
+function ganProducao(servico, empNome) {
+  const ds = [];
+  M.empresas.forEach(e => {
+    if (empNome && e.nome !== empNome) return;
+    e.servicos.filter(s => s.nome === servico).forEach(s => Object.keys(e.registros).forEach(d => {
+      const v = e.registros[d].v[s.col];
+      if (typeof v === 'number' && v > 0) ds.push([d, v]);
+    }));
+  });
+  return ds.sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function ganLinhas(c) {
+  const proj = Object.fromEntries(contratoLinhas(c).map(x => [x.servico, x]));
+  return itensCliente().map(it => {
+    const ds = ganProducao(it.servico).filter(([d]) => d <= c);
+    const realAc = realizadoTotal(it.servico, c), prevAc = prevCliente(it, c);
+    const fimMeta = it.inicio_plan && it.meta_dia ? somarDiasUteis(add(it.inicio_plan, -1), Math.ceil(it.qtd / it.meta_dia)) : null;
+    let acum = 0, concluiu = null;
+    ds.forEach(([d, v]) => { acum += v; if (!concluiu && acum >= it.qtd) concluiu = d; });
+    const p = proj[it.servico] || {};
+    const status = realAc >= it.qtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    const porEmp = M.empresas.map(e => ({ nome: e.nome, ds: ganProducao(it.servico, e.nome).filter(([d]) => d <= c) })).filter(x => x.ds.length);
+    return { it, ini: it.inicio_plan || null, fimPrev: fimMeta || it.prazo || null, prazo: it.prazo || null, ri: ds.length ? ds[0][0] : null,
+      rf: concluiu || (ds.length ? c : null), ultimo: ds.length ? ds[ds.length - 1][0] : null, realAc, prevAc, pctReal: Math.min(1, realAc / it.qtd), pctPrev: Math.min(1, prevAc / it.qtd),
+      projecao: p.projecao || null, status, porEmp };
+  });
+}
+
+function renderGantt() {
+  const c = corte(), ls0 = ganLinhas(c);
+  const frentes = [...new Set(ls0.map(l => l.it.frente || 'SEM FRENTE'))];
+  if (ganEst.frente && !frentes.includes(ganEst.frente)) ganEst.frente = '';
+  $('#selGanFrente').innerHTML = `<option value="">Todas</option>` + frentes.map(f => `<option ${f === ganEst.frente ? 'selected' : ''}>${esc(f)}</option>`).join('');
+  $('#chkGanEmp').checked = ganEst.porEmp;
+  $('#segGanZoom').innerHTML = [['semana', 'Visão geral'], ['normal', 'Normal'], ['detalhe', 'Detalhe']]
+    .map(([k, r]) => `<button data-gan-zoom="${k}" class="${k === ganEst.zoom ? 'ativa' : ''}">${r}</button>`).join('');
+  $('#ganLegenda').innerHTML = `<span><i style="--c:var(--fg3)"></i>Previsto (cliente)</span><span><i style="--c:var(--verde)"></i>Realizado no prazo/adiantado</span><span><i style="--c:var(--amarelo)"></i>No limite</span><span><i style="--c:var(--vermelho)"></i>Atrasado</span><span><i style="--c:var(--acento)"></i>Concluído</span><span><i class="g-leg-proj"></i>Projeção</span><span><i class="g-leg-hoje"></i>Hoje</span>`;
+
+  const ls = ls0.filter(l => !ganEst.frente || (l.it.frente || 'SEM FRENTE') === ganEst.frente);
+  const avPrev = avancoPonderado(c, true), avReal = avancoPonderado(c, false), gap = avReal - avPrev;
+  const atras = ls.filter(l => l.status === 'ATRASADO').length, ok = ls.filter(l => ['ADIANTADO', 'CONCLUÍDO'].includes(l.status)).length;
+  const prazoFinal = ls.map(l => l.prazo).filter(Boolean).sort().pop();
+  const projFinal = ls.every(l => l.projecao || l.status === 'CONCLUÍDO') ? ls.map(l => l.projecao).filter(Boolean).sort().pop() : null;
+  const tile = (rot, val, sub, st, cc = 'var(--acento)') => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span>${st || ''}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#ganTiles').innerHTML =
+    tile('Avanço físico realizado', nf(avReal, 1) + '%', `Previsto: ${nf(avPrev, 1)}% · desvio ${gap >= 0 ? '+' : ''}${nf(gap, 1)} p.p. em ${fdA(c)}`, `<span class="farol f-${gap >= 0 ? 'verde' : gap > -5 ? 'amarelo' : 'vermelho'}">${gap >= 0 ? 'ADIANTADO' : 'ATRASADO'}</span>`, 'var(--fg)') +
+    tile('Serviços atrasados', String(atras), `${ok} no prazo/adiantados de ${ls.length} serviços`, '', atras ? 'var(--vermelho)' : 'var(--verde)') +
+    tile('Término projetado', projFinal ? fdA(projFinal) : 'Indefinido', prazoFinal ? `Prazo contratual: ${fdA(prazoFinal)}` : '', projFinal && prazoFinal ? `<span class="farol f-${projFinal <= prazoFinal ? 'verde' : 'vermelho'}">${projFinal <= prazoFinal ? 'NO PRAZO' : 'ATRASO'}</span>` : '');
+
+  // projeções muito distantes (ritmo quase parado) não esticam a escala: ficam limitadas ao prazo final + 4 meses
+  const limite = add(ls.map(l => l.prazo).filter(Boolean).reduce(maxD, c), 120);
+  ls.forEach(l => { if (l.projecao && l.projecao > limite) { l.projReal = l.projecao; l.projecao = limite; } });
+  const datas = [c];
+  ls.forEach(l => [l.ini, l.fimPrev, l.prazo, l.ri, l.rf, l.projecao].forEach(d => d && datas.push(d)));
+  if (!ls.length) { $('#ganGrafico').innerHTML = '<p class="vazio">Nenhum serviço com quantidade contratada em METAS CLIENTE.</p>'; return; }
+  const ini = segunda(add(datas.reduce(minD), -7)), fim = add(datas.reduce(maxD), 14), px = GAN_PX[ganEst.zoom];
+  const nd = diasEntre(ini, fim) + 1, W = Math.round(nd * px);
+  const X = d => Math.round(diasEntre(ini, d) * px);
+  $('#ganNota').textContent = `${fdA(ini)} a ${fdA(fim)} · hoje = ${fdA(c)} (data de referência) · previsto = meta do cliente/dia × dias úteis`;
+
+  // cabeçalho: meses e semanas
+  const meses = [];
+  for (let d = ini; d <= fim; d = add(d, 1)) {
+    const k = d.slice(0, 7);
+    if (!meses.length || meses[meses.length - 1].k !== k) meses.push({ k, d, n: 0 });
+    meses[meses.length - 1].n++;
+  }
+  const nomeMes = k => { const [a, m] = k.split('-'); return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][+m - 1] + '/' + a.slice(2); };
+  const cab = `<div class="g-linha g-cab"><div class="g-rot" style="width:${GAN_ESQ}px">Serviço</div><div class="g-trilha" style="width:${W}px">` +
+    meses.map(m => `<span class="g-mes" style="left:${X(m.d)}px;width:${Math.round(m.n * px)}px">${nomeMes(m.k)}</span>`).join('') + '</div></div>';
+
+  const bar = (cls, a, b, extra = '', tit = '', top = 0) => {
+    if (!a || !b) return '';
+    const x = X(a), w = Math.max(3, X(add(b, 1)) - x);
+    return `<div class="g-bar ${cls}" style="left:${x}px;width:${w}px;${top ? 'top:' + top + 'px;' : ''}${extra}" title="${esc(tit)}">`;
+  };
+  let corpo = '';
+  const porFrente = {};
+  ls.forEach(l => (porFrente[l.it.frente || 'SEM FRENTE'] ||= []).push(l));
+  Object.entries(porFrente).forEach(([fr, xs]) => {
+    const pesoT = soma0(xs, l => l.it.peso) || 1;
+    const fp = soma0(xs, l => l.it.peso * l.pctPrev) / pesoT * 100, fr_ = soma0(xs, l => l.it.peso * l.pctReal) / pesoT * 100;
+    corpo += `<div class="g-linha g-frente"><div class="g-rot" style="width:${GAN_ESQ}px"><b>${esc(fr)}</b> <span class="nota">real ${nf(fr_, 0)}% · prev. ${nf(fp, 0)}%</span></div><div class="g-trilha" style="width:${W}px"></div></div>`;
+    xs.forEach(l => {
+      const cor = l.status === 'CONCLUÍDO' ? 'concl' : COR_STATUS[l.status];
+      const tit = `${cap(l.it.servico)}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)} de ${nf(l.it.qtd)} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)} (${nf(l.pctPrev * 100, 1)}%)${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}`;
+      corpo += `<div class="g-linha"><div class="g-rot" style="width:${GAN_ESQ}px" title="${esc(tit)}"><span class="g-nome">${esc(cap(l.it.servico))}</span>
+        <span class="g-num"><b class="${l.pctReal < l.pctPrev - 0.0001 ? 'valor-neg' : ''}">${nf(l.pctReal * 100, 0)}%</b> / ${nf(l.pctPrev * 100, 0)}%</span></div>
+        <div class="g-trilha" style="width:${W}px">
+          ${bar('prev', l.ini, l.fimPrev, '', tit, 7)}<i class="g-prog prev-prog" style="width:${l.ini && l.fimPrev ? Math.round(l.pctPrev * Math.max(3, X(add(l.fimPrev, 1)) - X(l.ini))) : 0}px"></i></div>
+          ${bar('real ' + cor, l.ri, l.rf, '', tit, 20)}<i class="g-prog" style="width:${l.ri && l.rf ? Math.round(l.pctReal * Math.max(3, X(add(l.rf, 1)) - X(l.ri))) : 0}px"></i></div>
+          ${l.status !== 'CONCLUÍDO' && l.projecao && l.projecao > c ? bar('proj', add(c, 1), l.projecao, '', 'Projeção de término: ' + fdA(l.projReal || l.projecao) + (l.projReal ? ' (muito distante: ritmo atual quase parado)' : ''), 20) + '</div>' : ''}
+          ${l.prazo ? `<span class="g-prazo" style="left:${X(l.prazo)}px" title="Prazo contratual ${fdA(l.prazo)}"></span>` : ''}
+        </div></div>`;
+      if (ganEst.porEmp) l.porEmp.forEach(e => {
+        const tot = soma0(e.ds, ([, v]) => v);
+        corpo += `<div class="g-linha g-sub"><div class="g-rot" style="width:${GAN_ESQ}px"><span class="g-nome" style="--c:${corEmp(e.nome)}">${esc(e.nome)}</span><span class="g-num">${nf(tot, 1)}</span></div>
+          <div class="g-trilha" style="width:${W}px">${bar('real emp', e.ds[0][0], e.ds[e.ds.length - 1][0], `background:${corEmpHex(e.nome)}`, `${e.nome}: ${fdA(e.ds[0][0])} a ${fdA(e.ds[e.ds.length - 1][0])} · ${nf(tot, 1)} produzidos`, 12)}</div></div></div>`;
+      });
+    });
+  });
+  const hoje = `<div class="g-hoje" style="left:${GAN_ESQ + X(c) + Math.round(px / 2)}px"><span>${fd(c)}</span></div>`;
+  $('#ganGrafico').style.setProperty('--gan-w', (GAN_ESQ + W) + 'px');
+  $('#ganGrafico').style.setProperty('--gan-sem', Math.round(7 * px) + 'px');
+  $('#ganGrafico').innerHTML = cab + corpo + hoje;
+  const cx = $('#ganGrafico').closest('.tabela-rolagem');
+  if (!ganEst.rolou) { ganEst.rolou = true; cx.scrollLeft = Math.max(0, GAN_ESQ + X(c) - cx.clientWidth / 2); }
+  requestAnimationFrame(syncScrollTopo);
+}
 
 function renderAvanco() {
   const linhas = contratoLinhas();
@@ -2892,6 +3011,9 @@ function ligarEventos() {
   });
   ligarEdicaoEstoque();
 
+  $('#segGanZoom').addEventListener('click', ev => { const b = ev.target.closest('[data-gan-zoom]'); if (b) { ganEst.zoom = b.dataset.ganZoom; ganEst.rolou = false; renderGantt(); } });
+  $('#selGanFrente').addEventListener('change', ev => { ganEst.frente = ev.target.value; renderGantt(); });
+  $('#chkGanEmp').addEventListener('change', ev => { ganEst.porEmp = ev.target.checked; renderGantt(); });
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));

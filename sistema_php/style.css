@@ -409,3 +409,35 @@ th.col-nova, td.col-nova { background: var(--acento-suave); min-width: 130px; }
 td.col-nova { padding: 3px 6px; }
 .valor-pos { color: var(--verde); }
 .linha-total td { border-top: 1px solid var(--linha-forte); }
+
+/* cronograma (Gantt) previsto x realizado */
+.gantt-rolagem { border: 1px solid var(--linha); border-radius: var(--r); background: var(--card); }
+.gantt { position: relative; width: var(--gan-w, 100%); min-width: 100%; font-size: .8rem; }
+.g-linha { display: flex; height: 40px; border-bottom: 1px solid var(--linha); }
+.g-linha.g-cab { height: 30px; position: sticky; top: 0; z-index: 4; background: var(--card); border-bottom: 1px solid var(--linha-forte); }
+.g-linha.g-frente { height: 28px; background: var(--bg); }
+.g-linha.g-sub { height: 26px; }
+.g-rot { flex: none; position: sticky; left: 0; z-index: 3; background: var(--card); border-right: 1px solid var(--linha); padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; overflow: hidden; white-space: nowrap; }
+.g-frente .g-rot { background: var(--bg); } .g-frente .g-rot b { overflow: hidden; text-overflow: ellipsis; } .g-frente .nota { flex: none; }
+.g-cab .g-rot { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
+.g-nome { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.g-sub .g-nome { font-weight: 500; padding-left: 14px; color: var(--fg2); }
+.g-sub .g-nome::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c, var(--fg3)); margin-right: 6px; }
+.g-num { color: var(--fg2); font-variant-numeric: tabular-nums; flex: none; }
+.g-trilha { position: relative; flex: none; background-image: repeating-linear-gradient(to right, var(--linha) 0, var(--linha) 1px, transparent 1px, transparent var(--gan-sem, 30px)); }
+.g-cab .g-trilha { background-image: none; }
+.g-mes { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 6px; font-size: .72rem; font-weight: 600; color: var(--fg2); border-left: 1px solid var(--linha-forte); text-transform: uppercase; }
+.g-bar { position: absolute; border-radius: 4px; box-sizing: border-box; }
+.g-bar.prev { top: 7px; height: 10px; background: var(--pend-bg); border: 1px solid var(--fg3); }
+.g-bar.real { top: 20px; height: 13px; border-radius: 4px; background: color-mix(in srgb, var(--c) 28%, transparent); border: 1px solid var(--c); }
+.g-bar.real.verde { --c: var(--verde); } .g-bar.real.amarelo { --c: var(--amarelo); } .g-bar.real.vermelho { --c: var(--vermelho); }
+.g-bar.real.pendente { --c: var(--pend); } .g-bar.real.concl { --c: var(--acento); }
+.g-bar.real.emp { top: 7px; height: 11px; border: 0; }
+.g-bar.proj { top: 20px; height: 13px; background: transparent; border: 1px dashed var(--fg3); }
+.g-prog { position: absolute; top: 0; left: 0; bottom: 0; border-radius: 3px; background: var(--c, var(--fg3)); opacity: .9; display: block; }
+.g-bar.prev .g-prog, .prev-prog { background: var(--fg3); opacity: .45; }
+.g-hoje { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--vermelho); z-index: 2; pointer-events: none; }
+.g-hoje span { position: sticky; top: 30px; margin-left: 3px; background: var(--vermelho); color: #fff; font-size: .65rem; font-weight: 700; padding: 1px 4px; border-radius: 3px; }
+.g-prazo { position: absolute; top: 4px; width: 8px; height: 8px; margin-left: -4px; background: var(--fg); transform: rotate(45deg); }
+.legenda .g-leg-proj { border: 1px dashed var(--fg3); background: transparent; }
+.legenda .g-leg-hoje { width: 3px; background: var(--vermelho); border-radius: 0; }
