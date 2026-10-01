@@ -23,6 +23,12 @@ def copiar_interface():
     for nome in ("app.js", "style.css", "chart.umd.js"):
         shutil.copy2(os.path.join(est, nome), os.path.join(PHP, nome))
     shutil.copy2(os.path.join(est, "index.html"), os.path.join(PHP, "inc", "painel.html"))
+    # regras e dados que a API PHP serve do mesmo jeito que o programa local
+    for origem, destino in ((os.path.join(PROG, "regras_baixa.json"), "regras_baixa.json"),
+                            (os.path.join(RAIZ, "dados", "ifc_r0d_inventario.json"), "ifc_inventario.json"),
+                            (os.path.join(RAIZ, "dados", "estoque_obra198.json"), "estoque_inicial.json")):
+        if os.path.exists(origem):
+            shutil.copy2(origem, os.path.join(PHP, "inc", destino))
 
 
 def gerar_dados_iniciais(planilha):

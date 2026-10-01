@@ -136,12 +136,30 @@ function montar_modelo()
         'metas' => $metas,
         'cliente' => $cliente,
         'impactos' => $impactos,
-        'referencia' => null,
+        'referencia' => sistema_ler('referencia', null),
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
         'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo],
     ];
+}
+
+// O estoque importado da planilha (materiais, remessas, consumo físico, inventário) fica guardado como JSON:
+// é um documento só, do mesmo formato que o programa local lê de dados/estoque_obra198.json.
+function estoque_planilha_ler()
+{
+    $txt = sistema_ler('estoque_planilha', null);
+    if ($txt === null) {
+        $p = __DIR__ . '/estoque_inicial.json';
+        $txt = is_file($p) ? file_get_contents($p) : null;
+    }
+    $d = $txt === null ? null : json_decode($txt, true);
+    return is_array($d) ? $d : null;
+}
+
+function estoque_planilha_gravar(array $dados)
+{
+    sistema_gravar('estoque_planilha', json_encode($dados, JSON_UNESCAPED_UNICODE));
 }
 
 function carregar_inventario_ifc()
@@ -389,6 +407,12 @@ function importar_pacote(array $pacote)
             }
         }
         sistema_gravar('estoque_externo', json_encode($m['estoque_externo'] ?? null, JSON_UNESCAPED_UNICODE));
+        if (is_array($pacote['estoque_planilha'] ?? null)) {
+            estoque_planilha_gravar($pacote['estoque_planilha']);
+        }
+        if (!empty($m['referencia'])) {
+            sistema_gravar('referencia', $m['referencia']);
+        }
         $datas = $m['datas'] ?? [];
         $obra = $pacote['obra'] ?? [];
         sistema_gravar('data_inicio', $obra['data_inicio'] ?? ($datas ? $datas[0] : date('Y-m-d')));

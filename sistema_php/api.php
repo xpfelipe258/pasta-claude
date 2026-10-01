@@ -33,6 +33,24 @@ try {
                 'modelo' => montar_modelo(),
             ]);
         }
+        if ($rota === 'atualizacao') {   // o sistema online está sempre na versão publicada
+            responder_json(200, ['online' => true, 'codigo' => sistema_ler('versao', '0'), 'ativo' => false,
+                'intervalo' => 0, 'resultado' => 'online', 'detalhe' => 'Sistema online: sempre na versão publicada.']);
+        }
+        if ($rota === 'regras-baixa') {
+            $p = __DIR__ . '/inc/regras_baixa.json';
+            if (!is_file($p)) {
+                responder_json(404, ['erro' => 'regras_baixa.json não encontrado.']);
+            }
+            responder_json(200, json_decode(file_get_contents($p), true));
+        }
+        if ($rota === 'estoque-planilha') {
+            $d = estoque_planilha_ler();
+            if ($d === null) {
+                responder_json(404, ['erro' => 'Estoque da planilha não importado. Use Administração → Importar dados.']);
+            }
+            responder_json(200, $d);
+        }
         responder_json(404, ['erro' => 'Rota desconhecida.']);
     }
 
@@ -54,6 +72,9 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
+        'apontamento' => 'acao_apontamento', 'referencia' => 'acao_referencia',
+        'estoque/semear-materiais' => 'acao_semear_materiais',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -61,14 +82,15 @@ try {
     $pdo = bd();
     $pdo->beginTransaction();
     try {
-        $n = call_user_func($acoes[$rota], $corpo, $usuario);
+        $r = call_user_func($acoes[$rota], $corpo, $usuario);
         registrar_alteracao($rota, $corpo);
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
         throw $e;
     }
-    responder_json(200, ['ok' => true, 'celulas' => $n, 'versao' => sistema_ler('versao', '0')]);
+    $extra = is_array($r) ? $r : ['celulas' => $r];
+    responder_json(200, array_merge(['ok' => true, 'celulas' => 0], $extra, ['versao' => sistema_ler('versao', '0')]));
 } catch (ErroValidacao $e) {
     responder_json(400, ['erro' => $e->getMessage()]);
 } catch (Exception $e) {
@@ -381,4 +403,440 @@ function acao_bm_semear()
 function acao_importar_mensal()
 {
     throw new ErroValidacao('A importação das abas mensais é feita no programa local (planilha). Depois use Administração → Importar dados.');
+}
+
+// ------------------------------------------------- data de referência e materiais do IFC
+
+function acao_referencia(array $corpo)
+{
+    $d = (string)($corpo['data'] ?? '');
+    if (!data_valida($d)) {
+        throw new ErroValidacao('Data inválida.');
+    }
+    sistema_gravar('referencia', $d);
+    return 1;
+}
+
+function acao_semear_materiais()
+{
+    $regras = carregar_regras_baixa();
+    if (!$regras || empty($regras['consumo_por_servico'])) {
+        throw new ErroValidacao('Arquivo regras_baixa.json não encontrado ou sem consumo_por_servico.');
+    }
+    $existentes = q('SELECT codigo FROM materiais')->fetchAll(PDO::FETCH_COLUMN);
+    $novos = [];
+    foreach ($regras['consumo_por_servico'] as $servico => $conf) {
+        if (!is_array($conf)) {
+            continue;
+        }
+        foreach (($conf['itens'] ?? []) as $item) {
+            $cod = (string)($item['codigo'] ?? '');
+            if ($cod === '' || isset($novos[$cod]) || in_array($cod, $existentes, true)) {
+                continue;
+            }
+            $novos[$cod] = ['codigo' => $cod, 'material' => (string)($item['descricao'] ?? $cod), 'unidade' => 'UN',
+                'servico' => (string)$servico, 'coef' => 0,
+                'obs' => 'Cadastrado automaticamente via regras_baixa.json (baixa automática por movimentação)'];
+        }
+    }
+    if (!$novos) {
+        return ['celulas' => 0, 'materiais_criados' => 0, 'msg' => 'Todos os materiais do IFC já estão cadastrados.'];
+    }
+    foreach ($novos as $campos) {
+        gravar_linha('materiais', null, $campos);
+    }
+    return ['celulas' => count($novos), 'materiais_criados' => count($novos)];
+}
+
+// ------------------------------------------------- estoque da planilha (remessas e consumo físico)
+
+function itens_do_corpo(array $corpo)
+{
+    $itens = $corpo['itens'] ?? null;
+    if ($itens === null) {
+        $itens = [$corpo];
+    }
+    if (!is_array($itens) || !$itens) {
+        throw new ErroValidacao('Informe ao menos um item.');
+    }
+    return $itens;
+}
+
+function qtd_positiva(array $item, $n)
+{
+    $q = numero($item['quantidade'] ?? null);
+    if ($q === null || $q <= 0) {
+        throw new ErroValidacao("Item $n: quantidade deve ser maior que zero.");
+    }
+    return $q;
+}
+
+function estoque_material(array &$dados, $tag)
+{
+    foreach ($dados['materiais'] as $i => $m) {
+        if (($m['tag'] ?? '') === $tag) {
+            return $i;
+        }
+    }
+    return null;
+}
+
+function acao_estoque_remessa(array $corpo)
+{
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $nome = trim((string)($corpo['remessa'] ?? ''));
+    if ($nome === '') {
+        throw new ErroValidacao('Nome da remessa é obrigatório.');
+    }
+    $porTag = [];
+    foreach ($dados['remessas']['itens'] as $i => $it) {
+        $porTag[$it['tag']] = $i;
+    }
+    $lancamentos = [];
+    foreach (itens_do_corpo($corpo) as $k => $it) {
+        $n = $k + 1;
+        $tag = mb_strtoupper(trim((string)($it['tag'] ?? '')));
+        if ($tag === '') {
+            throw new ErroValidacao("Item $n: escolha a TAG do material.");
+        }
+        if (!isset($porTag[$tag])) {
+            throw new ErroValidacao("Item $n: TAG $tag não existe nas remessas. Escolha uma da lista.");
+        }
+        $lancamentos[$tag] = ($lancamentos[$tag] ?? 0) + qtd_positiva($it, $n);
+    }
+    if (!in_array($nome, $dados['remessas']['colunas'], true)) {
+        $dados['remessas']['colunas'][] = $nome;
+    }
+    foreach ($lancamentos as $tag => $qtd) {
+        $item = &$dados['remessas']['itens'][$porTag[$tag]];
+        $item['qtd_por_remessa'][$nome] = ($item['qtd_por_remessa'][$nome] ?? 0) + $qtd;
+        $item['total_recebido'] = array_sum($item['qtd_por_remessa']);
+        $recebido = $item['total_recebido'];
+        unset($item);
+        $i = estoque_material($dados, $tag);
+        if ($i !== null) {
+            $mat = &$dados['materiais'][$i];
+            $mat['chegou'] = $recebido;
+            $mat['estoque_pos_baixa'] = $mat['chegou'] - ($mat['consumido'] ?? 0);
+            $mat['atendimento'] = !empty($mat['planejado']) ? $mat['chegou'] / $mat['planejado'] : null;
+            if ($mat['atendimento'] !== null && $mat['atendimento'] >= 1) {
+                $mat['status_logistico'] = 'Atendido';
+            } elseif ($mat['chegou'] > 0) {
+                $mat['status_logistico'] = 'Recebimento Parcial';
+            }
+            unset($mat);
+        }
+    }
+    estoque_planilha_gravar($dados);
+    return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos)];
+}
+
+function acao_estoque_consumo(array $corpo)
+{
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $semana = trim((string)($corpo['semana'] ?? ''));
+    if ($semana === '') {
+        throw new ErroValidacao('Semana é obrigatória.');
+    }
+    $porTag = [];
+    foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
+        $porTag[$it['tag']] = $i;
+    }
+    $lancamentos = [];
+    foreach (itens_do_corpo($corpo) as $k => $it) {
+        $n = $k + 1;
+        $tag = mb_strtoupper(trim((string)($it['tag'] ?? '')));
+        $empresa = mb_strtoupper(trim((string)($it['empresa'] ?? $corpo['empresa'] ?? '')));
+        if ($tag === '') {
+            throw new ErroValidacao("Item $n: escolha a TAG do material.");
+        }
+        if (!isset($porTag[$tag])) {
+            throw new ErroValidacao("Item $n: TAG $tag não existe no consumo. Escolha uma da lista.");
+        }
+        if (!in_array($empresa, ['EJ', 'CMM'], true)) {
+            throw new ErroValidacao("Item $n: empresa deve ser EJ ou CMM.");
+        }
+        $chave = "$tag|$empresa";
+        $lancamentos[$chave] = ($lancamentos[$chave] ?? 0) + qtd_positiva($it, $n);
+    }
+    if (!in_array($semana, $dados['consumo_fisico']['semanas'], true)) {
+        $dados['consumo_fisico']['semanas'][] = $semana;
+    }
+    foreach ($lancamentos as $chave => $qtd) {
+        list($tag, $empresa) = explode('|', $chave);
+        $item = &$dados['consumo_fisico']['itens'][$porTag[$tag]];
+        if (!isset($item['consumo_semanas'][$semana])) {
+            $item['consumo_semanas'][$semana] = ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+        }
+        $e = &$item['consumo_semanas'][$semana];
+        $e[$empresa] = ($e[$empresa] ?? 0) + $qtd;
+        $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+        unset($e);
+        $item['total_consumo'] = array_sum(array_column($item['consumo_semanas'], 'total'));
+        $consumo = $item['total_consumo'];
+        unset($item);
+        $i = estoque_material($dados, $tag);
+        if ($i !== null) {
+            $dados['materiais'][$i]['consumido'] = $consumo;
+            $dados['materiais'][$i]['estoque_pos_baixa'] = ($dados['materiais'][$i]['chegou'] ?? 0) - $consumo;
+        }
+    }
+    estoque_planilha_gravar($dados);
+    return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos)];
+}
+
+// ------------------------------------------------- apontamento de montagem (joists e vigas)
+
+// Soma `delta` na célula (empresa, serviço, dia) do controle de produção, que é de onde o BM,
+// o cronograma e os dashboards leem a produção.
+function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
+{
+    $emp = q('SELECT * FROM empresas WHERE nome = ?', [$empresaNome])->fetch();
+    if (!$emp) {
+        throw new ErroValidacao("Empresa $empresaNome não existe no controle de produção.");
+    }
+    if (!empty($usuario['empresa']) && $usuario['empresa'] !== $emp['nome']) {
+        throw new ErroValidacao('Seu usuário só pode apontar montagem da empresa ' . $usuario['empresa'] . '.');
+    }
+    $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
+    if (!$col) {
+        throw new ErroValidacao("{$emp['nome']} não tem o serviço $servico no controle de produção.");
+    }
+    $atual = q('SELECT valor_num, valor_txt FROM producao WHERE empresa_id = ? AND data = ? AND col = ?',
+        [$emp['id'], $data, $col])->fetch();
+    if ($atual && $atual['valor_txt'] !== null) {
+        throw new ErroValidacao("A célula de $servico de {$emp['nome']} em $data contém texto. Corrija em Lançamentos.");
+    }
+    $novo = max(0, (float)($atual['valor_num'] ?? 0) + $delta);
+    q('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col = ?', [$emp['id'], $data, $col]);
+    if ($novo > 0) {
+        q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $data, $col, $novo]);
+    }
+    return 1;
+}
+
+function acao_apontamento(array $corpo, array $usuario)
+{
+    $spec = tabelas_spec()['apontamentos'];
+    $aps = linhas_tabela('apontamentos', $spec);
+    $regras = carregar_regras_baixa() ?: [];
+    $cfg = $regras['apontamento'] ?? null;
+    if (!empty($corpo['excluir'])) {
+        return apontamento_excluir($aps, $corpo, $cfg ?: [], $usuario);
+    }
+    if (!empty($corpo['reatribuir'])) {
+        return apontamento_reatribuir($aps, $corpo);
+    }
+    if (!$cfg || empty($regras['faixas_posicoes']) || empty($regras['criterio_por_letra'])) {
+        throw new ErroValidacao('regras_baixa.json sem as regras de apontamento (faixas_posicoes, criterio_por_letra, apontamento).');
+    }
+    $crit = $regras['criterio_por_letra'];
+    $data = (string)($corpo['data'] ?? '');
+    $o = obra_info();
+    if (!data_valida($data) || $data < $o['data_inicio'] || $data > $o['data_fim']) {
+        throw new ErroValidacao('Data fora do calendário da obra.');
+    }
+    $lanca = !array_key_exists('lanca_producao', $corpo) || !empty($corpo['lanca_producao']);
+    $limiteRua = (int)($regras['limites_ifc']['joists_por_rua_maximo'] ?? 0) ?: 43;
+    $layout = [];
+    foreach (($regras['layout_joists'] ?? []) as $faixa => $letras) {
+        if ($faixa === 'nota' || !is_array($letras)) {
+            continue;
+        }
+        foreach ($letras as $l) {
+            $layout[] = [$faixa, $l];
+        }
+    }
+    if (!$layout) {
+        throw new ErroValidacao('regras_baixa.json sem layout_joists.');
+    }
+    $vigasJa = [];
+    $joistsRua = [];
+    $slotsRua = [];
+    foreach ($aps as $a) {
+        $tipo = mb_strtoupper((string)($a['tipo'] ?? ''));
+        if ($tipo === 'VIGA' && !empty($a['viga_id'])) {
+            $vigasJa[$a['viga_id']] = $a;
+        } elseif ($tipo === 'JOIST') {
+            $rua = (string)($a['rua'] ?? '');
+            $joistsRua[$rua] = ($joistsRua[$rua] ?? 0) + (float)($a['qtd'] ?? 0);
+            if (!empty($a['slot'])) {
+                $slotsRua[$rua][(int)$a['slot']] = true;
+            }
+        }
+    }
+    $novas = [];
+    $grupos = [];
+    foreach (($corpo['lote'] ?? [$corpo]) as $item) {
+        $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
+        $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
+        if ($empNome === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empNome])->fetch()) {
+            throw new ErroValidacao('Indique a empresa que montou.');
+        }
+        $base = ['data' => $data, 'empresa' => $empNome, 'lanca_producao' => $lanca ? 'SIM' : 'NÃO',
+            'obs' => texto_ou_nulo($corpo['obs'] ?? null)];
+        $doItem = [];
+        if ($tipo === 'JOIST') {
+            $rua = (string)($item['rua'] ?? '');
+            if (!rua_valida($rua, $cfg['eixos'])) {
+                throw new ErroValidacao('Rua inválida: use eixos consecutivos, ex.: 11-12.');
+            }
+            $slots = [];
+            foreach (($item['slots'] ?? []) as $s) {
+                if (!is_numeric($s)) {
+                    throw new ErroValidacao('Joists inválidas: informe os números de 1 a ' . count($layout) . '.');
+                }
+                $slots[(int)$s] = true;
+            }
+            $slots = array_keys($slots);
+            sort($slots);
+            if (!$slots) {
+                continue;
+            }
+            foreach ($slots as $s) {
+                if ($s < 1 || $s > count($layout)) {
+                    throw new ErroValidacao("Joist $s fora da rua (1 a " . count($layout) . ').');
+                }
+                if (isset($slotsRua[$rua][$s])) {
+                    throw new ErroValidacao("A joist $s da rua $rua já foi apontada.");
+                }
+                $slotsRua[$rua][$s] = true;
+                $doItem[] = $base + ['tipo' => 'JOIST', 'rua' => $rua, 'faixa' => $layout[$s - 1][0],
+                    'letra' => $layout[$s - 1][1], 'qtd' => 1, 'slot' => $s];
+            }
+            $total = ($joistsRua[$rua] ?? 0) + count($slots);
+            if ($total > $limiteRua) {
+                throw new ErroValidacao("Rua $rua: $total joists apontadas, acima das $limiteRua por rua do projeto. Confira o apontamento.");
+            }
+            $joistsRua[$rua] = $total;
+            $servico = $cfg['servico_joist'];
+        } elseif ($tipo === 'VIGA') {
+            $eixo = (string)($item['eixo'] ?? '');
+            if (!in_array($eixo, $cfg['eixos'], true)) {
+                throw new ErroValidacao('Eixo inválido (01 a 20).');
+            }
+            $letras = [];
+            foreach (($item['letras'] ?? []) as $l) {
+                $letras[mb_strtoupper((string)$l)] = true;
+            }
+            foreach (array_keys($letras) as $letra) {
+                if (!isset($crit[$letra])) {
+                    throw new ErroValidacao("Letra de viga inválida: $letra.");
+                }
+                $vid = "E$eixo-$letra-" . $crit[$letra]['viga'];
+                if (isset($vigasJa[$vid])) {
+                    $quando = $vigasJa[$vid]['data'] ?? null;
+                    throw new ErroValidacao("A viga $vid já foi apontada" .
+                        ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
+                }
+                $vigasJa[$vid] = ['data' => $data];
+                $doItem[] = $base + ['tipo' => 'VIGA', 'eixo' => $eixo, 'letra' => $letra, 'viga_id' => $vid, 'qtd' => 1];
+            }
+            if (!$doItem) {
+                continue;
+            }
+            $servico = $cfg['servico_viga'];
+        } else {
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST ou VIGA).');
+        }
+        $novas = array_merge($novas, $doItem);
+        $chave = $empNome . '|' . $servico;
+        if (!isset($grupos[$chave])) {
+            $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'delta' => 0];
+        }
+        $grupos[$chave]['delta'] += count($doItem);
+    }
+    if (!$novas) {
+        throw new ErroValidacao('Nada selecionado para apontar.');
+    }
+    $ids = [];
+    foreach ($novas as $campos) {
+        $vals = [];
+        foreach ($spec as $c => $tipo) {
+            $vals[$c] = $campos[$c] ?? null;
+        }
+        gravar_linha('apontamentos', null, $vals);
+        $ids[] = (int)bd()->lastInsertId();
+    }
+    if ($lanca) {
+        foreach ($grupos as $g) {
+            soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
+        }
+    }
+    return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [], 'linhas' => $ids];
+}
+
+function rua_valida($rua, array $eixos)
+{
+    $p = explode('-', (string)$rua);
+    return count($p) === 2 && in_array($p[0], $eixos, true) && in_array($p[1], $eixos, true)
+        && (int)$p[1] === (int)$p[0] + 1;
+}
+
+function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuario)
+{
+    $alvo = array_key_exists('linhas', $corpo) && $corpo['linhas'] !== null ? $corpo['linhas'] : [$corpo['linha'] ?? null];
+    $porLinha = [];
+    foreach ($aps as $a) {
+        $porLinha[(int)$a['linha']] = $a;
+    }
+    if (!$alvo) {
+        throw new ErroValidacao('Apontamento não encontrado. Recarregue a tela.');
+    }
+    $somas = [];
+    foreach ($alvo as $lin) {
+        $lin = (int)$lin;
+        if (!isset($porLinha[$lin])) {
+            throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
+        }
+        $r = $porLinha[$lin];
+        if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
+            $servico = mb_strtoupper((string)($r['tipo'] ?? '')) === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
+            $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'];
+            $somas[$chave] = ($somas[$chave] ?? 0) - (float)($r['qtd'] ?? 0);
+        }
+    }
+    foreach ($somas as $chave => $delta) {
+        list($nome, $servico, $dia) = explode('|', $chave);
+        soma_producao($nome, $servico, $dia, $delta, $usuario);
+    }
+    foreach ($alvo as $lin) {
+        q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
+    }
+    return ['celulas' => count($alvo), 'avisos' => []];
+}
+
+// Define a empresa de apontamentos de regularização (histórico), que não somaram na grade de produção.
+function apontamento_reatribuir(array $aps, array $corpo)
+{
+    $nome = (string)($corpo['empresa'] ?? '');
+    if ($nome === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$nome])->fetch()) {
+        throw new ErroValidacao('Indique a empresa que montou.');
+    }
+    $linhas = $corpo['linhas'] ?? [];
+    $porLinha = [];
+    foreach ($aps as $a) {
+        $porLinha[(int)$a['linha']] = $a;
+    }
+    if (!$linhas) {
+        throw new ErroValidacao('Apontamento não encontrado. Recarregue a tela.');
+    }
+    foreach ($linhas as $lin) {
+        if (!isset($porLinha[(int)$lin])) {
+            throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
+        }
+        if (mb_strtoupper((string)($porLinha[(int)$lin]['lanca_producao'] ?? '')) === 'SIM') {
+            throw new ErroValidacao('Só dá para redefinir a empresa de apontamentos de regularização (que não somaram na produção). Exclua e refaça os demais.');
+        }
+    }
+    foreach ($linhas as $lin) {
+        q('UPDATE apontamentos SET empresa = ? WHERE id = ?', [$nome, (int)$lin]);
+    }
+    return ['celulas' => count($linhas), 'avisos' => [], 'salvos' => count($linhas)];
 }

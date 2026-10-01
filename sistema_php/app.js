@@ -223,7 +223,6 @@ async function carregar() {
     document.body.classList.toggle('somente-leitura', u.perfil === 'leitura');
   }
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
-  document.querySelectorAll('[data-aba=apont]').forEach(b => b.hidden = !!rec.online);
   preencherListas();
   renderTudo();
   fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarContadorKpi(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); else if (abaAtual === 'kpi') renderKPI(); }).catch(() => {});
@@ -254,12 +253,13 @@ async function mostrarAtualizacao() {
     const quando = e.verificado_em ? Math.max(0, Math.round((e.agora - e.verificado_em) / 60)) : null;
     const ha = quando == null ? '' : quando < 1 ? 'agora há pouco' : `há ${quando} min`;
     let txt, cls = '';
-    if (!e.ativo) { txt = `Programa ${ver} · atualização automática desligada`; cls = 'aviso'; }
+    if (e.online) txt = 'Sistema online · sempre na versão publicada';
+    else if (!e.ativo) { txt = `Programa ${ver} · atualização automática desligada`; cls = 'aviso'; }
     else if (e.resultado === 'erro') { txt = `Programa ${ver} · sem conseguir atualizar: ${e.detalhe}`; cls = 'erro'; }
     else txt = `Programa ${ver} · atualização automática ligada · conferido ${ha}`;
     $('#atualizTxt').textContent = txt;
     el.className = 'arquivo atualiz ' + cls;
-    $('#btnAtualizar').hidden = !e.ativo;
+    $('#btnAtualizar').hidden = !e.ativo || !!e.online;
   } catch { }
 }
 async function verificarAtualizacaoAgora() {

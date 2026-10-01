@@ -834,11 +834,13 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/exportar":
                 with _trava:
                     m = modelo()
+                arq_est = _arq_estoque_json()
                 pacote = {"formato": "obra198", "versao_formato": 1,
                           "gerado_em": dt.datetime.now().isoformat(timespec="seconds"),
                           "origem": os.path.basename(CFG["planilha"]),
                           "obra": {"nome": "OBRA 198", "data_inicio": m["datas"][0], "data_fim": m["datas"][-1]},
-                          "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"}}
+                          "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
+                          "estoque_planilha": json.load(open(arq_est, encoding="utf-8")) if os.path.exists(arq_est) else None}
                 dados = json.dumps(pacote, ensure_ascii=False, default=str).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
