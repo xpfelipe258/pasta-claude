@@ -49,6 +49,9 @@ valor a faturar = medição − descontos
   data de referência); se a planilha de medição já traz esses descontos em linhas, não lance os dois. O rascunho de descontos
   do BM2 da EJ está no arquivo, mas só é carregado com `--com-bm2-rascunho` (o diesel vem como crédito de R$ 3.376 na
   planilha: confirmar o sinal).
+- **Desconto por item:** no "+ Desconto" preencha Item (ex.: Guindaste Sany), Qtd de uso (9), Unidade (diárias) e Valor
+  unitário (R$ 3.000). O total (R$ 27.000) é calculado e o boletim mostra o item, a quantidade, o valor unitário e o total.
+  Se o item for um equipamento cadastrado em Equipamentos, o valor unitário é sugerido.
 - **Próximo BM:** no BM em aberto, "Definir corte do BMn" grava a data de corte e "Fechar BMn" congela o BM; o BM seguinte
   abre sozinho.
 

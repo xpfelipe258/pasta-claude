@@ -607,6 +607,8 @@ TABELAS = {
             ("tipo", "Tipo", "txt", 16), ("descricao", "Descrição", "txt", 40), ("valor", "Valor a deduzir (R$)", "num", 16),
             ("contrato", "Contrato (RÓTULA, QPC ou AMBOS)", "txt", 18),
             ("percentual", "% do medido no período (ex.: 10 = sinal de contrato; vazio = usa o valor)", "num", 18),
+            ("item_uso", "Item / equipamento (ex.: Guindaste Sany)", "txt", 26), ("qtd", "Qtd de uso", "num", 10),
+            ("unidade", "Unidade (diária, hora...)", "txt", 12), ("valor_unit", "Valor unitário (R$); total = qtd x valor unitário", "num", 16),
         ],
     },
     "bm_fechamentos": {
@@ -1000,6 +1002,25 @@ def garantir_abas(caminho, pasta_backup=None):
 
     _reescrever(caminho, preparar, pasta_backup)
     return [t["aba"] for t in faltando]
+
+
+def garantir_cabecalhos(caminho, pasta_backup=None):
+    """Escreve o cabeçalho das colunas que as tabelas ganharam depois de criadas (planilhas antigas). Devolve quantos."""
+    wb = openpyxl.load_workbook(caminho, read_only=True)
+    try:
+        faltam = []
+        for spec in TABELAS.values():
+            if spec["aba"] not in wb.sheetnames:
+                continue
+            linha2 = next(wb[spec["aba"]].iter_rows(min_row=2, max_row=2, max_col=len(spec["campos"]), values_only=True), ())
+            for i, (_, rotulo, _, _) in enumerate(spec["campos"], start=1):
+                if i > len(linha2) or linha2[i - 1] in (None, ""):
+                    faltam.append((spec["aba"], f"{col_letra(i)}2", rotulo, None))
+    finally:
+        wb.close()
+    if faltam:
+        gravar_celulas(caminho, faltam, pasta_backup=pasta_backup)
+    return len(faltam)
 
 
 CATALOGO_BM = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_bm.json")

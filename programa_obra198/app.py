@@ -1009,6 +1009,7 @@ def main():
         criadas = xio.garantir_abas(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
         if criadas:
             print(" Abas criadas na planilha: " + ", ".join(criadas))
+        xio.garantir_cabecalhos(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
         n = xio.semear_catalogo_bm(CFG["planilha"], pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
         if n:
             print(f" Catálogo de medição (BM) carregado: {n} atividades.")
