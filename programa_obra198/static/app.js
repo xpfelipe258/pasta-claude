@@ -20,6 +20,7 @@ const COR_EMP = { 'EJ': '--ej', 'CMM': '--cmm', 'GLOBO AÇOS': '--ga' };
 const API = window.API_BASE || 'api/';
 let ONDE = 'na planilha';
 const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia', 'kpi']);
+const ABAS_ESTOQUE = new Set(['estmat', 'estrem', 'estcons', 'estinv', 'estcrit', 'estsis']);
 
 // ------------------------------------------------------------ utilidades
 const $ = s => document.querySelector(s);
@@ -91,7 +92,7 @@ function regrasBaixa(refazer) {
 
 // ------------------------------------------------------------ scroll topo sincronizado
 // Toda tabela larga (.tabela-rolagem) ganha uma barra de rolagem horizontal acima dela, que acompanha a tela
-// (fica grudada no topo enquanto a tabela estiver à vista). Reaplica sozinha quando a tela muda (abas, sub-abas,
+// (fica grudada no topo enquanto a tabela estiver à vista). Reaplica sozinha quando a tela muda (abas,
 // filtros, colunas novas), sem precisar ser chamada em cada renderização.
 function syncScrollTopo() {
   document.querySelectorAll('.tabela-rolagem').forEach(el => {
@@ -225,7 +226,7 @@ async function carregar() {
   document.querySelectorAll('[data-aba=apont]').forEach(b => b.hidden = !!rec.online);
   preencherListas();
   renderTudo();
-  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarContadorKpi(); if (abaAtual === 'estoque') renderEstoquePlanilha(); else if (abaAtual === 'kpi') renderKPI(); }).catch(() => {});
+  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarContadorKpi(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); else if (abaAtual === 'kpi') renderKPI(); }).catch(() => {});
 }
 
 async function postar(url, corpo) {
@@ -374,7 +375,8 @@ function atualizarContadorKpi() {
 function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
-     estoque: renderEstoque, equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
+     estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque,
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -434,7 +436,7 @@ function renderAlertas(ks, c) {
   });
 
   estoqueLinhas().filter(l => l.nivel !== 'verde' && l.nivel !== 'pendente').forEach(l =>
-    al.push([l.nivel, `<b>Estoque · ${esc(l.material)}</b>: ${esc(l.status.toLowerCase())}. Saldo ${nf(l.saldo, 1)} ${esc(l.unidade || '')}, necessário ${nf(l.necSemana + l.necProx, 1)} até a próxima semana. <button class="link" data-ir-aba="estoque">Ver estoque</button>`]));
+    al.push([l.nivel, `<b>Estoque · ${esc(l.material)}</b>: ${esc(l.status.toLowerCase())}. Saldo ${nf(l.saldo, 1)} ${esc(l.unidade || '')}, necessário ${nf(l.necSemana + l.necProx, 1)} até a próxima semana. <button class="link" data-ir-aba="estsis">Ver estoque</button>`]));
 
   alertasEstoqueExterno().forEach(x => al.push(x));
   const abertos = M.impactos.filter(i => !i.solucionado);
@@ -1010,7 +1012,6 @@ function estoqueLinhas() {
 }
 
 function renderEstoque() {
-  renderEstoquePlanilha();
   renderEstoqueExterno();
   renderEstoqueIfc();
   const ls = estoqueLinhas();
@@ -1151,7 +1152,7 @@ function alertasEstoqueExterno() {
   r.etapas.forEach(e => {
     const lim = e.cap.limitante ? ` (limitante: ${esc(e.cap.limitante)}${e.cap.descricao ? ' – ' + esc(e.cap.descricao) : ''})` : '';
     const semSaldo = e.itensFalta.length ? ` Itens sem saldo para a semana: ${e.itensFalta.map(i => esc(i.tag)).join(', ')}.` : '';
-    if (e.nivel === 'vermelho') al.push(['vermelho', `<b>Material para ${esc(cap(e.serv))}</b>: a planilha de estoque indica capacidade de ${nf(e.cap.joists)} joists; a meta restante da semana é ${nf(e.rest)}${lim}.${semSaldo} <button class="link" data-ir-aba="estoque">Ver estoque</button>`]);
+    if (e.nivel === 'vermelho') al.push(['vermelho', `<b>Material para ${esc(cap(e.serv))}</b>: a planilha de estoque indica capacidade de ${nf(e.cap.joists)} joists; a meta restante da semana é ${nf(e.rest)}${lim}.${semSaldo} <button class="link" data-ir-aba="estsis">Ver estoque</button>`]);
     else if (e.nivel === 'amarelo') al.push(['amarelo', `<b>Material para ${esc(cap(e.serv))}</b>: cobre a semana, mas não a próxima (${nf(e.cap.joists)} joists × ${nf(e.rest + e.proxMeta)} necessárias)${lim}.`]);
   });
   if (r.fixCrit.length) al.push(['vermelho', `<b>Fixadores em falta</b>: ${r.fixCrit.map(f => `${esc(f.codigo)} (${esc(f.descricao || '')}, saldo ${nf(f.saldo)})`).join('; ')}.`]);
@@ -1353,7 +1354,8 @@ async function edSalvar(k) {
   } catch (err) { toast(err.message, true); b.disabled = false; }
 }
 function ligarEdicaoEstoque() {
-  const sec = $('#aba-estoque');
+  const secs = [$('#aba-estrem'), $('#aba-estcons')];
+  const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
   $('#btnNovaRemessa').onclick = () => edAbrir('rem');
   $('#btnNovoConsumo').onclick = () => edAbrir('cons');
   sec.addEventListener('input', ev => {
@@ -2990,13 +2992,6 @@ function ligarEventos() {
   }));
   const sbToggle = document.getElementById('sidebarToggle');
   if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
-  const estSub = document.getElementById('estSubAbas');
-  if (estSub) estSub.addEventListener('click', ev => {
-    const b = ev.target.closest('.sub-aba');
-    if (!b) return;
-    estSub.querySelectorAll('.sub-aba').forEach(x => x.classList.toggle('ativa', x === b));
-    document.querySelectorAll('#aba-estoque > .sub-conteudo').forEach(d => d.hidden = d.id !== b.dataset.sub);
-  });
   ['estMatFiltro', 'estMatEtapa', 'estMatStatus'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstMateriais());
@@ -3138,6 +3133,7 @@ function ligarEventos() {
   ligarEventos();
   let aba = 'painel';
   try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
+  if (aba === 'estoque') aba = 'estmat';   // a aba única de estoque virou uma aba por assunto
   $('#refData').value = ref;
   const s = segunda(ref);
   per = { ini: s, fim: add(s, 6) };

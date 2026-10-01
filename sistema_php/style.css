@@ -262,16 +262,10 @@ dialog .obrig::after { content: " *"; color: var(--vermelho); }
 .acoes-linha { white-space: nowrap; }
 td.sub { color: var(--fg3); font-size: .78rem; }
 @media (max-width: 600px) { .periodo { padding-inline: 16px; } }
-/* sub-abas de estoque */
-.sub-abas { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px; background: var(--bg); border: 1px solid var(--linha); border-radius: var(--r); }
-.sub-aba { background: none; border: 0; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem; color: var(--fg2); white-space: nowrap; }
-.sub-aba:hover { background: var(--card); color: var(--fg); }
-.sub-aba.ativa { background: var(--card); color: var(--acento); box-shadow: var(--sombra); }
-.sub-conteudo { display: flex; flex-direction: column; gap: 16px; }
 .input-filtro { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); font-size: .85rem; min-width: 180px; }
 .input-filtro:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
 .tabela-larga table { min-width: 1200px; }
-@media (max-width: 600px) { .sub-aba { padding: 7px 10px; font-size: .78rem; } .input-filtro { min-width: 120px; } }
+@media (max-width: 600px) { .input-filtro { min-width: 120px; } }
 
 #tabFarol th, #tabEstoque th, #tabCliente th, #tabEqEmp th, #tabEqUso th { white-space: normal; vertical-align: bottom; }
 .usuario { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .8rem; color: var(--fg2); margin-top: 2px; }
