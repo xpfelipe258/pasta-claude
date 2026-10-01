@@ -607,8 +607,6 @@ TABELAS = {
             ("tipo", "Tipo", "txt", 16), ("descricao", "Descrição", "txt", 40), ("valor", "Valor a deduzir (R$)", "num", 16),
             ("contrato", "Contrato (RÓTULA, QPC ou AMBOS)", "txt", 18),
             ("percentual", "% do medido no período (ex.: 10 = sinal de contrato; vazio = usa o valor)", "num", 18),
-            ("item_uso", "Item / equipamento (ex.: Guindaste Sany)", "txt", 26), ("qtd", "Qtd de uso", "num", 10),
-            ("unidade", "Unidade (diária, hora...)", "txt", 12), ("valor_unit", "Valor unitário (R$); total = qtd x valor unitário", "num", 16),
         ],
     },
     "bm_fechamentos": {

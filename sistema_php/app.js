@@ -2290,10 +2290,7 @@ function bmPeriodos(emp) {
 }
 
 // Desconto como nas planilhas: valor fixo ou % do medido no período (ex.: sinal de contrato 10%). Negativo = crédito.
-// Por item: quantidade de uso x valor unitário (ex.: 9 diárias do guindaste x R$ 3.000). Por %: percentual do medido.
-const bmDeducaoPorItem = d => d.qtd != null && d.valor_unit != null && d.qtd !== '' && d.valor_unit !== '';
-const bmValorDeducao = (d, medido) => d.percentual != null && d.percentual !== '' ? medido * d.percentual / 100
-  : bmDeducaoPorItem(d) ? d.qtd * d.valor_unit : (d.valor || 0);
+const bmValorDeducao = (d, medido) => d.percentual != null && d.percentual !== '' ? medido * d.percentual / 100 : (d.valor || 0);
 function bmDeducoes(emp, p, medido = 0) {
   let equip, comb, litros, usos = null;
   if (p.fechado && p.fech) {
@@ -2435,23 +2432,20 @@ function renderBMBoletim(box) {
   const dd = r.ded, med = tot.per;
   const linhaDesc = d => {
     const v = bmValorDeducao(d, med), pct = d.percentual != null && d.percentual !== '';
-    const porItem = bmDeducaoPorItem(d), un = d.unidade ? ' ' + esc(d.unidade) : '';
-    const desc = d.descricao ? esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : '';
-    return `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${porItem && d.item_uso ? ': <b>' + esc(d.item_uso) + '</b>' : ''}${desc ? (porItem && d.item_uso ? ' <span class="nota">' + desc + '</span>' : ': ' + desc) : ''} ${pct ? `<span class="nota">${nf(d.percentual, 1)}% do medido</span>` : ''}
-      ${p.fechado ? '' : `<button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button>`}</td>
-      <td class="n">${porItem ? nf(d.qtd, 2) + un : ''}</td><td class="n">${porItem ? rs(d.valor_unit) : ''}</td><td class="n ${v < 0 ? 'valor-pos' : ''}">${rs(-v)}</td></tr>`;
+    return `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''} ${pct ? `<span class="nota">${nf(d.percentual, 1)}% do medido</span>` : ''}
+      ${p.fechado ? '' : `<button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button>`}</td><td class="n ${v < 0 ? 'valor-pos' : ''}">${rs(-v)}</td></tr>`;
   };
   h += `<div class="bloco"><div class="bloco-cab"><h2>Descontos e valor a faturar — BM${p.n}</h2>
       <div class="acoes"><button class="btn primario" data-novo="bm_deducoes" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, data: p.fim, contrato: R }))}'>+ Desconto</button></div></div>
     <p class="nota">Como nas planilhas de medição: equipamento emprestado da Rótula, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
-    <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">Qtd de uso</th><th class="n">Valor unitário</th><th class="n">RÓTULA</th></tr></thead><tbody>
-    <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td></td><td></td><td class="n">${rs(tot.acum)}</td></tr>
-    <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td></td><td></td><td class="n">${rs(tot.ant)}</td></tr>
-    <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td></td><td></td><td class="n"><b>${rs(med)}</b></td></tr>` +
-    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td></td><td></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
-    (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td></td><td></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
-    (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : '<tr><td class="vazio" colspan="4">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>') +
-    `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td></td><td></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
+    <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">RÓTULA</th></tr></thead><tbody>
+    <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
+    <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
+    <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
+    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
+    (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
+    (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>') +
+    `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
   box.innerHTML = h;
 
   const ev = bmEvolucao(emp);
@@ -2479,7 +2473,7 @@ function renderBMPeriodos(box) {
     <div class="bloco"><div class="bloco-cab"><h2>Descontos dos BMs</h2><button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></div>
       <p class="nota">Equipamento emprestado, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço... Valor negativo é crédito. Equipamentos lançados em Equipamentos entram sozinhos.</p>
       <div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>BM</th><th>Tipo</th><th>Descrição</th><th class="n">Valor / %</th><th></th></tr></thead><tbody>` +
-    (ds.length ? ds.map(d => `<tr><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${esc(cap(d.tipo || ''))}</td><td>${bmDeducaoPorItem(d) ? '<b>' + esc(d.item_uso || '') + '</b> ' + nf(d.qtd, 2) + ' ' + esc(d.unidade || '') + ' × ' + rs(d.valor_unit) + ' ' : ''}${esc((d.descricao || '').replace(/^\[planilha\]\s*/, ''))}</td><td class="n">${d.percentual != null ? nf(d.percentual, 1) + '%' : rs(bmValorDeducao(d, 0))}</td>
+    (ds.length ? ds.map(d => `<tr><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${esc(cap(d.tipo || ''))}</td><td>${esc((d.descricao || '').replace(/^\[planilha\]\s*/, ''))}</td><td class="n">${d.percentual != null ? nf(d.percentual, 1) + '%' : rs(d.valor)}</td>
       <td><button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button></td></tr>`).join('')
       : '<tr><td colspan="6" class="vazio">Nenhum desconto lançado.</td></tr>') + `</tbody></table></div></div></div>`;
 }
@@ -2598,11 +2592,9 @@ const FORMS = {
   bm_deducoes: { tit: 'desconto do BM', campos: [
     ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM (vazio = pela data)', 'num'], ['data', 'Data', 'date', 1],
     ['tipo', 'Tipo', 'select:EQUIPAMENTO EMPRESTADO,FATURAMENTO DIRETO,COMBUSTÍVEL,SINAL DE CONTRATO,MEDIÇÃO ANTECIPADA,REFEIÇÃO,ADIANTAMENTO,OUTROS', 1],
-    ['item_uso', 'Item / equipamento (ex.: Guindaste Sany) — para desconto por quantidade de uso', 'equipamento', 0, 'largo'],
-    ['qtd', 'Qtd de uso (ex.: 9)', 'num'], ['unidade', 'Unidade', 'select:diárias,horas,meses,viagens,litros,un'], ['valor_unit', 'Valor unitário (R$) (ex.: 3.000 por diária)', 'num'],
-    ['valor', 'Valor total a descontar (R$) — com item: qtd × valor unitário; negativo = crédito', 'num'],
+    ['valor', 'Valor a descontar (R$) — negativo = crédito', 'num'],
     ['percentual', '% do medido no período (ex.: 10 = sinal de contrato; vazio = usa o valor)', 'num'],
-    ['contrato', 'Contrato', 'select:RÓTULA', 1], ['descricao', 'Observação / descrição', 'text', 0, 'largo']] },
+    ['contrato', 'Contrato', 'select:RÓTULA', 1], ['descricao', 'Descrição', 'text', 0, 'largo']] },
   bm_atividades: { tit: 'atividade do catálogo do BM', campos: [
     ['codigo', 'Código (único)', 'text', 1], ['empresa', 'Empresa', 'empresa', 1], ['item', 'Item do BM (ex.: 3.1.1)', 'text', 1],
     ['item_desc', 'Descrição do item', 'text', 1, 'largo'], ['atividade', 'Atividade (serviço)', 'text', 1, 'largo'], ['unidade', 'Unidade', 'text', 1],
@@ -2658,18 +2650,6 @@ function abrirDialogo(tabela, linha, preset = {}) {
   if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
   dlg.showModal();
   patchDatas();
-}
-
-// Desconto por item: valor total = quantidade de uso x valor unitário; ao escolher um equipamento cadastrado, sugere a diária.
-function autoDescontoItem(form, campo) {
-  if (form.closest('dialog').dataset.tabela !== 'bm_deducoes') return;
-  const el = form.elements, num = v => Number(String(v || '').replace(/\./g, '').replace(',', '.'));
-  if (campo === 'item_uso' && !el.valor_unit.value) {
-    const eq = T.equipamentos.find(e => e.equipamento === el.item_uso.value.trim().toUpperCase() || e.equipamento === el.item_uso.value.trim());
-    if (eq && eq.valor) el.valor_unit.value = String(eq.valor).replace('.', ',');
-  }
-  const q = num(el.qtd.value), u = num(el.valor_unit.value);
-  if (q > 0 && u) el.valor.value = String(+(q * u).toFixed(2)).replace('.', ',');
 }
 
 function autoCustoUso(form) {
@@ -3020,7 +3000,6 @@ function ligarEventos() {
   $('#dlgForm').addEventListener('input', ev => {
     if (ev.target.name === 'custo') ev.target.dataset.manual = ev.target.value ? '1' : '';
     if (['equipamento', 'uso', 'quantidade'].includes(ev.target.name)) autoCustoUso(ev.currentTarget);
-    if (['item_uso', 'qtd', 'valor_unit'].includes(ev.target.name)) autoDescontoItem(ev.currentTarget, ev.target.name);
   });
   $('#btnImportarEq').onclick = importarEquip;
   $('#btnCopiarCli').onclick = copiarResumo;
