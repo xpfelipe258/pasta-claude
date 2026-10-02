@@ -1,0 +1,324 @@
+{
+ "setores": [
+  {
+   "chave": "joist|01-02",
+   "frente": "joist",
+   "parte": "01-02",
+   "descricao": "Joist — Rua 01-02",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|02-03",
+   "frente": "joist",
+   "parte": "02-03",
+   "descricao": "Joist — Rua 02-03",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|03-04",
+   "frente": "joist",
+   "parte": "03-04",
+   "descricao": "Joist — Rua 03-04",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|04-05",
+   "frente": "joist",
+   "parte": "04-05",
+   "descricao": "Joist — Rua 04-05",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|05-06",
+   "frente": "joist",
+   "parte": "05-06",
+   "descricao": "Joist — Rua 05-06",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|06-07",
+   "frente": "joist",
+   "parte": "06-07",
+   "descricao": "Joist — Rua 06-07",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|07-08",
+   "frente": "joist",
+   "parte": "07-08",
+   "descricao": "Joist — Rua 07-08",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|08-09",
+   "frente": "joist",
+   "parte": "08-09",
+   "descricao": "Joist — Rua 08-09",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|09-10",
+   "frente": "joist",
+   "parte": "09-10",
+   "descricao": "Joist — Rua 09-10",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|10-11",
+   "frente": "joist",
+   "parte": "10-11",
+   "descricao": "Joist — Rua 10-11",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|11-12",
+   "frente": "joist",
+   "parte": "11-12",
+   "descricao": "Joist — Rua 11-12",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|12-13",
+   "frente": "joist",
+   "parte": "12-13",
+   "descricao": "Joist — Rua 12-13",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|13-14",
+   "frente": "joist",
+   "parte": "13-14",
+   "descricao": "Joist — Rua 13-14",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|14-15",
+   "frente": "joist",
+   "parte": "14-15",
+   "descricao": "Joist — Rua 14-15",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|15-16",
+   "frente": "joist",
+   "parte": "15-16",
+   "descricao": "Joist — Rua 15-16",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|16-17",
+   "frente": "joist",
+   "parte": "16-17",
+   "descricao": "Joist — Rua 16-17",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|17-18",
+   "frente": "joist",
+   "parte": "17-18",
+   "descricao": "Joist — Rua 17-18",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|18-19",
+   "frente": "joist",
+   "parte": "18-19",
+   "descricao": "Joist — Rua 18-19",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "joist|19-20",
+   "frente": "joist",
+   "parte": "19-20",
+   "descricao": "Joist — Rua 19-20",
+   "etapa_material": "JOIST",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "fechamento|A",
+   "frente": "fechamento",
+   "parte": "A",
+   "descricao": "Fechamento — A",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "fechamento|H",
+   "frente": "fechamento",
+   "parte": "H",
+   "descricao": "Fechamento — H",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "fechamento|OITÃO 01",
+   "frente": "fechamento",
+   "parte": "OITÃO 01",
+   "descricao": "Fechamento — OITÃO 01",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "fechamento|OITÃO 20",
+   "frente": "fechamento",
+   "parte": "OITÃO 20",
+   "descricao": "Fechamento — OITÃO 20",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "marquise|A>",
+   "frente": "marquise",
+   "parte": "A>",
+   "descricao": "Marquise — A>",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "marquise|<H",
+   "frente": "marquise",
+   "parte": "<H",
+   "descricao": "Marquise — <H",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|AB",
+   "frente": "contraventamento",
+   "parte": "AB",
+   "descricao": "Contraventamento — AB",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|BC",
+   "frente": "contraventamento",
+   "parte": "BC",
+   "descricao": "Contraventamento — BC",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|CD",
+   "frente": "contraventamento",
+   "parte": "CD",
+   "descricao": "Contraventamento — CD",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|DE",
+   "frente": "contraventamento",
+   "parte": "DE",
+   "descricao": "Contraventamento — DE",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|EF",
+   "frente": "contraventamento",
+   "parte": "EF",
+   "descricao": "Contraventamento — EF",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|FG",
+   "frente": "contraventamento",
+   "parte": "FG",
+   "descricao": "Contraventamento — FG",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  },
+  {
+   "chave": "contraventamento|GH",
+   "frente": "contraventamento",
+   "parte": "GH",
+   "descricao": "Contraventamento — GH",
+   "etapa_material": "MONTAGEM",
+   "data_plan_inicio": null,
+   "data_plan_fim": null,
+   "obs": ""
+  }
+ ]
+}

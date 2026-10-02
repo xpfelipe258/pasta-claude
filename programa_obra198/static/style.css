@@ -264,6 +264,9 @@ td.sub { color: var(--fg3); font-size: .78rem; }
 @media (max-width: 600px) { .periodo { padding-inline: 16px; } }
 .input-filtro { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); font-size: .85rem; min-width: 180px; }
 .input-filtro:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+.plan-dt, .plan-obs { padding: 4px 6px; border: 1px solid var(--linha-forte); border-radius: 4px; background: var(--campo); color: var(--fg); font-size: .82rem; width: 100%; box-sizing: border-box; }
+.plan-dt { min-width: 120px; }
+.plan-dt:focus, .plan-obs:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
 .tabela-larga table { min-width: 1200px; }
 @media (max-width: 600px) { .input-filtro { min-width: 120px; } }
 

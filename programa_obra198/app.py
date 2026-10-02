@@ -837,6 +837,28 @@ def acao_apontamento(corpo):
     return {"celulas": n, "avisos": avisos, "salvos": len(linhas_novas), "linhas": reservadas}
 
 
+def acao_salvar_planejamento(corpo):
+    """Salva as datas planejadas por setor em planejamento_obra198.json."""
+    setores = corpo.get("setores")
+    if not isinstance(setores, list):
+        raise ErroValidacao("Campo 'setores' deve ser uma lista.")
+    arq = os.path.join(BASE, "planejamento_obra198.json")
+    # Lê existente para preservar setores não enviados
+    existente = {}
+    if os.path.exists(arq):
+        with open(arq, encoding="utf-8") as f:
+            atual = json.load(f)
+            existente = {s["chave"]: s for s in atual.get("setores", [])}
+    for s in setores:
+        chave = s.get("chave")
+        if not chave:
+            continue
+        existente.setdefault(chave, {"chave": chave}).update(s)
+    with open(arq, "w", encoding="utf-8") as f:
+        json.dump({"setores": list(existente.values())}, f, ensure_ascii=False, indent=1)
+    return {"salvos": len(setores)}
+
+
 ACOES = {
     "/api/registro": acao_registro,
     "/api/equip/importar": acao_importar_equip,
@@ -852,6 +874,7 @@ ACOES = {
     "/api/estoque/semear-materiais": acao_semear_materiais,
     "/api/estoque-planilha/remessa": acao_estoque_remessa,
     "/api/estoque-planilha/consumo": acao_estoque_consumo,
+    "/api/planejamento": acao_salvar_planejamento,
 }
 
 
@@ -905,6 +928,12 @@ class Handler(BaseHTTPRequestHandler):
                     with open(arq, encoding="utf-8") as f:
                         return self._json(200, json.load(f))
                 return self._json(404, {"erro": "Dados de estoque não importados. Execute importar_estoque.py."})
+            if caminho == "/api/planejamento":
+                arq = os.path.join(BASE, "planejamento_obra198.json")
+                if os.path.exists(arq):
+                    with open(arq, encoding="utf-8") as f:
+                        return self._json(200, json.load(f))
+                return self._json(200, {"setores": []})
             if caminho == "/api/exportar":
                 with _trava:
                     m = modelo()
