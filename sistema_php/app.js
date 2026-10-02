@@ -3009,6 +3009,113 @@ function bmEvolucao(emp) {
   });
 }
 
+function bmImprimir(r, emp, p) {
+  const obraNome = (D.arquivo || 'OBRA 198').replace(/\s*·.*$/, '').trim();
+  const R = 'RÓTULA', tot = r.tot[R], dd = r.ded, fat = r.faturar[R];
+  const pc = v => nf(v * 100, 1) + '%';
+  const anteriores = r.prev ? bmPeriodos(emp).filter(x => x.fechado && x.n < p.n) : [];
+  const periodoStr = (p.ini === '0000-01-01' ? 'Início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim);
+
+  let linhasItens = '';
+  r.itens.forEach(it => {
+    linhasItens += `<tr style="background:#f0f4f8"><td colspan="4" style="padding:5px 8px;font-weight:bold">${esc(it.item)} — ${esc(cap(it.desc))}</td>
+      <td style="text-align:right;padding:5px 8px">${pc(it.pctAnt)}</td><td style="text-align:right;padding:5px 8px">${pc(it.pctPer)}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${pc(it.pct)}</td>
+      <td style="text-align:right;padding:5px 8px">${rs(it.pctAnt * it.valor[R])}</td><td style="text-align:right;padding:5px 8px">${rs(it.pctPer * it.valor[R])}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${rs(it.pct * it.valor[R])}</td></tr>`;
+    it.ats.forEach(x => {
+      linhasItens += `<tr><td style="padding:4px 8px 4px 22px;color:#555">${esc(x.a.atividade)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
+        <td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real - x.realAnt, 2)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real, 2)}</td>
+        <td colspan="3" style="text-align:right;padding:4px 8px;color:#555">${pc(x.pct)}</td><td colspan="3"></td></tr>`;
+    });
+  });
+
+  let linhasDesc = `<tr><td style="padding:5px 8px">Acumulado da produção</td><td style="text-align:right;padding:5px 8px">${rs(tot.acum)}</td></tr>
+    <tr><td style="padding:5px 8px">(−) Já medido em BMs anteriores${anteriores.length ? ' — ' + anteriores.map(x => 'BM' + x.n).join(' + ') : ''}</td><td style="text-align:right;padding:5px 8px">${rs(tot.ant)}</td></tr>
+    <tr style="background:#f0f4f8"><td style="padding:6px 8px;font-weight:bold">Medição do BM${p.n}</td><td style="text-align:right;padding:6px 8px;font-weight:bold">${rs(tot.per)}</td></tr>`;
+  if (dd.equip) linhasDesc += `<tr><td style="padding:5px 8px">(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-(dd.equip + dd.comb))}</td></tr>`;
+  dd.manuais.forEach(d => {
+    const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
+    linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-v)}</td></tr>`;
+  });
+  linhasDesc += `<tr style="background:#e8f5e9"><td style="padding:7px 8px;font-weight:bold;font-size:14px">VALOR A FATURAR</td><td style="text-align:right;padding:7px 8px;font-weight:bold;font-size:14px;color:#1b5e20">${rs(fat)}</td></tr>`;
+
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>BM${p.n} · ${esc(emp)} · ${esc(obraNome)}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 20mm 18mm; }
+      h1 { font-size: 18px; font-weight: bold; color: #1a237e; margin-bottom: 2px; }
+      h2 { font-size: 13px; font-weight: bold; color: #1a237e; border-bottom: 1px solid #1a237e; padding-bottom: 3px; margin: 18px 0 8px; }
+      .cabecalho { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a237e; padding-bottom: 10px; margin-bottom: 14px; }
+      .cab-info { font-size: 11px; color: #555; margin-top: 4px; }
+      .cab-meta { text-align: right; font-size: 11px; color: #555; }
+      .cab-meta b { display: block; font-size: 13px; color: #1a1a1a; }
+      .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+      .tile { border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; }
+      .tile-rot { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: .4px; }
+      .tile-val { font-size: 16px; font-weight: bold; color: #1a1a1a; margin: 2px 0; }
+      .tile-sub { font-size: 10px; color: #777; }
+      .tile.destaque { background: #e8f5e9; border-color: #388e3c; }
+      .tile.destaque .tile-val { color: #1b5e20; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th { background: #1a237e; color: #fff; padding: 5px 8px; text-align: left; font-weight: bold; }
+      th.n { text-align: right; }
+      td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+      tfoot td { font-weight: bold; background: #e8eaf6; border-top: 2px solid #1a237e; }
+      .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 40px; }
+      .assin { border-top: 1px solid #1a1a1a; padding-top: 6px; font-size: 10px; text-align: center; color: #444; }
+      .rodape { margin-top: 20px; font-size: 9px; color: #aaa; text-align: right; border-top: 1px solid #eee; padding-top: 6px; }
+      .status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
+      .status.fechado { background: #e8f5e9; color: #1b5e20; }
+      .status.aberto { background: #fff8e1; color: #e65100; }
+      @media print { body { padding: 10mm 12mm; } }
+    </style></head><body>
+    <div class="cabecalho">
+      <div>
+        <div style="font-size:11px;color:#555;margin-bottom:4px">BOLETIM DE MEDIÇÃO</div>
+        <h1>${esc(obraNome)}</h1>
+        <div class="cab-info"><b>${esc(emp)}</b> &nbsp;·&nbsp; BM${p.n} &nbsp;·&nbsp; Contrato RÓTULA</div>
+        <div class="cab-info" style="margin-top:3px">Período: ${periodoStr}</div>
+        <div style="margin-top:6px"><span class="status ${p.fechado ? 'fechado' : 'aberto'}">${p.fechado ? '● FECHADO em ' + fdA(p.fech.fechado_em) : '● EM ABERTO'}</span></div>
+      </div>
+      <div class="cab-meta"><b>BM${p.n}</b>${fdA(p.fim)}<br><span style="margin-top:4px;display:block">Emitido em ${new Date().toLocaleString('pt-BR')}</span></div>
+    </div>
+    <h2>Resumo do BM${p.n}</h2>
+    <div class="tiles">
+      <div class="tile"><div class="tile-rot">Contrato RÓTULA</div><div class="tile-val">${rs(tot.contrato)}</div><div class="tile-sub">${esc(emp)} · valor total contratado</div></div>
+      <div class="tile"><div class="tile-rot">Acumulado da produção</div><div class="tile-val">${rs(tot.acum)}</div><div class="tile-sub">${pc(tot.pctAcum)} do contrato</div></div>
+      <div class="tile"><div class="tile-rot">Já medido (BMs anteriores)</div><div class="tile-val">${rs(tot.ant)}</div><div class="tile-sub">${anteriores.length ? anteriores.map(x => 'BM' + x.n).join(' + ') : 'nenhum BM anterior'}</div></div>
+      <div class="tile"><div class="tile-rot">Medição do BM${p.n}</div><div class="tile-val">${rs(tot.per)}</div><div class="tile-sub">${pc(tot.pctPer)} do contrato neste período</div></div>
+      <div class="tile"><div class="tile-rot">Descontos</div><div class="tile-val">${rs(dd.total[R])}</div><div class="tile-sub">${dd.manuais.length} desconto(s)${dd.equip + dd.comb ? ' + equipamentos' : ''}</div></div>
+      <div class="tile destaque"><div class="tile-rot">Valor a faturar</div><div class="tile-val">${rs(fat)}</div><div class="tile-sub">medição − descontos</div></div>
+    </div>
+    <h2>Medição por item e atividade</h2>
+    <table><thead><tr>
+      <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
+      <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
+      <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
+    </tr></thead><tbody>${linhasItens}</tbody>
+    <tfoot><tr><td colspan="4"><b>Total do contrato</b></td>
+      <td style="text-align:right">${pc(tot.ant / (tot.contrato || 1))}</td><td style="text-align:right">${pc(tot.pctPer)}</td><td style="text-align:right">${pc(tot.pctAcum)}</td>
+      <td style="text-align:right">${rs(tot.ant)}</td><td style="text-align:right">${rs(tot.per)}</td><td style="text-align:right">${rs(tot.acum)}</td>
+    </tr></tfoot></table>
+    <h2>Descontos e valor a faturar</h2>
+    <table><thead><tr><th>Descrição</th><th class="n" style="width:160px">Valor (R$)</th></tr></thead>
+    <tbody>${linhasDesc}</tbody></table>
+    <div class="assinaturas">
+      <div class="assin">Responsável pela medição<br>${esc(emp)}</div>
+      <div class="assin">Fiscalização / Contratante<br>RÓTULA</div>
+      <div class="assin">Aprovação<br>&nbsp;</div>
+    </div>
+    <div class="rodape">Gerado pelo sistema de controle de obra · ${esc(obraNome)} · BM${p.n} · ${esc(emp)} · ${new Date().toLocaleString('pt-BR')}</div>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) { alert('Permita pop-ups para imprimir.'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); };
+}
+
 function renderBM() {
   const emps = bmEmpresas();
   const box = $('#bmCorpo');
@@ -3039,7 +3146,7 @@ function renderBMBoletim(box) {
   let h = `<div class="barra-acoes"><label class="rot-sel">Medição <select id="selBmPer">${ps.map(x => `<option value="${x.chave}" ${x.chave === bmPerSel ? 'selected' : ''}>${esc(x.rot)}</option>`).join('')}</select></label>
     <span class="status-bm">${p.fechado ? `<span class="farol f-verde">FECHADO em ${fdA(p.fech.fechado_em)}</span>` : `<span class="farol f-amarelo">EM ABERTO</span>`}</span>
     <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento (já medido e pago).' : 'Acumulado da produção lançada, menos o que já foi medido nos BMs anteriores.'}</span>
-    <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}</span></div>`;
+    <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}<button class="btn" data-bm-imprimir>⎙ Imprimir relatório</button></span></div>`;
   h += '<div class="tiles">' +
     bmTile('Contrato RÓTULA', rs(tot.contrato), `${esc(emp)} · medição só no contrato RÓTULA`, cc) +
     bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
@@ -3613,6 +3720,11 @@ function ligarEventos() {
     if (bf) {
       if (!bf.dataset.confirmar) { bf.dataset.confirmar = '1'; bf.textContent = 'Confirmar ' + (bf.hasAttribute('data-bm-fechar') ? 'fechamento' : 'reabertura'); return; }
       bf.hasAttribute('data-bm-fechar') ? fecharBM() : reabrirBM();
+    }
+    if (ev.target.closest('[data-bm-imprimir]')) {
+      const emp = bmEmp, ps = bmPeriodos(emp);
+      const p = ps.find(x => x.chave === bmPerSel) || ps[ps.length - 1];
+      bmImprimir(bmCalc(emp, p), emp, p);
     }
   });
   $('#aba-bm').addEventListener('change', ev => { if (ev.target.id === 'selBmPer') { bmPerSel = ev.target.value; renderBM(); } });
