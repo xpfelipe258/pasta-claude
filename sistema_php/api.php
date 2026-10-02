@@ -51,6 +51,10 @@ try {
             }
             responder_json(200, json_decode(file_get_contents($p), true));
         }
+        if ($rota === 'planejamento') {
+            $p = __DIR__ . '/inc/planejamento.json';
+            responder_json(200, is_file($p) ? json_decode(file_get_contents($p), true) : ['setores' => []]);
+        }
         if ($rota === 'estoque-planilha') {
             $d = estoque_planilha_ler();
             if ($d === null) {
@@ -82,6 +86,7 @@ try {
         'apontamento' => 'acao_apontamento', 'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
+        'planejamento' => 'acao_salvar_planejamento',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -967,4 +972,29 @@ function apontamento_reatribuir(array $aps, array $corpo)
         q('UPDATE apontamentos SET empresa = ? WHERE id = ?', [$nome, (int)$lin]);
     }
     return ['celulas' => count($linhas), 'avisos' => [], 'salvos' => count($linhas)];
+}
+
+// --------------------------------------------------------- planejamento de montagem
+function acao_salvar_planejamento(array $corpo, array $usuario)
+{
+    $setores = $corpo['setores'] ?? null;
+    if (!is_array($setores)) {
+        throw new ErroValidacao("Campo 'setores' deve ser uma lista.");
+    }
+    $arq = __DIR__ . '/inc/planejamento.json';
+    $existente = [];
+    if (is_file($arq)) {
+        $atual = json_decode(file_get_contents($arq), true) ?: [];
+        foreach ($atual['setores'] ?? [] as $s) {
+            $existente[$s['chave']] = $s;
+        }
+    }
+    foreach ($setores as $s) {
+        $chave = $s['chave'] ?? null;
+        if (!$chave) continue;
+        if (!isset($existente[$chave])) $existente[$chave] = ['chave' => $chave];
+        $existente[$chave] = array_merge($existente[$chave], $s);
+    }
+    file_put_contents($arq, json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    return ['salvos' => count($setores)];
 }

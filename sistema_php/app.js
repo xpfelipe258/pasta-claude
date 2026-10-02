@@ -376,7 +376,8 @@ function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont,
+     plan: renderPlanejamento })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -829,6 +830,268 @@ function renderGantt() {
   if (!ganEst.rolou) { ganEst.rolou = true; cx.scrollLeft = Math.max(0, GAN_ESQ + X(c) - cx.clientWidth / 2); }
   requestAnimationFrame(syncScrollTopo);
 }
+
+// ------------------------------------------------------------ PLANEJAMENTO DE MONTAGEM
+function hojeIso() { return new Date().toISOString().slice(0, 10); }
+let planDados = null; // cache dos dados de planejamento
+
+async function carregarPlanejamento() {
+  if (planDados) return planDados;
+  try {
+    const r = await fetch(API + 'planejamento');
+    if (r.ok) planDados = await r.json();
+    else planDados = { setores: [] };
+  } catch { planDados = { setores: [] }; }
+  return planDados;
+}
+
+// Retorna {inicio, fim} das datas de apontamento para um setor (frente|parte)
+function datasApontSsetor(frente, parte) {
+  const aps = T.apontamentos || [];
+  const tipo = frente === 'joist' ? 'JOIST' : frente.toUpperCase();
+  const relevantes = aps.filter(a => {
+    if ((a.tipo || '').toUpperCase() !== tipo) return false;
+    // joist: 'parte' é a rua (ex.: "01-02"); outros: 'parte' é o id da faixa/lado (ex.: "A", "AB", "A>")
+    if (frente === 'joist') return (a.rua || '') === parte;
+    return (a.faixa || '') === parte;
+  });
+  if (!relevantes.length) return null;
+  const datas = relevantes.map(a => a.data).filter(Boolean).sort();
+  return { inicio: datas[0], fim: datas[datas.length - 1] };
+}
+
+// Retorna a data de chegada mais recente de material para um etapa (JOIST / MONTAGEM)
+function dataChegadaMaterial(etapa, EP) {
+  if (!EP || !EP.remessas) return null;
+  const meta = EP.remessas.meta_remessas || [];
+  const itens = EP.remessas.itens || [];
+  // Filtrar remessas que têm itens dessa etapa
+  const colsComEtapa = new Set();
+  for (const item of itens) {
+    if ((item.etapa || '').toUpperCase() === etapa.toUpperCase()) {
+      Object.keys(item.qtd_por_remessa || {}).forEach(c => colsComEtapa.add(c));
+    }
+  }
+  let ultimaChegada = null;
+  for (const m of meta) {
+    if (colsComEtapa.has(m.nome) && m.data_chegada && m.data_chegada.includes('/')) {
+      const [d, mm, a] = m.data_chegada.split('/');
+      const iso = `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}`;
+      if (!ultimaChegada || iso > ultimaChegada) ultimaChegada = iso;
+    }
+  }
+  return ultimaChegada;
+}
+
+// Converte 'dd/mm/aaaa' → 'aaaa-mm-dd'
+function brParaIso(br) {
+  if (!br) return null;
+  if (br.includes('-')) return br;
+  const p = br.split('/');
+  if (p.length !== 3) return null;
+  return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+}
+
+function diasEntreDatas(a, b) {
+  if (!a || !b) return null;
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+
+async function renderPlanejamento() {
+  // Carregamento lazy das frentes (mapas IFC)
+  const frObj = frentesMontagem(renderPlanejamento);
+  if (!frObj) return; // aguarda callback
+
+  const dados = await carregarPlanejamento();
+  const setoresMap = Object.fromEntries((dados.setores || []).map(s => [s.chave, s]));
+
+  // Filtros de frente
+  const todasFrentes = ['joist', 'fechamento', 'marquise', 'contraventamento'];
+  let filtroFrente = planEst?.frente || '';
+  const segEl = $('#segPlanFrente');
+  segEl.innerHTML = [['', 'Todas'], ...todasFrentes.map(f => [f, cap(f)])].map(([k, r]) =>
+    `<button data-plan-frente="${k}" class="${k === filtroFrente ? 'ativa' : ''}">${r}</button>`).join('');
+
+  // Calcular data de chegada de material por etapa
+  const chegadaJoist = dataChegadaMaterial('JOIST', EP);
+  const chegadaMont = dataChegadaMaterial('MONTAGEM', EP);
+
+  // Malha do IFC para lista de ruas
+  const malha = frObj.malha || {};
+  const ruas = malha.ruas || [];
+
+  // Montar linhas da tabela
+  const todasChaves = [
+    ...ruas.map(r => `joist|${r}`),
+    ...['fechamento', 'marquise', 'contraventamento'].flatMap(fn => {
+      const fr = (frObj.frentes || {})[fn];
+      return (fr?.partes || []).map(p => `${fn}|${p.id}`);
+    })
+  ];
+
+  // Tiles de sumário
+  const planSetores = todasChaves.map(chave => {
+    const s = setoresMap[chave] || { chave };
+    const [frente, parte] = chave.split('|');
+    const real = datasApontSsetor(frente, parte);
+    const etapa = frente === 'joist' ? 'JOIST' : 'MONTAGEM';
+    const chegada = etapa === 'JOIST' ? chegadaJoist : chegadaMont;
+    const planInicio = s.data_plan_inicio || null;
+    const planFim = s.data_plan_fim || null;
+    const realInicio = real?.inicio || null;
+
+    let status = 'sem-dado';
+    let deltaPlanReal = null;
+    let deltaMaterial = null;
+
+    if (realInicio && planInicio) {
+      deltaPlanReal = diasEntreDatas(planInicio, realInicio);
+      if (deltaPlanReal <= 0) status = 'adiantado';
+      else if (deltaPlanReal <= 3) status = 'no-prazo';
+      else status = 'atrasado';
+    } else if (realInicio) {
+      status = 'realizado';
+    } else if (planInicio && planInicio < hojeIso()) {
+      status = 'pendente';
+    }
+
+    if (chegada && planInicio) {
+      deltaMaterial = diasEntreDatas(chegada, planInicio);
+    }
+
+    return { chave, frente, parte, s, real, etapa, chegada, planInicio, planFim, realInicio, status, deltaPlanReal, deltaMaterial };
+  });
+
+  const filtrado = filtroFrente ? planSetores.filter(r => r.frente === filtroFrente) : planSetores;
+
+  // Tiles
+  const atrasados = planSetores.filter(r => r.status === 'atrasado').length;
+  const semMat = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0).length;
+  const realizados = planSetores.filter(r => r.realInicio).length;
+  const comPlan = planSetores.filter(r => r.planInicio).length;
+  const tile = (rot, val, sub, cor) => `<div class="tile" style="--c:${cor}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#planTiles').innerHTML =
+    tile('Setores planejados', comPlan, `de ${planSetores.length} total`, 'var(--acento)') +
+    tile('Realizados', realizados, 'com ao menos 1 apontamento', 'var(--verde)') +
+    tile('Atrasados vs plano', atrasados, 'início real após data planejada', atrasados ? 'var(--vermelho)' : 'var(--verde)') +
+    tile('Material antes do plano', semMat, 'chegou depois da data planejada', semMat ? 'var(--amarelo)' : 'var(--verde)');
+
+  // Tabela principal
+  const corStatus = { 'adiantado': 'verde', 'no-prazo': 'verde', 'atrasado': 'vermelho', 'pendente': 'amarelo', 'realizado': 'pendente', 'sem-dado': '' };
+  const rotStatus = { 'adiantado': 'Adiantado', 'no-prazo': 'No prazo', 'atrasado': 'Atrasado', 'pendente': 'Pendente', 'realizado': 'Realizado', 'sem-dado': '—' };
+  const statusFarol = st => st && corStatus[st] ? `<span class="farol f-${corStatus[st]}">${rotStatus[st]}</span>` : '—';
+  const deltaIcon = d => d === null ? '—' : d === 0 ? 'No dia' : d > 0 ? `<span style="color:var(--vermelho)">+${d}d</span>` : `<span style="color:var(--verde)">${d}d</span>`;
+  const chave = r => r.chave;
+
+  $('#tabPlan').innerHTML = `<thead><tr>
+    <th>Frente</th><th>Setor</th>
+    <th>Início planejado</th><th>Fim planejado</th>
+    <th>Início real</th><th>Fim real</th>
+    <th class="n">Desvio (dias)</th>
+    <th>Chegada material</th>
+    <th class="n">Mat. antes do plano</th>
+    <th>Status</th><th>Obs.</th>
+  </tr></thead><tbody>` +
+  filtrado.map(r => `<tr data-plan-chave="${esc(r.chave)}">
+    <td class="nota">${esc(cap(r.frente))}</td>
+    <td><b>${esc(r.parte)}</b></td>
+    <td><input class="plan-dt plan-ini" type="date" value="${r.planInicio || ''}" data-chave="${esc(r.chave)}" aria-label="Início planejado"></td>
+    <td><input class="plan-dt plan-fim" type="date" value="${r.planFim || ''}" data-chave="${esc(r.chave)}" aria-label="Fim planejado"></td>
+    <td class="nota">${r.realInicio ? fdA(r.realInicio) : '—'}</td>
+    <td class="nota">${r.real?.fim && r.real.fim !== r.realInicio ? fdA(r.real.fim) : '—'}</td>
+    <td class="n">${deltaIcon(r.deltaPlanReal)}</td>
+    <td class="nota">${r.chegada ? fdA(r.chegada) : '—'}</td>
+    <td class="n">${deltaIcon(r.deltaMaterial)}</td>
+    <td>${statusFarol(r.status)}</td>
+    <td><input class="plan-obs" type="text" value="${esc(r.s?.obs || '')}" data-chave="${esc(r.chave)}" placeholder="Obs." style="width:100%"></td>
+  </tr>`).join('') + '</tbody>';
+
+  // Análise de impacto
+  const impactados = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0);
+  const impEl = $('#planImpacto');
+  if (!impactados.length) {
+    impEl.innerHTML = '<p class="vazio">Nenhum setor com chegada de material após a data planejada de início.</p>';
+  } else {
+    impEl.innerHTML = `<div class="tabela-rolagem"><table>
+      <thead><tr><th>Setor</th><th>Frente</th><th>Planejado início</th><th>Chegada material</th><th class="n">Atraso material (dias)</th><th>Impacto</th></tr></thead>
+      <tbody>` + impactados.map(r => {
+        const dias = Math.abs(r.deltaMaterial);
+        return `<tr>
+          <td><b>${esc(r.parte)}</b></td>
+          <td class="nota">${esc(cap(r.frente))}</td>
+          <td>${r.planInicio ? fdA(r.planInicio) : '—'}</td>
+          <td>${r.chegada ? fdA(r.chegada) : '—'}</td>
+          <td class="n"><span style="color:var(--vermelho)">${dias}d depois</span></td>
+          <td class="nota">Material chegou ${dias}d após o início previsto${r.realInicio ? ` — montagem iniciou ${fdA(r.realInicio)}` : ''}</td>
+        </tr>`;
+      }).join('') + '</tbody></table></div>';
+  }
+
+  // Timeline simplificada de remessas
+  renderPlanTimeline(EP);
+}
+
+function renderPlanTimeline(ep) {
+  const el = $('#planTimeline');
+  if (!ep || !ep.remessas) { el.innerHTML = '<p class="vazio">Dados de remessas não disponíveis.</p>'; return; }
+  const meta = ep.remessas.meta_remessas || [];
+  const chegadas = meta.filter(m => m.data_chegada && m.data_chegada.includes('/'));
+  if (!chegadas.length) { el.innerHTML = '<p class="vazio">Sem datas de chegada registradas.</p>'; return; }
+
+  // Converter datas
+  const isos = chegadas.map(m => {
+    const [d, mm, a] = m.data_chegada.split('/');
+    return { ...m, iso: `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}` };
+  }).sort((a, b) => a.iso.localeCompare(b.iso));
+
+  const aps = T.apontamentos || [];
+  // Datas de apontamentos agrupadas por semana
+  const apPorDia = {};
+  aps.forEach(a => { if (a.data) apPorDia[a.data] = (apPorDia[a.data] || 0) + (a.qtd || 1); });
+
+  const ini = isos[0].iso;
+  const fim = isos[isos.length - 1].iso;
+  const diasTotal = diasEntreDatas(ini, fim) + 1;
+  if (!diasTotal) { el.innerHTML = ''; return; }
+
+  const px = Math.min(3, 960 / diasTotal);
+  const W = Math.round(diasTotal * px);
+  const X = d => Math.round(diasEntreDatas(ini, d) * px);
+
+  let svg = `<div style="overflow-x:auto"><svg width="${W + 120}" height="140" style="font-family:inherit;font-size:10px">`;
+  // Linha base
+  svg += `<line x1="0" y1="70" x2="${W}" y2="70" stroke="var(--fg3)" stroke-width="1"/>`;
+
+  // Remessas: marcações verticais
+  isos.forEach((m, i) => {
+    const x = X(m.iso);
+    const etapa = m.nome.includes('OE') ? 'Remessa' : m.nome;
+    svg += `<line x1="${x}" y1="40" x2="${x}" y2="70" stroke="var(--acento)" stroke-width="2"/>`;
+    if (i % 2 === 0) svg += `<text x="${x + 2}" y="38" fill="var(--fg2)" font-size="9" transform="rotate(-35,${x + 2},38)">${esc(m.data_chegada)}</text>`;
+    svg += `<title>${esc(m.nome)}: ${esc(m.data_chegada)}</title>`;
+  });
+
+  // Apontamentos: bolinhas acima da linha
+  const apDatas = Object.keys(apPorDia).filter(d => d >= ini && d <= fim).sort();
+  apDatas.forEach(d => {
+    const x = X(d);
+    const n = apPorDia[d];
+    const r = Math.min(8, 3 + n);
+    svg += `<circle cx="${x}" cy="85" r="${r}" fill="var(--verde)" opacity="0.7"><title>${fdA(d)}: ${n} apontamento(s)</title></circle>`;
+  });
+
+  // Legenda
+  svg += `<circle cx="8" cy="115" r="6" fill="var(--verde)" opacity="0.7"/>`;
+  svg += `<text x="18" y="119" fill="var(--fg2)">Apontamentos</text>`;
+  svg += `<line x1="120" y1="112" x2="128" y2="112" stroke="var(--acento)" stroke-width="2"/>`;
+  svg += `<text x="132" y="119" fill="var(--fg2)">Chegada de material</text>`;
+
+  svg += '</svg></div>';
+  el.innerHTML = svg;
+}
+
+// Estado do planejamento
+let planEst = { frente: '' };
 
 function renderAvanco() {
   const linhas = contratoLinhas();
@@ -3273,6 +3536,34 @@ function ligarEventos() {
   $('#segGanZoom').addEventListener('click', ev => { const b = ev.target.closest('[data-gan-zoom]'); if (b) { ganEst.zoom = b.dataset.ganZoom; ganEst.rolou = false; renderGantt(); } });
   $('#selGanFrente').addEventListener('change', ev => { ganEst.frente = ev.target.value; renderGantt(); });
   $('#chkGanEmp').addEventListener('change', ev => { ganEst.porEmp = ev.target.checked; renderGantt(); });
+
+  // Planejamento de montagem
+  $('#segPlanFrente').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-plan-frente]');
+    if (b) { planEst.frente = b.dataset.planFrente; planDados = null; renderPlanejamento(); }
+  });
+  $('#btnSalvarPlan').addEventListener('click', async () => {
+    const rows = document.querySelectorAll('#tabPlan tbody tr[data-plan-chave]');
+    const setores = [];
+    rows.forEach(tr => {
+      const chave = tr.dataset.planChave;
+      const ini = tr.querySelector('.plan-ini')?.value || null;
+      const fim = tr.querySelector('.plan-fim')?.value || null;
+      const obs = tr.querySelector('.plan-obs')?.value || '';
+      setores.push({ chave, data_plan_inicio: ini || null, data_plan_fim: fim || null, obs });
+    });
+    try {
+      const r = await postarBruto(API + 'planejamento', { setores });
+      if (r.ok) {
+        planDados = null;
+        toast(`${setores.length} setor(es) salvos!`);
+        renderPlanejamento();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.erro || 'Erro ao salvar planejamento.', true);
+      }
+    } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
+  });
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));
