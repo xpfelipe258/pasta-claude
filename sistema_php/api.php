@@ -653,9 +653,23 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         throw new ErroValidacao("Mapa da frente $tipo não publicado.");
     }
     $parte = null;
-    foreach ($frente['partes'] as $p) {
-        if ($p['id'] === (string)($item['parte'] ?? '')) {
-            $parte = $p;
+    if (!empty($frente['elevacao'])) {        // vista elevada: a "parte" é o trecho de letras do painel em X
+        $letras = (string)($item['parte'] ?? '');
+        $celulas = [];
+        foreach ($frente['elevacao']['paineis'] as $pn) {
+            if ($pn['de'] . '-' . $pn['ate'] === $letras) {
+                $celulas[] = ['trecho' => $pn['rua']];
+            }
+        }
+        if (!$celulas) {
+            throw new ErroValidacao("{$frente['titulo']}: painel '$letras' não existe na elevação.");
+        }
+        $parte = ['id' => $letras, 'nome' => "Painel $letras", 'celulas' => $celulas];
+    } else {
+        foreach ($frente['partes'] as $p) {
+            if ($p['id'] === (string)($item['parte'] ?? '')) {
+                $parte = $p;
+            }
         }
     }
     if (!$parte) {

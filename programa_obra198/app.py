@@ -617,7 +617,16 @@ def _frente_item(item, frentes, ja, base, data):
     """Linhas de apontamento de uma frente (fechamento, marquise ou contraventamento) e o serviço que elas somam."""
     tipo = str(item.get("tipo") or "").upper()
     frente = frentes["frentes"][TIPOS_FRENTE[tipo]]
-    parte = next((p for p in frente["partes"] if p["id"] == str(item.get("parte") or "")), None)
+    elev = frente.get("elevacao")
+    if elev:                                          # vista elevada: a "parte" é o trecho de letras do painel em X
+        trecho_letras = str(item.get("parte") or "")
+        validos_el = {(p["de"] + "-" + p["ate"], p["rua"]) for p in elev["paineis"]}
+        parte = {"id": trecho_letras, "nome": f"Painel {trecho_letras}",
+                 "celulas": [{"trecho": r} for (d, r) in validos_el if d == trecho_letras]}
+        if not parte["celulas"]:
+            raise ErroValidacao(f"{frente['titulo']}: painel '{trecho_letras}' não existe na elevação.")
+    else:
+        parte = next((p for p in frente["partes"] if p["id"] == str(item.get("parte") or "")), None)
     if not parte:
         raise ErroValidacao(f"{frente['titulo']}: parte '{item.get('parte')}' não existe no mapa.")
     etapas = frente.get("etapas") or []

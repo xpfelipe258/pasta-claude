@@ -1678,6 +1678,20 @@ function apGarantirEstado(ctx) {
 }
 
 // Seleção atual convertida em peças (cada uma com a empresa que montou) e em grupos empresa + serviço.
+// Código do material -> nome legível (do catálogo de materiais e das descrições nas regras de baixa).
+function codigosBaixa(regras) {
+  const n = {};
+  (regras.eventos || []).forEach(e => (e.baixa || []).concat(e.baixa_por_joist || [])
+    .forEach(b => { if (b.codigo && b.descricao) n[b.codigo] = b.descricao; }));
+  Object.values(regras.consumo_por_servico || {}).forEach(s => {
+    const grupos = [s.por_peca, ...Object.values(s.por_etapa || {})].filter(Boolean);
+    grupos.forEach(g => Object.values(g).forEach(lista => lista.forEach(b => { if (b.descricao) n[b.codigo] = b.descricao; })));
+    (s.itens || []).forEach(b => { if (b.descricao) n[b.codigo] = b.descricao; });
+  });
+  (EP ? EP.materiais || [] : []).forEach(m => { if (m.tag && m.produto) n[m.tag] = m.produto; });
+  return n;
+}
+
 function apSelecao(ctx) {
   const extrasJ = (ctx.evento('JOIST_ICADA').baixa_por_joist || []).filter(b => b.codigo !== 'PARAFUSO_FIX_JOIST');
   const joists = [], vigas = [];
@@ -1701,9 +1715,21 @@ function apSelecao(ctx) {
     (ctx.evento(ctx.crit[v.letra].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
   });
   const fs = (window._frentes || {}).frentes || {};
+  const regras = window._regras_baixa || {};
   frente.forEach(f => {
-    const cfgF = fs[{ FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo]] || {};
-    grupo(f.emp, f.etapa || cfgF.servico || null).delta += 1;
+    const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo];
+    const cfgF = fs[chaveF] || {};
+    const servico = f.etapa || cfgF.servico || null;
+    grupo(f.emp, servico).delta += 1;
+    // fixadores do trecho: kit de cada família (do projeto) x peças daquela célula no IFC
+    const parte = (cfgF.partes || []).find(p => p.id === f.parte);
+    const cel = parte && parte.celulas.find(c => c.trecho === f.trecho);
+    const r = regras.consumo_por_servico || {};
+    const conf = r[f.tipo === 'MARQUISE' ? 'MARQUISE' : servico] || {};
+    const porPeca = conf.por_peca || (conf.por_etapa || {})[f.etapa] || {};
+    if (cel) Object.entries(cel.pecas).forEach(([familia, n]) => {
+      (porPeca[familia] || []).forEach(b => soma(b.codigo, b.quantidade * n));
+    });
   });
   const porEmp = {};
   [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
@@ -1741,7 +1767,12 @@ function apEfeitosHtml(regras, ctx) {
     if (somar && perBm && perBm.fechado) avisos.push(`${g.emp}: a data cai no BM${perBm.n}, já fechado; a produção entra como ajuste no BM em aberto.`);
     itens.push(t);
   });
-  itens.push(`<b>Estoque:</b> ${[...sel.baixa].map(([c, q]) => `${esc(c)} ×${nf(q)}`).join(' · ')}.`);
+  const nomes = codigosBaixa(regras);
+  const baixa = [...sel.baixa].filter(([, q]) => q > 0).sort((a, b) => b[1] - a[1]);
+  itens.push(baixa.length
+    ? `<b>Estoque (baixa automática):</b> ${baixa.map(([c, q]) => `${esc(nomes[c] || c)} <b>×${nf(q)}</b>`).join(' · ')}.`
+    : '<b>Estoque:</b> nenhum fixador mapeado para esta seleção.');
+
 
   const idsSel = new Set(sel.vigas.map(v => ctx.vigaId(v.eixo, v.letra)));
   const quads = new Set(sel.joists.map(j => `${j.rua}/${j.faixa}`));
@@ -1863,6 +1894,50 @@ function apMapaSvg(ctx) {
 
 // Mapa de uma frente: uma linha por parte (lado A, lado H, oitão, faixa...) e uma célula por trecho montável.
 // Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
+// Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
+// na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
+const APC = { passo: 26, colW: 64, mEsq: 56, mTop: 30 };
+function apContravSvg() {
+  const fr = apFrenteAtual(), el = fr && fr.elevacao;
+  if (!el) return '';
+  const feitas = new Map();
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
+    .forEach(a => feitas.set(`${a.faixa}|${a.rua}`, a));
+  const ruas = el.ruas, est = el.estacoes;
+  const iEst = Object.fromEntries(est.map((e, i) => [e, i]));
+  const { passo, colW, mEsq, mTop } = APC;
+  const W = mEsq + ruas.length * colW + 20, H = mTop + (est.length - 1) * passo + 34;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
+  est.forEach((e, i) => {
+    const y = mTop + i * passo;
+    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + ruas.length * colW}" y2="${y}" class="apc-est"/>` +
+      `<text x="${mEsq - 8}" y="${y + 4}" class="apc-rot">${e}</text>`;
+  });
+  ruas.forEach((r, j) => {
+    const x = mEsq + j * colW;
+    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + (est.length - 1) * passo}" class="apc-eixo"/>` +
+      `<text x="${x}" y="${mTop - 10}" class="apc-rot n">${r.split('-')[0]}</text>`;
+    if (j === ruas.length - 1) s += `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + (est.length - 1) * passo}" class="apc-eixo"/>` +
+      `<text x="${x + colW}" y="${mTop - 10}" class="apc-rot n">${r.split('-')[1]}</text>`;
+  });
+  el.paineis.forEach(p => {
+    const j = ruas.indexOf(p.rua);
+    if (j < 0 || !(p.de in iEst) || !(p.ate in iEst)) return;
+    const x = mEsq + j * colW, y0 = mTop + iEst[p.de] * passo, y1 = mTop + iEst[p.ate] * passo;
+    const k = `${p.de}-${p.ate}|${p.rua}|`;
+    const feita = feitas.get(`${p.de}-${p.ate}|${p.rua}`), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
+    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
+    const det = Object.entries(p.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
+    const tit = `Rua ${p.rua} · ${p.de} a ${p.ate}\n${p.total} peças${det ? '\n' + det : ''}` +
+      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
+    s += `<g class="apc-p ${cls}" ${emp ? `style="--sel:${corSelEmp(emp)}"` : ''} ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
+      `<rect x="${x + 2}" y="${y0}" width="${colW - 4}" height="${y1 - y0}" class="apc-fundo"/>` +
+      `<line x1="${x + 3}" y1="${y0}" x2="${x + colW - 3}" y2="${y1}"/><line x1="${x + colW - 3}" y1="${y0}" x2="${x + 3}" y2="${y1}"/>` +
+      `<title>${esc(tit)}</title></g>`;
+  });
+  return s + '</svg>';
+}
+
 function apFrenteHtml(ctx) {
   const fr = apFrenteAtual();
   if (!fr) return window._frentes
@@ -1882,6 +1957,17 @@ function apFrenteHtml(ctx) {
     ? `<div class="seg" id="segApEtapa">${etapas.map(e => `<button data-ap-etapa="${esc(e)}" class="${e === etapa ? 'ativa' : ''}">${esc(cap(e.replace(/^MARQUISE – /, '')))}</button>`).join('')}</div>` : '';
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
+  if (apEst.modo === 'cont' && fr.elevacao) {
+    const pns = fr.elevacao.paineis;
+    const mont = pns.filter(p => feitas.has(`${p.de}-${p.ate}|${p.rua}|`)).length;
+    return `<div class="ap-linha ap-mapa-barra">
+      <span class="nota">${nf(mont)} de ${nf(pns.length)} painéis contraventados · ${nf(fr.total)} peças no IFC</span>
+      <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
+      <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
+      <p class="nota">Vista elevada, como no projeto OF.198-MET-DM-001: eixos na horizontal, estações de letra de A (topo) a H (base).
+      Cada X é um painel contraventado entre duas estações; clique para selecionar. O contraventamento não tem coluna no controle
+      de produção, então o apontamento serve de controle e não soma na produção.</p>`;
+  }
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>
     <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>

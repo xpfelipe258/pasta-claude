@@ -448,3 +448,19 @@ td.col-nova { padding: 3px 6px; }
 .apf-cel.feita { background: var(--verde-bg); border-color: var(--verde); cursor: default; }
 .apf-cel.feita b, .apf-cel.feita small { color: var(--verde); }
 .apf-cel.sel { background: color-mix(in srgb, var(--sel, var(--acento)) 26%, transparent); border-color: var(--sel, var(--acento)); border-width: 2px; }
+
+/* contraventamento em vista elevada (X entre estações de letra, por rua) */
+.apc { background: var(--card); }
+.apc-est { stroke: var(--linha); stroke-width: 1; }
+.apc-eixo { stroke: var(--linha-forte); stroke-width: 1; stroke-dasharray: 5 4; }
+.apc-rot { font-size: 10px; fill: var(--fg2); text-anchor: end; font-weight: 600; }
+.apc-rot.n { text-anchor: middle; }
+.apc-fundo { fill: transparent; }
+.apc-p line { stroke: var(--fg3); stroke-width: 1.6; }
+.apc-p.pend line { stroke: var(--pend); opacity: .5; }
+.apc-p.pend:hover line { stroke: var(--acento); opacity: 1; }
+.apc-p.pend { cursor: pointer; }
+.apc-p.feita line { stroke: var(--verde); stroke-width: 2.4; }
+.apc-p.feita .apc-fundo { fill: var(--verde-bg); }
+.apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.6; }
+.apc-p.sel .apc-fundo { fill: color-mix(in srgb, var(--sel, var(--acento)) 20%, transparent); }

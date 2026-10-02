@@ -114,10 +114,35 @@ Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vin
 - **Fechamento:** lado A e lado H com uma célula por rua, mais os oitões dos eixos 01 e 20 com uma por faixa.
 - **Marquise:** lados A> e <H com uma célula por rua, e um seletor de etapa (vigas principais, pré-montagem de
   terças, terças, testeira), já que cada etapa é uma coluna diferente no controle de produção.
-- **Contraventamento:** grade de 7 faixas × 19 ruas, no plano da cobertura. Não há coluna no controle de
-  produção, então o apontamento serve de controle e não soma na produção nem no BM.
+- **Contraventamento:** **vista elevada**, como o projeto desenha (OF.198-MET-DM-001): eixos na horizontal,
+  estações de letra de A (topo) a H (base), e um X em cada painel contraventado — 461 painéis. Não há coluna no
+  controle de produção, então o apontamento serve de controle e não soma na produção nem no BM.
 - **Montantes:** os 145 do IFC estão no miolo (letras C a F, Z ≈ 78 m), são da cumeeira e ficam fora do
   fechamento lateral.
 
 Cada trecho só pode ser apontado uma vez (por etapa, na marquise). O apontamento grava em APONTAMENTO MONTAGEM
 com `tipo` = FECHAMENTO / MARQUISE / CONTRAVENTAMENTO, `faixa` = parte do mapa, `rua` = trecho e `letra` = etapa.
+
+
+## Baixa de fixadores das frentes novas
+
+Ao apontar um trecho de **fechamento lateral** ou de **marquise**, o sistema baixa os fixadores daquele trecho:
+o kit de cada família (do projeto) multiplicado pelas peças que o IFC tem naquela célula. O contraventamento
+não tem baixa, a pedido.
+
+Os kits vêm do **OF.198-MET-DM-001 — LOCAÇÃO PLANTA BAIXA R01** e estão em `regras_baixa.json`
+(`consumo_por_servico`), cada linha com o detalhe do desenho que a originou:
+
+| Família | Fixadores por peça | Detalhe do projeto |
+|---|---|---|
+| Terça de fechamento | 4 PARAF. Ø1/2" x 1 3/4" + 4 porca + 4 arruela Ø1/2" | CORTE B-B, C-C e K-K |
+| Espaçador de fechamento | 2 PARAF. AB_TCP3 | autobrocante — **conferir em obra** |
+| Pilarete | 4 PORCA Ø3/4" + 4 ARRUELA Ø3/4" + 3 PARAF. Ø3/8" x 1" | DETALHE 1 a 5 |
+| Mão francesa (marquise, vigas principais) | 3 PARAF. Ø5/8" x 2" + 4 PORCA Ø1" + 4 ARRUELA Ø1" | CORTE G-G |
+| Terça de marquise (etapa Terças) | 6 PORCA Ø1" + 6 ARRUELA Ø1" | DETELHE TÍPICO - VIGAS MARQUISES |
+
+O bloco `fixadores_do_projeto` do mesmo arquivo guarda todos os fixadores lidos do desenho, por detalhe
+(emendas de viga, travamentos TV02 a TV07, hardbolts dos cortes J-J a Q-Q), para rastreabilidade.
+
+A baixa da **joist** segue como era: o kit por joist içada, sem detalhar por posição, para não duplicar com o
+consumo que já existe.

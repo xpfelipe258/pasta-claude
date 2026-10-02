@@ -24,6 +24,9 @@ import ifcopenshell.util.element as el
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAIXAS = ["AB", "BC", "CD", "DE", "EF", "FG", "GH"]
+# estações de letra da elevação, de A (topo) a H (base), como na planta do projeto
+ESTACOES = ["A", "A1", "A2", "A3", "B", "B1", "B2", "C", "C1", "C2", "D", "D1", "D2",
+            "E", "E1", "E2", "F", "F1", "F2", "G", "G1", "G2", "G3", "H"]
 EIXOS = [f"{n:02d}" for n in range(1, 21)]
 RUAS = [f"{EIXOS[i]}-{EIXOS[i + 1]}" for i in range(len(EIXOS) - 1)]
 
@@ -83,6 +86,26 @@ def celula(frente, lugar, trecho):
     return None
 
 
+def elevacao(contagem_bruta):
+    """Vista elevada do contraventamento: um painel em X entre duas estações de letra, por rua.
+
+    É assim que o projeto desenha (OF.198-MET-DM-001): as diagonais CTH ligam duas estações
+    consecutivas dentro de uma rua, formando o X da elevação."""
+    ordem = {e: i for i, e in enumerate(ESTACOES)}
+    paineis = {}
+    for (rua, trecho), familias in contagem_bruta.items():
+        pontas = [e for e in re.split(r"-", trecho) if e in ordem]
+        if len(pontas) != 2:
+            continue
+        de, ate = sorted(pontas, key=lambda e: ordem[e])
+        chave = (rua, de, ate)
+        alvo = paineis.setdefault(chave, collections.Counter())
+        alvo.update(familias)
+    return {"estacoes": ESTACOES, "ruas": RUAS,
+            "paineis": [{"rua": r, "de": d, "ate": a, "pecas": dict(c), "total": sum(c.values())}
+                        for (r, d, a), c in sorted(paineis.items(), key=lambda x: (x[0][0], ordem[x[0][1]]))]}
+
+
 def extrair(caminho):
     arquivo = ifcopenshell.open(caminho)
     dono = {}
@@ -91,6 +114,7 @@ def extrair(caminho):
             for p in r.RelatedObjects:
                 dono[p.id()] = r.RelatingObject
     contagem = {f: collections.defaultdict(collections.Counter) for f in FAMILIAS}
+    bruta = collections.defaultdict(collections.Counter)   # (rua, trecho de letras) -> famílias, para a elevação
     fora = collections.Counter()
     for conjunto in set(dono.values()):
         familia = (conjunto.Name or "").split("/")[0].strip()
@@ -103,15 +127,20 @@ def extrair(caminho):
                 if "position code" in k.lower():
                     codigo = v
         lugar, _, trecho = str(codigo or "").partition("/")
+        if frente == "contraventamento":
+            eixo = eixo_do_codigo(lugar.strip())
+            rua = rua_do_codigo(lugar.strip()) or (f"{eixo}-{int(eixo) + 1:02d}" if eixo and int(eixo) < 20 else "19-20" if eixo else None)
+            if rua:
+                bruta[(rua, trecho.strip())][familia] += 1
         alvo = celula(frente, lugar.strip(), trecho.strip())
         if not alvo or not all(alvo):
             fora[f"{frente}/{familia}"] += 1
             continue
         contagem[frente]["|".join(alvo)][familia] += 1
-    return contagem, fora
+    return contagem, bruta, fora
 
 
-def montar(contagem):
+def montar(contagem, bruta):
     mapas = {
         "fechamento": {"titulo": "Fechamento lateral — estrutura", "servico": "FECH. LATERAL – ESTRUTURA",
                        "partes": [{"id": "A", "nome": "Lado A", "trechos": RUAS},
@@ -140,20 +169,23 @@ def montar(contagem):
             del parte["trechos"]
         mapa["total"] = total
         mapa["familias"] = FAMILIAS[frente]
+    mapas["contraventamento"]["elevacao"] = elevacao(bruta)
     return mapas
 
 
 def main():
     ifc = sys.argv[1] if len(sys.argv) > 1 else os.path.join(RAIZ, "LSF-MET-EX-200-200-BIM-R0D.ifc")
     saida = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAIZ, "dados", "ifc_frentes_montagem.json")
-    contagem, fora = extrair(ifc)
-    mapas = montar(contagem)
+    contagem, bruta, fora = extrair(ifc)
+    mapas = montar(contagem, bruta)
     with open(saida, "w", encoding="utf-8") as f:
         json.dump({"fonte": os.path.basename(ifc), "malha": {"eixos": EIXOS, "ruas": RUAS, "faixas": FAIXAS},
                    "frentes": mapas, "fora_do_mapa": dict(fora)}, f, ensure_ascii=False, indent=1)
     for nome, m in mapas.items():
         print(f"{nome:17} {m['total']:5} peças em {sum(len(p['celulas']) for p in m['partes'])} células "
               f"({', '.join(p['nome'] + ': ' + str(p['total']) for p in m['partes'])})")
+    el = mapas["contraventamento"]["elevacao"]
+    print(f"elevação do contraventamento: {len(el['paineis'])} painéis em X, {len(el['estacoes'])} estações")
     if fora:
         print("fora do mapa:", dict(fora))
     print("Gravado:", saida)
