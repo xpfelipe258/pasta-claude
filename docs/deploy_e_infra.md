@@ -41,3 +41,18 @@ Usar o deploy automático acima, não essa função.
 `instalar.php` chama `importar_pacote()`, que roda `DELETE FROM` em todas as
 tabelas da obra antes de recarregar o seed (`inc/modelo.php:363`).
 Nunca rodar em banco com dados reais.
+
+## Cache do navegador
+
+`inc/painel.html` carrega `app.js` sem query string. Sem versionamento, o
+navegador serve a cópia antiga indefinidamente e qualquer alteração no JS
+fica invisível.
+
+`index.php` resolve anexando `?v=<filemtime>` ao `app.js`. Não fazer o mesmo
+com `chart.umd.js`: a linha que injeta `API_BASE`, `CSRF_TOKEN` e
+`OBRA_ATUAL` procura pela tag exata `<script src="chart.umd.js"></script>`,
+e versioná-la quebra a injeção — o app sobe sem token e sem endpoint.
+
+Ao conferir se um deploy chegou, comparar o tamanho do arquivo no servidor
+com o local (listagem de arquivos da API da Hostinger) em vez de confiar no
+que o navegador mostra.
