@@ -114,9 +114,18 @@ Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vin
 - **Fechamento:** lado A e lado H com uma célula por rua, mais os oitões dos eixos 01 e 20 com uma por faixa.
 - **Marquise:** lados A> e <H com uma célula por rua, e um seletor de etapa (vigas principais, pré-montagem de
   terças, terças, testeira), já que cada etapa é uma coluna diferente no controle de produção.
-- **Contraventamento:** **vista elevada**, como o projeto desenha (OF.198-MET-DM-001): eixos na horizontal,
-  estações de letra de A (topo) a H (base), e um X em cada painel contraventado — 461 painéis. Não há coluna no
-  controle de produção, então o apontamento serve de controle e não soma na produção nem no BM.
+- **Contraventamento:** **vista elevada**, como o projeto desenha (OF.198-MET-DM-001): só as ruas contraventadas,
+  eixos na horizontal, estações de letra de A (topo) a H (base), e um X por kit. Cada kit são 2 diagonais
+  cruzadas (2 conjuntos do IFC) e leva a marca do Tekla. Não há coluna no controle de produção, então o
+  apontamento serve de controle e não soma na produção nem no BM.
+
+  | Ruas | Kits |
+  |---|---|
+  | 1 e 19 (01-02 e 19-20) | 2 CTH01, 1 em cada borda + 40 CTH02 ao longo da rua |
+  | 4, 7, 9, 11, 13 e 16 | 2 CTH03, 1 em cada borda + 16 CTH04 + 2 CTH05 na cumeeira |
+  | 2, 5, 10, 12, 14 e 18 | 2 CTH06, nas bordas da marquise (A> e <H) |
+
+  São 224 kits (448 conjuntos). O apontamento guarda a marca do kit, a rua e o trecho de letras.
 - **Montantes:** os 145 do IFC estão no miolo (letras C a F, Z ≈ 78 m), são da cumeeira e ficam fora do
   fechamento lateral.
 

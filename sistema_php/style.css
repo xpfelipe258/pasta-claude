@@ -464,3 +464,9 @@ td.col-nova { padding: 3px 6px; }
 .apc-p.feita .apc-fundo { fill: var(--verde-bg); }
 .apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.6; }
 .apc-p.sel .apc-fundo { fill: color-mix(in srgb, var(--sel, var(--acento)) 20%, transparent); }
+.apc-rot.b { font-weight: 700; fill: var(--fg); font-size: 11px; }
+.apc-rot.peq { font-size: 8.5px; fill: var(--fg3); font-weight: 500; }
+.apc-p line { stroke: var(--m, var(--fg3)); stroke-width: 1.8; opacity: .55; }
+.apc-p.pend:hover line { opacity: 1; stroke-width: 2.4; }
+.apc-p.feita line { stroke: var(--verde); stroke-width: 2.6; opacity: 1; }
+.apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.8; opacity: 1; }

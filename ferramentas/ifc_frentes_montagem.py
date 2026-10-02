@@ -86,24 +86,37 @@ def celula(frente, lugar, trecho):
     return None
 
 
-def elevacao(contagem_bruta):
-    """Vista elevada do contraventamento: um painel em X entre duas estações de letra, por rua.
+# Cada kit de contraventamento é um X: duas diagonais CTH cruzadas, ou seja 2 conjuntos no IFC.
+PECAS_POR_KIT = 2
 
-    É assim que o projeto desenha (OF.198-MET-DM-001): as diagonais CTH ligam duas estações
-    consecutivas dentro de uma rua, formando o X da elevação."""
+
+def elevacao(marcas):
+    """Vista elevada do contraventamento, como o projeto desenha (OF.198-MET-DM-001).
+
+    Só as ruas contraventadas aparecem. Cada kit é um X entre duas estações de letra, identificado
+    pela marca do Tekla (CTH01 a CTH05); os CTH06 ficam nas bordas da marquise (A> e <H), fora das
+    estações, e vão numa lista à parte."""
     ordem = {e: i for i, e in enumerate(ESTACOES)}
-    paineis = {}
-    for (rua, trecho), familias in contagem_bruta.items():
+    paineis, bordas = [], []
+    for (rua, trecho, marca), pecas in sorted(marcas.items()):
+        kits = round(pecas / PECAS_POR_KIT)
+        if trecho in ("A>", "<H"):
+            bordas.append({"rua": rua, "lado": trecho, "marca": marca, "kits": kits, "pecas": pecas})
+            continue
         pontas = [e for e in re.split(r"-", trecho) if e in ordem]
         if len(pontas) != 2:
             continue
         de, ate = sorted(pontas, key=lambda e: ordem[e])
-        chave = (rua, de, ate)
-        alvo = paineis.setdefault(chave, collections.Counter())
-        alvo.update(familias)
-    return {"estacoes": ESTACOES, "ruas": RUAS,
-            "paineis": [{"rua": r, "de": d, "ate": a, "pecas": dict(c), "total": sum(c.values())}
-                        for (r, d, a), c in sorted(paineis.items(), key=lambda x: (x[0][0], ordem[x[0][1]]))]}
+        paineis.append({"rua": rua, "de": de, "ate": ate, "marca": marca, "kits": kits, "pecas": pecas})
+    paineis.sort(key=lambda p: (p["rua"], ordem[p["de"]], ordem[p["ate"]]))
+    ruas = sorted({p["rua"] for p in paineis} | {b["rua"] for b in bordas})
+    resumo = {}
+    for p in paineis + bordas:
+        resumo.setdefault(p["rua"], collections.Counter())[p["marca"]] += p["kits"]
+    return {"estacoes": ESTACOES, "ruas": ruas, "paineis": paineis, "bordas": bordas,
+            "pecas_por_kit": PECAS_POR_KIT,
+            "resumo_por_rua": {r: dict(c) for r, c in sorted(resumo.items())},
+            "total_kits": sum(p["kits"] for p in paineis) + sum(b["kits"] for b in bordas)}
 
 
 def extrair(caminho):
@@ -114,33 +127,35 @@ def extrair(caminho):
             for p in r.RelatedObjects:
                 dono[p.id()] = r.RelatingObject
     contagem = {f: collections.defaultdict(collections.Counter) for f in FAMILIAS}
-    bruta = collections.defaultdict(collections.Counter)   # (rua, trecho de letras) -> famílias, para a elevação
+    marcas = collections.Counter()   # (rua, trecho, marca CTH) -> peças, para a elevação
     fora = collections.Counter()
     for conjunto in set(dono.values()):
         familia = (conjunto.Name or "").split("/")[0].strip()
         frente = DE_FAMILIA.get(familia)
         if not frente:
             continue
-        codigo = None
+        codigo = marca = None
         for ps in el.get_psets(conjunto).values():
             for k, v in ps.items():
                 if "position code" in k.lower():
                     codigo = v
+                if k.upper() == "ASSEMBLY MARK":
+                    marca = v
         lugar, _, trecho = str(codigo or "").partition("/")
-        if frente == "contraventamento":
+        if familia == "CONTRAVENTAMENTO":          # só as diagonais entram na elevação (o suporte fica no eixo)
             eixo = eixo_do_codigo(lugar.strip())
             rua = rua_do_codigo(lugar.strip()) or (f"{eixo}-{int(eixo) + 1:02d}" if eixo and int(eixo) < 20 else "19-20" if eixo else None)
-            if rua:
-                bruta[(rua, trecho.strip())][familia] += 1
+            if rua and marca:
+                marcas[(rua, trecho.strip(), str(marca))] += 1
         alvo = celula(frente, lugar.strip(), trecho.strip())
         if not alvo or not all(alvo):
             fora[f"{frente}/{familia}"] += 1
             continue
         contagem[frente]["|".join(alvo)][familia] += 1
-    return contagem, bruta, fora
+    return contagem, marcas, fora
 
 
-def montar(contagem, bruta):
+def montar(contagem, marcas):
     mapas = {
         "fechamento": {"titulo": "Fechamento lateral — estrutura", "servico": "FECH. LATERAL – ESTRUTURA",
                        "partes": [{"id": "A", "nome": "Lado A", "trechos": RUAS},
@@ -169,15 +184,15 @@ def montar(contagem, bruta):
             del parte["trechos"]
         mapa["total"] = total
         mapa["familias"] = FAMILIAS[frente]
-    mapas["contraventamento"]["elevacao"] = elevacao(bruta)
+    mapas["contraventamento"]["elevacao"] = elevacao(marcas)
     return mapas
 
 
 def main():
     ifc = sys.argv[1] if len(sys.argv) > 1 else os.path.join(RAIZ, "LSF-MET-EX-200-200-BIM-R0D.ifc")
     saida = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAIZ, "programa_obra198", "ifc_frentes_montagem.json")
-    contagem, bruta, fora = extrair(ifc)
-    mapas = montar(contagem, bruta)
+    contagem, marcas, fora = extrair(ifc)
+    mapas = montar(contagem, marcas)
     with open(saida, "w", encoding="utf-8") as f:
         json.dump({"fonte": os.path.basename(ifc), "malha": {"eixos": EIXOS, "ruas": RUAS, "faixas": FAIXAS},
                    "frentes": mapas, "fora_do_mapa": dict(fora)}, f, ensure_ascii=False, indent=1)
@@ -185,7 +200,9 @@ def main():
         print(f"{nome:17} {m['total']:5} peças em {sum(len(p['celulas']) for p in m['partes'])} células "
               f"({', '.join(p['nome'] + ': ' + str(p['total']) for p in m['partes'])})")
     el = mapas["contraventamento"]["elevacao"]
-    print(f"elevação do contraventamento: {len(el['paineis'])} painéis em X, {len(el['estacoes'])} estações")
+    print(f"elevação do contraventamento: {el['total_kits']} kits em {len(el['ruas'])} ruas contraventadas")
+    for rua, c in el["resumo_por_rua"].items():
+        print(f"   rua {rua}: " + ", ".join(f"{n} {m}" for m, n in sorted(c.items())))
     if fora:
         print("fora do mapa:", dict(fora))
     print("Gravado:", saida)

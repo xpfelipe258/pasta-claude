@@ -1966,21 +1966,16 @@
     "ruas": [
      "01-02",
      "02-03",
-     "03-04",
      "04-05",
      "05-06",
-     "06-07",
      "07-08",
-     "08-09",
      "09-10",
      "10-11",
      "11-12",
      "12-13",
      "13-14",
      "14-15",
-     "15-16",
      "16-17",
-     "17-18",
      "18-19",
      "19-20"
     ],
@@ -1989,4188 +1984,1841 @@
       "rua": "01-02",
       "de": "A",
       "ate": "A1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 4
-      },
-      "total": 8
+      "marca": "CTH01",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "01-02",
-      "de": "A",
-      "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "A1",
-      "ate": "A3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "A2",
-      "ate": "A3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "A2",
-      "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "A3",
-      "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "B",
-      "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "B1",
-      "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "B2",
-      "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "C",
-      "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "C1",
-      "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "C2",
-      "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "D",
-      "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "D1",
-      "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "D2",
-      "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "E",
-      "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "E1",
-      "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "E2",
-      "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "F",
-      "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "F1",
-      "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "F2",
-      "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 6
-     },
-     {
-      "rua": "01-02",
-      "de": "G",
-      "ate": "G2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G1",
-      "ate": "G2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G1",
-      "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G2",
-      "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "01-02",
-      "de": "G3",
-      "ate": "H",
-      "pecas": {
-       "SUPORTE CONT.": 4,
-       "CONTRAVENTAMENTO": 4
-      },
-      "total": 8
-     },
-     {
-      "rua": "02-03",
       "de": "A",
       "ate": "A1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
-      "de": "A1",
+      "rua": "01-02",
+      "de": "A",
       "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
-      "de": "A2",
+      "rua": "01-02",
+      "de": "A1",
       "ate": "A3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "A2",
+      "ate": "B",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "A3",
       "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "A3",
+      "ate": "B1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "B",
       "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "B",
+      "ate": "B2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "B1",
       "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "B1",
+      "ate": "C",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "B2",
       "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "B2",
+      "ate": "C1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "C",
       "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "C",
+      "ate": "C2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "C1",
       "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "C1",
+      "ate": "D",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "C2",
       "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "C2",
+      "ate": "D1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "D",
       "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
-      "de": "D1",
+      "rua": "01-02",
+      "de": "D",
       "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "D1",
+      "ate": "E",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "D2",
       "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "D2",
+      "ate": "E1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "E",
       "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "E",
+      "ate": "E2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "E1",
       "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "E1",
+      "ate": "F",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "E2",
       "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "E2",
+      "ate": "F1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "F",
       "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "F",
+      "ate": "F2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "F1",
       "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "F1",
+      "ate": "G",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "F2",
       "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "F2",
+      "ate": "G1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "G",
       "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
-      "de": "G1",
+      "rua": "01-02",
+      "de": "G",
       "ate": "G2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
-      "de": "G2",
+      "rua": "01-02",
+      "de": "G1",
       "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
-      "rua": "02-03",
+      "rua": "01-02",
+      "de": "G2",
+      "ate": "H",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
       "de": "G3",
       "ate": "H",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH01",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "01-02",
+      "de": "G3",
+      "ate": "H",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "04-05",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "04-05",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "05-06",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "07-08",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "07-08",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "08-09",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "09-10",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "09-10",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "10-11",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "11-12",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "11-12",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "12-13",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "13-14",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "13-14",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "14-15",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "A",
       "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "A1",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH05",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "G",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
+      "marca": "CTH04",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "16-17",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "16-17",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "B1",
-      "ate": "B2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "C",
-      "ate": "C1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "D",
-      "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "D2",
-      "ate": "E",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "E1",
-      "ate": "E2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "E2",
-      "ate": "F",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "F",
-      "ate": "F1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "F1",
-      "ate": "F2",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "F2",
-      "ate": "G",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "G",
-      "ate": "G1",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "17-18",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "A",
-      "ate": "A2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH03",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "A",
       "ate": "A1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 4,
-       "SUPORTE CONT.": 8
-      },
-      "total": 12
+      "marca": "CTH01",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "A",
+      "ate": "A1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "A",
+      "ate": "A2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "A1",
       "ate": "A3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "A1",
-      "ate": "A2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "A2",
       "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
-      "de": "A2",
-      "ate": "A3",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "de": "A3",
+      "ate": "B",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "A3",
       "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
-      "de": "A3",
-      "ate": "B",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "de": "B",
+      "ate": "B1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "B",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "B",
-      "ate": "B1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "B1",
       "ate": "B2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "B1",
       "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "B2",
+      "ate": "C",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "B2",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "B2",
-      "ate": "C",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "C",
       "ate": "C1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "C",
       "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "C1",
+      "ate": "C2",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "C1",
       "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
-      "de": "C1",
-      "ate": "C2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "de": "C2",
+      "ate": "D",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "C2",
       "ate": "D1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "C2",
-      "ate": "D",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "D",
       "ate": "D1",
-      "pecas": {
-       "SUPORTE CONT.": 8,
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "D",
       "ate": "D2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "D1",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "D1",
-      "ate": "D2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "D2",
       "ate": "E",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "D2",
       "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "E",
+      "ate": "E1",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "E",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "E",
-      "ate": "E1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "E1",
       "ate": "E2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "E1",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "E2",
       "ate": "F",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "E2",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F",
       "ate": "F1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F1",
       "ate": "F2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F1",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F2",
       "ate": "G",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "F2",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "G",
       "ate": "G1",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2,
-       "SUPORTE CONT.": 8
-      },
-      "total": 10
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "G",
       "ate": "G2",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "G1",
       "ate": "G3",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "G1",
-      "ate": "G2",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "G2",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 2
-      },
-      "total": 2
-     },
-     {
-      "rua": "19-20",
-      "de": "G2",
-      "ate": "G3",
-      "pecas": {
-       "SUPORTE CONT.": 4
-      },
-      "total": 4
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      },
      {
       "rua": "19-20",
       "de": "G3",
       "ate": "H",
-      "pecas": {
-       "CONTRAVENTAMENTO": 4,
-       "SUPORTE CONT.": 8
-      },
-      "total": 12
+      "marca": "CTH01",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "19-20",
+      "de": "G3",
+      "ate": "H",
+      "marca": "CTH02",
+      "kits": 1,
+      "pecas": 2
      }
-    ]
+    ],
+    "bordas": [
+     {
+      "rua": "02-03",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "02-03",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "04-05",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "04-05",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "05-06",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "05-06",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "07-08",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "07-08",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "10-11",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "10-11",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "12-13",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "12-13",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "13-14",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "13-14",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "14-15",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "14-15",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "16-17",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "16-17",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "18-19",
+      "lado": "<H",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     },
+     {
+      "rua": "18-19",
+      "lado": "A>",
+      "marca": "CTH06",
+      "kits": 1,
+      "pecas": 2
+     }
+    ],
+    "pecas_por_kit": 2,
+    "resumo_por_rua": {
+     "01-02": {
+      "CTH01": 2,
+      "CTH02": 40
+     },
+     "02-03": {
+      "CTH06": 2
+     },
+     "04-05": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2,
+      "CTH06": 2
+     },
+     "05-06": {
+      "CTH06": 2
+     },
+     "07-08": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2,
+      "CTH06": 2
+     },
+     "09-10": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2
+     },
+     "10-11": {
+      "CTH06": 2
+     },
+     "11-12": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2
+     },
+     "12-13": {
+      "CTH06": 2
+     },
+     "13-14": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2,
+      "CTH06": 2
+     },
+     "14-15": {
+      "CTH06": 2
+     },
+     "16-17": {
+      "CTH03": 2,
+      "CTH04": 16,
+      "CTH05": 2,
+      "CTH06": 2
+     },
+     "18-19": {
+      "CTH06": 2
+     },
+     "19-20": {
+      "CTH01": 2,
+      "CTH02": 40
+     }
+    },
+    "total_kits": 224
    }
   }
  },

@@ -1757,7 +1757,8 @@ function apSelecao(ctx) {
   frente.forEach(f => {
     const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo];
     const cfgF = fs[chaveF] || {};
-    grupo(f.emp, f.etapa || cfgF.servico || null).delta += 1;
+    // no contraventamento a "etapa" guarda o trecho do kit, não um serviço
+    grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += 1;
     fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
   });
   const porEmp = {};
@@ -1925,45 +1926,64 @@ function apMapaSvg(ctx) {
 // Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
 // Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
 // na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
-const APC = { passo: 26, colW: 64, mEsq: 56, mTop: 30 };
+const APC = { passo: 24, colW: 84, mEsq: 76, mTop: 46, borda: 20 };
+// Cada marca do Tekla ganha sua cor, como o projeto identifica os kits na planta.
+const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--roxo, #7c3aed)', CTH03: 'var(--acento)',
+  CTH04: 'var(--roxo, #7c3aed)', CTH05: 'var(--amarelo)', CTH06: 'var(--fg3)' };
+const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
+
 function apContravSvg() {
   const fr = apFrenteAtual(), el = fr && fr.elevacao;
   if (!el) return '';
   const feitas = new Map();
   (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
-    .forEach(a => feitas.set(`${a.faixa}|${a.rua}`, a));
+    .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
   const ruas = el.ruas, est = el.estacoes;
   const iEst = Object.fromEntries(est.map((e, i) => [e, i]));
-  const { passo, colW, mEsq, mTop } = APC;
-  const W = mEsq + ruas.length * colW + 20, H = mTop + (est.length - 1) * passo + 34;
+  const { passo, colW, mEsq, mTop, borda } = APC;
+  const alt = (est.length - 1) * passo;
+  const W = mEsq + ruas.length * colW + 24, H = mTop + alt + borda * 2 + 40;
+  const yEst = i => mTop + borda + i * passo;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
   est.forEach((e, i) => {
-    const y = mTop + i * passo;
+    const y = yEst(i);
     s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + ruas.length * colW}" y2="${y}" class="apc-est"/>` +
       `<text x="${mEsq - 8}" y="${y + 4}" class="apc-rot">${e}</text>`;
   });
   ruas.forEach((r, j) => {
-    const x = mEsq + j * colW;
-    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + (est.length - 1) * passo}" class="apc-eixo"/>` +
-      `<text x="${x}" y="${mTop - 10}" class="apc-rot n">${r.split('-')[0]}</text>`;
-    if (j === ruas.length - 1) s += `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + (est.length - 1) * passo}" class="apc-eixo"/>` +
-      `<text x="${x + colW}" y="${mTop - 10}" class="apc-rot n">${r.split('-')[1]}</text>`;
+    const x = mEsq + j * colW, res = (el.resumo_por_rua || {})[r] || {};
+    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + alt + borda * 2}" class="apc-eixo"/>` +
+      `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt + borda * 2}" class="apc-eixo"/>` +
+      `<text x="${x + colW / 2}" y="${mTop - 24}" class="apc-rot n b">${esc(r)}<title>${esc(Object.entries(res).map(([m, n]) => `${n} kit ${m}`).join(' · '))}</title></text>` +
+      `<text x="${x + colW / 2}" y="${mTop - 11}" class="apc-rot n peq">${nf(Object.values(res).reduce((a, b) => a + b, 0))} kits</text>`;
   });
+  const X = (marca, rua, trecho, x, y0, y1, titExtra) => {
+    const k = apcChave(marca, rua, trecho);
+    const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${marca}|${rua}|${trecho}`);
+    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
+    const tit = `${marca} · rua ${rua} · ${trecho}${titExtra || ''}` +
+      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
+    return `<g class="apc-p ${cls}" style="--m:${APC_COR[marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}"` +
+      ` ${feita ? '' : `data-ap-frente="${esc(`${marca}|${rua}|${trecho}`)}"`} data-ap-info="${esc(tit)}">` +
+      `<rect x="${x + 3}" y="${Math.min(y0, y1)}" width="${colW - 6}" height="${Math.abs(y1 - y0) || 6}" class="apc-fundo"/>` +
+      `<line x1="${x + 5}" y1="${y0}" x2="${x + colW - 5}" y2="${y1}"/><line x1="${x + colW - 5}" y1="${y0}" x2="${x + 5}" y2="${y1}"/>` +
+      `<title>${esc(tit)}</title></g>`;
+  };
   el.paineis.forEach(p => {
     const j = ruas.indexOf(p.rua);
     if (j < 0 || !(p.de in iEst) || !(p.ate in iEst)) return;
-    const x = mEsq + j * colW, y0 = mTop + iEst[p.de] * passo, y1 = mTop + iEst[p.ate] * passo;
-    const k = `${p.de}-${p.ate}|${p.rua}|`;
-    const feita = feitas.get(`${p.de}-${p.ate}|${p.rua}`), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
-    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
-    const det = Object.entries(p.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
-    const tit = `Rua ${p.rua} · ${p.de} a ${p.ate}\n${p.total} peças${det ? '\n' + det : ''}` +
-      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
-    s += `<g class="apc-p ${cls}" ${emp ? `style="--sel:${corSelEmp(emp)}"` : ''} ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
-      `<rect x="${x + 2}" y="${y0}" width="${colW - 4}" height="${y1 - y0}" class="apc-fundo"/>` +
-      `<line x1="${x + 3}" y1="${y0}" x2="${x + colW - 3}" y2="${y1}"/><line x1="${x + colW - 3}" y1="${y0}" x2="${x + 3}" y2="${y1}"/>` +
-      `<title>${esc(tit)}</title></g>`;
+    s += X(p.marca, p.rua, `${p.de}-${p.ate}`, mEsq + j * colW, yEst(iEst[p.de]), yEst(iEst[p.ate]),
+      `\n${p.kits} kit (${p.pecas} peças)`);
   });
+  (el.bordas || []).forEach(b => {                    // CTH06: fora das estações, na marquise
+    const j = ruas.indexOf(b.rua);
+    if (j < 0) return;
+    const topo = b.lado === 'A>';
+    const y0 = topo ? mTop + 2 : mTop + borda + alt + 2, y1 = y0 + borda - 4;
+    s += X(b.marca, b.rua, b.lado, mEsq + j * colW, y0, y1, `\nmarquise ${b.lado} · ${b.kits} kit (${b.pecas} peças)`);
+  });
+  s += `<text x="${mEsq - 8}" y="${mTop + 13}" class="apc-rot peq">marq. A&gt;</text>` +
+    `<text x="${mEsq - 8}" y="${mTop + borda * 2 + alt + 2}" class="apc-rot peq">marq. &lt;H</text>`;
   return s + '</svg>';
 }
 
@@ -1987,15 +2007,21 @@ function apFrenteHtml(ctx) {
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
   if (apEst.modo === 'cont' && fr.elevacao) {
-    const pns = fr.elevacao.paineis;
-    const mont = pns.filter(p => feitas.has(`${p.de}-${p.ate}|${p.rua}|`)).length;
+    const el = fr.elevacao, kits = el.paineis.concat(el.bordas || []);
+    const chaveDe = k => apcChave(k.marca, k.rua, k.de ? `${k.de}-${k.ate}` : k.lado);
+    const mont = kits.filter(k => feitas.has(chaveDe(k))).length;
+    const porMarca = {};
+    kits.forEach(k => { const o = porMarca[k.marca] ||= { n: 0, f: 0 }; o.n++; if (feitas.has(chaveDe(k))) o.f++; });
+    const legM = Object.entries(porMarca).sort().map(([m, o]) =>
+      `<span><i class="apm-leg" style="background:${APC_COR[m] || 'var(--fg3)'}"></i>${m} ${o.f}/${o.n}</span>`).join('');
     return `<div class="ap-linha ap-mapa-barra">
-      <span class="nota">${nf(mont)} de ${nf(pns.length)} painéis contraventados · ${nf(fr.total)} peças no IFC</span>
-      <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
+      <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} ruas contraventadas · ${nf(el.pecas_por_kit)} peças por kit</span>
+      <div class="ap-legenda">${legM}${leg('joist feita', 'montado')}${selLeg}</div></div>
       <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
-      <p class="nota">Vista elevada, como no projeto OF.198-MET-DM-001: eixos na horizontal, estações de letra de A (topo) a H (base).
-      Cada X é um painel contraventado entre duas estações; clique para selecionar. O contraventamento não tem coluna no controle
-      de produção, então o apontamento serve de controle e não soma na produção.</p>`;
+      <p class="nota">Vista elevada do OF.198-MET-DM-001: só as ruas contraventadas, eixos na horizontal e estações de letra de A (topo)
+      a H (base). Cada X é um kit (${nf(el.pecas_por_kit)} diagonais cruzadas), identificado pela marca do projeto; o CTH06 fica nas bordas
+      da marquise, acima de A e abaixo de H. Clique no X para selecionar. O contraventamento não tem coluna no controle de produção,
+      então o apontamento serve de controle e não soma na produção.</p>`;
   }
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>

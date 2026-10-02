@@ -653,18 +653,36 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         throw new ErroValidacao("Mapa da frente $tipo não publicado.");
     }
     $parte = null;
-    if (!empty($frente['elevacao'])) {        // vista elevada: a "parte" é o trecho de letras do painel em X
-        $letras = (string)($item['parte'] ?? '');
+    $elev = $frente['elevacao'] ?? null;
+    if ($elev) {
+        // Vista elevada: o kit é identificado pela marca do Tekla (parte), pela rua (trecho) e pelo
+        // trecho de letras ou lado da borda (etapa) — é o que o projeto marca na planta.
+        $marca = (string)($item['parte'] ?? '');
+        $kits = [];
+        foreach ($elev['paineis'] as $pn) {
+            if ($pn['marca'] === $marca) {
+                $kits[] = [$pn['rua'], $pn['de'] . '-' . $pn['ate']];
+            }
+        }
+        foreach (($elev['bordas'] ?? []) as $bd) {
+            if ($bd['marca'] === $marca) {
+                $kits[] = [$bd['rua'], $bd['lado']];
+            }
+        }
+        if (!$kits) {
+            throw new ErroValidacao("{$frente['titulo']}: marca '$marca' não existe na elevação.");
+        }
+        $etapaItem = (string)($item['etapa'] ?? '');
         $celulas = [];
-        foreach ($frente['elevacao']['paineis'] as $pn) {
-            if ($pn['de'] . '-' . $pn['ate'] === $letras) {
-                $celulas[] = ['trecho' => $pn['rua']];
+        foreach ($kits as list($r, $e)) {
+            if ($e === $etapaItem) {
+                $celulas[] = ['trecho' => $r];
             }
         }
         if (!$celulas) {
-            throw new ErroValidacao("{$frente['titulo']}: painel '$letras' não existe na elevação.");
+            throw new ErroValidacao("{$frente['titulo']} · $marca: trecho '$etapaItem' não existe na elevação.");
         }
-        $parte = ['id' => $letras, 'nome' => "Painel $letras", 'celulas' => $celulas];
+        $parte = ['id' => $marca, 'nome' => "Kit $marca", 'celulas' => $celulas];
     } else {
         foreach ($frente['partes'] as $p) {
             if ($p['id'] === (string)($item['parte'] ?? '')) {
@@ -675,10 +693,14 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
     if (!$parte) {
         throw new ErroValidacao("{$frente['titulo']}: parte '" . ($item['parte'] ?? '') . "' não existe no mapa.");
     }
-    $etapas = $frente['etapas'] ?? [];
-    $etapa = trim((string)($item['etapa'] ?? ($etapas ? $etapas[0] : '')));
-    if ($etapas && !in_array($etapa, $etapas, true)) {
-        throw new ErroValidacao("{$frente['titulo']}: etapa '$etapa' inválida.");
+    if ($elev) {
+        $etapa = trim((string)($item['etapa'] ?? ''));
+    } else {
+        $etapas = $frente['etapas'] ?? [];
+        $etapa = trim((string)($item['etapa'] ?? ($etapas ? $etapas[0] : '')));
+        if ($etapas && !in_array($etapa, $etapas, true)) {
+            throw new ErroValidacao("{$frente['titulo']}: etapa '$etapa' inválida.");
+        }
     }
     $validos = array_column($parte['celulas'], 'trecho');
     $novas = [];
@@ -702,7 +724,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         $ja[$chave] = ['data' => $data];
         $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => 1];
     }
-    return [$novas, $etapa ?: ($frente['servico'] ?? null)];
+    return [$novas, $elev ? ($frente['servico'] ?? null) : ($etapa ?: ($frente['servico'] ?? null))];
 }
 
 function acao_apontamento(array $corpo, array $usuario)

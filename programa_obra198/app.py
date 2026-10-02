@@ -618,21 +618,31 @@ def _frente_item(item, frentes, ja, base, data):
     tipo = str(item.get("tipo") or "").upper()
     frente = frentes["frentes"][TIPOS_FRENTE[tipo]]
     elev = frente.get("elevacao")
-    if elev:                                          # vista elevada: a "parte" é o trecho de letras do painel em X
-        trecho_letras = str(item.get("parte") or "")
-        validos_el = {(p["de"] + "-" + p["ate"], p["rua"]) for p in elev["paineis"]}
-        parte = {"id": trecho_letras, "nome": f"Painel {trecho_letras}",
-                 "celulas": [{"trecho": r} for (d, r) in validos_el if d == trecho_letras]}
-        if not parte["celulas"]:
-            raise ErroValidacao(f"{frente['titulo']}: painel '{trecho_letras}' não existe na elevação.")
+    if elev:
+        # Vista elevada: cada kit é identificado pela marca do Tekla (parte), pela rua (trecho) e pelo
+        # trecho de letras ou pelo lado da borda (etapa) — é o que o projeto marca na planta.
+        marca = str(item.get("parte") or "")
+        kits = ([(p["rua"], p["de"] + "-" + p["ate"]) for p in elev["paineis"] if p["marca"] == marca]
+                + [(b["rua"], b["lado"]) for b in elev.get("bordas", []) if b["marca"] == marca])
+        if not kits:
+            raise ErroValidacao(f"{frente['titulo']}: marca '{marca}' não existe na elevação.")
+        etapas = sorted({e for _, e in kits})
+        etapa_item = str(item.get("etapa") or "")
+        if etapa_item not in etapas:
+            raise ErroValidacao(f"{frente['titulo']} · {marca}: trecho '{etapa_item}' não existe na elevação.")
+        parte = {"id": marca, "nome": f"Kit {marca}",
+                 "celulas": [{"trecho": r} for r, e in kits if e == etapa_item]}
     else:
         parte = next((p for p in frente["partes"] if p["id"] == str(item.get("parte") or "")), None)
     if not parte:
         raise ErroValidacao(f"{frente['titulo']}: parte '{item.get('parte')}' não existe no mapa.")
-    etapas = frente.get("etapas") or []
-    etapa = str(item.get("etapa") or (etapas[0] if etapas else "")).strip()
-    if etapas and etapa not in etapas:
-        raise ErroValidacao(f"{frente['titulo']}: etapa '{etapa}' inválida.")
+    if elev:
+        etapa = str(item.get("etapa") or "").strip()
+    else:
+        etapas = frente.get("etapas") or []
+        etapa = str(item.get("etapa") or (etapas[0] if etapas else "")).strip()
+        if etapas and etapa not in etapas:
+            raise ErroValidacao(f"{frente['titulo']}: etapa '{etapa}' inválida.")
     validos = {c["trecho"] for c in parte["celulas"]}
     novas = []
     for trecho in dict.fromkeys(str(x) for x in item.get("trechos") or []):
@@ -645,7 +655,7 @@ def _frente_item(item, frentes, ja, base, data):
             raise ErroValidacao(f"{rot} já foi apontado" + (f" em {quando[8:]}/{quando[5:7]}/{quando[:4]}." if quando else "."))
         ja[chave] = {"data": data}
         novas.append({**base, "tipo": tipo, "faixa": parte["id"], "rua": trecho, "letra": etapa or None, "qtd": 1})
-    return novas, (etapa or frente.get("servico"))
+    return novas, (frente.get("servico") if elev else (etapa or frente.get("servico")))
 
 
 def _rua_valida(rua, eixos):
