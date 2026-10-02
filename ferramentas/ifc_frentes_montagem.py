@@ -21,6 +21,8 @@ import sys
 
 import ifcopenshell
 import ifcopenshell.util.element as el
+import ifcopenshell.util.placement as pl
+import numpy as np
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAIXAS = ["AB", "BC", "CD", "DE", "EF", "FG", "GH"]
@@ -125,8 +127,50 @@ def elevacao(marcas):
             "total_kits": sum(p["kits"] for p in paineis)}
 
 
+def malha_do_ifc(arquivo):
+    """Posição real (mm) de cada eixo e de cada estação de letra, lida da malha do IFC.
+
+    Serve para o mapa sair na escala do projeto: os vãos dos eixos alternam 9.000 e 13.500 mm, e as
+    estações têm 8.380 mm, menos junto às bordas (A1 a A3 e G1 a G3), onde são 4.190 mm."""
+    grades = arquivo.by_type("IfcGrid")
+    if not grades:
+        return None
+    g = max(grades, key=lambda x: len(x.UAxes or []))
+    m = pl.get_local_placement(g.ObjectPlacement) if g.ObjectPlacement else np.eye(4)
+
+    def pontas(a):
+        c = a.AxisCurve
+        if c.is_a("IfcLine"):
+            p = c.Pnt.Coordinates
+            q = tuple(p[i] + c.Dir.Orientation.DirectionRatios[i] * c.Dir.Magnitude for i in range(len(p)))
+        else:
+            p, q = c.Points[0].Coordinates, c.Points[-1].Coordinates
+        t = lambda z: (m @ np.array([z[0], z[1], 0, 1]))[:2]
+        return t(p), t(q)
+
+    def posicoes(axes):
+        dados = [(a.AxisTag, *pontas(a)) for a in axes]
+        p0, p1 = dados[0][1], dados[0][2]
+        d = (p1 - p0) / np.linalg.norm(p1 - p0)
+        n = np.array([-d[1], d[0]])                 # normal: é por onde os eixos se afastam
+        base = dados[0][1]
+        pos = [(tag, float(np.dot(a - base, n))) for tag, a, _ in dados]
+        if pos[-1][1] < pos[0][1]:                  # sempre crescente
+            pos = [(tag, -x) for tag, x in pos]
+        return [(tag, round(x - pos[0][1])) for tag, x in pos]
+
+    eixos = posicoes(g.UAxes)
+    est = posicoes(g.VAxes)
+    fim = est[-1][1]
+    est = [(tag, fim - x) for tag, x in est]        # A no topo, H na base
+    est.sort(key=lambda x: x[1])
+    return {"eixos_mm": dict(eixos), "estacoes_mm": dict(est),
+            "comprimento_mm": eixos[-1][1], "largura_mm": fim}
+
+
 def extrair(caminho):
     arquivo = ifcopenshell.open(caminho)
+    malha = malha_do_ifc(arquivo)
     dono = {}
     for r in arquivo.by_type("IfcRelAggregates"):
         if r.RelatingObject.is_a("IfcElementAssembly"):
@@ -158,7 +202,7 @@ def extrair(caminho):
             fora[f"{frente}/{familia}"] += 1
             continue
         contagem[frente]["|".join(alvo)][familia] += 1
-    return contagem, marcas, fora
+    return contagem, marcas, fora, malha
 
 
 def montar(contagem, marcas):
@@ -197,10 +241,11 @@ def montar(contagem, marcas):
 def main():
     ifc = sys.argv[1] if len(sys.argv) > 1 else os.path.join(RAIZ, "LSF-MET-EX-200-200-BIM-R0D.ifc")
     saida = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAIZ, "programa_obra198", "ifc_frentes_montagem.json")
-    contagem, marcas, fora = extrair(ifc)
+    contagem, marcas, fora, malha = extrair(ifc)
     mapas = montar(contagem, marcas)
     with open(saida, "w", encoding="utf-8") as f:
-        json.dump({"fonte": os.path.basename(ifc), "malha": {"eixos": EIXOS, "ruas": RUAS, "faixas": FAIXAS},
+        json.dump({"fonte": os.path.basename(ifc),
+                   "malha": {"eixos": EIXOS, "ruas": RUAS, "faixas": FAIXAS, **(malha or {})},
                    "frentes": mapas, "fora_do_mapa": dict(fora)}, f, ensure_ascii=False, indent=1)
     for nome, m in mapas.items():
         print(f"{nome:17} {m['total']:5} peças em {sum(len(p['celulas']) for p in m['partes'])} células "
@@ -211,6 +256,9 @@ def main():
         print(f"   rua {rua}: " + ", ".join(f"{n} {m}" for m, n in sorted(c.items())))
     if fora:
         print("fora do mapa:", dict(fora))
+    if malha:
+        print(f"malha do IFC: {malha['comprimento_mm'] / 1000:.1f} m x {malha['largura_mm'] / 1000:.1f} m, "
+              f"{len(malha['eixos_mm'])} eixos e {len(malha['estacoes_mm'])} estações")
     print("Gravado:", saida)
 
 

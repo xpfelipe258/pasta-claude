@@ -117,7 +117,11 @@ Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vin
 - **Contraventamento:** **planta do galpão inteiro**, como o OF.198-MET-DM-001: as 19 ruas na horizontal,
   estações de letra de A (topo) a H (base) e um X por kit, só nas 8 ruas contraventadas, que ficam
   destacadas. As demais aparecem vazias, para o contraventamento ficar na proporção real do projeto.
-  Três escalas (compacto, normal e grande); no normal o galpão inteiro cabe na tela. Cada kit são 2 diagonais
+  O desenho sai na **escala do projeto**: a posição de cada eixo e de cada estação vem da malha do IFC
+  (`malha.eixos_mm` e `malha.estacoes_mm`), então os vãos aparecem como no desenho — 9.000 e 13.500 mm
+  alternados entre eixos, 8.380 mm entre estações e 4.190 mm junto às bordas (A1 a A3 e G1 a G3).
+  O galpão tem 427,5 m × 176,0 m. Três escalas (compacto, normal e grande) mudam quantos milímetros
+  cabem em cada pixel; no normal o galpão inteiro cabe na tela. Cada kit são 2 diagonais
   cruzadas (2 conjuntos do IFC) e leva a marca do Tekla. Não há coluna no controle de produção, então o
   apontamento serve de controle e não soma na produção nem no BM.
 

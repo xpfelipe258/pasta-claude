@@ -1926,10 +1926,11 @@ function apMapaSvg(ctx) {
 // Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
 // Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
 // na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
-// Escala do mapa: o galpão inteiro (19 ruas) em três tamanhos, para o contraventamento ficar na
-// proporção real do projeto — são 8 ruas contraventadas entre 19.
-const APC_ESCALA = { compacto: { passo: 9, colW: 34 }, normal: { passo: 14, colW: 52 }, grande: { passo: 21, colW: 78 } };
-const APC = { mEsq: 54, mTop: 40, mBase: 22 };
+// Mapa na escala do projeto: as posições de cada eixo e de cada estação vêm da malha do IFC (mm),
+// então os vãos saem como no desenho — 9.000 e 13.500 m entre eixos, 8.380 entre estações e 4.190
+// junto às bordas. Três escalas mudam só quantos milímetros cabem em cada pixel.
+const APC_MM_PX = { compacto: 900, normal: 560, grande: 330 };
+const APC = { mEsq: 54, mTop: 40, mBase: 32 };
 const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--fg2)', CTH03: 'var(--acento)',
   CTH04: 'var(--fg2)', CTH05: 'var(--amarelo)' };
 const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
@@ -1937,41 +1938,51 @@ const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
 function apContravSvg() {
   const fr = apFrenteAtual(), el = fr && fr.elevacao;
   if (!el) return '';
+  const malha = ((window._frentes || {}).malha || {});
+  const eixosMm = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {};
+  const temMalha = Object.keys(eixosMm).length > 0;
   const feitas = new Map();
   (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
     .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
-  const malha = ((window._frentes || {}).malha || {});
-  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas;   // galpão inteiro, como na planta
+  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas;
   const comCth = new Set(el.ruas);
-  const est = el.estacoes, iEst = Object.fromEntries(est.map((e, i) => [e, i]));
-  const { passo, colW } = APC_ESCALA[apEst.zoom] || APC_ESCALA.normal;
+  const est = el.estacoes;
+  const mmPx = APC_MM_PX[apEst.zoom] || APC_MM_PX.normal;
   const { mEsq, mTop, mBase } = APC;
-  const alt = (est.length - 1) * passo;
-  const W = mEsq + ruas.length * colW + 20, H = mTop + alt + mBase;
-  const yEst = i => mTop + i * passo;
-  const mostraEst = passo >= 14;
+  // posição em px: da malha do IFC quando ela existe, senão espaçamento uniforme
+  const eixos = [...new Set(ruas.flatMap(r => r.split('-')))].sort();
+  const xEixo = e => temMalha ? mEsq + (eixosMm[e] || 0) / mmPx
+    : mEsq + eixos.indexOf(e) * (560 / mmPx) * 14;
+  const yEst = e => temMalha ? mTop + (estMm[e] || 0) / mmPx
+    : mTop + est.indexOf(e) * (560 / mmPx) * 14;
+  const larg = xEixo(eixos[eixos.length - 1]) - mEsq, alt = yEst(est[est.length - 1]) - mTop;
+  const W = mEsq + larg + 24, H = mTop + alt + mBase;
+  const minGap = (a, b) => Math.abs(yEst(a) - yEst(b));
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
-  est.forEach((e, i) => {
-    const y = yEst(i);
-    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + ruas.length * colW}" y2="${y}" class="apc-est"/>`;
-    if (mostraEst || /^[A-H]$/.test(e)) s += `<text x="${mEsq - 7}" y="${y + 3.5}" class="apc-rot">${e}</text>`;
+  let ultimoY = -99;
+  est.forEach(e => {
+    const y = yEst(e);
+    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + larg}" y2="${y}" class="apc-est"/>`;
+    if (y - ultimoY >= 9 || /^[A-H]$/.test(e)) { s += `<text x="${mEsq - 7}" y="${y + 3.5}" class="apc-rot">${e}</text>`; ultimoY = y; }
   });
-  ruas.forEach((r, j) => {
-    const x = mEsq + j * colW, tem = comCth.has(r);
-    if (tem) s += `<rect x="${x}" y="${mTop}" width="${colW}" height="${alt}" class="apc-bay"/>`;
-    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + alt}" class="apc-eixo"/>` +
-      `<text x="${x}" y="${mTop - 8}" class="apc-rot n ${tem ? 'b' : 'peq'}">${esc(r.split('-')[0])}</text>`;
+  let ultimoX = -99;
+  ruas.forEach(r => {
+    const [a, b] = r.split('-'), x0 = xEixo(a), x1 = xEixo(b), tem = comCth.has(r);
+    if (tem) s += `<rect x="${x0}" y="${mTop}" width="${x1 - x0}" height="${alt}" class="apc-bay"/>`;
+    s += `<line x1="${x0}" y1="${mTop}" x2="${x0}" y2="${mTop + alt}" class="apc-eixo"/>`;
+    if (tem || x0 - ultimoX >= 22) { s += `<text x="${x0}" y="${mTop - 8}" class="apc-rot n ${tem ? 'b' : 'peq'}">${esc(a)}</text>`; ultimoX = x0; }
     if (tem) {
-      const n = Object.values((el.resumo_por_rua || {})[r] || {}).reduce((a, b) => a + b, 0);
-      s += `<text x="${x + colW / 2}" y="${mTop + alt + 14}" class="apc-rot n peq">${nf(n)}</text>`;
+      const n = Object.values((el.resumo_por_rua || {})[r] || {}).reduce((v, w) => v + w, 0);
+      s += `<text x="${(x0 + x1) / 2}" y="${mTop + alt + 14}" class="apc-rot n peq">${nf(n)}</text>`;
     }
-    if (j === ruas.length - 1) s += `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt}" class="apc-eixo"/>` +
-      `<text x="${x + colW}" y="${mTop - 8}" class="apc-rot n peq">${esc(r.split('-')[1])}</text>`;
   });
+  const fimX = xEixo(eixos[eixos.length - 1]);
+  s += `<line x1="${fimX}" y1="${mTop}" x2="${fimX}" y2="${mTop + alt}" class="apc-eixo"/>` +
+    `<text x="${fimX}" y="${mTop - 8}" class="apc-rot n peq">${esc(eixos[eixos.length - 1])}</text>`;
   el.paineis.forEach(p => {
-    const j = ruas.indexOf(p.rua);
-    if (j < 0 || !(p.de in iEst) || !(p.ate in iEst)) return;
-    const x = mEsq + j * colW, y0 = yEst(iEst[p.de]), y1 = yEst(iEst[p.ate]);
+    if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
+    const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b);
+    const y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
     const trecho = `${p.de}-${p.ate}`, k = apcChave(p.marca, p.rua, trecho);
     const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
     const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
@@ -1979,10 +1990,14 @@ function apContravSvg() {
       (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
     s += `<g class="apc-p ${cls}" style="--m:${APC_COR[p.marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}"` +
       ` ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
-      `<rect x="${x + 1}" y="${y0}" width="${colW - 2}" height="${y1 - y0 || 4}" class="apc-fundo"/>` +
-      `<line x1="${x + 2}" y1="${y0}" x2="${x + colW - 2}" y2="${y1}"/><line x1="${x + colW - 2}" y1="${y0}" x2="${x + 2}" y2="${y1}"/>` +
+      `<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" class="apc-fundo"/>` +
+      `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}"/>` +
       `<title>${esc(tit)}</title></g>`;
   });
+  if (temMalha) {
+    const m = (v) => nf(v / 1000, 1).replace(',0', '') + ' m';
+    s += `<text x="${mEsq}" y="${H - 4}" class="apc-rot peq" text-anchor="start">Galpão ${m(malha.comprimento_mm)} × ${m(malha.largura_mm)} · desenhado na malha do IFC</text>`;
+  }
   return s + '</svg>';
 }
 
