@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'sqlite_arquivo' => RAIZ . '/dados/obra198.sqlite',
         'github_repositorio' => $v('github_repositorio', 'xpfelipe258/pasta-claude'),
         'github_ramo' => $v('github_ramo', 'claude/brave-bardeen-jyxlhm'),
-        'github_pasta' => 'sistema_php',
+        'github_pasta' => 'maciel',
         'github_token' => $v('github_token'),
     ];
     if ($v('admin_login') === '' || strlen((string)($_POST['admin_senha'] ?? '')) < 8) {
