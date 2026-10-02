@@ -114,8 +114,10 @@ Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vin
 - **Fechamento:** lado A e lado H com uma célula por rua, mais os oitões dos eixos 01 e 20 com uma por faixa.
 - **Marquise:** lados A> e <H com uma célula por rua, e um seletor de etapa (vigas principais, pré-montagem de
   terças, terças, testeira), já que cada etapa é uma coluna diferente no controle de produção.
-- **Contraventamento:** **vista elevada**, como o projeto desenha (OF.198-MET-DM-001): só as ruas contraventadas,
-  eixos na horizontal, estações de letra de A (topo) a H (base), e um X por kit. Cada kit são 2 diagonais
+- **Contraventamento:** **planta do galpão inteiro**, como o OF.198-MET-DM-001: as 19 ruas na horizontal,
+  estações de letra de A (topo) a H (base) e um X por kit, só nas 8 ruas contraventadas, que ficam
+  destacadas. As demais aparecem vazias, para o contraventamento ficar na proporção real do projeto.
+  Três escalas (compacto, normal e grande); no normal o galpão inteiro cabe na tela. Cada kit são 2 diagonais
   cruzadas (2 conjuntos do IFC) e leva a marca do Tekla. Não há coluna no controle de produção, então o
   apontamento serve de controle e não soma na produção nem no BM.
 

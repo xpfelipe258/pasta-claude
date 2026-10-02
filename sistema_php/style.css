@@ -456,6 +456,7 @@ td.col-nova { padding: 3px 6px; }
 .apc-rot { font-size: 10px; fill: var(--fg2); text-anchor: end; font-weight: 600; }
 .apc-rot.n { text-anchor: middle; }
 .apc-fundo { fill: transparent; }
+.apc-bay { fill: var(--pend-bg); opacity: .5; }
 .apc-p line { stroke: var(--fg3); stroke-width: 1.6; }
 .apc-p.pend line { stroke: var(--pend); opacity: .5; }
 .apc-p.pend:hover line { stroke: var(--acento); opacity: 1; }

@@ -1926,8 +1926,10 @@ function apMapaSvg(ctx) {
 // Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
 // Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
 // na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
-const APC = { passo: 26, colW: 108, mEsq: 62, mTop: 48 };
-// Cada marca do Tekla ganha sua cor, como o projeto identifica os kits na planta.
+// Escala do mapa: o galpão inteiro (19 ruas) em três tamanhos, para o contraventamento ficar na
+// proporção real do projeto — são 8 ruas contraventadas entre 19.
+const APC_ESCALA = { compacto: { passo: 9, colW: 34 }, normal: { passo: 14, colW: 52 }, grande: { passo: 21, colW: 78 } };
+const APC = { mEsq: 54, mTop: 40, mBase: 22 };
 const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--fg2)', CTH03: 'var(--acento)',
   CTH04: 'var(--fg2)', CTH05: 'var(--amarelo)' };
 const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
@@ -1938,44 +1940,48 @@ function apContravSvg() {
   const feitas = new Map();
   (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
     .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
-  const ruas = el.ruas, est = el.estacoes;
-  const iEst = Object.fromEntries(est.map((e, i) => [e, i]));
-  const { passo, colW, mEsq, mTop } = APC;
+  const malha = ((window._frentes || {}).malha || {});
+  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas;   // galpão inteiro, como na planta
+  const comCth = new Set(el.ruas);
+  const est = el.estacoes, iEst = Object.fromEntries(est.map((e, i) => [e, i]));
+  const { passo, colW } = APC_ESCALA[apEst.zoom] || APC_ESCALA.normal;
+  const { mEsq, mTop, mBase } = APC;
   const alt = (est.length - 1) * passo;
-  const W = mEsq + ruas.length * colW + 24, H = mTop + alt + 24;
+  const W = mEsq + ruas.length * colW + 20, H = mTop + alt + mBase;
   const yEst = i => mTop + i * passo;
+  const mostraEst = passo >= 14;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
   est.forEach((e, i) => {
     const y = yEst(i);
-    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + ruas.length * colW}" y2="${y}" class="apc-est"/>` +
-      `<text x="${mEsq - 8}" y="${y + 4}" class="apc-rot">${e}</text>`;
+    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + ruas.length * colW}" y2="${y}" class="apc-est"/>`;
+    if (mostraEst || /^[A-H]$/.test(e)) s += `<text x="${mEsq - 7}" y="${y + 3.5}" class="apc-rot">${e}</text>`;
   });
   ruas.forEach((r, j) => {
-    const x = mEsq + j * colW, res = (el.resumo_por_rua || {})[r] || {};
+    const x = mEsq + j * colW, tem = comCth.has(r);
+    if (tem) s += `<rect x="${x}" y="${mTop}" width="${colW}" height="${alt}" class="apc-bay"/>`;
     s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + alt}" class="apc-eixo"/>` +
-      `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt}" class="apc-eixo"/>` +
-      `<text x="${x}" y="${mTop + alt + 16}" class="apc-rot n peq">${esc(r.split('-')[0])}</text>` +
-      `<text x="${x + colW}" y="${mTop + alt + 16}" class="apc-rot n peq">${esc(r.split('-')[1])}</text>` +
-      `<text x="${x + colW / 2}" y="${mTop - 24}" class="apc-rot n b">${esc(r)}<title>${esc(Object.entries(res).map(([m, n]) => `${n} kit ${m}`).join(' · '))}</title></text>` +
-      `<text x="${x + colW / 2}" y="${mTop - 11}" class="apc-rot n peq">${nf(Object.values(res).reduce((a, b) => a + b, 0))} kits</text>`;
+      `<text x="${x}" y="${mTop - 8}" class="apc-rot n ${tem ? 'b' : 'peq'}">${esc(r.split('-')[0])}</text>`;
+    if (tem) {
+      const n = Object.values((el.resumo_por_rua || {})[r] || {}).reduce((a, b) => a + b, 0);
+      s += `<text x="${x + colW / 2}" y="${mTop + alt + 14}" class="apc-rot n peq">${nf(n)}</text>`;
+    }
+    if (j === ruas.length - 1) s += `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt}" class="apc-eixo"/>` +
+      `<text x="${x + colW}" y="${mTop - 8}" class="apc-rot n peq">${esc(r.split('-')[1])}</text>`;
   });
-  const X = (marca, rua, trecho, x, y0, y1, titExtra) => {
-    const k = apcChave(marca, rua, trecho);
-    const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${marca}|${rua}|${trecho}`);
-    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
-    const tit = `${marca} · rua ${rua} · ${trecho}${titExtra || ''}` +
-      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
-    return `<g class="apc-p ${cls}" style="--m:${APC_COR[marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}"` +
-      ` ${feita ? '' : `data-ap-frente="${esc(`${marca}|${rua}|${trecho}`)}"`} data-ap-info="${esc(tit)}">` +
-      `<rect x="${x + 3}" y="${Math.min(y0, y1)}" width="${colW - 6}" height="${Math.abs(y1 - y0) || 6}" class="apc-fundo"/>` +
-      `<line x1="${x + 5}" y1="${y0}" x2="${x + colW - 5}" y2="${y1}"/><line x1="${x + colW - 5}" y1="${y0}" x2="${x + 5}" y2="${y1}"/>` +
-      `<title>${esc(tit)}</title></g>`;
-  };
   el.paineis.forEach(p => {
     const j = ruas.indexOf(p.rua);
     if (j < 0 || !(p.de in iEst) || !(p.ate in iEst)) return;
-    s += X(p.marca, p.rua, `${p.de}-${p.ate}`, mEsq + j * colW, yEst(iEst[p.de]), yEst(iEst[p.ate]),
-      `\n${p.kits} kit (${p.pecas} peças)`);
+    const x = mEsq + j * colW, y0 = yEst(iEst[p.de]), y1 = yEst(iEst[p.ate]);
+    const trecho = `${p.de}-${p.ate}`, k = apcChave(p.marca, p.rua, trecho);
+    const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
+    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
+    const tit = `${p.marca} · rua ${p.rua} · ${trecho}\n${p.kits} kit (${p.pecas} peças)` +
+      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
+    s += `<g class="apc-p ${cls}" style="--m:${APC_COR[p.marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}"` +
+      ` ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
+      `<rect x="${x + 1}" y="${y0}" width="${colW - 2}" height="${y1 - y0 || 4}" class="apc-fundo"/>` +
+      `<line x1="${x + 2}" y1="${y0}" x2="${x + colW - 2}" y2="${y1}"/><line x1="${x + colW - 2}" y1="${y0}" x2="${x + 2}" y2="${y1}"/>` +
+      `<title>${esc(tit)}</title></g>`;
   });
   return s + '</svg>';
 }
@@ -2007,15 +2013,17 @@ function apFrenteHtml(ctx) {
     kits.forEach(k => { const o = porMarca[k.marca] ||= { n: 0, f: 0 }; o.n++; if (feitas.has(chaveDe(k))) o.f++; });
     const legM = Object.entries(porMarca).sort().map(([m, o]) =>
       `<span><i class="apm-leg" style="background:${APC_COR[m] || 'var(--fg3)'}"></i>${m} ${o.f}/${o.n}</span>`).join('');
+    const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
     return `<div class="ap-linha ap-mapa-barra">
-      <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} ruas contraventadas · ${nf(el.pecas_por_kit)} peças por kit</span>
+      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
+      <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} de ${nf(((window._frentes || {}).malha || {}).ruas?.length || el.ruas.length)} ruas contraventadas</span>
       <div class="ap-legenda">${legM}${leg('joist feita', 'montado')}${selLeg}</div></div>
       <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
-      <p class="nota">Vista elevada do OF.198-MET-DM-001: só as ${nf(el.ruas.length)} ruas contraventadas da cobertura, eixos na horizontal
-      e estações de letra de A (topo) a H (base). Cada X é um kit (${nf(el.pecas_por_kit)} diagonais cruzadas) com a marca do projeto:
-      as ruas 1 e 19 levam CTH01 nas bordas e CTH02 ao longo da rua; as ruas 4, 7, 9, 11, 13 e 16 levam CTH03 nas bordas, CTH04 no miolo
-      e CTH05 na cumeeira. Clique no X para selecionar. O contraventamento não tem coluna no controle de produção, então o apontamento
-      serve de controle e não soma na produção.</p>`;
+      <p class="nota">Planta do galpão inteiro, como no OF.198-MET-DM-001: eixos na horizontal, estações de letra de A (topo) a H (base).
+      As ruas contraventadas ficam destacadas (o número embaixo é a quantidade de kits da rua); as demais aparecem vazias, na proporção real.
+      Cada X é um kit de ${nf(el.pecas_por_kit)} diagonais cruzadas, com a marca do projeto: as ruas 1 e 19 levam CTH01 nas bordas e CTH02 ao
+      longo da rua; as ruas 4, 7, 9, 11, 13 e 16 levam CTH03 nas bordas, CTH04 no miolo e CTH05 na cumeeira. Clique no X para selecionar.
+      O contraventamento não tem coluna no controle de produção, então o apontamento serve de controle e não soma na produção.</p>`;
   }
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>
