@@ -73,6 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($acao === 'atualizar') {
             $r = atualizar_pelo_github(config());
             $msg = $r['mensagem'];
+        } elseif ($acao === 'gerar_webhook_secret') {
+            $secret = bin2hex(random_bytes(24));
+            sistema_gravar('webhook_secret', $secret);
+            registrar_alteracao('webhook_secret_gerado', ['por' => $eu['login']]);
+            $msg = 'WEBHOOK_SECRET:' . $secret;
         } elseif ($acao === 'gerar_machine_token') {
             $token = bin2hex(random_bytes(32));
             sistema_gravar('machine_token', $token);
@@ -102,6 +107,13 @@ if (strncmp($msg, 'TOKEN_GERADO:', 13) === 0) {
     $novo_token = substr($msg, 13);
     $msg = 'Token gerado. Copie-o agora — ele não será exibido novamente.';
 }
+$webhook_ativo = (sistema_ler('webhook_secret', '') !== '');
+$novo_webhook_secret = '';
+if (strncmp($msg, 'WEBHOOK_SECRET:', 15) === 0) {
+    $novo_webhook_secret = substr($msg, 15);
+    $msg = 'Segredo do webhook gerado. Configure no GitHub agora — ele não será exibido novamente.';
+}
+$webhook_url = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/webhook.php';
 pagina_inicio('Administração');
 ?>
 <header class="topo">
@@ -167,6 +179,40 @@ pagina_inicio('Administração');
       <form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="atualizar"><button class="btn primario">Buscar atualização no GitHub</button></form>
     </section>
   </div>
+
+  <section class="bloco">
+    <div class="bloco-cab"><h2>Deploy automático pelo GitHub</h2><span class="nota">A cada push no GitHub, o servidor atualiza os arquivos automaticamente.</span></div>
+    <p class="nota">Status: <?= $webhook_ativo ? '<b style="color:var(--verde,green)">Webhook configurado</b>' : '<b>Não configurado</b>' ?></p>
+
+    <?php if ($novo_webhook_secret): ?>
+      <div style="background:var(--bg2,#f5f5f5);border-radius:4px;padding:12px;margin-bottom:10px">
+        <p><b>URL do Webhook (copie para o GitHub):</b></p>
+        <code style="font-size:13px;word-break:break-all"><?= h($webhook_url) ?></code>
+        <p style="margin-top:10px"><b>Segredo (copie agora — não será exibido novamente):</b></p>
+        <code style="font-size:13px;word-break:break-all"><?= h($novo_webhook_secret) ?></code>
+      </div>
+      <div style="background:#e8f5e9;border-radius:4px;padding:10px;margin-bottom:10px;font-size:13px">
+        <b>Como configurar no GitHub:</b><br>
+        1. Acesse o repositório → <b>Settings → Webhooks → Add webhook</b><br>
+        2. Cole a URL acima em <b>Payload URL</b><br>
+        3. Defina <b>Content type: application/json</b><br>
+        4. Cole o segredo acima em <b>Secret</b><br>
+        5. Selecione <b>Just the push event</b><br>
+        6. Clique <b>Add webhook</b> — a partir daí cada push atualiza o servidor.
+      </div>
+    <?php elseif ($webhook_ativo): ?>
+      <p class="nota">URL do webhook: <code><?= h($webhook_url) ?></code></p>
+      <p class="nota">O segredo já está configurado. Para ver a URL de webhook ou mudar o segredo, clique em "Regenerar segredo" — você precisará atualizar o GitHub com o novo valor.</p>
+    <?php else: ?>
+      <p class="nota">URL que será configurada no GitHub: <code><?= h($webhook_url) ?></code></p>
+    <?php endif; ?>
+
+    <form method="post">
+      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="acao" value="gerar_webhook_secret">
+      <button class="btn primario"><?= $webhook_ativo ? 'Regenerar segredo' : 'Configurar deploy automático' ?></button>
+    </form>
+  </section>
 
   <section class="bloco">
     <div class="bloco-cab"><h2>Token de Máquina (API)</h2><span class="nota">Permite que ferramentas externas (ex.: Claude) acessem a API sem sessão de navegador.</span></div>
