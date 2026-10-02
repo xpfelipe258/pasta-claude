@@ -21,6 +21,7 @@ import excel_io as xio
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(BASE, "static")
 CONFIG_PADRAO = {"planilha": "", "planilha_estoque": "", "porta": 8198, "acesso_rede": False, "abrir_navegador": True}
+DADOS_JSON = os.path.join(BASE, "dados_producao.json")
 
 _trava = threading.Lock()
 _cache = {"chave": None, "modelo": None}
@@ -82,10 +83,35 @@ def modelo():
     return _cache["modelo"]
 
 
+def _salvar_dados_producao():
+    """Persiste snapshot dos dados operacionais em JSON após cada gravação na planilha."""
+    try:
+        m = modelo()
+        dados = {
+            "gerado_em": dt.datetime.now().isoformat(timespec="seconds"),
+            "referencia": m.get("referencia"),
+            "datas": m.get("datas", []),
+            "metas": m.get("metas", []),
+            "impactos": m.get("impactos", []),
+            "tabelas": {k: v for k, v in m.get("tabelas", {}).items()},
+            "empresas": [
+                {"nome": e["nome"], "aba": e["aba"],
+                 "servicos": e.get("servicos", []),
+                 "registros": e.get("registros", {})}
+                for e in m.get("empresas", [])
+            ],
+        }
+        with open(DADOS_JSON, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=1, default=str)
+    except Exception as e:
+        print(f" Aviso: não foi possível salvar dados_producao.json: {e}")
+
+
 def gravar(alteracoes):
     n = xio.gravar_celulas(CFG["planilha"], alteracoes,
                            pasta_backup=os.path.join(os.path.dirname(CFG["planilha"]), "backups_obra198"))
     _cache["chave"] = None
+    _salvar_dados_producao()
     return n
 
 
@@ -837,6 +863,19 @@ def acao_apontamento(corpo):
     return {"celulas": n, "avisos": avisos, "salvos": len(linhas_novas), "linhas": reservadas}
 
 
+def acao_importar_snapshot(corpo):
+    """Aceita um snapshot de dados_producao.json enviado pelo cliente (upload manual)."""
+    campos_obrigatorios = ("tabelas", "empresas")
+    for c in campos_obrigatorios:
+        if c not in corpo:
+            raise ErroValidacao(f"Campo '{c}' ausente no snapshot.")
+    corpo["gerado_em"] = dt.datetime.now().isoformat(timespec="seconds")
+    with open(DADOS_JSON, "w", encoding="utf-8") as f:
+        json.dump(corpo, f, ensure_ascii=False, indent=1, default=str)
+    apts = len(corpo.get("tabelas", {}).get("apontamentos", []))
+    return {"ok": True, "apontamentos": apts}
+
+
 def acao_salvar_planejamento(corpo):
     """Salva as datas planejadas por setor em planejamento_obra198.json."""
     setores = corpo.get("setores")
@@ -875,6 +914,7 @@ ACOES = {
     "/api/estoque-planilha/remessa": acao_estoque_remessa,
     "/api/estoque-planilha/consumo": acao_estoque_consumo,
     "/api/planejamento": acao_salvar_planejamento,
+    "/api/dados-producao/importar": acao_importar_snapshot,
 }
 
 
@@ -934,6 +974,11 @@ class Handler(BaseHTTPRequestHandler):
                     with open(arq, encoding="utf-8") as f:
                         return self._json(200, json.load(f))
                 return self._json(200, {"setores": []})
+            if caminho == "/api/dados-producao":
+                if os.path.exists(DADOS_JSON):
+                    with open(DADOS_JSON, encoding="utf-8") as f:
+                        return self._json(200, json.load(f))
+                return self._json(404, {"erro": "Nenhum snapshot gravado ainda. Use o programa normalmente e os dados serão salvos automaticamente."})
             if caminho == "/api/exportar":
                 with _trava:
                     m = modelo()
@@ -1124,6 +1169,7 @@ def main():
     except xio.PlanilhaBloqueada:
         print(" Aviso: planilha aberta no Excel; as abas novas serão criadas no primeiro salvamento.")
     modelo()
+    _salvar_dados_producao()
     srv = ThreadingHTTPServer((host, porta), Handler)
     url = f"http://localhost:{porta}"
     print("=" * 60)

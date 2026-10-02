@@ -55,6 +55,13 @@ try {
             $p = __DIR__ . '/inc/planejamento.json';
             responder_json(200, is_file($p) ? json_decode(file_get_contents($p), true) : ['setores' => []]);
         }
+        if ($rota === 'dados-producao') {
+            $p = __DIR__ . '/inc/dados_producao.json';
+            if (!is_file($p)) {
+                responder_json(404, ['erro' => 'Nenhum snapshot gravado. Use o programa local para gerar os dados.']);
+            }
+            responder_json(200, json_decode(file_get_contents($p), true));
+        }
         if ($rota === 'estoque-planilha') {
             $d = estoque_planilha_ler();
             if ($d === null) {
@@ -87,6 +94,7 @@ try {
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
         'planejamento' => 'acao_salvar_planejamento',
+        'dados-producao/importar' => 'acao_importar_snapshot',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -997,4 +1005,17 @@ function acao_salvar_planejamento(array $corpo, array $usuario)
     }
     file_put_contents($arq, json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     return ['salvos' => count($setores)];
+}
+
+// --------------------------------------------------------- snapshot de produção
+function acao_importar_snapshot(array $corpo, array $usuario)
+{
+    if (!isset($corpo['tabelas']) || !isset($corpo['empresas'])) {
+        throw new ErroValidacao("Snapshot inválido: campos 'tabelas' e 'empresas' são obrigatórios.");
+    }
+    $corpo['gerado_em'] = date('c');
+    $arq = __DIR__ . '/inc/dados_producao.json';
+    file_put_contents($arq, json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $apts = count($corpo['tabelas']['apontamentos'] ?? []);
+    return ['ok' => true, 'apontamentos' => $apts];
 }
