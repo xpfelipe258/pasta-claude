@@ -146,3 +146,18 @@ O bloco `fixadores_do_projeto` do mesmo arquivo guarda todos os fixadores lidos 
 
 A baixa da **joist** segue como era: o kit por joist içada, sem detalhar por posição, para não duplicar com o
 consumo que já existe.
+
+### O fluxo depois do apontamento
+
+O apontamento do trecho não para na tela: assim que é salvo, o consumo entra no estoque.
+
+```
+apontar trecho no mapa  →  prévio dos fixadores na própria tela
+                        →  salvar
+                        →  consumo virtual do material sobe em Suprimentos
+                           (Materiais, Inventário e Fixadores críticos)
+```
+
+É a mesma função que calcula as duas pontas (`fixadoresDoTrecho`), então o que o prévio mostra é exatamente o
+que entra no estoque. Num teste: um trecho do lado A baixou 48 autobrocantes e 32 parafusos Ø1/2" x 1 3/4",
+e o consumo do FG005 em Materiais subiu de 1.488 para 1.520, o do FG003 de 528 para 576.

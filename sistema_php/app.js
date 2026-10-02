@@ -1211,6 +1211,7 @@ function _filtroMatStatus() { return ($('#estMatStatus')?.value || ''); }
 function renderEstMateriais() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstMateriais);
+  frentesMontagem(renderEstMateriais);   // o consumo de fechamento e marquise vem do mapa do IFC
   const cvMapa = regras ? consumoVirtualPorTag(regras) : new Map();
   const consumidoDe = m => cvMapa.has(m.tag) ? cvMapa.get(m.tag).cv : m.consumido;
   const posBaixaDe = m => cvMapa.has(m.tag) ? m.chegou - cvMapa.get(m.tag).cv : m.estoque_pos_baixa;
@@ -1450,6 +1451,26 @@ function derivarInventario(base, cv, cf) {
 // Consumo virtual por TAG. PREMONTAGEM = produção x composição. Montagem (joists e vigas) = apontamento por quadrante/tipo
 // de viga (exato); joists içadas ainda sem quadrante usam a divisão média (estimada). Vigas sem tipo apontado ainda não
 // têm consumo contabilizado. Itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
+const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' };
+
+// Fixadores que um trecho de frente consome: kit de cada família (do projeto) x peças daquele trecho no IFC.
+// O contraventamento não tem baixa. Devolve [] quando o mapa do IFC ainda não foi carregado.
+function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
+  const chave = FRENTE_CHAVE[String(tipo || '').toUpperCase()];
+  const fr = chave && ((window._frentes || {}).frentes || {})[chave];
+  if (!fr || chave === 'contraventamento') return [];
+  const conf = (regras.consumo_por_servico || {})[chave === 'marquise' ? 'MARQUISE' : (etapa || fr.servico)] || {};
+  const porPeca = conf.por_peca || (conf.por_etapa || {})[etapa] || {};
+  if (!Object.keys(porPeca).length) return [];
+  const p = (fr.partes || []).find(x => x.id === parte);
+  const cel = p && p.celulas.find(c => c.trecho === trecho);
+  if (!cel) return [];
+  const saida = [];
+  Object.entries(cel.pecas).forEach(([familia, n]) =>
+    (porPeca[familia] || []).forEach(b => saida.push({ codigo: b.codigo, quantidade: b.quantidade * n, familia })));
+  return saida;
+}
+
 function consumoVirtualPorTag(regras) {
   const servicos = regras.consumo_por_servico || {};
   const cfgAp = regras.apontamento || {};
@@ -1476,6 +1497,21 @@ function consumoVirtualPorTag(regras) {
     });
   });
   evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
+
+  // fechamento lateral e marquise: cada trecho apontado consome os fixadores do projeto
+  const porFrente = new Map();
+  aps.filter(a => FRENTE_CHAVE[(a.tipo || '').toUpperCase()]).forEach(a => {
+    fixadoresDoTrecho(a.tipo, a.faixa, a.rua, a.letra || '', regras).forEach(b => {
+      const o = porFrente.get(b.codigo) || { qtd: 0, trechos: 0 };
+      o.qtd += b.quantidade; o.trechos++;
+      porFrente.set(b.codigo, o);
+    });
+  });
+  porFrente.forEach((o, cod) => {
+    const e = entrada(cod);
+    e.qtd += o.qtd; e.apont = true;
+    e.partes.push(`${nf(o.qtd)} em ${nf(o.trechos)} trecho(s) de fechamento/marquise apontados`);
+  });
 
   const mapa = new Map();
   acum.forEach((o, tag) => {
@@ -1508,6 +1544,7 @@ function inventarioCalculado(regras) {
 function renderEstInventario() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstInventario);
+  frentesMontagem(renderEstInventario);   // o consumo de fechamento e marquise vem do mapa do IFC
   if (!regras) { $('#tabEstInv').innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>'; return; }
   const inv = inventarioCalculado(regras);
   const norm = s => (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -1560,6 +1597,7 @@ function renderEstInventario() {
 function renderEstCriticos() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstCriticos);
+  frentesMontagem(renderEstCriticos);   // o consumo de fechamento e marquise vem do mapa do IFC
   if (!regras) {
     const box = document.getElementById('tabEstCrit');
     if (box) box.innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>';
@@ -1719,17 +1757,8 @@ function apSelecao(ctx) {
   frente.forEach(f => {
     const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo];
     const cfgF = fs[chaveF] || {};
-    const servico = f.etapa || cfgF.servico || null;
-    grupo(f.emp, servico).delta += 1;
-    // fixadores do trecho: kit de cada família (do projeto) x peças daquela célula no IFC
-    const parte = (cfgF.partes || []).find(p => p.id === f.parte);
-    const cel = parte && parte.celulas.find(c => c.trecho === f.trecho);
-    const r = regras.consumo_por_servico || {};
-    const conf = r[f.tipo === 'MARQUISE' ? 'MARQUISE' : servico] || {};
-    const porPeca = conf.por_peca || (conf.por_etapa || {})[f.etapa] || {};
-    if (cel) Object.entries(cel.pecas).forEach(([familia, n]) => {
-      (porPeca[familia] || []).forEach(b => soma(b.codigo, b.quantidade * n));
-    });
+    grupo(f.emp, f.etapa || cfgF.servico || null).delta += 1;
+    fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
   });
   const porEmp = {};
   [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
