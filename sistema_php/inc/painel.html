@@ -39,6 +39,7 @@
         <button data-aba="semana">Programação semanal</button>
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
         <button data-aba="apont">Apontar montagem</button>
+        <button data-aba="plan">Planejamento de montagem</button>
         <button data-aba="avanco">Avanço físico</button>
         <button data-aba="gantt">Cronograma (Gantt)</button>
         <button data-aba="cliente">Dashboard cliente</button>
@@ -190,6 +191,30 @@
     </div>
   </section>
 
+  <!-- PLANEJAMENTO DE MONTAGEM -->
+  <section id="aba-plan" hidden>
+    <div class="tiles" id="planTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segPlanFrente"></div>
+      <button class="btn primario" id="btnSalvarPlan">Salvar planejamento</button>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab">
+        <h2>Datas planejadas × realizadas × chegada de material</h2>
+        <span class="nota">Preencha as datas planejadas de início e fim por setor. O impacto é calculado comparando a montagem real com o planejado e com a chegada de material.</span>
+      </div>
+      <div class="tabela-rolagem"><table id="tabPlan"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Análise de impacto logístico</h2><span class="nota">Setores onde chegada de material atrasou ou antecipou a montagem.</span></div>
+      <div id="planImpacto"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Timeline de remessas × montagem</h2></div>
+      <div id="planTimeline"></div>
+    </div>
+  </section>
+
   <section id="aba-avanco" hidden>
     <div class="bloco">
       <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
@@ -234,6 +259,10 @@
       <input type="text" id="estMatFiltro" class="input-filtro" placeholder="Filtrar por TAG, produto ou etapa...">
       <select id="estMatEtapa" class="input-filtro"><option value="">Todas as etapas</option></select>
       <select id="estMatStatus" class="input-filtro"><option value="">Todos os status</option></select>
+      <div class="acoes">
+        <button class="btn" data-novo="movimentos">+ Movimentação</button>
+        <button class="btn primario" data-novo="materiais">+ Cadastrar material</button>
+      </div>
     </div>
     <div class="bloco">
       <div class="tabela-rolagem"><table id="tabEstMat"></table></div>

@@ -45,7 +45,7 @@ function atualizar_pelo_github(array $cfg)
     }
     $repo = $cfg['github_repositorio'] ?? '';
     $ramo = $cfg['github_ramo'] ?? 'main';
-    $pasta = $cfg['github_pasta'] ?? 'maciel';
+    $pasta = $cfg['github_pasta'] ?? 'sistema_php';
     $token = $cfg['github_token'] ?? '';
     $api = "https://api.github.com/repos/$repo";
     $info = json_decode(http_get_github("$api/commits/" . str_replace('%2F', '/', rawurlencode($ramo)), $token), true);

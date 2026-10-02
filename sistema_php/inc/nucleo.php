@@ -255,6 +255,20 @@ function iniciar_sessao()
     }
 }
 
+function autenticar_machine_token()
+{
+    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $fornecido = (strpos($header, 'Bearer ') === 0) ? substr($header, 7) : ($_GET['mtoken'] ?? '');
+    if (!$fornecido) {
+        return null;
+    }
+    $armazenado = sistema_ler('machine_token', '');
+    if (!$armazenado || !hash_equals($armazenado, trim($fornecido))) {
+        return null;
+    }
+    return ['id' => 0, 'nome' => 'Claude (API)', 'login' => 'claude_api', 'perfil' => 'admin', 'empresa' => null];
+}
+
 function usuario_atual()
 {
     static $u = false;
