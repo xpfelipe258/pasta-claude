@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'sqlite_arquivo' => RAIZ . '/dados/obra198.sqlite',
         'github_repositorio' => $v('github_repositorio', 'xpfelipe258/pasta-claude'),
         'github_ramo' => $v('github_ramo', 'claude/brave-bardeen-jyxlhm'),
-        'github_pasta' => 'maciel',
+        'github_pasta' => 'sistema_php',
         'github_token' => $v('github_token'),
     ];
     if ($v('admin_login') === '' || strlen((string)($_POST['admin_senha'] ?? '')) < 8) {
@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo = conectar($cfg);
             criar_esquema($pdo, $driver);
+            $obraInicial = (int)$pdo->query('SELECT id FROM obras ORDER BY id LIMIT 1')->fetchColumn();
+            definir_obra_atual($obraInicial);
             $conteudo = "<?php\n// Gerado pela instalação. Não compartilhe este arquivo.\nreturn " . var_export($cfg, true) . ";\n";
             if (file_put_contents(ARQ_CONFIG, $conteudo) === false) {
                 throw new RuntimeException('Sem permissão para gravar inc/config.php.');
@@ -45,6 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             @chmod(ARQ_CONFIG, 0640);
             q('INSERT INTO usuarios (nome, login, senha, perfil, empresa, ativo) VALUES (?, ?, ?, ?, NULL, 1)',
                 [$v('admin_nome', 'Administrador'), $v('admin_login'), password_hash($_POST['admin_senha'], PASSWORD_DEFAULT), 'admin']);
+            $novoAdmin = (int)bd()->lastInsertId();
+            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [$novoAdmin, $obraInicial]);
+            q_global('UPDATE obras SET nome = ?, data_inicio = ?, data_fim = ? WHERE id = ?', [
+                $v('obra_nome', 'OBRA 198'), date('Y-m-d'), date('Y-m-d', strtotime('+1 year')), $obraInicial
+            ]);
             sistema_gravar('obra_nome', $v('obra_nome', 'OBRA 198'));
             sistema_gravar('data_inicio', date('Y-m-d'));
             sistema_gravar('data_fim', date('Y-m-d', strtotime('+1 year')));

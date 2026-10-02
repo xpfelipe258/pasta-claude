@@ -18,6 +18,15 @@ if (!$usuario) {
 if (!$usuario) {
     responder_json(401, ['erro' => 'Faça login novamente.']);
 }
+$obraId = $via_token ? (int)($_GET['obra_id'] ?? 0) : obra_atual_id();
+$obraApi = $obraId ? q_global("SELECT * FROM obras WHERE id=? AND status='ativa'", [$obraId])->fetch() : null;
+if (!$obraApi || (!$via_token && !usuario_pode_obra($usuario, $obraId))) {
+    responder_json(409, ['erro' => 'Selecione uma obra na Central de Obras.']);
+}
+definir_obra_atual($obraId);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$via_token) {
+    conferir_csrf();
+}
 if (!$via_token) {
     session_write_close();
 }
@@ -51,22 +60,22 @@ try {
             responder_json(200, json_decode(file_get_contents($p), true));
         }
         if ($rota === 'frentes-montagem') {
-            $p = __DIR__ . '/inc/frentes_montagem.json';
-            if (!is_file($p)) {
+            $d = frentes_montagem();
+            if ($d === null) {
                 responder_json(404, ['erro' => 'Mapa das frentes não publicado.']);
             }
-            responder_json(200, json_decode(file_get_contents($p), true));
+            responder_json(200, $d);
         }
         if ($rota === 'planejamento') {
-            $p = __DIR__ . '/inc/planejamento.json';
-            responder_json(200, is_file($p) ? json_decode(file_get_contents($p), true) : ['setores' => []]);
+            $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
+            responder_json(200, is_array($d) ? $d : ['setores' => []]);
         }
         if ($rota === 'dados-producao') {
-            $p = __DIR__ . '/inc/dados_producao.json';
-            if (!is_file($p)) {
+            $d = json_decode((string)sistema_ler('dados_producao', 'null'), true);
+            if (!is_array($d)) {
                 responder_json(404, ['erro' => 'Nenhum snapshot gravado. Use o programa local para gerar os dados.']);
             }
-            responder_json(200, json_decode(file_get_contents($p), true));
+            responder_json(200, $d);
         }
         if ($rota === 'estoque-planilha') {
             $d = estoque_planilha_ler();
@@ -139,8 +148,8 @@ function acao_producao(array $corpo, array $usuario)
     }
     $cols = q('SELECT col FROM servicos WHERE empresa_id = ?', [$emp['id']])->fetchAll(PDO::FETCH_COLUMN);
     $o = obra_info();
-    $del = bd()->prepare('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col = ?');
-    $ins = bd()->prepare('INSERT INTO producao (empresa_id, data, col, valor_num, valor_txt) VALUES (?, ?, ?, ?, ?)');
+    $del = bd()->prepare('DELETE FROM producao WHERE obra_id = ? AND empresa_id = ? AND data = ? AND col = ?');
+    $ins = bd()->prepare('INSERT INTO producao (obra_id, empresa_id, data, col, valor_num, valor_txt) VALUES (?, ?, ?, ?, ?, ?)');
     $n = 0;
     foreach (($corpo['alteracoes'] ?? []) as $a) {
         $data = $a['data'] ?? '';
@@ -154,7 +163,7 @@ function acao_producao(array $corpo, array $usuario)
         }
         $valor = $a['valor'] ?? null;
         $valor = is_string($valor) ? trim($valor) : $valor;
-        $del->execute([$emp['id'], $data, $col]);
+        $del->execute([obra_atual_id(), $emp['id'], $data, $col]);
         $n++;
         if ($valor === null || $valor === '') {
             continue;
@@ -163,7 +172,7 @@ function acao_producao(array $corpo, array $usuario)
         if ($num !== null && $num < 0) {
             throw new ErroValidacao('Quantidade não pode ser negativa.');
         }
-        $ins->execute([$emp['id'], $data, $col, $num, $num === null ? mb_substr((string)$valor, 0, 255) : null]);
+        $ins->execute([obra_atual_id(), $emp['id'], $data, $col, $num, $num === null ? mb_substr((string)$valor, 0, 255) : null]);
     }
     return $n;
 }
@@ -658,6 +667,9 @@ function tipos_frente()
 
 function frentes_montagem()
 {
+    $salvo = json_decode((string)sistema_ler('frentes_montagem', 'null'), true);
+    if (is_array($salvo)) { return $salvo; }
+    if (sistema_ler('dados_legados', '0') !== '1') { return null; }
     $p = __DIR__ . '/inc/frentes_montagem.json';
     if (!is_file($p)) {
         return null;
@@ -997,13 +1009,10 @@ function acao_salvar_planejamento(array $corpo, array $usuario)
     if (!is_array($setores)) {
         throw new ErroValidacao("Campo 'setores' deve ser uma lista.");
     }
-    $arq = __DIR__ . '/inc/planejamento.json';
     $existente = [];
-    if (is_file($arq)) {
-        $atual = json_decode(file_get_contents($arq), true) ?: [];
-        foreach ($atual['setores'] ?? [] as $s) {
-            $existente[$s['chave']] = $s;
-        }
+    $atual = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true) ?: [];
+    foreach ($atual['setores'] ?? [] as $s) {
+        $existente[$s['chave']] = $s;
     }
     foreach ($setores as $s) {
         $chave = $s['chave'] ?? null;
@@ -1011,7 +1020,7 @@ function acao_salvar_planejamento(array $corpo, array $usuario)
         if (!isset($existente[$chave])) $existente[$chave] = ['chave' => $chave];
         $existente[$chave] = array_merge($existente[$chave], $s);
     }
-    file_put_contents($arq, json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    sistema_gravar('planejamento', json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE));
     return ['salvos' => count($setores)];
 }
 
@@ -1022,8 +1031,7 @@ function acao_importar_snapshot(array $corpo, array $usuario)
         throw new ErroValidacao("Snapshot inválido: campos 'tabelas' e 'empresas' são obrigatórios.");
     }
     $corpo['gerado_em'] = date('c');
-    $arq = __DIR__ . '/inc/dados_producao.json';
-    file_put_contents($arq, json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    sistema_gravar('dados_producao', json_encode($corpo, JSON_UNESCAPED_UNICODE));
     $apts = count($corpo['tabelas']['apontamentos'] ?? []);
     return ['ok' => true, 'apontamentos' => $apts];
 }

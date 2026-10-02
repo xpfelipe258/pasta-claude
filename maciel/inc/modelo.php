@@ -149,7 +149,7 @@ function montar_modelo()
 function estoque_planilha_ler()
 {
     $txt = sistema_ler('estoque_planilha', null);
-    if ($txt === null) {
+    if ($txt === null && sistema_ler('dados_legados', '0') === '1') {
         $p = __DIR__ . '/estoque_inicial.json';
         $txt = is_file($p) ? file_get_contents($p) : null;
     }
@@ -164,6 +164,9 @@ function estoque_planilha_gravar(array $dados)
 
 function carregar_inventario_ifc()
 {
+    if (sistema_ler('dados_legados', '0') !== '1') {
+        return null;
+    }
     $p = __DIR__ . '/ifc_inventario.json';
     if (!is_file($p)) {
         return null;
@@ -350,19 +353,24 @@ function importar_pacote(array $pacote)
     }
     $m = $pacote['modelo'];
     $pdo = bd();
+    $obraId = obra_atual_id();
+    if ($obraId <= 0) {
+        throw new InvalidArgumentException('Selecione a obra que receberá a importação.');
+    }
     $pdo->beginTransaction();
     try {
         foreach (array_merge(['producao', 'servicos', 'empresas', 'metas', 'cliente', 'impactos'], array_keys(tabelas_spec())) as $t) {
-            $pdo->exec("DELETE FROM $t");
+            $stDel = $pdo->prepare("DELETE FROM $t WHERE obra_id = ?");
+            $stDel->execute([$obraId]);
         }
-        $insEmp = $pdo->prepare('INSERT INTO empresas (aba, nome, col_obs, ordem) VALUES (?, ?, ?, ?)');
-        $insServ = $pdo->prepare('INSERT INTO servicos (empresa_id, col, nome, frente, id_crono, escopo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $insProd = $pdo->prepare('INSERT INTO producao (empresa_id, data, col, valor_num, valor_txt) VALUES (?, ?, ?, ?, ?)');
+        $insEmp = $pdo->prepare('INSERT INTO empresas (obra_id, aba, nome, col_obs, ordem) VALUES (?, ?, ?, ?, ?)');
+        $insServ = $pdo->prepare('INSERT INTO servicos (obra_id, empresa_id, col, nome, frente, id_crono, escopo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $insProd = $pdo->prepare('INSERT INTO producao (obra_id, empresa_id, data, col, valor_num, valor_txt) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($m['empresas'] as $ordem => $e) {
-            $insEmp->execute([$e['aba'], $e['nome'], $e['col_obs'] ?? null, $ordem]);
+            $insEmp->execute([$obraId, $e['aba'], $e['nome'], $e['col_obs'] ?? null, $ordem]);
             $eid = (int)$pdo->lastInsertId();
             foreach ($e['servicos'] as $o => $s) {
-                $insServ->execute([$eid, $s['col'], $s['nome'], $s['frente'] ?? null, $s['id'] ?? null, numero($s['escopo'] ?? null), $o]);
+                $insServ->execute([$obraId, $eid, $s['col'], $s['nome'], $s['frente'] ?? null, $s['id'] ?? null, numero($s['escopo'] ?? null), $o]);
             }
             foreach (($e['registros'] ?? []) as $data => $r) {
                 if (!data_valida($data)) {
@@ -370,39 +378,40 @@ function importar_pacote(array $pacote)
                 }
                 foreach (($r['v'] ?? []) as $col => $v) {
                     $n = is_string($v) ? null : numero($v);
-                    $insProd->execute([$eid, $data, $col, $n, $n === null ? (string)$v : null]);
+                    $insProd->execute([$obraId, $eid, $data, $col, $n, $n === null ? (string)$v : null]);
                 }
                 if (!empty($r['obs']) && !empty($e['col_obs'])) {
-                    $insProd->execute([$eid, $data, $e['col_obs'], null, (string)$r['obs']]);
+                    $insProd->execute([$obraId, $eid, $data, $e['col_obs'], null, (string)$r['obs']]);
                 }
             }
         }
-        $ins = $pdo->prepare('INSERT INTO metas (empresa, servico, inicio, fim, corte, meta_dia, du, gap) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO metas (obra_id, empresa, servico, inicio, fim, corte, meta_dia, du, gap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($m['metas'] as $x) {
-            $ins->execute([$x['empresa'], $x['servico'], $x['inicio'], $x['fim'], data_ou_nulo($x['corte'] ?? null),
+            $ins->execute([$obraId, $x['empresa'], $x['servico'], $x['inicio'], $x['fim'], data_ou_nulo($x['corte'] ?? null),
                 numero($x['meta_dia']) ?: 0, numero($x['du']) ?: 0, numero($x['gap'] ?? 0) ?: 0]);
         }
-        $ins = $pdo->prepare('INSERT INTO cliente (servico, qtd, inicio_plan, meta_dia, du_semana, responsavel, obs, prazo, peso, frente) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO cliente (obra_id, servico, qtd, inicio_plan, meta_dia, du_semana, responsavel, obs, prazo, peso, frente) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($m['cliente'] as $x) {
-            $ins->execute([$x['servico'], numero($x['qtd'] ?? null), data_ou_nulo($x['inicio_plan'] ?? null), numero($x['meta_dia'] ?? null),
+            $ins->execute([$obraId, $x['servico'], numero($x['qtd'] ?? null), data_ou_nulo($x['inicio_plan'] ?? null), numero($x['meta_dia'] ?? null),
                 numero($x['du_semana'] ?? null), texto_ou_nulo($x['responsavel'] ?? null), texto_ou_nulo($x['obs'] ?? null),
                 data_ou_nulo($x['prazo'] ?? null), numero($x['peso'] ?? 1), texto_ou_nulo($x['frente'] ?? null)]);
         }
-        $ins = $pdo->prepare('INSERT INTO impactos (data, servico, motivo, solucionado, tempo, quando, paralisacao) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO impactos (obra_id, data, servico, motivo, solucionado, tempo, quando, paralisacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($m['impactos'] as $x) {
-            $ins->execute([texto_ou_nulo($x['data'] ?? null), texto_ou_nulo($x['servico'] ?? null), texto_ou_nulo($x['motivo'] ?? null),
+            $ins->execute([$obraId, texto_ou_nulo($x['data'] ?? null), texto_ou_nulo($x['servico'] ?? null), texto_ou_nulo($x['motivo'] ?? null),
                 texto_ou_nulo($x['solucionado'] ?? null), texto_ou_nulo($x['tempo'] ?? null), texto_ou_nulo($x['quando'] ?? null),
                 texto_ou_nulo($x['paralisacao'] ?? null)]);
         }
         foreach (tabelas_spec() as $nome => $campos) {
             $cols = array_keys($campos);
-            $ins = $pdo->prepare("INSERT INTO $nome (" . implode(', ', $cols) . ') VALUES (' . implode(', ', array_fill(0, count($cols), '?')) . ')');
+            $ins = $pdo->prepare("INSERT INTO $nome (obra_id, " . implode(', ', $cols) . ') VALUES (' . implode(', ', array_fill(0, count($cols) + 1, '?')) . ')');
             foreach (($m['tabelas'][$nome] ?? []) as $x) {
                 $vals = [];
                 foreach ($campos as $c => $tipo) {
                     $v = $x[$c] ?? null;
                     $vals[] = $tipo === 'num' ? numero($v) : ($tipo === 'data' ? data_ou_nulo($v) : texto_ou_nulo($v));
                 }
+                array_unshift($vals, $obraId);
                 $ins->execute($vals);
             }
         }
@@ -411,7 +420,7 @@ function importar_pacote(array $pacote)
             estoque_planilha_gravar($pacote['estoque_planilha']);
         }
         if (is_array($pacote['frentes_montagem'] ?? null)) {
-            file_put_contents(__DIR__ . '/frentes_montagem.json', json_encode($pacote['frentes_montagem'], JSON_UNESCAPED_UNICODE));
+            sistema_gravar('frentes_montagem', json_encode($pacote['frentes_montagem'], JSON_UNESCAPED_UNICODE));
         }
         if (!empty($m['referencia'])) {
             sistema_gravar('referencia', $m['referencia']);

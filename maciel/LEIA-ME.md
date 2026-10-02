@@ -1,5 +1,18 @@
 # Obra 198 — Sistema online (PHP 7.4+)
 
+## Versão multiobras
+
+Esta edição transforma o sistema em uma central multiobras. O login abre a Central de Obras; somente depois de escolher uma obra são carregados produção, planejamento, estoque, equipamentos, medições, impactos e histórico daquele projeto.
+
+- Os dados já existentes são preservados e associados automaticamente à primeira obra.
+- Novas obras começam vazias; opcionalmente é possível copiar apenas empresas e serviços da obra atualmente aberta.
+- Administradores personalizam nome, cores e logo do sistema principal e de cada obra.
+- Editores e leitores podem receber acesso a obras específicas.
+- A migração do banco ocorre no primeiro acesso. O arquivo protegido `inc/migracao_multiobras.sql` existe apenas como referência ou alternativa manual.
+- As sessões ficam em `dados/sessoes`, corrigindo hospedagens cPanel cujo caminho global de sessões está ausente.
+
+Antes de atualizar a hospedagem, faça backup do banco e de `inc/config.php`. Envie todos os arquivos, incluindo `.htaccess`, e então acesse `login.php` normalmente.
+
 Mesmas telas do programa local, acessíveis pelo navegador e pelo celular, com login e banco de dados.
 
 ## Instalação na hospedagem

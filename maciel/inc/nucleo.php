@@ -43,9 +43,55 @@ function bd()
 
 function q($sql, array $params = [])
 {
+    list($sql, $params) = aplicar_escopo_obra($sql, $params);
     $st = bd()->prepare($sql);
     $st->execute($params);
     return $st;
+}
+
+function tabelas_da_obra()
+{
+    return array_merge([
+        'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico'
+    ], array_keys(tabelas_spec()));
+}
+
+// Acrescenta obra_id às consultas simples usadas pelo sistema. Assim, toda a
+// lógica existente continua funcionando, mas enxerga somente a obra aberta.
+function aplicar_escopo_obra($sql, array $params)
+{
+    $tabelas = implode('|', array_map(function ($t) { return preg_quote($t, '/'); }, tabelas_da_obra()));
+    if (!preg_match('/^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i', $sql, $op)) {
+        return [$sql, $params];
+    }
+    if (!preg_match('/\b(?:FROM|INTO|UPDATE)\s+(`?(?:' . $tabelas . ')`?)\b/i', $sql, $m)) {
+        return [$sql, $params];
+    }
+    $tabela = trim($m[1], '`');
+    $obraId = obra_atual_id();
+    if ($obraId <= 0) {
+        throw new RuntimeException('Selecione uma obra antes de acessar os dados.');
+    }
+    if (strcasecmp($op[1], 'INSERT') === 0) {
+        $sql = preg_replace('/(INSERT\s+INTO\s+`?' . preg_quote($tabela, '/') . '`?\s*)\(/i', '$1(obra_id, ', $sql, 1);
+        $sql = preg_replace('/\bVALUES\s*\(/i', 'VALUES (?, ', $sql, 1);
+        array_unshift($params, $obraId);
+        return [$sql, $params];
+    }
+    $cond = 'obra_id = ?';
+    if (preg_match('/\bWHERE\b/i', $sql)) {
+        $sql = preg_replace('/\b(ORDER\s+BY|GROUP\s+BY|LIMIT)\b/i', ' AND ' . $cond . ' $1', $sql, 1, $n);
+        if (!$n) {
+            $sql .= ' AND ' . $cond;
+        }
+    } else {
+        $sql = preg_replace('/\b(ORDER\s+BY|GROUP\s+BY|LIMIT)\b/i', ' WHERE ' . $cond . ' $1', $sql, 1, $n);
+        if (!$n) {
+            $sql .= ' WHERE ' . $cond;
+        }
+    }
+    $params[] = $obraId;
+    return [$sql, $params];
 }
 
 function tabelas_spec()
@@ -84,7 +130,7 @@ function tabelas_spec()
     ];
 }
 
-const ESQUEMA_VERSAO = 6;
+const ESQUEMA_VERSAO = 7;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
@@ -98,6 +144,7 @@ function garantir_esquema(PDO $pdo, array $c)
         return;
     }
     criar_esquema($pdo, $c['driver']);
+    garantir_multiobra($pdo, $c['driver']);
     $pdo->prepare("DELETE FROM sistema WHERE chave = 'esquema'")->execute();
     $pdo->prepare("INSERT INTO sistema (chave, valor) VALUES ('esquema', ?)")->execute([(string)ESQUEMA_VERSAO]);
 }
@@ -128,6 +175,17 @@ function criar_esquema(PDO $pdo, $driver)
             solucionado VARCHAR(20) NULL, tempo VARCHAR(50) NULL, quando VARCHAR(100) NULL, paralisacao TEXT NULL)$fim",
         "CREATE TABLE IF NOT EXISTS historico (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
+        "CREATE TABLE IF NOT EXISTS obras (id $pk, nome VARCHAR(150) NOT NULL, codigo VARCHAR(50) NULL,
+            cliente VARCHAR(150) NULL, cidade VARCHAR(150) NULL, data_inicio DATE NULL, data_fim DATE NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'ativa', cor_primaria VARCHAR(20) NULL,
+            cor_secundaria VARCHAR(20) NULL, logo $longo NULL, criado_em VARCHAR(19) NOT NULL)$fim",
+        "CREATE TABLE IF NOT EXISTS usuarios_obras (usuario_id INT NOT NULL, obra_id INT NOT NULL,
+            PRIMARY KEY (usuario_id, obra_id))$fim",
+        "CREATE TABLE IF NOT EXISTS obra_config (obra_id INT NOT NULL, chave VARCHAR(50) NOT NULL, valor $longo NULL,
+            PRIMARY KEY (obra_id, chave))$fim",
+        "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
+        "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
+            acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
     ];
     foreach (tabelas_spec() as $nome => $campos) {
         $cols = [];
@@ -139,6 +197,7 @@ function criar_esquema(PDO $pdo, $driver)
     foreach ($sql as $s) {
         $pdo->exec($s);
     }
+    garantir_multiobra($pdo, $driver);
     // instalações antigas: acrescenta as colunas que as tabelas ganharam depois
     foreach (tabelas_spec() as $nome => $campos) {
         $existentes = [];
@@ -159,16 +218,123 @@ function criar_esquema(PDO $pdo, $driver)
     }
 }
 
+function colunas_tabela(PDO $pdo, $driver, $tabela)
+{
+    $out = [];
+    if ($driver === 'sqlite') {
+        foreach ($pdo->query("PRAGMA table_info($tabela)") as $r) { $out[] = $r['name']; }
+    } else {
+        foreach ($pdo->query("SHOW COLUMNS FROM `$tabela`") as $r) { $out[] = $r['Field']; }
+    }
+    return $out;
+}
+
+function garantir_multiobra(PDO $pdo, $driver)
+{
+    foreach (tabelas_da_obra() as $tabela) {
+        if (!in_array('obra_id', colunas_tabela($pdo, $driver, $tabela), true)) {
+            $pdo->exec("ALTER TABLE `$tabela` ADD COLUMN obra_id INT NOT NULL DEFAULT 1");
+        }
+        $indice = 'idx_' . $tabela . '_obra';
+        $temIndice = false;
+        if ($driver === 'sqlite') {
+            foreach ($pdo->query("PRAGMA index_list($tabela)") as $r) {
+                if ($r['name'] === $indice) { $temIndice = true; break; }
+            }
+        } else {
+            $stIdx = $pdo->prepare("SHOW INDEX FROM `$tabela` WHERE Key_name = ?");
+            $stIdx->execute([$indice]);
+            $temIndice = (bool)$stIdx->fetch();
+        }
+        if (!$temIndice) {
+            $pdo->exec("CREATE INDEX `$indice` ON `$tabela` (obra_id)");
+        }
+    }
+    $total = (int)$pdo->query('SELECT COUNT(*) FROM obras')->fetchColumn();
+    if ($total === 0) {
+        $nome = $pdo->query("SELECT valor FROM sistema WHERE chave = 'obra_nome'")->fetchColumn();
+        $ini = $pdo->query("SELECT valor FROM sistema WHERE chave = 'data_inicio'")->fetchColumn();
+        $fim = $pdo->query("SELECT valor FROM sistema WHERE chave = 'data_fim'")->fetchColumn();
+        $st = $pdo->prepare("INSERT INTO obras (nome, codigo, data_inicio, data_fim, status, cor_primaria, cor_secundaria, criado_em)
+            VALUES (?, ?, ?, ?, 'ativa', '#d97706', '#111827', ?)");
+        $st->execute([$nome ?: 'Obra principal', 'OBRA-001', $ini ?: null, $fim ?: null, date('Y-m-d H:i:s')]);
+    }
+    $obraInicial = (int)$pdo->query('SELECT id FROM obras ORDER BY id LIMIT 1')->fetchColumn();
+    foreach (['obra_nome', 'data_inicio', 'data_fim', 'referencia', 'versao', 'modificado', 'estoque_externo', 'estoque_planilha'] as $chave) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM obra_config WHERE obra_id = ? AND chave = ?');
+        $st->execute([$obraInicial, $chave]);
+        if (!(int)$st->fetchColumn()) {
+            $old = $pdo->prepare('SELECT valor FROM sistema WHERE chave = ?');
+            $old->execute([$chave]);
+            $valor = $old->fetchColumn();
+            if ($valor !== false) {
+                $pdo->prepare('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)')->execute([$obraInicial, $chave, $valor]);
+            }
+        }
+    }
+    $st = $pdo->prepare("SELECT COUNT(*) FROM obra_config WHERE obra_id=? AND chave='dados_legados'");
+    $st->execute([$obraInicial]);
+    if (!(int)$st->fetchColumn()) {
+        $pdo->prepare("INSERT INTO obra_config (obra_id,chave,valor) VALUES (?,'dados_legados','1')")->execute([$obraInicial]);
+    }
+    $pdo->exec("INSERT INTO usuarios_obras (usuario_id, obra_id)
+        SELECT u.id, $obraInicial FROM usuarios u
+        WHERE NOT EXISTS (SELECT 1 FROM usuarios_obras x WHERE x.usuario_id = u.id AND x.obra_id = $obraInicial)");
+    $defaults = [
+        'nome_sistema' => 'Núcleo de Obras', 'cor_primaria' => '#d97706',
+        'cor_secundaria' => '#111827', 'cor_fundo' => '#f4f6f8', 'logo' => ''
+    ];
+    foreach ($defaults as $k => $v) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM config_global WHERE chave = ?');
+        $st->execute([$k]);
+        if (!(int)$st->fetchColumn()) {
+            $pdo->prepare('INSERT INTO config_global (chave, valor) VALUES (?, ?)')->execute([$k, $v]);
+        }
+    }
+}
+
 function sistema_ler($chave, $padrao = null)
 {
-    $v = q('SELECT valor FROM sistema WHERE chave = ?', [$chave])->fetchColumn();
+    $globais = ['esquema', 'versao_codigo', 'machine_token'];
+    $obraId = obra_atual_id();
+    if ($obraId > 0 && !in_array($chave, $globais, true)) {
+        $v = q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [$obraId, $chave])->fetchColumn();
+        if ($v !== false) { return $v; }
+    }
+    $v = q_global('SELECT valor FROM sistema WHERE chave = ?', [$chave])->fetchColumn();
     return $v === false ? $padrao : $v;
 }
 
 function sistema_gravar($chave, $valor)
 {
-    q('DELETE FROM sistema WHERE chave = ?', [$chave]);
-    q('INSERT INTO sistema (chave, valor) VALUES (?, ?)', [$chave, $valor]);
+    $globais = ['esquema', 'versao_codigo', 'machine_token'];
+    $obraId = obra_atual_id();
+    if ($obraId > 0 && !in_array($chave, $globais, true)) {
+        q_global('DELETE FROM obra_config WHERE obra_id = ? AND chave = ?', [$obraId, $chave]);
+        q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$obraId, $chave, $valor]);
+        return;
+    }
+    q_global('DELETE FROM sistema WHERE chave = ?', [$chave]);
+    q_global('INSERT INTO sistema (chave, valor) VALUES (?, ?)', [$chave, $valor]);
+}
+
+function q_global($sql, array $params = [])
+{
+    $st = bd()->prepare($sql);
+    $st->execute($params);
+    return $st;
+}
+
+function global_ler($chave, $padrao = null)
+{
+    $v = q_global('SELECT valor FROM config_global WHERE chave = ?', [$chave])->fetchColumn();
+    return $v === false ? $padrao : $v;
+}
+
+function global_gravar($chave, $valor)
+{
+    q_global('DELETE FROM config_global WHERE chave = ?', [$chave]);
+    q_global('INSERT INTO config_global (chave, valor) VALUES (?, ?)', [$chave, $valor]);
 }
 
 function agora()
@@ -183,6 +349,15 @@ function registrar_alteracao($acao, $detalhe)
         [agora(), $u ? $u['login'] : null, $acao, json_encode($detalhe, JSON_UNESCAPED_UNICODE)]);
     sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
     sistema_gravar('modificado', date('c'));
+}
+
+function registrar_global($acao, $detalhe = null)
+{
+    $u = usuario_atual();
+    q_global('INSERT INTO auditoria_global (quando, usuario, acao, detalhe) VALUES (?, ?, ?, ?)', [
+        agora(), $u ? $u['login'] : null, $acao,
+        $detalhe === null ? null : json_encode($detalhe, JSON_UNESCAPED_UNICODE)
+    ]);
 }
 
 // ----------------------------------------------------------------- utilidades
@@ -245,14 +420,78 @@ function responder_json($status, $dados)
 
 function iniciar_sessao()
 {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_name('obra198');
-        session_set_cookie_params([
-            'lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
-            'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-        ]);
-        session_start();
+    if (session_status() !== PHP_SESSION_NONE) {
+        return;
     }
+    $pasta = RAIZ . '/dados/sessoes';
+    if (!is_dir($pasta) && !mkdir($pasta, 0700, true) && !is_dir($pasta)) {
+        http_response_code(500);
+        exit('Não foi possível criar dados/sessoes. Verifique a permissão da pasta dados.');
+    }
+    if (!is_writable($pasta)) {
+        http_response_code(500);
+        exit('A pasta dados/sessoes não possui permissão de escrita.');
+    }
+    session_save_path($pasta);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    session_name('gestao_obras');
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+        (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $path = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+    $path = ($path === '/' || $path === '.') ? '/' : rtrim($path, '/') . '/';
+    session_set_cookie_params([
+        'lifetime' => 0, 'path' => $path, 'httponly' => true, 'samesite' => 'Lax', 'secure' => $https,
+    ]);
+    if (!session_start()) {
+        http_response_code(500);
+        exit('Não foi possível iniciar a sessão PHP. Verifique dados/sessoes.');
+    }
+}
+
+function obra_atual_id()
+{
+    iniciar_sessao();
+    return max(0, (int)($_SESSION['obra_id'] ?? 0));
+}
+
+function definir_obra_atual($obraId)
+{
+    iniciar_sessao();
+    $_SESSION['obra_id'] = max(0, (int)$obraId);
+}
+
+function obras_do_usuario(array $u)
+{
+    if ($u['perfil'] === 'admin') {
+        return q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY status, nome")->fetchAll();
+    }
+    return q_global("SELECT o.* FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
+        WHERE uo.usuario_id = ? AND o.status = 'ativa' ORDER BY o.nome", [(int)$u['id']])->fetchAll();
+}
+
+function usuario_pode_obra(array $u, $obraId)
+{
+    if ($u['perfil'] === 'admin') { return true; }
+    return (bool)q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], (int)$obraId])->fetchColumn();
+}
+
+function obra_atual()
+{
+    $id = obra_atual_id();
+    return $id ? (q_global("SELECT * FROM obras WHERE id = ? AND status <> 'excluida'", [$id])->fetch() ?: null) : null;
+}
+
+function exigir_obra_pagina()
+{
+    $u = exigir_login_pagina();
+    $obra = obra_atual();
+    if (!$obra || !usuario_pode_obra($u, $obra['id'])) {
+        definir_obra_atual(0);
+        header('Location: obras.php');
+        exit;
+    }
+    return $obra;
 }
 
 function autenticar_machine_token()
@@ -325,7 +564,7 @@ function token_csrf()
 
 function conferir_csrf()
 {
-    $t = $_POST['csrf'] ?? ($_GET['csrf'] ?? '');
+    $t = $_POST['csrf'] ?? ($_GET['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
     if (!is_string($t) || !hash_equals(token_csrf(), $t)) {
         http_response_code(400);
         exit('Formulário expirado. Volte e tente novamente.');
@@ -334,6 +573,35 @@ function conferir_csrf()
 
 function pagina_inicio($titulo)
 {
+    $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
+    $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
+    $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
+    $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
+    $logo = config() ? global_ler('logo', '') : '';
     echo '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-    echo '<title>' . h($titulo) . ' · Obra 198</title><link rel="stylesheet" href="style.css"></head><body>';
+    echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
+    if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
+    echo '<link rel="stylesheet" href="style.css?v=20261002c"><link rel="stylesheet" href="portal.css?v=20261002c"><style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
+}
+
+function cor_segura($cor, $padrao)
+{
+    return is_string($cor) && preg_match('/^#[0-9a-fA-F]{6}$/', $cor) ? strtolower($cor) : $padrao;
+}
+
+function imagem_upload_para_data_uri($campo, $atual = '')
+{
+    if (empty($_FILES[$campo]['tmp_name']) || ($_FILES[$campo]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return $atual;
+    }
+    if (($_FILES[$campo]['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK || $_FILES[$campo]['size'] > 2 * 1024 * 1024) {
+        throw new InvalidArgumentException('A imagem deve ter no máximo 2 MB.');
+    }
+    $mime = function_exists('mime_content_type') ? mime_content_type($_FILES[$campo]['tmp_name']) : '';
+    if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)) {
+        throw new InvalidArgumentException('Use uma imagem PNG, JPG ou WebP.');
+    }
+    $dados = file_get_contents($_FILES[$campo]['tmp_name']);
+    if ($dados === false) { throw new InvalidArgumentException('Não foi possível ler a imagem.'); }
+    return 'data:' . $mime . ';base64,' . base64_encode($dados);
 }

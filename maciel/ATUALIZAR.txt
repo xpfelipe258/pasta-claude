@@ -1,0 +1,18 @@
+ATUALIZAÇÃO SEGURA PARA A VERSÃO MULTIOBRAS
+
+1. Faça um backup completo do banco MySQL no phpMyAdmin.
+2. Faça uma cópia do arquivo inc/config.php atual.
+3. Envie todo o conteúdo da pasta maciel para a pasta atual da hospedagem.
+4. Confirme que os arquivos ocultos .htaccess também foram enviados.
+5. Não apague nem recrie o banco de dados.
+6. Acesse login.php. A migração será executada automaticamente no primeiro acesso.
+7. Após o login, o administrador verá a Central de Obras.
+
+Os dados já existentes serão associados à primeira obra. Novas obras começam
+sem produção, estoque, apontamentos, medições ou impactos.
+
+Se a hospedagem exibir erro de escrita, ajuste a pasta dados para permissão 755.
+Não mantenha permissão 777.
+
+IMPORTANTE: troque a senha do MySQL no painel da hospedagem e atualize
+inc/config.php, pois a senha anterior foi compartilhada durante o suporte.

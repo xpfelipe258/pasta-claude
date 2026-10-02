@@ -5,6 +5,7 @@ require __DIR__ . '/inc/modelo.php';
 require __DIR__ . '/inc/atualizar.php';
 
 $eu = exigir_admin();
+$obraSelecionada = exigir_obra_pagina();
 $msg = '';
 $erro = '';
 
@@ -31,6 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $perfil = in_array($_POST['perfil'] ?? '', ['admin', 'editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
             q('INSERT INTO usuarios (nome, login, senha, perfil, empresa, ativo) VALUES (?, ?, ?, ?, ?, 1)',
                 [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, texto_ou_nulo($_POST['empresa'] ?? null)]);
+            $novoUid = (int)bd()->lastInsertId();
+            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [$novoUid, obra_atual_id()]);
             registrar_alteracao('usuario_criado', ['login' => $login, 'perfil' => $perfil]);
             $msg = "Usuário $login criado.";
         } elseif ($acao === 'senha_usuario') {
@@ -68,16 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             sistema_gravar('obra_nome', trim($_POST['obra_nome'] ?? 'OBRA'));
             sistema_gravar('data_inicio', $_POST['data_inicio']);
             sistema_gravar('data_fim', $_POST['data_fim']);
+            q_global('UPDATE obras SET nome=?, data_inicio=?, data_fim=? WHERE id=?', [
+                trim($_POST['obra_nome'] ?? 'OBRA'), $_POST['data_inicio'], $_POST['data_fim'], obra_atual_id()
+            ]);
             registrar_alteracao('obra', ['nome' => $_POST['obra_nome'], 'inicio' => $_POST['data_inicio'], 'fim' => $_POST['data_fim']]);
             $msg = 'Dados da obra atualizados.';
         } elseif ($acao === 'atualizar') {
-            $r = atualizar_pelo_github(config());
-            $msg = $r['mensagem'];
-        } elseif ($acao === 'gerar_webhook_secret') {
-            $secret = bin2hex(random_bytes(24));
-            sistema_gravar('webhook_secret', $secret);
-            registrar_alteracao('webhook_secret_gerado', ['por' => $eu['login']]);
-            $msg = 'WEBHOOK_SECRET:' . $secret;
+            throw new InvalidArgumentException('Atualização automática pausada nesta edição multiobras. Instale somente pacotes compatíveis para não perder o isolamento dos projetos.');
         } elseif ($acao === 'gerar_machine_token') {
             $token = bin2hex(random_bytes(32));
             sistema_gravar('machine_token', $token);
@@ -107,18 +107,11 @@ if (strncmp($msg, 'TOKEN_GERADO:', 13) === 0) {
     $novo_token = substr($msg, 13);
     $msg = 'Token gerado. Copie-o agora — ele não será exibido novamente.';
 }
-$webhook_ativo = (sistema_ler('webhook_secret', '') !== '');
-$novo_webhook_secret = '';
-if (strncmp($msg, 'WEBHOOK_SECRET:', 15) === 0) {
-    $novo_webhook_secret = substr($msg, 15);
-    $msg = 'Segredo do webhook gerado. Configure no GitHub agora — ele não será exibido novamente.';
-}
-$webhook_url = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/webhook.php';
 pagina_inicio('Administração');
 ?>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">198</span><div><h1>Administração</h1>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="obras.php">Central de obras</a><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>
@@ -176,43 +169,9 @@ pagina_inicio('Administração');
       <div class="bloco-cab" style="margin-top:18px"><h2>Atualização do sistema</h2></div>
       <p class="nota">Versão instalada: <?= h(substr((string)sistema_ler('versao_codigo', 'inicial'), 0, 7)) ?> · repositório <?= h($cfg['github_repositorio'] ?? '—') ?> (<?= h($cfg['github_ramo'] ?? '') ?>)
         <?= empty($cfg['github_token']) ? '· <b>sem token configurado</b> (edite inc/config.php)' : '' ?></p>
-      <form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="atualizar"><button class="btn primario">Buscar atualização no GitHub</button></form>
+      <p class="nota">A atualização automática está pausada para impedir que uma versão antiga substitua os recursos multiobras.</p>
     </section>
   </div>
-
-  <section class="bloco">
-    <div class="bloco-cab"><h2>Deploy automático pelo GitHub</h2><span class="nota">A cada push no GitHub, o servidor atualiza os arquivos automaticamente.</span></div>
-    <p class="nota">Status: <?= $webhook_ativo ? '<b style="color:var(--verde,green)">Webhook configurado</b>' : '<b>Não configurado</b>' ?></p>
-
-    <?php if ($novo_webhook_secret): ?>
-      <div style="background:var(--bg2,#f5f5f5);border-radius:4px;padding:12px;margin-bottom:10px">
-        <p><b>URL do Webhook (copie para o GitHub):</b></p>
-        <code style="font-size:13px;word-break:break-all"><?= h($webhook_url) ?></code>
-        <p style="margin-top:10px"><b>Segredo (copie agora — não será exibido novamente):</b></p>
-        <code style="font-size:13px;word-break:break-all"><?= h($novo_webhook_secret) ?></code>
-      </div>
-      <div style="background:#e8f5e9;border-radius:4px;padding:10px;margin-bottom:10px;font-size:13px">
-        <b>Como configurar no GitHub:</b><br>
-        1. Acesse o repositório → <b>Settings → Webhooks → Add webhook</b><br>
-        2. Cole a URL acima em <b>Payload URL</b><br>
-        3. Defina <b>Content type: application/json</b><br>
-        4. Cole o segredo acima em <b>Secret</b><br>
-        5. Selecione <b>Just the push event</b><br>
-        6. Clique <b>Add webhook</b> — a partir daí cada push atualiza o servidor.
-      </div>
-    <?php elseif ($webhook_ativo): ?>
-      <p class="nota">URL do webhook: <code><?= h($webhook_url) ?></code></p>
-      <p class="nota">O segredo já está configurado. Para ver a URL de webhook ou mudar o segredo, clique em "Regenerar segredo" — você precisará atualizar o GitHub com o novo valor.</p>
-    <?php else: ?>
-      <p class="nota">URL que será configurada no GitHub: <code><?= h($webhook_url) ?></code></p>
-    <?php endif; ?>
-
-    <form method="post">
-      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
-      <input type="hidden" name="acao" value="gerar_webhook_secret">
-      <button class="btn primario"><?= $webhook_ativo ? 'Regenerar segredo' : 'Configurar deploy automático' ?></button>
-    </form>
-  </section>
 
   <section class="bloco">
     <div class="bloco-cab"><h2>Token de Máquina (API)</h2><span class="nota">Permite que ferramentas externas (ex.: Claude) acessem a API sem sessão de navegador.</span></div>
