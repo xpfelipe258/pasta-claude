@@ -664,11 +664,6 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
                 $kits[] = [$pn['rua'], $pn['de'] . '-' . $pn['ate']];
             }
         }
-        foreach (($elev['bordas'] ?? []) as $bd) {
-            if ($bd['marca'] === $marca) {
-                $kits[] = [$bd['rua'], $bd['lado']];
-            }
-        }
         if (!$kits) {
             throw new ErroValidacao("{$frente['titulo']}: marca '$marca' não existe na elevação.");
         }

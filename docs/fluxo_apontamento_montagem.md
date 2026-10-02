@@ -123,9 +123,10 @@ Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vin
   |---|---|
   | 1 e 19 (01-02 e 19-20) | 2 CTH01, 1 em cada borda + 40 CTH02 ao longo da rua |
   | 4, 7, 9, 11, 13 e 16 | 2 CTH03, 1 em cada borda + 16 CTH04 + 2 CTH05 na cumeeira |
-  | 2, 5, 10, 12, 14 e 18 | 2 CTH06, nas bordas da marquise (A> e <H) |
 
-  São 224 kits (448 conjuntos). O apontamento guarda a marca do kit, a rua e o trecho de letras.
+  São **204 kits** em 8 ruas, conferidos com as tags CTH da planta de locação (os rótulos do PDF caem nas
+  mesmas 8 ruas e nas mesmas estações). O **CTH06 fica de fora**: ele é das bordas da marquise (A> e <H),
+  não é contraventamento da cobertura. O apontamento guarda a marca do kit, a rua e o trecho de letras.
 - **Montantes:** os 145 do IFC estão no miolo (letras C a F, Z ≈ 78 m), são da cumeeira e ficam fora do
   fechamento lateral.
 

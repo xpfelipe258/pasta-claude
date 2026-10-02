@@ -90,33 +90,39 @@ def celula(frente, lugar, trecho):
 PECAS_POR_KIT = 2
 
 
+# O CTH06 fica nas bordas da marquise (A> e <H) e não é contraventamento da cobertura: a planta de
+# locação só marca CTH01 a CTH05, nas 8 ruas contraventadas (1, 4, 7, 9, 11, 13, 16 e 19).
+MARCAS_COBERTURA = ("CTH01", "CTH02", "CTH03", "CTH04", "CTH05")
+
+
 def elevacao(marcas):
     """Vista elevada do contraventamento, como o projeto desenha (OF.198-MET-DM-001).
 
-    Só as ruas contraventadas aparecem. Cada kit é um X entre duas estações de letra, identificado
-    pela marca do Tekla (CTH01 a CTH05); os CTH06 ficam nas bordas da marquise (A> e <H), fora das
-    estações, e vão numa lista à parte."""
+    Só as ruas contraventadas, e dentro delas um X por kit (2 diagonais cruzadas), entre duas estações
+    de letra e com a marca do Tekla:
+
+      ruas 1 e 19           1 kit CTH01 em cada borda + 40 kits CTH02 ao longo da rua
+      ruas 4,7,9,11,13,16   1 kit CTH03 em cada borda + 16 kits CTH04 + 2 kits CTH05 na cumeeira
+    """
     ordem = {e: i for i, e in enumerate(ESTACOES)}
-    paineis, bordas = [], []
+    paineis = []
     for (rua, trecho, marca), pecas in sorted(marcas.items()):
-        kits = round(pecas / PECAS_POR_KIT)
-        if trecho in ("A>", "<H"):
-            bordas.append({"rua": rua, "lado": trecho, "marca": marca, "kits": kits, "pecas": pecas})
+        if marca not in MARCAS_COBERTURA:
             continue
         pontas = [e for e in re.split(r"-", trecho) if e in ordem]
         if len(pontas) != 2:
             continue
         de, ate = sorted(pontas, key=lambda e: ordem[e])
-        paineis.append({"rua": rua, "de": de, "ate": ate, "marca": marca, "kits": kits, "pecas": pecas})
+        paineis.append({"rua": rua, "de": de, "ate": ate, "marca": marca,
+                        "kits": round(pecas / PECAS_POR_KIT), "pecas": pecas})
     paineis.sort(key=lambda p: (p["rua"], ordem[p["de"]], ordem[p["ate"]]))
-    ruas = sorted({p["rua"] for p in paineis} | {b["rua"] for b in bordas})
+    ruas = sorted({p["rua"] for p in paineis})
     resumo = {}
-    for p in paineis + bordas:
+    for p in paineis:
         resumo.setdefault(p["rua"], collections.Counter())[p["marca"]] += p["kits"]
-    return {"estacoes": ESTACOES, "ruas": ruas, "paineis": paineis, "bordas": bordas,
-            "pecas_por_kit": PECAS_POR_KIT,
+    return {"estacoes": ESTACOES, "ruas": ruas, "paineis": paineis, "pecas_por_kit": PECAS_POR_KIT,
             "resumo_por_rua": {r: dict(c) for r, c in sorted(resumo.items())},
-            "total_kits": sum(p["kits"] for p in paineis) + sum(b["kits"] for b in bordas)}
+            "total_kits": sum(p["kits"] for p in paineis)}
 
 
 def extrair(caminho):

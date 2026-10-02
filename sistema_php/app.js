@@ -1926,10 +1926,10 @@ function apMapaSvg(ctx) {
 // Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
 // Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
 // na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
-const APC = { passo: 24, colW: 84, mEsq: 76, mTop: 46, borda: 20 };
+const APC = { passo: 26, colW: 108, mEsq: 62, mTop: 48 };
 // Cada marca do Tekla ganha sua cor, como o projeto identifica os kits na planta.
-const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--roxo, #7c3aed)', CTH03: 'var(--acento)',
-  CTH04: 'var(--roxo, #7c3aed)', CTH05: 'var(--amarelo)', CTH06: 'var(--fg3)' };
+const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--fg2)', CTH03: 'var(--acento)',
+  CTH04: 'var(--fg2)', CTH05: 'var(--amarelo)' };
 const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
 
 function apContravSvg() {
@@ -1940,10 +1940,10 @@ function apContravSvg() {
     .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
   const ruas = el.ruas, est = el.estacoes;
   const iEst = Object.fromEntries(est.map((e, i) => [e, i]));
-  const { passo, colW, mEsq, mTop, borda } = APC;
+  const { passo, colW, mEsq, mTop } = APC;
   const alt = (est.length - 1) * passo;
-  const W = mEsq + ruas.length * colW + 24, H = mTop + alt + borda * 2 + 40;
-  const yEst = i => mTop + borda + i * passo;
+  const W = mEsq + ruas.length * colW + 24, H = mTop + alt + 24;
+  const yEst = i => mTop + i * passo;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
   est.forEach((e, i) => {
     const y = yEst(i);
@@ -1952,8 +1952,10 @@ function apContravSvg() {
   });
   ruas.forEach((r, j) => {
     const x = mEsq + j * colW, res = (el.resumo_por_rua || {})[r] || {};
-    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + alt + borda * 2}" class="apc-eixo"/>` +
-      `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt + borda * 2}" class="apc-eixo"/>` +
+    s += `<line x1="${x}" y1="${mTop}" x2="${x}" y2="${mTop + alt}" class="apc-eixo"/>` +
+      `<line x1="${x + colW}" y1="${mTop}" x2="${x + colW}" y2="${mTop + alt}" class="apc-eixo"/>` +
+      `<text x="${x}" y="${mTop + alt + 16}" class="apc-rot n peq">${esc(r.split('-')[0])}</text>` +
+      `<text x="${x + colW}" y="${mTop + alt + 16}" class="apc-rot n peq">${esc(r.split('-')[1])}</text>` +
       `<text x="${x + colW / 2}" y="${mTop - 24}" class="apc-rot n b">${esc(r)}<title>${esc(Object.entries(res).map(([m, n]) => `${n} kit ${m}`).join(' · '))}</title></text>` +
       `<text x="${x + colW / 2}" y="${mTop - 11}" class="apc-rot n peq">${nf(Object.values(res).reduce((a, b) => a + b, 0))} kits</text>`;
   });
@@ -1975,15 +1977,6 @@ function apContravSvg() {
     s += X(p.marca, p.rua, `${p.de}-${p.ate}`, mEsq + j * colW, yEst(iEst[p.de]), yEst(iEst[p.ate]),
       `\n${p.kits} kit (${p.pecas} peças)`);
   });
-  (el.bordas || []).forEach(b => {                    // CTH06: fora das estações, na marquise
-    const j = ruas.indexOf(b.rua);
-    if (j < 0) return;
-    const topo = b.lado === 'A>';
-    const y0 = topo ? mTop + 2 : mTop + borda + alt + 2, y1 = y0 + borda - 4;
-    s += X(b.marca, b.rua, b.lado, mEsq + j * colW, y0, y1, `\nmarquise ${b.lado} · ${b.kits} kit (${b.pecas} peças)`);
-  });
-  s += `<text x="${mEsq - 8}" y="${mTop + 13}" class="apc-rot peq">marq. A&gt;</text>` +
-    `<text x="${mEsq - 8}" y="${mTop + borda * 2 + alt + 2}" class="apc-rot peq">marq. &lt;H</text>`;
   return s + '</svg>';
 }
 
@@ -2007,8 +2000,8 @@ function apFrenteHtml(ctx) {
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
   if (apEst.modo === 'cont' && fr.elevacao) {
-    const el = fr.elevacao, kits = el.paineis.concat(el.bordas || []);
-    const chaveDe = k => apcChave(k.marca, k.rua, k.de ? `${k.de}-${k.ate}` : k.lado);
+    const el = fr.elevacao, kits = el.paineis;
+    const chaveDe = k => apcChave(k.marca, k.rua, `${k.de}-${k.ate}`);
     const mont = kits.filter(k => feitas.has(chaveDe(k))).length;
     const porMarca = {};
     kits.forEach(k => { const o = porMarca[k.marca] ||= { n: 0, f: 0 }; o.n++; if (feitas.has(chaveDe(k))) o.f++; });
@@ -2018,10 +2011,11 @@ function apFrenteHtml(ctx) {
       <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} ruas contraventadas · ${nf(el.pecas_por_kit)} peças por kit</span>
       <div class="ap-legenda">${legM}${leg('joist feita', 'montado')}${selLeg}</div></div>
       <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
-      <p class="nota">Vista elevada do OF.198-MET-DM-001: só as ruas contraventadas, eixos na horizontal e estações de letra de A (topo)
-      a H (base). Cada X é um kit (${nf(el.pecas_por_kit)} diagonais cruzadas), identificado pela marca do projeto; o CTH06 fica nas bordas
-      da marquise, acima de A e abaixo de H. Clique no X para selecionar. O contraventamento não tem coluna no controle de produção,
-      então o apontamento serve de controle e não soma na produção.</p>`;
+      <p class="nota">Vista elevada do OF.198-MET-DM-001: só as ${nf(el.ruas.length)} ruas contraventadas da cobertura, eixos na horizontal
+      e estações de letra de A (topo) a H (base). Cada X é um kit (${nf(el.pecas_por_kit)} diagonais cruzadas) com a marca do projeto:
+      as ruas 1 e 19 levam CTH01 nas bordas e CTH02 ao longo da rua; as ruas 4, 7, 9, 11, 13 e 16 levam CTH03 nas bordas, CTH04 no miolo
+      e CTH05 na cumeeira. Clique no X para selecionar. O contraventamento não tem coluna no controle de produção, então o apontamento
+      serve de controle e não soma na produção.</p>`;
   }
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>

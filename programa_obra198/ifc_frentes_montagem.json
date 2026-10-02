@@ -1965,18 +1965,12 @@
     ],
     "ruas": [
      "01-02",
-     "02-03",
      "04-05",
-     "05-06",
      "07-08",
      "09-10",
-     "10-11",
      "11-12",
-     "12-13",
      "13-14",
-     "14-15",
      "16-17",
-     "18-19",
      "19-20"
     ],
     "paineis": [
@@ -3613,212 +3607,48 @@
       "pecas": 2
      }
     ],
-    "bordas": [
-     {
-      "rua": "02-03",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "02-03",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "04-05",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "04-05",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "05-06",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "05-06",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "07-08",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "07-08",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "10-11",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "10-11",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "12-13",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "12-13",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "13-14",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "13-14",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "14-15",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "14-15",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "16-17",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "16-17",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "18-19",
-      "lado": "<H",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     },
-     {
-      "rua": "18-19",
-      "lado": "A>",
-      "marca": "CTH06",
-      "kits": 1,
-      "pecas": 2
-     }
-    ],
     "pecas_por_kit": 2,
     "resumo_por_rua": {
      "01-02": {
       "CTH01": 2,
       "CTH02": 40
      },
-     "02-03": {
-      "CTH06": 2
-     },
      "04-05": {
       "CTH03": 2,
       "CTH04": 16,
-      "CTH05": 2,
-      "CTH06": 2
-     },
-     "05-06": {
-      "CTH06": 2
+      "CTH05": 2
      },
      "07-08": {
       "CTH03": 2,
       "CTH04": 16,
-      "CTH05": 2,
-      "CTH06": 2
+      "CTH05": 2
      },
      "09-10": {
       "CTH03": 2,
       "CTH04": 16,
       "CTH05": 2
      },
-     "10-11": {
-      "CTH06": 2
-     },
      "11-12": {
       "CTH03": 2,
       "CTH04": 16,
       "CTH05": 2
      },
-     "12-13": {
-      "CTH06": 2
-     },
      "13-14": {
       "CTH03": 2,
       "CTH04": 16,
-      "CTH05": 2,
-      "CTH06": 2
-     },
-     "14-15": {
-      "CTH06": 2
+      "CTH05": 2
      },
      "16-17": {
       "CTH03": 2,
       "CTH04": 16,
-      "CTH05": 2,
-      "CTH06": 2
-     },
-     "18-19": {
-      "CTH06": 2
+      "CTH05": 2
      },
      "19-20": {
       "CTH01": 2,
       "CTH02": 40
      }
     },
-    "total_kits": 224
+    "total_kits": 204
    }
   }
  },

@@ -622,8 +622,7 @@ def _frente_item(item, frentes, ja, base, data):
         # Vista elevada: cada kit é identificado pela marca do Tekla (parte), pela rua (trecho) e pelo
         # trecho de letras ou pelo lado da borda (etapa) — é o que o projeto marca na planta.
         marca = str(item.get("parte") or "")
-        kits = ([(p["rua"], p["de"] + "-" + p["ate"]) for p in elev["paineis"] if p["marca"] == marca]
-                + [(b["rua"], b["lado"]) for b in elev.get("bordas", []) if b["marca"] == marca])
+        kits = [(p["rua"], p["de"] + "-" + p["ate"]) for p in elev["paineis"] if p["marca"] == marca]
         if not kits:
             raise ErroValidacao(f"{frente['titulo']}: marca '{marca}' não existe na elevação.")
         etapas = sorted({e for _, e in kits})
