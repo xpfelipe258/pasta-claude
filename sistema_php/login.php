@@ -5,14 +5,20 @@ if (!config()) {
     exit;
 }
 iniciar_sessao();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 $erro = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $u = q('SELECT * FROM usuarios WHERE login = ? AND ativo = 1', [trim($_POST['login'] ?? '')])->fetch();
     if ($u && password_verify($_POST['senha'] ?? '', $u['senha'])) {
-        session_regenerate_id(true);
+        if (!session_regenerate_id(true)) {
+            http_response_code(500);
+            exit('Não foi possível renovar a sessão. Tente novamente.');
+        }
         $_SESSION['uid'] = (int)$u['id'];
         $_SESSION['ultimo'] = time();
+        $_SESSION['csrf'] = bin2hex(random_bytes(16));
         q('INSERT INTO historico (quando, usuario, acao, detalhe) VALUES (?, ?, ?, ?)', [agora(), $u['login'], 'login', null]);
         header('Location: index.php');
         exit;
