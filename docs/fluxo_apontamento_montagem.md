@@ -96,3 +96,28 @@ Conferência: os ladrilhos da tela comparam produção x apontado. "A apontar" �
   "Regularização" marcada.
 - A baixa automática antiga por movimentação (ESTOQUE MOVIMENTOS) continua ligada aos lançamentos manuais; o
   Inventário e o Controle de Materiais usam o apontamento.
+
+## Frentes de fechamento, marquise e contraventamento
+
+Além do mapa das joists e das vigas, a aba Apontar montagem tem três mapas vindos do IFC do galpão
+(`ferramentas/ifc_frentes_montagem.py` → `dados/ifc_frentes_montagem.json`):
+
+| Aba | Peças no IFC | Células | Famílias | Soma no serviço |
+|---|---|---|---|---|
+| Fechamento lateral | 3.944 | 52 | terça, espaçador e telha de fechamento | FECH. LATERAL – ESTRUTURA |
+| Marquise | 2.095 | 38 | terça marquise, mão francesa, telha marquise | a etapa escolhida (MARQUISE – …) |
+| Contraventamento | 1.264 | 133 | contraventamento, suporte cont. | nenhum (só controle) |
+
+- **Endereço de cada célula:** o código de posição do Tekla (`11-12/H`, `01/D1-D`, `14a-15/<H`) dá a rua ou o
+  eixo e o trecho de letras. Eixos intermediários (01a, 02a…) caem na rua inteira; peça ancorada num eixo
+  serve a rua seguinte.
+- **Fechamento:** lado A e lado H com uma célula por rua, mais os oitões dos eixos 01 e 20 com uma por faixa.
+- **Marquise:** lados A> e <H com uma célula por rua, e um seletor de etapa (vigas principais, pré-montagem de
+  terças, terças, testeira), já que cada etapa é uma coluna diferente no controle de produção.
+- **Contraventamento:** grade de 7 faixas × 19 ruas, no plano da cobertura. Não há coluna no controle de
+  produção, então o apontamento serve de controle e não soma na produção nem no BM.
+- **Montantes:** os 145 do IFC estão no miolo (letras C a F, Z ≈ 78 m), são da cumeeira e ficam fora do
+  fechamento lateral.
+
+Cada trecho só pode ser apontado uma vez (por etapa, na marquise). O apontamento grava em APONTAMENTO MONTAGEM
+com `tipo` = FECHAMENTO / MARQUISE / CONTRAVENTAMENTO, `faixa` = parte do mapa, `rua` = trecho e `letra` = etapa.

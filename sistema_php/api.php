@@ -44,6 +44,13 @@ try {
             }
             responder_json(200, json_decode(file_get_contents($p), true));
         }
+        if ($rota === 'frentes-montagem') {
+            $p = __DIR__ . '/inc/frentes_montagem.json';
+            if (!is_file($p)) {
+                responder_json(404, ['erro' => 'Mapa das frentes não publicado.']);
+            }
+            responder_json(200, json_decode(file_get_contents($p), true));
+        }
         if ($rota === 'estoque-planilha') {
             $d = estoque_planilha_ler();
             if ($d === null) {
@@ -621,6 +628,69 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
     return 1;
 }
 
+// Frentes montadas fora do plano das joists (fechamento lateral, marquise, contraventamento),
+// com os trechos vindos do mapa extraído do IFC.
+function tipos_frente()
+{
+    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento'];
+}
+
+function frentes_montagem()
+{
+    $p = __DIR__ . '/inc/frentes_montagem.json';
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
+}
+
+function frente_item(array $item, array $frentes, array &$ja, array $base, $data)
+{
+    $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
+    $frente = $frentes['frentes'][tipos_frente()[$tipo]] ?? null;
+    if (!$frente) {
+        throw new ErroValidacao("Mapa da frente $tipo não publicado.");
+    }
+    $parte = null;
+    foreach ($frente['partes'] as $p) {
+        if ($p['id'] === (string)($item['parte'] ?? '')) {
+            $parte = $p;
+        }
+    }
+    if (!$parte) {
+        throw new ErroValidacao("{$frente['titulo']}: parte '" . ($item['parte'] ?? '') . "' não existe no mapa.");
+    }
+    $etapas = $frente['etapas'] ?? [];
+    $etapa = trim((string)($item['etapa'] ?? ($etapas ? $etapas[0] : '')));
+    if ($etapas && !in_array($etapa, $etapas, true)) {
+        throw new ErroValidacao("{$frente['titulo']}: etapa '$etapa' inválida.");
+    }
+    $validos = array_column($parte['celulas'], 'trecho');
+    $novas = [];
+    $vistos = [];
+    foreach (($item['trechos'] ?? []) as $trecho) {
+        $trecho = (string)$trecho;
+        if (isset($vistos[$trecho])) {
+            continue;
+        }
+        $vistos[$trecho] = true;
+        if (!in_array($trecho, $validos, true)) {
+            throw new ErroValidacao("{$frente['titulo']} · {$parte['nome']}: trecho '$trecho' não existe no mapa.");
+        }
+        $chave = "$tipo|{$parte['id']}|$trecho|$etapa";
+        if (isset($ja[$chave])) {
+            $quando = $ja[$chave]['data'] ?? null;
+            $rot = "{$parte['nome']} · $trecho" . ($etapa ? " · $etapa" : '');
+            throw new ErroValidacao("$rot já foi apontado" .
+                ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
+        }
+        $ja[$chave] = ['data' => $data];
+        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => 1];
+    }
+    return [$novas, $etapa ?: ($frente['servico'] ?? null)];
+}
+
 function acao_apontamento(array $corpo, array $usuario)
 {
     $spec = tabelas_spec()['apontamentos'];
@@ -656,6 +726,14 @@ function acao_apontamento(array $corpo, array $usuario)
     if (!$layout) {
         throw new ErroValidacao('regras_baixa.json sem layout_joists.');
     }
+    $frentes = frentes_montagem();
+    $frentesJa = [];
+    foreach ($aps as $a) {
+        $t = mb_strtoupper((string)($a['tipo'] ?? ''));
+        if (isset(tipos_frente()[$t])) {
+            $frentesJa["$t|{$a['faixa']}|{$a['rua']}|" . ($a['letra'] ?? '')] = $a;
+        }
+    }
     $vigasJa = [];
     $joistsRua = [];
     $slotsRua = [];
@@ -682,7 +760,15 @@ function acao_apontamento(array $corpo, array $usuario)
         $base = ['data' => $data, 'empresa' => $empNome, 'lanca_producao' => $lanca ? 'SIM' : 'NÃO',
             'obs' => texto_ou_nulo($corpo['obs'] ?? null)];
         $doItem = [];
-        if ($tipo === 'JOIST') {
+        if (isset(tipos_frente()[$tipo])) {
+            if (!$frentes) {
+                throw new ErroValidacao('Mapa das frentes não publicado no sistema online.');
+            }
+            list($doItem, $servico) = frente_item($item, $frentes, $frentesJa, $base, $data);
+            if (!$doItem) {
+                continue;
+            }
+        } elseif ($tipo === 'JOIST') {
             $rua = (string)($item['rua'] ?? '');
             if (!rua_valida($rua, $cfg['eixos'])) {
                 throw new ErroValidacao('Rua inválida: use eixos consecutivos, ex.: 11-12.');
@@ -743,10 +829,10 @@ function acao_apontamento(array $corpo, array $usuario)
             }
             $servico = $cfg['servico_viga'];
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST ou VIGA).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE ou CONTRAVENTAMENTO).');
         }
         $novas = array_merge($novas, $doItem);
-        $chave = $empNome . '|' . $servico;
+        $chave = $empNome . '|' . (string)$servico;
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'delta' => 0];
         }
@@ -766,7 +852,9 @@ function acao_apontamento(array $corpo, array $usuario)
     }
     if ($lanca) {
         foreach ($grupos as $g) {
-            soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
+            if ($g['servico']) {
+                soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
+            }
         }
     }
     return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [], 'linhas' => $ids];
@@ -796,8 +884,17 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
             throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
         }
         $r = $porLinha[$lin];
+        $t = mb_strtoupper((string)($r['tipo'] ?? ''));
         if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
-            $servico = mb_strtoupper((string)($r['tipo'] ?? '')) === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
+            if (isset(tipos_frente()[$t])) {
+                $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
+                $servico = $r['letra'] ?: ($fs['servico'] ?? null);
+                if (!$servico) {
+                    continue;
+                }
+            } else {
+                $servico = $t === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
+            }
             $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'];
             $somas[$chave] = ($somas[$chave] ?? 0) - (float)($r['qtd'] ?? 0);
         }

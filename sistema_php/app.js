@@ -1612,7 +1612,23 @@ function renderEstCriticos() {
 // A empresa é indicada em cada clique ("pincel" na barra do topo): quem montou é quem entra no BM.
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
-  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '' };
+  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
+  frente: new Map(), etapa: '' };   // frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
+// Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
+const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO' };
+function frentesMontagem(refazer) {
+  if (window._frentes) return window._frentes.frentes ? window._frentes : null;
+  if (!window._frentes_pend) {
+    window._frentes_pend = fetch(API + 'frentes-montagem', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null).catch(() => null).then(j => { window._frentes = j || { frentes: {} }; });
+  }
+  window._frentes_pend.then(refazer);
+  return null;
+}
+const apFrenteAtual = () => {
+  const f = window._frentes && window._frentes.frentes;
+  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento' }[apEst.modo]] : null;
+};
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
 const APM_PASSO = { compacto: 10, normal: 14, grande: 19 };
@@ -1668,7 +1684,9 @@ function apSelecao(ctx) {
   if (apEst.modo === 'mapa') {
     apEst.mapaJ.forEach((emp, k) => { const [rua, slot] = k.split('|'), p = ctx.layout[+slot - 1]; joists.push({ rua, slot: +slot, faixa: p.faixa, letra: p.letra, n: 1, emp }); });
     apEst.mapaV.forEach((emp, k) => { const [eixo, letra] = k.split('|'); vigas.push({ eixo, letra, emp }); });
-  } else apEst.sel.forEach(l => vigas.push({ eixo: apEst.eixo, letra: l, emp: apEst.empresa }));
+  } else if (apEst.modo === 'viga') apEst.sel.forEach(l => vigas.push({ eixo: apEst.eixo, letra: l, emp: apEst.empresa }));
+  const frente = [];
+  apEst.frente.forEach((emp, k) => { const [tipo, parte, trecho, etapa] = k.split('|'); frente.push({ tipo, parte, trecho, etapa, emp }); });
 
   const grupos = new Map(), baixa = new Map();
   const soma = (cod, q) => baixa.set(cod, (baixa.get(cod) || 0) + q);
@@ -1682,20 +1700,28 @@ function apSelecao(ctx) {
     grupo(v.emp, ctx.cfg.servico_viga).delta += 1;
     (ctx.evento(ctx.crit[v.letra].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
   });
+  const fs = (window._frentes || {}).frentes || {};
+  frente.forEach(f => {
+    const cfgF = fs[{ FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo]] || {};
+    grupo(f.emp, f.etapa || cfgF.servico || null).delta += 1;
+  });
   const porEmp = {};
-  joists.forEach(j => porEmp[j.emp || '?'] = (porEmp[j.emp || '?'] || 0) + 1);
-  vigas.forEach(v => porEmp[v.emp || '?'] = (porEmp[v.emp || '?'] || 0) + 1);
-  return { joists, vigas, grupos: [...grupos.values()], baixa, porEmp,
-    semEmpresa: joists.some(j => !j.emp) || vigas.some(v => !v.emp),
-    nJ: joists.length, nV: vigas.length };
+  [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
+  return { joists, vigas, frente, grupos: [...grupos.values()], baixa, porEmp,
+    semEmpresa: [...joists, ...vigas, ...frente].some(x => !x.emp),
+    nJ: joists.length, nV: vigas.length, nF: frente.length };
 }
 
 function apEfeitosHtml(regras, ctx) {
   const sel = apSelecao(ctx);
-  if (!sel.nJ && !sel.nV) return '<p class="vazio">Selecione as peças para ver o efeito na produção, no BM e no estoque.</p>';
+  if (!sel.nJ && !sel.nV && !sel.nF) return '<p class="vazio">Selecione as peças para ver o efeito na produção, no BM e no estoque.</p>';
   const data = apEst.data, somar = !apEst.regular, itens = [], avisos = [];
   if (sel.semEmpresa) avisos.push('Indique a empresa que montou (barra no topo) antes de salvar.');
   sel.grupos.filter(g => g.emp).forEach(g => {
+    if (!g.servico) {
+      itens.push(`<b>${esc(g.emp)}:</b> ${nf(g.delta)} trecho(s) de contraventamento registrados como controle (não há coluna no controle de produção, então não somam na produção nem no BM).`);
+      return;
+    }
     const e = empresa(g.emp), col = e && colDe(e, g.servico);
     const meta = M.metas.find(m => m.empresa === g.emp && m.servico === g.servico && m.inicio <= data && m.fim >= data);
     let t = `<b>${esc(g.emp)} · ${esc(cap(g.servico))}:</b> `;
@@ -1730,9 +1756,10 @@ function apEfeitosHtml(regras, ctx) {
 
 function apResumoTxt(ctx) {
   const s = apSelecao(ctx);
-  if (!s.nJ && !s.nV) return 'Nada selecionado';
+  if (!s.nJ && !s.nV && !s.nF) return 'Nada selecionado';
   const emps = Object.entries(s.porEmp).map(([e, n]) => `${e === '?' ? 'sem empresa' : e} ${nf(n)}`).join(' · ');
-  return `Seleção: ${nf(s.nJ)} joist(s) · ${nf(s.nV)} viga(s) (${emps})`;
+  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '', s.nF ? `${nf(s.nF)} trecho(s)` : ''].filter(Boolean);
+  return `Seleção: ${partes.join(' · ')} (${emps})`;
 }
 
 // Barra fixa no topo: empresa que montou (vale para os próximos cliques), resumo e ações.
@@ -1751,7 +1778,12 @@ function apFormHtml(regras, ctx) {
   const rodape = `<label class="ap-check"><input type="checkbox" id="apRegular" ${s.regular ? 'checked' : ''}> Regularização: já está no Lançamentos, não somar de novo na produção</label>
     <input type="text" id="apObs" class="input-filtro" placeholder="Observação / nº RDO" value="${esc(s.obs)}">`;
   let h = '';
-  if (s.modo === 'mapa') {
+  if (s.modo in AP_FRENTE) {
+    const fr = apFrenteAtual();
+    h += `<div class="ap-linha">${data}</div>
+      <p class="nota">Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.</p>
+      <div class="ap-linha">${rodape}</div>`;
+  } else if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
       <p class="nota">Escolha a empresa na barra do topo e clique nos retângulos (joists) e nos quadrados (vigas) do mapa; dá para arrastar o mouse sobre várias joists. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
   } else {
@@ -1829,7 +1861,54 @@ function apMapaSvg(ctx) {
   return s.join('') + '</svg>';
 }
 
+// Mapa de uma frente: uma linha por parte (lado A, lado H, oitão, faixa...) e uma célula por trecho montável.
+// Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
+function apFrenteHtml(ctx) {
+  const fr = apFrenteAtual();
+  if (!fr) return window._frentes
+    ? '<p class="vazio">O mapa desta frente ainda não foi publicado. Rode <code>ferramentas/ifc_frentes_montagem.py</code> sobre o IFC do galpão.</p>'
+    : '<p class="vazio">Carregando o mapa do IFC…</p>';
+  const tipo = AP_FRENTE[apEst.modo];
+  const etapas = fr.etapas || [];
+  if (etapas.length && !etapas.includes(apEst.etapa)) apEst.etapa = etapas[0];
+  const etapa = etapas.length ? apEst.etapa : '';
+  const feitas = new Map();
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === tipo).forEach(a => {
+    feitas.set(`${a.faixa}|${a.rua}|${a.letra || ''}`, a);
+  });
+  const nFeitas = fr.partes.reduce((n, p) => n + p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length, 0);
+  const nTotal = fr.partes.reduce((n, p) => n + p.celulas.length, 0);
+  const barra = etapas.length
+    ? `<div class="seg" id="segApEtapa">${etapas.map(e => `<button data-ap-etapa="${esc(e)}" class="${e === etapa ? 'ativa' : ''}">${esc(cap(e.replace(/^MARQUISE – /, '')))}</button>`).join('')}</div>` : '';
+  const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
+  const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
+  let h = `<div class="ap-linha ap-mapa-barra">${barra}
+    <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>
+    <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
+    <div class="tabela-rolagem"><table class="ap-frente"><tbody>`;
+  fr.partes.forEach(p => {
+    const feitasP = p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length;
+    h += `<tr><th class="apf-rot"><b>${esc(p.nome)}</b><span class="nota">${feitasP}/${p.celulas.length} · ${nf(p.total)} peças</span></th>`;
+    p.celulas.forEach(c => {
+      const k = `${p.id}|${c.trecho}|${etapa}`;
+      const feita = feitas.get(k), emp = apEst.frente.get(`${tipo}|${k}`);
+      const det = Object.entries(c.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
+      const tit = `${p.nome} · ${c.trecho}${etapa ? ' · ' + etapa : ''}\n${c.total} peças${det ? '\n' + det : ''}` +
+        (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
+      h += `<td><button type="button" class="apf-cel ${feita ? 'feita' : emp ? 'sel' : 'pend'}" ${emp ? `style="--sel:${corSelEmp(emp)}"` : ''}
+        data-ap-frente="${esc(k)}" ${feita ? 'disabled' : ''} title="${esc(tit)}"><b>${esc(c.trecho)}</b><small>${c.total || '—'}</small></button></td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += `<p class="nota">Cada célula é um trecho montável deste mapa, extraído do IFC (${esc(fr.familias.join(', '))}). O número embaixo é a quantidade de peças do trecho; passe o mouse para ver a composição. ` +
+    (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
+      'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
+  return h;
+}
+
 function apMapaHtml(ctx) {
+  if (apEst.modo in AP_FRENTE) return apFrenteHtml(ctx);
   if (apEst.modo === 'mapa') {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
     const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
@@ -1908,6 +1987,7 @@ function renderApont() {
   const regras = regrasBaixa(renderApont);
   if (!regras) { $('#apForm').innerHTML = '<p class="vazio">Carregando regras...</p>'; return; }
   if (!regras.faixas_posicoes) { $('#apForm').innerHTML = '<p class="vazio">regras_baixa.json sem as regras de apontamento.</p>'; return; }
+  frentesMontagem(renderApont);   // mapas de fechamento, marquise e contraventamento (carga preguiçosa)
   const ctx = apContexto(regras);
   apGarantirEstado(ctx);
 
@@ -1925,11 +2005,15 @@ function renderApont() {
     tile('Ruas completas', `${completas}/${ctx.ruas.length}`, `${ctx.limRua} joists por rua · ${nf(ctx.limGalpao)} no galpão`, 'var(--verde)') +
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
-  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas']]
+  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
+    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento']]
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
-  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : 'Situação das vigas (eixo × letra)';
+  const fr = apFrenteAtual();
+  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
+    : apEst.modo === 'viga' ? 'Situação das vigas (eixo × letra)'
+    : (fr ? fr.titulo + ' (clique para selecionar)' : 'Carregando o mapa do IFC…');
   $('#apMapa').innerHTML = apMapaHtml(ctx);
   $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
   $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
@@ -1938,10 +2022,12 @@ function renderApont() {
   const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
   $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
     (hist.length ? hist.map(a => {
-      const joist = (a.tipo || '').toUpperCase() === 'JOIST';
+      const tipo = (a.tipo || '').toUpperCase(), joist = tipo === 'JOIST';
       const c = ctx.crit[a.letra] || {};
-      return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${joist ? 'Joist' : 'Viga'}</td>
-        <td>${joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
+      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.' }[tipo];
+      return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
+        <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
+          : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
     }).join('') : '<tr><td colspan="8" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
@@ -1961,7 +2047,7 @@ function apAtualizarSelecao(redesenharMapa) {
 
 async function salvarApontamento() {
   const regras = window._regras_baixa, ctx = apContexto(regras), s = apEst, sel = apSelecao(ctx);
-  if (!sel.nJ && !sel.nV) { toast('Selecione ao menos uma joist ou uma viga.', true); return; }
+  if (!sel.nJ && !sel.nV && !sel.nF) { toast('Selecione ao menos uma peça no mapa.', true); return; }
   if (sel.semEmpresa) { toast('Indique a empresa que montou (barra no topo) antes de salvar.', true); return; }
   const lote = [], porQuad = new Map(), porEixo = new Map();
   sel.joists.forEach(j => {
@@ -1974,12 +2060,18 @@ async function salvarApontamento() {
     if (!porEixo.has(k)) porEixo.set(k, { tipo: 'VIGA', empresa: v.emp, eixo: v.eixo, letras: [] });
     porEixo.get(k).letras.push(v.letra);
   });
-  lote.push(...porQuad.values(), ...porEixo.values());
+  const porFrente = new Map();
+  sel.frente.forEach(f => {
+    const k = `${f.tipo}|${f.parte}|${f.etapa}|${f.emp}`;
+    if (!porFrente.has(k)) porFrente.set(k, { tipo: f.tipo, empresa: f.emp, parte: f.parte, etapa: f.etapa || null, trechos: [] });
+    porFrente.get(k).trechos.push(f.trecho);
+  });
+  lote.push(...porQuad.values(), ...porEixo.values(), ...porFrente.values());
   const b = $('#apSalvar');
   b.disabled = true; b.textContent = 'Salvando…';
   try {
     const r = await postar(API + 'apontamento', { data: s.data, lanca_producao: !s.regular, obs: s.obs.trim() || null, lote });
-    s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.obs = '';
+    s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.frente = new Map(); s.obs = '';
     await carregar();
     toast(`${r.salvos} apontamento(s) salvo(s)${r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''}`, !!r.avisos?.length, r.avisos?.length ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
@@ -2031,7 +2123,21 @@ function ligarApontamento() {
     const emp = ev.target.closest('[data-ap-emp]');
     if (emp && regras()) { apEst.empresa = emp.dataset.apEmp; $('#apBarra').innerHTML = apBarraHtml(apContexto(regras())); return apAtualizarSelecao(false); }
     const modo = ev.target.closest('[data-ap-modo]');
-    if (modo) { apEst.modo = modo.dataset.apModo; return renderApont(); }
+    if (modo) {
+      apEst.modo = modo.dataset.apModo;
+      const tipo = AP_FRENTE[apEst.modo];
+      [...apEst.frente.keys()].filter(k => k.split('|')[0] !== tipo).forEach(k => apEst.frente.delete(k));
+      return renderApont();
+    }
+    const etapa = ev.target.closest('[data-ap-etapa]');
+    if (etapa) { apEst.etapa = etapa.dataset.apEtapa; return renderApont(); }
+    const cel = ev.target.closest('[data-ap-frente]');
+    if (cel) {
+      if (!apExigirEmpresa()) return;
+      const k = `${AP_FRENTE[apEst.modo]}|${cel.dataset.apFrente}`;
+      if (apEst.frente.get(k) === apEst.empresa) apEst.frente.delete(k); else apEst.frente.set(k, apEst.empresa);
+      return renderApont();
+    }
     const fase = ev.target.closest('[data-ap-fase]');
     if (fase) { apEst.fase = fase.dataset.apFase; return renderApont(); }
     const zoom = ev.target.closest('[data-ap-zoom]');
@@ -2071,7 +2177,7 @@ function ligarApontamento() {
       catch (err) { toast(err.message, true); }
       return;
     }
-    if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); return renderApont(); }
+    if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); apEst.frente = new Map(); return renderApont(); }
     if (ev.target.id === 'apSalvar') return salvarApontamento();
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {

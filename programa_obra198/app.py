@@ -610,6 +610,35 @@ def _corpo_soma_grade(emp, servico, data, delta):
     return {"aba": emp["aba"], "alteracoes": [{"data": data, "col": col, "valor": novo or None}]}
 
 
+TIPOS_FRENTE = {"FECHAMENTO": "fechamento", "MARQUISE": "marquise", "CONTRAVENTAMENTO": "contraventamento"}
+
+
+def _frente_item(item, frentes, ja, base, data):
+    """Linhas de apontamento de uma frente (fechamento, marquise ou contraventamento) e o serviço que elas somam."""
+    tipo = str(item.get("tipo") or "").upper()
+    frente = frentes["frentes"][TIPOS_FRENTE[tipo]]
+    parte = next((p for p in frente["partes"] if p["id"] == str(item.get("parte") or "")), None)
+    if not parte:
+        raise ErroValidacao(f"{frente['titulo']}: parte '{item.get('parte')}' não existe no mapa.")
+    etapas = frente.get("etapas") or []
+    etapa = str(item.get("etapa") or (etapas[0] if etapas else "")).strip()
+    if etapas and etapa not in etapas:
+        raise ErroValidacao(f"{frente['titulo']}: etapa '{etapa}' inválida.")
+    validos = {c["trecho"] for c in parte["celulas"]}
+    novas = []
+    for trecho in dict.fromkeys(str(x) for x in item.get("trechos") or []):
+        if trecho not in validos:
+            raise ErroValidacao(f"{frente['titulo']} · {parte['nome']}: trecho '{trecho}' não existe no mapa.")
+        chave = (tipo, parte["id"], trecho, etapa)
+        if chave in ja:
+            quando = ja[chave].get("data")
+            rot = f"{parte['nome']} · {trecho}" + (f" · {etapa}" if etapa else "")
+            raise ErroValidacao(f"{rot} já foi apontado" + (f" em {quando[8:]}/{quando[5:7]}/{quando[:4]}." if quando else "."))
+        ja[chave] = {"data": data}
+        novas.append({**base, "tipo": tipo, "faixa": parte["id"], "rua": trecho, "letra": etapa or None, "qtd": 1})
+    return novas, (etapa or frente.get("servico"))
+
+
 def _rua_valida(rua, eixos):
     partes = str(rua or "").split("-")
     return (len(partes) == 2 and all(p in eixos for p in partes)
@@ -622,13 +651,21 @@ def _apontamento_excluir(m, corpo):
     if not alvo or any(lin not in por_linha for lin in alvo):
         raise ErroValidacao("Apontamento não encontrado (a planilha pode ter sido alterada). Recarregue a tela.")
     cfg = (xio.carregar_regras_baixa() or {}).get("apontamento") or {}
+    frentes = (xio.carregar_frentes_montagem() or {}).get("frentes") or {}
+
+    def _servico(r):
+        tipo = (r.get("tipo") or "").upper()
+        if tipo in TIPOS_FRENTE:
+            return r.get("letra") or frentes.get(TIPOS_FRENTE[tipo], {}).get("servico")
+        return cfg.get("servico_joist") if tipo == "JOIST" else cfg.get("servico_viga")
+
     spec = xio.TABELAS["apontamentos"]
     limpar = [(spec["aba"], f"{xio.col_letra(i)}{lin}", None, None) for lin in alvo for i in range(1, len(spec["campos"]) + 1)]
     somas = {}
     for lin in alvo:
         r = por_linha[lin]
-        if (r.get("lanca_producao") or "").upper() == "SIM" and r.get("data") and r.get("empresa"):
-            servico = cfg.get("servico_joist") if (r.get("tipo") or "").upper() == "JOIST" else cfg.get("servico_viga")
+        servico = _servico(r)
+        if servico and (r.get("lanca_producao") or "").upper() == "SIM" and r.get("data") and r.get("empresa"):
             chave = (r["empresa"], servico, r["data"])
             somas[chave] = somas.get(chave, 0) - (r.get("qtd") or 0)
     grupos = list(somas.items())
@@ -682,6 +719,9 @@ def acao_apontamento(corpo):
     limite_rua = lim.get("joists_por_rua_maximo") or 43
     existentes = m["tabelas"]["apontamentos"]
     vigas_ja = {a.get("viga_id"): a for a in existentes if (a.get("tipo") or "").upper() == "VIGA"}
+    frentes = xio.carregar_frentes_montagem()
+    frentes_ja = {(str(a.get("tipo") or "").upper(), a.get("faixa"), a.get("rua"), a.get("letra") or ""): a
+                  for a in existentes if str(a.get("tipo") or "").upper() in TIPOS_FRENTE}
     layout = [(f, l) for f, letras in (regras.get("layout_joists") or {}).items() if f != "nota" for l in letras]
     if not layout:
         raise ErroValidacao("regras_baixa.json sem layout_joists.")
@@ -700,7 +740,18 @@ def acao_apontamento(corpo):
             raise ErroValidacao("Indique a empresa que montou.")
         base = {"data": data, "empresa": emp["nome"], "lanca_producao": "SIM" if lanca else "NÃO", "obs": corpo.get("obs")}
         novas = []
-        if tipo == "JOIST":
+        if tipo in TIPOS_FRENTE:
+            if not frentes:
+                raise ErroValidacao("ifc_frentes_montagem.json não encontrado: rode ferramentas/ifc_frentes_montagem.py.")
+            novas, servico = _frente_item(item, frentes, frentes_ja, base, data)
+            if not novas:
+                continue
+            if not servico:                      # frente sem coluna no controle: entra como controle, sem somar
+                linhas_novas += novas
+                g = grupos.setdefault((emp["nome"], None), {"emp": emp, "delta": 0, "linhas": []})
+                g["linhas"] += novas
+                continue
+        elif tipo == "JOIST":
             rua = str(item.get("rua") or "")
             if not _rua_valida(rua, cfg["eixos"]):
                 raise ErroValidacao("Rua inválida: use eixos consecutivos, ex.: 11-12.")
@@ -741,7 +792,7 @@ def acao_apontamento(corpo):
                 continue
             servico = cfg["servico_viga"]
         else:
-            raise ErroValidacao("Tipo de apontamento inválido (JOIST ou VIGA).")
+            raise ErroValidacao("Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE ou CONTRAVENTAMENTO).")
         linhas_novas += novas
         g = grupos.setdefault((emp["nome"], servico), {"emp": emp, "delta": 0, "linhas": []})
         g["delta"] += sum(r["qtd"] for r in novas)
@@ -757,7 +808,7 @@ def acao_apontamento(corpo):
             reservadas.append(lin)
             for col, v, t in xio.valores_registro("apontamentos", campos):
                 d["celulas"].append((aba, f"{col}{lin}", v, t))
-        if lanca:
+        if lanca and servico:
             d["alteracoes"] += _corpo_soma_grade(g["emp"], servico, data, g["delta"])["alteracoes"]
     n = 0
     for d in por_emp.values():  # uma gravação por empresa (mesma aba), mesmo com joists e vigas juntas
@@ -820,6 +871,11 @@ class Handler(BaseHTTPRequestHandler):
                     "modificado": dt.datetime.fromtimestamp(os.path.getmtime(CFG["planilha"])).isoformat(timespec="seconds"),
                     "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
                 })
+            if caminho == "/api/frentes-montagem":
+                frentes = xio.carregar_frentes_montagem()
+                if frentes is None:
+                    return self._json(404, {"erro": "ifc_frentes_montagem.json não encontrado."})
+                return self._json(200, frentes)
             if caminho == "/api/regras-baixa":
                 regras = xio.carregar_regras_baixa()
                 if regras is None:
@@ -840,7 +896,8 @@ class Handler(BaseHTTPRequestHandler):
                           "origem": os.path.basename(CFG["planilha"]),
                           "obra": {"nome": "OBRA 198", "data_inicio": m["datas"][0], "data_fim": m["datas"][-1]},
                           "modelo": {k: v for k, v in m.items() if k != "linhas_por_data"},
-                          "estoque_planilha": json.load(open(arq_est, encoding="utf-8")) if os.path.exists(arq_est) else None}
+                          "estoque_planilha": json.load(open(arq_est, encoding="utf-8")) if os.path.exists(arq_est) else None,
+                          "frentes_montagem": xio.carregar_frentes_montagem()}
                 dados = json.dumps(pacote, ensure_ascii=False, default=str).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")

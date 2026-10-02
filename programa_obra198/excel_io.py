@@ -19,6 +19,7 @@ from lxml import etree
 BASE = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(BASE)
 CAMINHO_INVENTARIO_IFC = os.path.join(RAIZ, "dados", "ifc_r0d_inventario.json")
+CAMINHO_FRENTES = os.path.join(RAIZ, "dados", "ifc_frentes_montagem.json")
 CAMINHO_REGRAS_BAIXA = os.path.join(BASE, "regras_baixa.json")
 
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -152,6 +153,14 @@ def ler_planilha(caminho):
         return _montar_modelo(wb)
     finally:
         wb.close()
+
+
+def carregar_frentes_montagem():
+    """Mapas de fechamento lateral, marquise e contraventamento, extraídos do IFC."""
+    if not os.path.exists(CAMINHO_FRENTES):
+        return None
+    with open(CAMINHO_FRENTES, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def carregar_inventario_ifc():

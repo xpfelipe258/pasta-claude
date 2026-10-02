@@ -410,6 +410,9 @@ function importar_pacote(array $pacote)
         if (is_array($pacote['estoque_planilha'] ?? null)) {
             estoque_planilha_gravar($pacote['estoque_planilha']);
         }
+        if (is_array($pacote['frentes_montagem'] ?? null)) {
+            file_put_contents(__DIR__ . '/frentes_montagem.json', json_encode($pacote['frentes_montagem'], JSON_UNESCAPED_UNICODE));
+        }
         if (!empty($m['referencia'])) {
             sistema_gravar('referencia', $m['referencia']);
         }
