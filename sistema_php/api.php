@@ -10,11 +10,17 @@ class ErroValidacao extends Exception
 if (!config()) {
     responder_json(503, ['erro' => 'Sistema não instalado. Acesse instalar.php.']);
 }
-$usuario = usuario_atual();
+$usuario = autenticar_machine_token();
+$via_token = ($usuario !== null);
+if (!$usuario) {
+    $usuario = usuario_atual();
+}
 if (!$usuario) {
     responder_json(401, ['erro' => 'Faça login novamente.']);
 }
-session_write_close();
+if (!$via_token) {
+    session_write_close();
+}
 
 $rota = isset($_GET['r']) ? (string)$_GET['r'] : '';
 
@@ -95,6 +101,8 @@ try {
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
         'planejamento' => 'acao_salvar_planejamento',
         'dados-producao/importar' => 'acao_importar_snapshot',
+        'machine-token/gerar' => 'acao_gerar_machine_token',
+        'machine-token/revogar' => 'acao_revogar_machine_token',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -1018,4 +1026,26 @@ function acao_importar_snapshot(array $corpo, array $usuario)
     file_put_contents($arq, json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     $apts = count($corpo['tabelas']['apontamentos'] ?? []);
     return ['ok' => true, 'apontamentos' => $apts];
+}
+
+// --------------------------------------------------------- token de máquina
+function acao_gerar_machine_token(array $corpo, array $usuario)
+{
+    if ($usuario['perfil'] !== 'admin') {
+        throw new ErroValidacao('Apenas administradores podem gerar token de máquina.');
+    }
+    $token = bin2hex(random_bytes(32));
+    sistema_gravar('machine_token', $token);
+    registrar_alteracao('machine_token_gerado', ['por' => $usuario['login']]);
+    return ['token' => $token, 'aviso' => 'Copie este token agora — ele não será exibido novamente.'];
+}
+
+function acao_revogar_machine_token(array $corpo, array $usuario)
+{
+    if ($usuario['perfil'] !== 'admin') {
+        throw new ErroValidacao('Apenas administradores podem revogar token de máquina.');
+    }
+    sistema_gravar('machine_token', '');
+    registrar_alteracao('machine_token_revogado', ['por' => $usuario['login']]);
+    return ['ok' => true, 'mensagem' => 'Token revogado. Nenhuma chamada via token será aceita até gerar um novo.'];
 }
