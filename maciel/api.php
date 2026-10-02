@@ -10,17 +10,11 @@ class ErroValidacao extends Exception
 if (!config()) {
     responder_json(503, ['erro' => 'Sistema não instalado. Acesse instalar.php.']);
 }
-$usuario = autenticar_machine_token();
-$via_token = ($usuario !== null);
-if (!$usuario) {
-    $usuario = usuario_atual();
-}
+$usuario = usuario_atual();
 if (!$usuario) {
     responder_json(401, ['erro' => 'Faça login novamente.']);
 }
-if (!$via_token) {
-    session_write_close();
-}
+session_write_close();
 
 $rota = isset($_GET['r']) ? (string)$_GET['r'] : '';
 
@@ -47,24 +41,6 @@ try {
             $p = __DIR__ . '/inc/regras_baixa.json';
             if (!is_file($p)) {
                 responder_json(404, ['erro' => 'regras_baixa.json não encontrado.']);
-            }
-            responder_json(200, json_decode(file_get_contents($p), true));
-        }
-        if ($rota === 'frentes-montagem') {
-            $p = __DIR__ . '/inc/frentes_montagem.json';
-            if (!is_file($p)) {
-                responder_json(404, ['erro' => 'Mapa das frentes não publicado.']);
-            }
-            responder_json(200, json_decode(file_get_contents($p), true));
-        }
-        if ($rota === 'planejamento') {
-            $p = __DIR__ . '/inc/planejamento.json';
-            responder_json(200, is_file($p) ? json_decode(file_get_contents($p), true) : ['setores' => []]);
-        }
-        if ($rota === 'dados-producao') {
-            $p = __DIR__ . '/inc/dados_producao.json';
-            if (!is_file($p)) {
-                responder_json(404, ['erro' => 'Nenhum snapshot gravado. Use o programa local para gerar os dados.']);
             }
             responder_json(200, json_decode(file_get_contents($p), true));
         }
@@ -99,10 +75,6 @@ try {
         'apontamento' => 'acao_apontamento', 'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
-        'planejamento' => 'acao_salvar_planejamento',
-        'dados-producao/importar' => 'acao_importar_snapshot',
-        'machine-token/gerar' => 'acao_gerar_machine_token',
-        'machine-token/revogar' => 'acao_revogar_machine_token',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -649,100 +621,6 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
     return 1;
 }
 
-// Frentes montadas fora do plano das joists (fechamento lateral, marquise, contraventamento),
-// com os trechos vindos do mapa extraído do IFC.
-function tipos_frente()
-{
-    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento'];
-}
-
-function frentes_montagem()
-{
-    $p = __DIR__ . '/inc/frentes_montagem.json';
-    if (!is_file($p)) {
-        return null;
-    }
-    $d = json_decode(file_get_contents($p), true);
-    return is_array($d) ? $d : null;
-}
-
-function frente_item(array $item, array $frentes, array &$ja, array $base, $data)
-{
-    $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
-    $frente = $frentes['frentes'][tipos_frente()[$tipo]] ?? null;
-    if (!$frente) {
-        throw new ErroValidacao("Mapa da frente $tipo não publicado.");
-    }
-    $parte = null;
-    $elev = $frente['elevacao'] ?? null;
-    if ($elev) {
-        // Vista elevada: o kit é identificado pela marca do Tekla (parte), pela rua (trecho) e pelo
-        // trecho de letras ou lado da borda (etapa) — é o que o projeto marca na planta.
-        $marca = (string)($item['parte'] ?? '');
-        $kits = [];
-        foreach ($elev['paineis'] as $pn) {
-            if ($pn['marca'] === $marca) {
-                $kits[] = [$pn['rua'], $pn['de'] . '-' . $pn['ate']];
-            }
-        }
-        if (!$kits) {
-            throw new ErroValidacao("{$frente['titulo']}: marca '$marca' não existe na elevação.");
-        }
-        $etapaItem = (string)($item['etapa'] ?? '');
-        $celulas = [];
-        foreach ($kits as list($r, $e)) {
-            if ($e === $etapaItem) {
-                $celulas[] = ['trecho' => $r];
-            }
-        }
-        if (!$celulas) {
-            throw new ErroValidacao("{$frente['titulo']} · $marca: trecho '$etapaItem' não existe na elevação.");
-        }
-        $parte = ['id' => $marca, 'nome' => "Kit $marca", 'celulas' => $celulas];
-    } else {
-        foreach ($frente['partes'] as $p) {
-            if ($p['id'] === (string)($item['parte'] ?? '')) {
-                $parte = $p;
-            }
-        }
-    }
-    if (!$parte) {
-        throw new ErroValidacao("{$frente['titulo']}: parte '" . ($item['parte'] ?? '') . "' não existe no mapa.");
-    }
-    if ($elev) {
-        $etapa = trim((string)($item['etapa'] ?? ''));
-    } else {
-        $etapas = $frente['etapas'] ?? [];
-        $etapa = trim((string)($item['etapa'] ?? ($etapas ? $etapas[0] : '')));
-        if ($etapas && !in_array($etapa, $etapas, true)) {
-            throw new ErroValidacao("{$frente['titulo']}: etapa '$etapa' inválida.");
-        }
-    }
-    $validos = array_column($parte['celulas'], 'trecho');
-    $novas = [];
-    $vistos = [];
-    foreach (($item['trechos'] ?? []) as $trecho) {
-        $trecho = (string)$trecho;
-        if (isset($vistos[$trecho])) {
-            continue;
-        }
-        $vistos[$trecho] = true;
-        if (!in_array($trecho, $validos, true)) {
-            throw new ErroValidacao("{$frente['titulo']} · {$parte['nome']}: trecho '$trecho' não existe no mapa.");
-        }
-        $chave = "$tipo|{$parte['id']}|$trecho|$etapa";
-        if (isset($ja[$chave])) {
-            $quando = $ja[$chave]['data'] ?? null;
-            $rot = "{$parte['nome']} · $trecho" . ($etapa ? " · $etapa" : '');
-            throw new ErroValidacao("$rot já foi apontado" .
-                ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
-        }
-        $ja[$chave] = ['data' => $data];
-        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => 1];
-    }
-    return [$novas, $elev ? ($frente['servico'] ?? null) : ($etapa ?: ($frente['servico'] ?? null))];
-}
-
 function acao_apontamento(array $corpo, array $usuario)
 {
     $spec = tabelas_spec()['apontamentos'];
@@ -778,14 +656,6 @@ function acao_apontamento(array $corpo, array $usuario)
     if (!$layout) {
         throw new ErroValidacao('regras_baixa.json sem layout_joists.');
     }
-    $frentes = frentes_montagem();
-    $frentesJa = [];
-    foreach ($aps as $a) {
-        $t = mb_strtoupper((string)($a['tipo'] ?? ''));
-        if (isset(tipos_frente()[$t])) {
-            $frentesJa["$t|{$a['faixa']}|{$a['rua']}|" . ($a['letra'] ?? '')] = $a;
-        }
-    }
     $vigasJa = [];
     $joistsRua = [];
     $slotsRua = [];
@@ -812,15 +682,7 @@ function acao_apontamento(array $corpo, array $usuario)
         $base = ['data' => $data, 'empresa' => $empNome, 'lanca_producao' => $lanca ? 'SIM' : 'NÃO',
             'obs' => texto_ou_nulo($corpo['obs'] ?? null)];
         $doItem = [];
-        if (isset(tipos_frente()[$tipo])) {
-            if (!$frentes) {
-                throw new ErroValidacao('Mapa das frentes não publicado no sistema online.');
-            }
-            list($doItem, $servico) = frente_item($item, $frentes, $frentesJa, $base, $data);
-            if (!$doItem) {
-                continue;
-            }
-        } elseif ($tipo === 'JOIST') {
+        if ($tipo === 'JOIST') {
             $rua = (string)($item['rua'] ?? '');
             if (!rua_valida($rua, $cfg['eixos'])) {
                 throw new ErroValidacao('Rua inválida: use eixos consecutivos, ex.: 11-12.');
@@ -881,10 +743,10 @@ function acao_apontamento(array $corpo, array $usuario)
             }
             $servico = $cfg['servico_viga'];
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE ou CONTRAVENTAMENTO).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST ou VIGA).');
         }
         $novas = array_merge($novas, $doItem);
-        $chave = $empNome . '|' . (string)$servico;
+        $chave = $empNome . '|' . $servico;
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'delta' => 0];
         }
@@ -904,9 +766,7 @@ function acao_apontamento(array $corpo, array $usuario)
     }
     if ($lanca) {
         foreach ($grupos as $g) {
-            if ($g['servico']) {
-                soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
-            }
+            soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
         }
     }
     return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [], 'linhas' => $ids];
@@ -936,17 +796,8 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
             throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
         }
         $r = $porLinha[$lin];
-        $t = mb_strtoupper((string)($r['tipo'] ?? ''));
         if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
-            if (isset(tipos_frente()[$t])) {
-                $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
-                $servico = $r['letra'] ?: ($fs['servico'] ?? null);
-                if (!$servico) {
-                    continue;
-                }
-            } else {
-                $servico = $t === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
-            }
+            $servico = mb_strtoupper((string)($r['tipo'] ?? '')) === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
             $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'];
             $somas[$chave] = ($somas[$chave] ?? 0) - (float)($r['qtd'] ?? 0);
         }
@@ -988,64 +839,4 @@ function apontamento_reatribuir(array $aps, array $corpo)
         q('UPDATE apontamentos SET empresa = ? WHERE id = ?', [$nome, (int)$lin]);
     }
     return ['celulas' => count($linhas), 'avisos' => [], 'salvos' => count($linhas)];
-}
-
-// --------------------------------------------------------- planejamento de montagem
-function acao_salvar_planejamento(array $corpo, array $usuario)
-{
-    $setores = $corpo['setores'] ?? null;
-    if (!is_array($setores)) {
-        throw new ErroValidacao("Campo 'setores' deve ser uma lista.");
-    }
-    $arq = __DIR__ . '/inc/planejamento.json';
-    $existente = [];
-    if (is_file($arq)) {
-        $atual = json_decode(file_get_contents($arq), true) ?: [];
-        foreach ($atual['setores'] ?? [] as $s) {
-            $existente[$s['chave']] = $s;
-        }
-    }
-    foreach ($setores as $s) {
-        $chave = $s['chave'] ?? null;
-        if (!$chave) continue;
-        if (!isset($existente[$chave])) $existente[$chave] = ['chave' => $chave];
-        $existente[$chave] = array_merge($existente[$chave], $s);
-    }
-    file_put_contents($arq, json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    return ['salvos' => count($setores)];
-}
-
-// --------------------------------------------------------- snapshot de produção
-function acao_importar_snapshot(array $corpo, array $usuario)
-{
-    if (!isset($corpo['tabelas']) || !isset($corpo['empresas'])) {
-        throw new ErroValidacao("Snapshot inválido: campos 'tabelas' e 'empresas' são obrigatórios.");
-    }
-    $corpo['gerado_em'] = date('c');
-    $arq = __DIR__ . '/inc/dados_producao.json';
-    file_put_contents($arq, json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    $apts = count($corpo['tabelas']['apontamentos'] ?? []);
-    return ['ok' => true, 'apontamentos' => $apts];
-}
-
-// --------------------------------------------------------- token de máquina
-function acao_gerar_machine_token(array $corpo, array $usuario)
-{
-    if ($usuario['perfil'] !== 'admin') {
-        throw new ErroValidacao('Apenas administradores podem gerar token de máquina.');
-    }
-    $token = bin2hex(random_bytes(32));
-    sistema_gravar('machine_token', $token);
-    registrar_alteracao('machine_token_gerado', ['por' => $usuario['login']]);
-    return ['token' => $token, 'aviso' => 'Copie este token agora — ele não será exibido novamente.'];
-}
-
-function acao_revogar_machine_token(array $corpo, array $usuario)
-{
-    if ($usuario['perfil'] !== 'admin') {
-        throw new ErroValidacao('Apenas administradores podem revogar token de máquina.');
-    }
-    sistema_gravar('machine_token', '');
-    registrar_alteracao('machine_token_revogado', ['por' => $usuario['login']]);
-    return ['ok' => true, 'mensagem' => 'Token revogado. Nenhuma chamada via token será aceita até gerar um novo.'];
 }

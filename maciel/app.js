@@ -376,8 +376,7 @@ function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont,
-     plan: renderPlanejamento })[abaAtual]();
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -831,268 +830,6 @@ function renderGantt() {
   requestAnimationFrame(syncScrollTopo);
 }
 
-// ------------------------------------------------------------ PLANEJAMENTO DE MONTAGEM
-function hojeIso() { return new Date().toISOString().slice(0, 10); }
-let planDados = null; // cache dos dados de planejamento
-
-async function carregarPlanejamento() {
-  if (planDados) return planDados;
-  try {
-    const r = await fetch(API + 'planejamento');
-    if (r.ok) planDados = await r.json();
-    else planDados = { setores: [] };
-  } catch { planDados = { setores: [] }; }
-  return planDados;
-}
-
-// Retorna {inicio, fim} das datas de apontamento para um setor (frente|parte)
-function datasApontSsetor(frente, parte) {
-  const aps = T.apontamentos || [];
-  const tipo = frente === 'joist' ? 'JOIST' : frente.toUpperCase();
-  const relevantes = aps.filter(a => {
-    if ((a.tipo || '').toUpperCase() !== tipo) return false;
-    // joist: 'parte' é a rua (ex.: "01-02"); outros: 'parte' é o id da faixa/lado (ex.: "A", "AB", "A>")
-    if (frente === 'joist') return (a.rua || '') === parte;
-    return (a.faixa || '') === parte;
-  });
-  if (!relevantes.length) return null;
-  const datas = relevantes.map(a => a.data).filter(Boolean).sort();
-  return { inicio: datas[0], fim: datas[datas.length - 1] };
-}
-
-// Retorna a data de chegada mais recente de material para um etapa (JOIST / MONTAGEM)
-function dataChegadaMaterial(etapa, EP) {
-  if (!EP || !EP.remessas) return null;
-  const meta = EP.remessas.meta_remessas || [];
-  const itens = EP.remessas.itens || [];
-  // Filtrar remessas que têm itens dessa etapa
-  const colsComEtapa = new Set();
-  for (const item of itens) {
-    if ((item.etapa || '').toUpperCase() === etapa.toUpperCase()) {
-      Object.keys(item.qtd_por_remessa || {}).forEach(c => colsComEtapa.add(c));
-    }
-  }
-  let ultimaChegada = null;
-  for (const m of meta) {
-    if (colsComEtapa.has(m.nome) && m.data_chegada && m.data_chegada.includes('/')) {
-      const [d, mm, a] = m.data_chegada.split('/');
-      const iso = `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}`;
-      if (!ultimaChegada || iso > ultimaChegada) ultimaChegada = iso;
-    }
-  }
-  return ultimaChegada;
-}
-
-// Converte 'dd/mm/aaaa' → 'aaaa-mm-dd'
-function brParaIso(br) {
-  if (!br) return null;
-  if (br.includes('-')) return br;
-  const p = br.split('/');
-  if (p.length !== 3) return null;
-  return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-}
-
-function diasEntreDatas(a, b) {
-  if (!a || !b) return null;
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
-}
-
-async function renderPlanejamento() {
-  // Carregamento lazy das frentes (mapas IFC)
-  const frObj = frentesMontagem(renderPlanejamento);
-  if (!frObj) return; // aguarda callback
-
-  const dados = await carregarPlanejamento();
-  const setoresMap = Object.fromEntries((dados.setores || []).map(s => [s.chave, s]));
-
-  // Filtros de frente
-  const todasFrentes = ['joist', 'fechamento', 'marquise', 'contraventamento'];
-  let filtroFrente = planEst?.frente || '';
-  const segEl = $('#segPlanFrente');
-  segEl.innerHTML = [['', 'Todas'], ...todasFrentes.map(f => [f, cap(f)])].map(([k, r]) =>
-    `<button data-plan-frente="${k}" class="${k === filtroFrente ? 'ativa' : ''}">${r}</button>`).join('');
-
-  // Calcular data de chegada de material por etapa
-  const chegadaJoist = dataChegadaMaterial('JOIST', EP);
-  const chegadaMont = dataChegadaMaterial('MONTAGEM', EP);
-
-  // Malha do IFC para lista de ruas
-  const malha = frObj.malha || {};
-  const ruas = malha.ruas || [];
-
-  // Montar linhas da tabela
-  const todasChaves = [
-    ...ruas.map(r => `joist|${r}`),
-    ...['fechamento', 'marquise', 'contraventamento'].flatMap(fn => {
-      const fr = (frObj.frentes || {})[fn];
-      return (fr?.partes || []).map(p => `${fn}|${p.id}`);
-    })
-  ];
-
-  // Tiles de sumário
-  const planSetores = todasChaves.map(chave => {
-    const s = setoresMap[chave] || { chave };
-    const [frente, parte] = chave.split('|');
-    const real = datasApontSsetor(frente, parte);
-    const etapa = frente === 'joist' ? 'JOIST' : 'MONTAGEM';
-    const chegada = etapa === 'JOIST' ? chegadaJoist : chegadaMont;
-    const planInicio = s.data_plan_inicio || null;
-    const planFim = s.data_plan_fim || null;
-    const realInicio = real?.inicio || null;
-
-    let status = 'sem-dado';
-    let deltaPlanReal = null;
-    let deltaMaterial = null;
-
-    if (realInicio && planInicio) {
-      deltaPlanReal = diasEntreDatas(planInicio, realInicio);
-      if (deltaPlanReal <= 0) status = 'adiantado';
-      else if (deltaPlanReal <= 3) status = 'no-prazo';
-      else status = 'atrasado';
-    } else if (realInicio) {
-      status = 'realizado';
-    } else if (planInicio && planInicio < hojeIso()) {
-      status = 'pendente';
-    }
-
-    if (chegada && planInicio) {
-      deltaMaterial = diasEntreDatas(chegada, planInicio);
-    }
-
-    return { chave, frente, parte, s, real, etapa, chegada, planInicio, planFim, realInicio, status, deltaPlanReal, deltaMaterial };
-  });
-
-  const filtrado = filtroFrente ? planSetores.filter(r => r.frente === filtroFrente) : planSetores;
-
-  // Tiles
-  const atrasados = planSetores.filter(r => r.status === 'atrasado').length;
-  const semMat = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0).length;
-  const realizados = planSetores.filter(r => r.realInicio).length;
-  const comPlan = planSetores.filter(r => r.planInicio).length;
-  const tile = (rot, val, sub, cor) => `<div class="tile" style="--c:${cor}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  $('#planTiles').innerHTML =
-    tile('Setores planejados', comPlan, `de ${planSetores.length} total`, 'var(--acento)') +
-    tile('Realizados', realizados, 'com ao menos 1 apontamento', 'var(--verde)') +
-    tile('Atrasados vs plano', atrasados, 'início real após data planejada', atrasados ? 'var(--vermelho)' : 'var(--verde)') +
-    tile('Material antes do plano', semMat, 'chegou depois da data planejada', semMat ? 'var(--amarelo)' : 'var(--verde)');
-
-  // Tabela principal
-  const corStatus = { 'adiantado': 'verde', 'no-prazo': 'verde', 'atrasado': 'vermelho', 'pendente': 'amarelo', 'realizado': 'pendente', 'sem-dado': '' };
-  const rotStatus = { 'adiantado': 'Adiantado', 'no-prazo': 'No prazo', 'atrasado': 'Atrasado', 'pendente': 'Pendente', 'realizado': 'Realizado', 'sem-dado': '—' };
-  const statusFarol = st => st && corStatus[st] ? `<span class="farol f-${corStatus[st]}">${rotStatus[st]}</span>` : '—';
-  const deltaIcon = d => d === null ? '—' : d === 0 ? 'No dia' : d > 0 ? `<span style="color:var(--vermelho)">+${d}d</span>` : `<span style="color:var(--verde)">${d}d</span>`;
-  const chave = r => r.chave;
-
-  $('#tabPlan').innerHTML = `<thead><tr>
-    <th>Frente</th><th>Setor</th>
-    <th>Início planejado</th><th>Fim planejado</th>
-    <th>Início real</th><th>Fim real</th>
-    <th class="n">Desvio (dias)</th>
-    <th>Chegada material</th>
-    <th class="n">Mat. antes do plano</th>
-    <th>Status</th><th>Obs.</th>
-  </tr></thead><tbody>` +
-  filtrado.map(r => `<tr data-plan-chave="${esc(r.chave)}">
-    <td class="nota">${esc(cap(r.frente))}</td>
-    <td><b>${esc(r.parte)}</b></td>
-    <td><input class="plan-dt plan-ini" type="date" value="${r.planInicio || ''}" data-chave="${esc(r.chave)}" aria-label="Início planejado"></td>
-    <td><input class="plan-dt plan-fim" type="date" value="${r.planFim || ''}" data-chave="${esc(r.chave)}" aria-label="Fim planejado"></td>
-    <td class="nota">${r.realInicio ? fdA(r.realInicio) : '—'}</td>
-    <td class="nota">${r.real?.fim && r.real.fim !== r.realInicio ? fdA(r.real.fim) : '—'}</td>
-    <td class="n">${deltaIcon(r.deltaPlanReal)}</td>
-    <td class="nota">${r.chegada ? fdA(r.chegada) : '—'}</td>
-    <td class="n">${deltaIcon(r.deltaMaterial)}</td>
-    <td>${statusFarol(r.status)}</td>
-    <td><input class="plan-obs" type="text" value="${esc(r.s?.obs || '')}" data-chave="${esc(r.chave)}" placeholder="Obs." style="width:100%"></td>
-  </tr>`).join('') + '</tbody>';
-
-  // Análise de impacto
-  const impactados = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0);
-  const impEl = $('#planImpacto');
-  if (!impactados.length) {
-    impEl.innerHTML = '<p class="vazio">Nenhum setor com chegada de material após a data planejada de início.</p>';
-  } else {
-    impEl.innerHTML = `<div class="tabela-rolagem"><table>
-      <thead><tr><th>Setor</th><th>Frente</th><th>Planejado início</th><th>Chegada material</th><th class="n">Atraso material (dias)</th><th>Impacto</th></tr></thead>
-      <tbody>` + impactados.map(r => {
-        const dias = Math.abs(r.deltaMaterial);
-        return `<tr>
-          <td><b>${esc(r.parte)}</b></td>
-          <td class="nota">${esc(cap(r.frente))}</td>
-          <td>${r.planInicio ? fdA(r.planInicio) : '—'}</td>
-          <td>${r.chegada ? fdA(r.chegada) : '—'}</td>
-          <td class="n"><span style="color:var(--vermelho)">${dias}d depois</span></td>
-          <td class="nota">Material chegou ${dias}d após o início previsto${r.realInicio ? ` — montagem iniciou ${fdA(r.realInicio)}` : ''}</td>
-        </tr>`;
-      }).join('') + '</tbody></table></div>';
-  }
-
-  // Timeline simplificada de remessas
-  renderPlanTimeline(EP);
-}
-
-function renderPlanTimeline(ep) {
-  const el = $('#planTimeline');
-  if (!ep || !ep.remessas) { el.innerHTML = '<p class="vazio">Dados de remessas não disponíveis.</p>'; return; }
-  const meta = ep.remessas.meta_remessas || [];
-  const chegadas = meta.filter(m => m.data_chegada && m.data_chegada.includes('/'));
-  if (!chegadas.length) { el.innerHTML = '<p class="vazio">Sem datas de chegada registradas.</p>'; return; }
-
-  // Converter datas
-  const isos = chegadas.map(m => {
-    const [d, mm, a] = m.data_chegada.split('/');
-    return { ...m, iso: `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}` };
-  }).sort((a, b) => a.iso.localeCompare(b.iso));
-
-  const aps = T.apontamentos || [];
-  // Datas de apontamentos agrupadas por semana
-  const apPorDia = {};
-  aps.forEach(a => { if (a.data) apPorDia[a.data] = (apPorDia[a.data] || 0) + (a.qtd || 1); });
-
-  const ini = isos[0].iso;
-  const fim = isos[isos.length - 1].iso;
-  const diasTotal = diasEntreDatas(ini, fim) + 1;
-  if (!diasTotal) { el.innerHTML = ''; return; }
-
-  const px = Math.min(3, 960 / diasTotal);
-  const W = Math.round(diasTotal * px);
-  const X = d => Math.round(diasEntreDatas(ini, d) * px);
-
-  let svg = `<div style="overflow-x:auto"><svg width="${W + 120}" height="140" style="font-family:inherit;font-size:10px">`;
-  // Linha base
-  svg += `<line x1="0" y1="70" x2="${W}" y2="70" stroke="var(--fg3)" stroke-width="1"/>`;
-
-  // Remessas: marcações verticais
-  isos.forEach((m, i) => {
-    const x = X(m.iso);
-    const etapa = m.nome.includes('OE') ? 'Remessa' : m.nome;
-    svg += `<line x1="${x}" y1="40" x2="${x}" y2="70" stroke="var(--acento)" stroke-width="2"/>`;
-    if (i % 2 === 0) svg += `<text x="${x + 2}" y="38" fill="var(--fg2)" font-size="9" transform="rotate(-35,${x + 2},38)">${esc(m.data_chegada)}</text>`;
-    svg += `<title>${esc(m.nome)}: ${esc(m.data_chegada)}</title>`;
-  });
-
-  // Apontamentos: bolinhas acima da linha
-  const apDatas = Object.keys(apPorDia).filter(d => d >= ini && d <= fim).sort();
-  apDatas.forEach(d => {
-    const x = X(d);
-    const n = apPorDia[d];
-    const r = Math.min(8, 3 + n);
-    svg += `<circle cx="${x}" cy="85" r="${r}" fill="var(--verde)" opacity="0.7"><title>${fdA(d)}: ${n} apontamento(s)</title></circle>`;
-  });
-
-  // Legenda
-  svg += `<circle cx="8" cy="115" r="6" fill="var(--verde)" opacity="0.7"/>`;
-  svg += `<text x="18" y="119" fill="var(--fg2)">Apontamentos</text>`;
-  svg += `<line x1="120" y1="112" x2="128" y2="112" stroke="var(--acento)" stroke-width="2"/>`;
-  svg += `<text x="132" y="119" fill="var(--fg2)">Chegada de material</text>`;
-
-  svg += '</svg></div>';
-  el.innerHTML = svg;
-}
-
-// Estado do planejamento
-let planEst = { frente: '' };
-
 function renderAvanco() {
   const linhas = contratoLinhas();
   $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n">Contrato</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th>Prazo</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
@@ -1474,7 +1211,6 @@ function _filtroMatStatus() { return ($('#estMatStatus')?.value || ''); }
 function renderEstMateriais() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstMateriais);
-  frentesMontagem(renderEstMateriais);   // o consumo de fechamento e marquise vem do mapa do IFC
   const cvMapa = regras ? consumoVirtualPorTag(regras) : new Map();
   const consumidoDe = m => cvMapa.has(m.tag) ? cvMapa.get(m.tag).cv : m.consumido;
   const posBaixaDe = m => cvMapa.has(m.tag) ? m.chegou - cvMapa.get(m.tag).cv : m.estoque_pos_baixa;
@@ -1714,26 +1450,6 @@ function derivarInventario(base, cv, cf) {
 // Consumo virtual por TAG. PREMONTAGEM = produção x composição. Montagem (joists e vigas) = apontamento por quadrante/tipo
 // de viga (exato); joists içadas ainda sem quadrante usam a divisão média (estimada). Vigas sem tipo apontado ainda não
 // têm consumo contabilizado. Itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
-const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' };
-
-// Fixadores que um trecho de frente consome: kit de cada família (do projeto) x peças daquele trecho no IFC.
-// O contraventamento não tem baixa. Devolve [] quando o mapa do IFC ainda não foi carregado.
-function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
-  const chave = FRENTE_CHAVE[String(tipo || '').toUpperCase()];
-  const fr = chave && ((window._frentes || {}).frentes || {})[chave];
-  if (!fr || chave === 'contraventamento') return [];
-  const conf = (regras.consumo_por_servico || {})[chave === 'marquise' ? 'MARQUISE' : (etapa || fr.servico)] || {};
-  const porPeca = conf.por_peca || (conf.por_etapa || {})[etapa] || {};
-  if (!Object.keys(porPeca).length) return [];
-  const p = (fr.partes || []).find(x => x.id === parte);
-  const cel = p && p.celulas.find(c => c.trecho === trecho);
-  if (!cel) return [];
-  const saida = [];
-  Object.entries(cel.pecas).forEach(([familia, n]) =>
-    (porPeca[familia] || []).forEach(b => saida.push({ codigo: b.codigo, quantidade: b.quantidade * n, familia })));
-  return saida;
-}
-
 function consumoVirtualPorTag(regras) {
   const servicos = regras.consumo_por_servico || {};
   const cfgAp = regras.apontamento || {};
@@ -1760,21 +1476,6 @@ function consumoVirtualPorTag(regras) {
     });
   });
   evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
-
-  // fechamento lateral e marquise: cada trecho apontado consome os fixadores do projeto
-  const porFrente = new Map();
-  aps.filter(a => FRENTE_CHAVE[(a.tipo || '').toUpperCase()]).forEach(a => {
-    fixadoresDoTrecho(a.tipo, a.faixa, a.rua, a.letra || '', regras).forEach(b => {
-      const o = porFrente.get(b.codigo) || { qtd: 0, trechos: 0 };
-      o.qtd += b.quantidade; o.trechos++;
-      porFrente.set(b.codigo, o);
-    });
-  });
-  porFrente.forEach((o, cod) => {
-    const e = entrada(cod);
-    e.qtd += o.qtd; e.apont = true;
-    e.partes.push(`${nf(o.qtd)} em ${nf(o.trechos)} trecho(s) de fechamento/marquise apontados`);
-  });
 
   const mapa = new Map();
   acum.forEach((o, tag) => {
@@ -1807,7 +1508,6 @@ function inventarioCalculado(regras) {
 function renderEstInventario() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstInventario);
-  frentesMontagem(renderEstInventario);   // o consumo de fechamento e marquise vem do mapa do IFC
   if (!regras) { $('#tabEstInv').innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>'; return; }
   const inv = inventarioCalculado(regras);
   const norm = s => (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -1860,7 +1560,6 @@ function renderEstInventario() {
 function renderEstCriticos() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstCriticos);
-  frentesMontagem(renderEstCriticos);   // o consumo de fechamento e marquise vem do mapa do IFC
   if (!regras) {
     const box = document.getElementById('tabEstCrit');
     if (box) box.innerHTML = '<tbody><tr><td class="vazio">Carregando regras de baixa...</td></tr></tbody>';
@@ -1913,23 +1612,7 @@ function renderEstCriticos() {
 // A empresa é indicada em cada clique ("pincel" na barra do topo): quem montou é quem entra no BM.
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
-  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
-  frente: new Map(), etapa: '' };   // frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
-// Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
-const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO' };
-function frentesMontagem(refazer) {
-  if (window._frentes) return window._frentes.frentes ? window._frentes : null;
-  if (!window._frentes_pend) {
-    window._frentes_pend = fetch(API + 'frentes-montagem', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null).catch(() => null).then(j => { window._frentes = j || { frentes: {} }; });
-  }
-  window._frentes_pend.then(refazer);
-  return null;
-}
-const apFrenteAtual = () => {
-  const f = window._frentes && window._frentes.frentes;
-  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento' }[apEst.modo]] : null;
-};
+  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '' };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
 const APM_PASSO = { compacto: 10, normal: 14, grande: 19 };
@@ -1979,29 +1662,13 @@ function apGarantirEstado(ctx) {
 }
 
 // Seleção atual convertida em peças (cada uma com a empresa que montou) e em grupos empresa + serviço.
-// Código do material -> nome legível (do catálogo de materiais e das descrições nas regras de baixa).
-function codigosBaixa(regras) {
-  const n = {};
-  (regras.eventos || []).forEach(e => (e.baixa || []).concat(e.baixa_por_joist || [])
-    .forEach(b => { if (b.codigo && b.descricao) n[b.codigo] = b.descricao; }));
-  Object.values(regras.consumo_por_servico || {}).forEach(s => {
-    const grupos = [s.por_peca, ...Object.values(s.por_etapa || {})].filter(Boolean);
-    grupos.forEach(g => Object.values(g).forEach(lista => lista.forEach(b => { if (b.descricao) n[b.codigo] = b.descricao; })));
-    (s.itens || []).forEach(b => { if (b.descricao) n[b.codigo] = b.descricao; });
-  });
-  (EP ? EP.materiais || [] : []).forEach(m => { if (m.tag && m.produto) n[m.tag] = m.produto; });
-  return n;
-}
-
 function apSelecao(ctx) {
   const extrasJ = (ctx.evento('JOIST_ICADA').baixa_por_joist || []).filter(b => b.codigo !== 'PARAFUSO_FIX_JOIST');
   const joists = [], vigas = [];
   if (apEst.modo === 'mapa') {
     apEst.mapaJ.forEach((emp, k) => { const [rua, slot] = k.split('|'), p = ctx.layout[+slot - 1]; joists.push({ rua, slot: +slot, faixa: p.faixa, letra: p.letra, n: 1, emp }); });
     apEst.mapaV.forEach((emp, k) => { const [eixo, letra] = k.split('|'); vigas.push({ eixo, letra, emp }); });
-  } else if (apEst.modo === 'viga') apEst.sel.forEach(l => vigas.push({ eixo: apEst.eixo, letra: l, emp: apEst.empresa }));
-  const frente = [];
-  apEst.frente.forEach((emp, k) => { const [tipo, parte, trecho, etapa] = k.split('|'); frente.push({ tipo, parte, trecho, etapa, emp }); });
+  } else apEst.sel.forEach(l => vigas.push({ eixo: apEst.eixo, letra: l, emp: apEst.empresa }));
 
   const grupos = new Map(), baixa = new Map();
   const soma = (cod, q) => baixa.set(cod, (baixa.get(cod) || 0) + q);
@@ -2015,32 +1682,20 @@ function apSelecao(ctx) {
     grupo(v.emp, ctx.cfg.servico_viga).delta += 1;
     (ctx.evento(ctx.crit[v.letra].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
   });
-  const fs = (window._frentes || {}).frentes || {};
-  const regras = window._regras_baixa || {};
-  frente.forEach(f => {
-    const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo];
-    const cfgF = fs[chaveF] || {};
-    // no contraventamento a "etapa" guarda o trecho do kit, não um serviço
-    grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += 1;
-    fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
-  });
   const porEmp = {};
-  [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
-  return { joists, vigas, frente, grupos: [...grupos.values()], baixa, porEmp,
-    semEmpresa: [...joists, ...vigas, ...frente].some(x => !x.emp),
-    nJ: joists.length, nV: vigas.length, nF: frente.length };
+  joists.forEach(j => porEmp[j.emp || '?'] = (porEmp[j.emp || '?'] || 0) + 1);
+  vigas.forEach(v => porEmp[v.emp || '?'] = (porEmp[v.emp || '?'] || 0) + 1);
+  return { joists, vigas, grupos: [...grupos.values()], baixa, porEmp,
+    semEmpresa: joists.some(j => !j.emp) || vigas.some(v => !v.emp),
+    nJ: joists.length, nV: vigas.length };
 }
 
 function apEfeitosHtml(regras, ctx) {
   const sel = apSelecao(ctx);
-  if (!sel.nJ && !sel.nV && !sel.nF) return '<p class="vazio">Selecione as peças para ver o efeito na produção, no BM e no estoque.</p>';
+  if (!sel.nJ && !sel.nV) return '<p class="vazio">Selecione as peças para ver o efeito na produção, no BM e no estoque.</p>';
   const data = apEst.data, somar = !apEst.regular, itens = [], avisos = [];
   if (sel.semEmpresa) avisos.push('Indique a empresa que montou (barra no topo) antes de salvar.');
   sel.grupos.filter(g => g.emp).forEach(g => {
-    if (!g.servico) {
-      itens.push(`<b>${esc(g.emp)}:</b> ${nf(g.delta)} trecho(s) de contraventamento registrados como controle (não há coluna no controle de produção, então não somam na produção nem no BM).`);
-      return;
-    }
     const e = empresa(g.emp), col = e && colDe(e, g.servico);
     const meta = M.metas.find(m => m.empresa === g.emp && m.servico === g.servico && m.inicio <= data && m.fim >= data);
     let t = `<b>${esc(g.emp)} · ${esc(cap(g.servico))}:</b> `;
@@ -2060,12 +1715,7 @@ function apEfeitosHtml(regras, ctx) {
     if (somar && perBm && perBm.fechado) avisos.push(`${g.emp}: a data cai no BM${perBm.n}, já fechado; a produção entra como ajuste no BM em aberto.`);
     itens.push(t);
   });
-  const nomes = codigosBaixa(regras);
-  const baixa = [...sel.baixa].filter(([, q]) => q > 0).sort((a, b) => b[1] - a[1]);
-  itens.push(baixa.length
-    ? `<b>Estoque (baixa automática):</b> ${baixa.map(([c, q]) => `${esc(nomes[c] || c)} <b>×${nf(q)}</b>`).join(' · ')}.`
-    : '<b>Estoque:</b> nenhum fixador mapeado para esta seleção.');
-
+  itens.push(`<b>Estoque:</b> ${[...sel.baixa].map(([c, q]) => `${esc(c)} ×${nf(q)}`).join(' · ')}.`);
 
   const idsSel = new Set(sel.vigas.map(v => ctx.vigaId(v.eixo, v.letra)));
   const quads = new Set(sel.joists.map(j => `${j.rua}/${j.faixa}`));
@@ -2080,10 +1730,9 @@ function apEfeitosHtml(regras, ctx) {
 
 function apResumoTxt(ctx) {
   const s = apSelecao(ctx);
-  if (!s.nJ && !s.nV && !s.nF) return 'Nada selecionado';
+  if (!s.nJ && !s.nV) return 'Nada selecionado';
   const emps = Object.entries(s.porEmp).map(([e, n]) => `${e === '?' ? 'sem empresa' : e} ${nf(n)}`).join(' · ');
-  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '', s.nF ? `${nf(s.nF)} trecho(s)` : ''].filter(Boolean);
-  return `Seleção: ${partes.join(' · ')} (${emps})`;
+  return `Seleção: ${nf(s.nJ)} joist(s) · ${nf(s.nV)} viga(s) (${emps})`;
 }
 
 // Barra fixa no topo: empresa que montou (vale para os próximos cliques), resumo e ações.
@@ -2102,12 +1751,7 @@ function apFormHtml(regras, ctx) {
   const rodape = `<label class="ap-check"><input type="checkbox" id="apRegular" ${s.regular ? 'checked' : ''}> Regularização: já está no Lançamentos, não somar de novo na produção</label>
     <input type="text" id="apObs" class="input-filtro" placeholder="Observação / nº RDO" value="${esc(s.obs)}">`;
   let h = '';
-  if (s.modo in AP_FRENTE) {
-    const fr = apFrenteAtual();
-    h += `<div class="ap-linha">${data}</div>
-      <p class="nota">Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.</p>
-      <div class="ap-linha">${rodape}</div>`;
-  } else if (s.modo === 'mapa') {
+  if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
       <p class="nota">Escolha a empresa na barra do topo e clique nos retângulos (joists) e nos quadrados (vigas) do mapa; dá para arrastar o mouse sobre várias joists. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
   } else {
@@ -2185,151 +1829,7 @@ function apMapaSvg(ctx) {
   return s.join('') + '</svg>';
 }
 
-// Mapa de uma frente: uma linha por parte (lado A, lado H, oitão, faixa...) e uma célula por trecho montável.
-// Cada célula traz as peças do IFC daquele trecho; clicar seleciona com a empresa escolhida na barra do topo.
-// Contraventamento em vista elevada: eixos na horizontal, estações de letra (A no topo a H na base)
-// na vertical, e um X em cada painel contraventado — a mesma leitura do OF.198-MET-DM-001.
-// Mapa na escala do projeto: as posições de cada eixo e de cada estação vêm da malha do IFC (mm),
-// então os vãos saem como no desenho — 9.000 e 13.500 m entre eixos, 8.380 entre estações e 4.190
-// junto às bordas. Três escalas mudam só quantos milímetros cabem em cada pixel.
-const APC_MM_PX = { compacto: 900, normal: 560, grande: 330 };
-const APC = { mEsq: 54, mTop: 40, mBase: 32 };
-const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--fg2)', CTH03: 'var(--acento)',
-  CTH04: 'var(--fg2)', CTH05: 'var(--amarelo)' };
-const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
-
-function apContravSvg() {
-  const fr = apFrenteAtual(), el = fr && fr.elevacao;
-  if (!el) return '';
-  const malha = ((window._frentes || {}).malha || {});
-  const eixosMm = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {};
-  const temMalha = Object.keys(eixosMm).length > 0;
-  const feitas = new Map();
-  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
-    .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
-  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas;
-  const comCth = new Set(el.ruas);
-  const est = el.estacoes;
-  const mmPx = APC_MM_PX[apEst.zoom] || APC_MM_PX.normal;
-  const { mEsq, mTop, mBase } = APC;
-  // posição em px: da malha do IFC quando ela existe, senão espaçamento uniforme
-  const eixos = [...new Set(ruas.flatMap(r => r.split('-')))].sort();
-  const xEixo = e => temMalha ? mEsq + (eixosMm[e] || 0) / mmPx
-    : mEsq + eixos.indexOf(e) * (560 / mmPx) * 14;
-  const yEst = e => temMalha ? mTop + (estMm[e] || 0) / mmPx
-    : mTop + est.indexOf(e) * (560 / mmPx) * 14;
-  const larg = xEixo(eixos[eixos.length - 1]) - mEsq, alt = yEst(est[est.length - 1]) - mTop;
-  const W = mEsq + larg + 24, H = mTop + alt + mBase;
-  const minGap = (a, b) => Math.abs(yEst(a) - yEst(b));
-  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
-  let ultimoY = -99;
-  est.forEach(e => {
-    const y = yEst(e);
-    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + larg}" y2="${y}" class="apc-est"/>`;
-    if (y - ultimoY >= 9 || /^[A-H]$/.test(e)) { s += `<text x="${mEsq - 7}" y="${y + 3.5}" class="apc-rot">${e}</text>`; ultimoY = y; }
-  });
-  let ultimoX = -99;
-  ruas.forEach(r => {
-    const [a, b] = r.split('-'), x0 = xEixo(a), x1 = xEixo(b), tem = comCth.has(r);
-    if (tem) s += `<rect x="${x0}" y="${mTop}" width="${x1 - x0}" height="${alt}" class="apc-bay"/>`;
-    s += `<line x1="${x0}" y1="${mTop}" x2="${x0}" y2="${mTop + alt}" class="apc-eixo"/>`;
-    if (tem || x0 - ultimoX >= 22) { s += `<text x="${x0}" y="${mTop - 8}" class="apc-rot n ${tem ? 'b' : 'peq'}">${esc(a)}</text>`; ultimoX = x0; }
-    if (tem) {
-      const n = Object.values((el.resumo_por_rua || {})[r] || {}).reduce((v, w) => v + w, 0);
-      s += `<text x="${(x0 + x1) / 2}" y="${mTop + alt + 14}" class="apc-rot n peq">${nf(n)}</text>`;
-    }
-  });
-  const fimX = xEixo(eixos[eixos.length - 1]);
-  s += `<line x1="${fimX}" y1="${mTop}" x2="${fimX}" y2="${mTop + alt}" class="apc-eixo"/>` +
-    `<text x="${fimX}" y="${mTop - 8}" class="apc-rot n peq">${esc(eixos[eixos.length - 1])}</text>`;
-  el.paineis.forEach(p => {
-    if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
-    const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b);
-    const y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
-    const trecho = `${p.de}-${p.ate}`, k = apcChave(p.marca, p.rua, trecho);
-    const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
-    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
-    const tit = `${p.marca} · rua ${p.rua} · ${trecho}\n${p.kits} kit (${p.pecas} peças)` +
-      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
-    s += `<g class="apc-p ${cls}" style="--m:${APC_COR[p.marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}"` +
-      ` ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
-      `<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" class="apc-fundo"/>` +
-      `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}"/>` +
-      `<title>${esc(tit)}</title></g>`;
-  });
-  if (temMalha) {
-    const m = (v) => nf(v / 1000, 1).replace(',0', '') + ' m';
-    s += `<text x="${mEsq}" y="${H - 4}" class="apc-rot peq" text-anchor="start">Galpão ${m(malha.comprimento_mm)} × ${m(malha.largura_mm)} · desenhado na malha do IFC</text>`;
-  }
-  return s + '</svg>';
-}
-
-function apFrenteHtml(ctx) {
-  const fr = apFrenteAtual();
-  if (!fr) return window._frentes
-    ? '<p class="vazio">O mapa desta frente ainda não chegou no programa. Ele vem junto com a atualização automática: aguarde alguns minutos ou clique em "Verificar atualização" no topo da tela.</p>'
-    : '<p class="vazio">Carregando o mapa do IFC…</p>';
-  const tipo = AP_FRENTE[apEst.modo];
-  const etapas = fr.etapas || [];
-  if (etapas.length && !etapas.includes(apEst.etapa)) apEst.etapa = etapas[0];
-  const etapa = etapas.length ? apEst.etapa : '';
-  const feitas = new Map();
-  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === tipo).forEach(a => {
-    feitas.set(`${a.faixa}|${a.rua}|${a.letra || ''}`, a);
-  });
-  const nFeitas = fr.partes.reduce((n, p) => n + p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length, 0);
-  const nTotal = fr.partes.reduce((n, p) => n + p.celulas.length, 0);
-  const barra = etapas.length
-    ? `<div class="seg" id="segApEtapa">${etapas.map(e => `<button data-ap-etapa="${esc(e)}" class="${e === etapa ? 'ativa' : ''}">${esc(cap(e.replace(/^MARQUISE – /, '')))}</button>`).join('')}</div>` : '';
-  const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
-  const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
-  if (apEst.modo === 'cont' && fr.elevacao) {
-    const el = fr.elevacao, kits = el.paineis;
-    const chaveDe = k => apcChave(k.marca, k.rua, `${k.de}-${k.ate}`);
-    const mont = kits.filter(k => feitas.has(chaveDe(k))).length;
-    const porMarca = {};
-    kits.forEach(k => { const o = porMarca[k.marca] ||= { n: 0, f: 0 }; o.n++; if (feitas.has(chaveDe(k))) o.f++; });
-    const legM = Object.entries(porMarca).sort().map(([m, o]) =>
-      `<span><i class="apm-leg" style="background:${APC_COR[m] || 'var(--fg3)'}"></i>${m} ${o.f}/${o.n}</span>`).join('');
-    const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
-    return `<div class="ap-linha ap-mapa-barra">
-      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
-      <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} de ${nf(((window._frentes || {}).malha || {}).ruas?.length || el.ruas.length)} ruas contraventadas</span>
-      <div class="ap-legenda">${legM}${leg('joist feita', 'montado')}${selLeg}</div></div>
-      <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
-      <p class="nota">Planta do galpão inteiro, como no OF.198-MET-DM-001: eixos na horizontal, estações de letra de A (topo) a H (base).
-      As ruas contraventadas ficam destacadas (o número embaixo é a quantidade de kits da rua); as demais aparecem vazias, na proporção real.
-      Cada X é um kit de ${nf(el.pecas_por_kit)} diagonais cruzadas, com a marca do projeto: as ruas 1 e 19 levam CTH01 nas bordas e CTH02 ao
-      longo da rua; as ruas 4, 7, 9, 11, 13 e 16 levam CTH03 nas bordas, CTH04 no miolo e CTH05 na cumeeira. Clique no X para selecionar.
-      O contraventamento não tem coluna no controle de produção, então o apontamento serve de controle e não soma na produção.</p>`;
-  }
-  let h = `<div class="ap-linha ap-mapa-barra">${barra}
-    <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>
-    <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
-    <div class="tabela-rolagem"><table class="ap-frente"><tbody>`;
-  fr.partes.forEach(p => {
-    const feitasP = p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length;
-    h += `<tr><th class="apf-rot"><b>${esc(p.nome)}</b><span class="nota">${feitasP}/${p.celulas.length} · ${nf(p.total)} peças</span></th>`;
-    p.celulas.forEach(c => {
-      const k = `${p.id}|${c.trecho}|${etapa}`;
-      const feita = feitas.get(k), emp = apEst.frente.get(`${tipo}|${k}`);
-      const det = Object.entries(c.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
-      const tit = `${p.nome} · ${c.trecho}${etapa ? ' · ' + etapa : ''}\n${c.total} peças${det ? '\n' + det : ''}` +
-        (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
-      h += `<td><button type="button" class="apf-cel ${feita ? 'feita' : emp ? 'sel' : 'pend'}" ${emp ? `style="--sel:${corSelEmp(emp)}"` : ''}
-        data-ap-frente="${esc(k)}" ${feita ? 'disabled' : ''} title="${esc(tit)}"><b>${esc(c.trecho)}</b><small>${c.total || '—'}</small></button></td>`;
-    });
-    h += '</tr>';
-  });
-  h += '</tbody></table></div>';
-  h += `<p class="nota">Cada célula é um trecho montável deste mapa, extraído do IFC (${esc(fr.familias.join(', '))}). O número embaixo é a quantidade de peças do trecho; passe o mouse para ver a composição. ` +
-    (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
-      'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
-  return h;
-}
-
 function apMapaHtml(ctx) {
-  if (apEst.modo in AP_FRENTE) return apFrenteHtml(ctx);
   if (apEst.modo === 'mapa') {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
     const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
@@ -2408,7 +1908,6 @@ function renderApont() {
   const regras = regrasBaixa(renderApont);
   if (!regras) { $('#apForm').innerHTML = '<p class="vazio">Carregando regras...</p>'; return; }
   if (!regras.faixas_posicoes) { $('#apForm').innerHTML = '<p class="vazio">regras_baixa.json sem as regras de apontamento.</p>'; return; }
-  frentesMontagem(renderApont);   // mapas de fechamento, marquise e contraventamento (carga preguiçosa)
   const ctx = apContexto(regras);
   apGarantirEstado(ctx);
 
@@ -2426,15 +1925,11 @@ function renderApont() {
     tile('Ruas completas', `${completas}/${ctx.ruas.length}`, `${ctx.limRua} joists por rua · ${nf(ctx.limGalpao)} no galpão`, 'var(--verde)') +
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
-  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
-    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento']]
+  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas']]
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
-  const fr = apFrenteAtual();
-  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
-    : apEst.modo === 'viga' ? 'Situação das vigas (eixo × letra)'
-    : (fr ? fr.titulo + ' (clique para selecionar)' : 'Carregando o mapa do IFC…');
+  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)' : 'Situação das vigas (eixo × letra)';
   $('#apMapa').innerHTML = apMapaHtml(ctx);
   $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
   $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
@@ -2443,12 +1938,10 @@ function renderApont() {
   const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
   $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
     (hist.length ? hist.map(a => {
-      const tipo = (a.tipo || '').toUpperCase(), joist = tipo === 'JOIST';
+      const joist = (a.tipo || '').toUpperCase() === 'JOIST';
       const c = ctx.crit[a.letra] || {};
-      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.' }[tipo];
-      return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
-        <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
-          : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
+      return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${joist ? 'Joist' : 'Viga'}</td>
+        <td>${joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
     }).join('') : '<tr><td colspan="8" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
@@ -2468,7 +1961,7 @@ function apAtualizarSelecao(redesenharMapa) {
 
 async function salvarApontamento() {
   const regras = window._regras_baixa, ctx = apContexto(regras), s = apEst, sel = apSelecao(ctx);
-  if (!sel.nJ && !sel.nV && !sel.nF) { toast('Selecione ao menos uma peça no mapa.', true); return; }
+  if (!sel.nJ && !sel.nV) { toast('Selecione ao menos uma joist ou uma viga.', true); return; }
   if (sel.semEmpresa) { toast('Indique a empresa que montou (barra no topo) antes de salvar.', true); return; }
   const lote = [], porQuad = new Map(), porEixo = new Map();
   sel.joists.forEach(j => {
@@ -2481,18 +1974,12 @@ async function salvarApontamento() {
     if (!porEixo.has(k)) porEixo.set(k, { tipo: 'VIGA', empresa: v.emp, eixo: v.eixo, letras: [] });
     porEixo.get(k).letras.push(v.letra);
   });
-  const porFrente = new Map();
-  sel.frente.forEach(f => {
-    const k = `${f.tipo}|${f.parte}|${f.etapa}|${f.emp}`;
-    if (!porFrente.has(k)) porFrente.set(k, { tipo: f.tipo, empresa: f.emp, parte: f.parte, etapa: f.etapa || null, trechos: [] });
-    porFrente.get(k).trechos.push(f.trecho);
-  });
-  lote.push(...porQuad.values(), ...porEixo.values(), ...porFrente.values());
+  lote.push(...porQuad.values(), ...porEixo.values());
   const b = $('#apSalvar');
   b.disabled = true; b.textContent = 'Salvando…';
   try {
     const r = await postar(API + 'apontamento', { data: s.data, lanca_producao: !s.regular, obs: s.obs.trim() || null, lote });
-    s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.frente = new Map(); s.obs = '';
+    s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.obs = '';
     await carregar();
     toast(`${r.salvos} apontamento(s) salvo(s)${r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''}`, !!r.avisos?.length, r.avisos?.length ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
@@ -2544,21 +2031,7 @@ function ligarApontamento() {
     const emp = ev.target.closest('[data-ap-emp]');
     if (emp && regras()) { apEst.empresa = emp.dataset.apEmp; $('#apBarra').innerHTML = apBarraHtml(apContexto(regras())); return apAtualizarSelecao(false); }
     const modo = ev.target.closest('[data-ap-modo]');
-    if (modo) {
-      apEst.modo = modo.dataset.apModo;
-      const tipo = AP_FRENTE[apEst.modo];
-      [...apEst.frente.keys()].filter(k => k.split('|')[0] !== tipo).forEach(k => apEst.frente.delete(k));
-      return renderApont();
-    }
-    const etapa = ev.target.closest('[data-ap-etapa]');
-    if (etapa) { apEst.etapa = etapa.dataset.apEtapa; return renderApont(); }
-    const cel = ev.target.closest('[data-ap-frente]');
-    if (cel) {
-      if (!apExigirEmpresa()) return;
-      const k = `${AP_FRENTE[apEst.modo]}|${cel.dataset.apFrente}`;
-      if (apEst.frente.get(k) === apEst.empresa) apEst.frente.delete(k); else apEst.frente.set(k, apEst.empresa);
-      return renderApont();
-    }
+    if (modo) { apEst.modo = modo.dataset.apModo; return renderApont(); }
     const fase = ev.target.closest('[data-ap-fase]');
     if (fase) { apEst.fase = fase.dataset.apFase; return renderApont(); }
     const zoom = ev.target.closest('[data-ap-zoom]');
@@ -2598,7 +2071,7 @@ function ligarApontamento() {
       catch (err) { toast(err.message, true); }
       return;
     }
-    if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); apEst.frente = new Map(); return renderApont(); }
+    if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); return renderApont(); }
     if (ev.target.id === 'apSalvar') return salvarApontamento();
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
@@ -3643,34 +3116,6 @@ function ligarEventos() {
   $('#segGanZoom').addEventListener('click', ev => { const b = ev.target.closest('[data-gan-zoom]'); if (b) { ganEst.zoom = b.dataset.ganZoom; ganEst.rolou = false; renderGantt(); } });
   $('#selGanFrente').addEventListener('change', ev => { ganEst.frente = ev.target.value; renderGantt(); });
   $('#chkGanEmp').addEventListener('change', ev => { ganEst.porEmp = ev.target.checked; renderGantt(); });
-
-  // Planejamento de montagem
-  $('#segPlanFrente').addEventListener('click', ev => {
-    const b = ev.target.closest('[data-plan-frente]');
-    if (b) { planEst.frente = b.dataset.planFrente; planDados = null; renderPlanejamento(); }
-  });
-  $('#btnSalvarPlan').addEventListener('click', async () => {
-    const rows = document.querySelectorAll('#tabPlan tbody tr[data-plan-chave]');
-    const setores = [];
-    rows.forEach(tr => {
-      const chave = tr.dataset.planChave;
-      const ini = tr.querySelector('.plan-ini')?.value || null;
-      const fim = tr.querySelector('.plan-fim')?.value || null;
-      const obs = tr.querySelector('.plan-obs')?.value || '';
-      setores.push({ chave, data_plan_inicio: ini || null, data_plan_fim: fim || null, obs });
-    });
-    try {
-      const r = await postarBruto(API + 'planejamento', { setores });
-      if (r.ok) {
-        planDados = null;
-        toast(`${setores.length} setor(es) salvos!`);
-        renderPlanejamento();
-      } else {
-        const err = await r.json().catch(() => ({}));
-        toast(err.erro || 'Erro ao salvar planejamento.', true);
-      }
-    } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
-  });
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));
@@ -3716,15 +3161,15 @@ function ligarEventos() {
     const sub = ev.target.closest('[data-bm-sub]'); if (sub) { bmSub = sub.dataset.bmSub; return renderBM(); }
     const it = ev.target.closest('[data-bm-item]'); if (it) { const k = it.dataset.bmItem; bmAbertos.has(k) ? bmAbertos.delete(k) : bmAbertos.add(k); return renderBM(); }
     if (ev.target.closest('[data-bm-semear]')) return semearBM();
+    if (ev.target.closest('[data-bm-imprimir]')) {
+      const emp = bmEmp, ps = bmPeriodos(emp), p = ps.find(x => x.chave === bmPerSel) || ps[ps.length - 1];
+      if (p) bmImprimir(bmCalc(emp, p), emp, p);
+      return;
+    }
     const bf = ev.target.closest('[data-bm-fechar], [data-bm-reabrir]');
     if (bf) {
       if (!bf.dataset.confirmar) { bf.dataset.confirmar = '1'; bf.textContent = 'Confirmar ' + (bf.hasAttribute('data-bm-fechar') ? 'fechamento' : 'reabertura'); return; }
       bf.hasAttribute('data-bm-fechar') ? fecharBM() : reabrirBM();
-    }
-    if (ev.target.closest('[data-bm-imprimir]')) {
-      const emp = bmEmp, ps = bmPeriodos(emp);
-      const p = ps.find(x => x.chave === bmPerSel) || ps[ps.length - 1];
-      bmImprimir(bmCalc(emp, p), emp, p);
     }
   });
   $('#aba-bm').addEventListener('change', ev => { if (ev.target.id === 'selBmPer') { bmPerSel = ev.target.value; renderBM(); } });

@@ -264,9 +264,6 @@ td.sub { color: var(--fg3); font-size: .78rem; }
 @media (max-width: 600px) { .periodo { padding-inline: 16px; } }
 .input-filtro { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); font-size: .85rem; min-width: 180px; }
 .input-filtro:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
-.plan-dt, .plan-obs { padding: 4px 6px; border: 1px solid var(--linha-forte); border-radius: 4px; background: var(--campo); color: var(--fg); font-size: .82rem; width: 100%; box-sizing: border-box; }
-.plan-dt { min-width: 120px; }
-.plan-dt:focus, .plan-obs:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
 .tabela-larga table { min-width: 1200px; }
 @media (max-width: 600px) { .input-filtro { min-width: 120px; } }
 
@@ -438,39 +435,3 @@ td.col-nova { padding: 3px 6px; }
 .g-prazo { position: absolute; top: 4px; width: 8px; height: 8px; margin-left: -4px; background: var(--fg); transform: rotate(45deg); }
 .legenda .g-leg-proj { border: 1px dashed var(--fg3); background: transparent; }
 .legenda .g-leg-hoje { width: 3px; background: var(--vermelho); border-radius: 0; }
-
-/* mapas das frentes de fechamento, marquise e contraventamento */
-.ap-frente { border-collapse: separate; border-spacing: 3px; }
-.ap-frente .apf-rot { position: sticky; left: 0; z-index: 2; background: var(--card); text-align: left; padding: 4px 10px 4px 2px; white-space: nowrap; font-weight: 600; }
-.ap-frente .apf-rot .nota { display: block; font-weight: 400; }
-.apf-cel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 62px; height: 42px;
-  border: 1px solid var(--linha-forte); border-radius: 5px; background: var(--pend-bg); color: var(--fg2); cursor: pointer; font-size: .72rem; line-height: 1.1; }
-.apf-cel b { font-size: .76rem; color: var(--fg); }
-.apf-cel small { color: var(--fg3); font-variant-numeric: tabular-nums; }
-.apf-cel:hover:not(:disabled) { border-color: var(--acento); }
-.apf-cel.feita { background: var(--verde-bg); border-color: var(--verde); cursor: default; }
-.apf-cel.feita b, .apf-cel.feita small { color: var(--verde); }
-.apf-cel.sel { background: color-mix(in srgb, var(--sel, var(--acento)) 26%, transparent); border-color: var(--sel, var(--acento)); border-width: 2px; }
-
-/* contraventamento em vista elevada (X entre estações de letra, por rua) */
-.apc { background: var(--card); }
-.apc-est { stroke: var(--linha); stroke-width: 1; }
-.apc-eixo { stroke: var(--linha-forte); stroke-width: 1; stroke-dasharray: 5 4; }
-.apc-rot { font-size: 10px; fill: var(--fg2); text-anchor: end; font-weight: 600; }
-.apc-rot.n { text-anchor: middle; }
-.apc-fundo { fill: transparent; }
-.apc-bay { fill: var(--pend-bg); opacity: .5; }
-.apc-p line { stroke: var(--fg3); stroke-width: 1.6; }
-.apc-p.pend line { stroke: var(--pend); opacity: .5; }
-.apc-p.pend:hover line { stroke: var(--acento); opacity: 1; }
-.apc-p.pend { cursor: pointer; }
-.apc-p.feita line { stroke: var(--verde); stroke-width: 2.4; }
-.apc-p.feita .apc-fundo { fill: var(--verde-bg); }
-.apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.6; }
-.apc-p.sel .apc-fundo { fill: color-mix(in srgb, var(--sel, var(--acento)) 20%, transparent); }
-.apc-rot.b { font-weight: 700; fill: var(--fg); font-size: 11px; }
-.apc-rot.peq { font-size: 8.5px; fill: var(--fg3); font-weight: 500; }
-.apc-p line { stroke: var(--m, var(--fg3)); stroke-width: 1.8; opacity: .55; }
-.apc-p.pend:hover line { opacity: 1; stroke-width: 2.4; }
-.apc-p.feita line { stroke: var(--verde); stroke-width: 2.6; opacity: 1; }
-.apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.8; opacity: 1; }
