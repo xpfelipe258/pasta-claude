@@ -175,7 +175,7 @@ def montar(contagem, bruta):
 
 def main():
     ifc = sys.argv[1] if len(sys.argv) > 1 else os.path.join(RAIZ, "LSF-MET-EX-200-200-BIM-R0D.ifc")
-    saida = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAIZ, "dados", "ifc_frentes_montagem.json")
+    saida = sys.argv[2] if len(sys.argv) > 2 else os.path.join(RAIZ, "programa_obra198", "ifc_frentes_montagem.json")
     contagem, bruta, fora = extrair(ifc)
     mapas = montar(contagem, bruta)
     with open(saida, "w", encoding="utf-8") as f:

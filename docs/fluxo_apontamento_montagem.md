@@ -126,6 +126,11 @@ com `tipo` = FECHAMENTO / MARQUISE / CONTRAVENTAMENTO, `faixa` = parte do mapa, 
 
 ## Baixa de fixadores das frentes novas
 
+> Os dados que o programa lê (`regras_baixa.json`, `ifc_frentes_montagem.json`, `ifc_r0d_inventario.json`,
+> `catalogo_bm.json`, `bm_medido_bm1.json`) ficam **dentro de `programa_obra198/`**, porque a atualização
+> automática só copia essa pasta. O que o programa **grava** (a planilha e `dados/estoque_obra198.json`) fica
+> fora dela, para a atualização nunca sobrescrever lançamento.
+
 Ao apontar um trecho de **fechamento lateral** ou de **marquise**, o sistema baixa os fixadores daquele trecho:
 o kit de cada família (do projeto) multiplicado pelas peças que o IFC tem naquela célula. O contraventamento
 não tem baixa, a pedido.

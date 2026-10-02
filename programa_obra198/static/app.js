@@ -1970,7 +1970,7 @@ function apContravSvg() {
 function apFrenteHtml(ctx) {
   const fr = apFrenteAtual();
   if (!fr) return window._frentes
-    ? '<p class="vazio">O mapa desta frente ainda não foi publicado. Rode <code>ferramentas/ifc_frentes_montagem.py</code> sobre o IFC do galpão.</p>'
+    ? '<p class="vazio">O mapa desta frente ainda não chegou no programa. Ele vem junto com a atualização automática: aguarde alguns minutos ou clique em "Verificar atualização" no topo da tela.</p>'
     : '<p class="vazio">Carregando o mapa do IFC…</p>';
   const tipo = AP_FRENTE[apEst.modo];
   const etapas = fr.etapas || [];

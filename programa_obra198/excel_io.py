@@ -18,8 +18,15 @@ from lxml import etree
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(BASE)
-CAMINHO_INVENTARIO_IFC = os.path.join(RAIZ, "dados", "ifc_r0d_inventario.json")
-CAMINHO_FRENTES = os.path.join(RAIZ, "dados", "ifc_frentes_montagem.json")
+# Os dados que o programa lê ficam ao lado dele: a atualização automática só copia programa_obra198/.
+# No repositório de desenvolvimento, dados/ serve de segunda opção.
+def _dado(nome):
+    perto = os.path.join(BASE, nome)
+    return perto if os.path.exists(perto) else os.path.join(RAIZ, "dados", nome)
+
+
+CAMINHO_INVENTARIO_IFC = _dado("ifc_r0d_inventario.json")
+CAMINHO_FRENTES = _dado("ifc_frentes_montagem.json")
 CAMINHO_REGRAS_BAIXA = os.path.join(BASE, "regras_baixa.json")
 
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"

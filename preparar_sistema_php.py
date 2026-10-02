@@ -27,7 +27,7 @@ def copiar_interface():
     for origem, destino in ((os.path.join(PROG, "regras_baixa.json"), "regras_baixa.json"),
                             (os.path.join(RAIZ, "dados", "ifc_r0d_inventario.json"), "ifc_inventario.json"),
                             (os.path.join(RAIZ, "dados", "estoque_obra198.json"), "estoque_inicial.json"),
-                            (os.path.join(RAIZ, "dados", "ifc_frentes_montagem.json"), "frentes_montagem.json")):
+                            (os.path.join(PROG, "ifc_frentes_montagem.json"), "frentes_montagem.json")):
         if os.path.exists(origem):
             shutil.copy2(origem, os.path.join(PHP, "inc", destino))
 
