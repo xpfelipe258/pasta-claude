@@ -4,6 +4,7 @@ $u = exigir_login_pagina();
 $obra = exigir_obra_pagina();
 $html = file_get_contents(__DIR__ . '/inc/painel.html');
 $html = str_replace('href="style.css"', 'href="style.css?v=20261002c"', $html);
+$html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $primaria = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
 $contexto = '<div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>' .
