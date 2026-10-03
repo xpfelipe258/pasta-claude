@@ -1459,7 +1459,7 @@ function renderAvanco() {
     tBodyContrato += `<tr>
       <td><b>${esc(cap(serv))}</b></td>
       <td class="n"><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
-      <td class="n"><b>${nf(totReal, 1)}</b></td><td>${barra(totPct, totReal)}</td>
+      <td class="n"><b>${nf(totReal, 1)}</b></td>
       <td class="n">${totSaldo != null ? nf(totSaldo, 1) : '—'}</td>
       <td class="n">${nf(totRitmo, 2)}</td>
       <td class="n" style="color:${totNecessario && totRitmo < totNecessario ? 'var(--vermelho)' : 'inherit'}">${totNecessario ? nf(totNecessario, 2) : '—'}</td>
@@ -1469,8 +1469,8 @@ function renderAvanco() {
       <td>${fases.length === 1 ? `<button class="btn-icone" data-editar-reg="cliente" data-linha="${fases[0].linha}" title="Editar / excluir serviço">✎</button>` : ''}</td></tr>`;
   });
 
-  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
-    (tBodyContrato || '<tr><td colspan="11" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
+  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
+    (tBodyContrato || '<tr><td colspan="10" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
   const projEmpAvanco = projecoesPorEmpresa(ref);
