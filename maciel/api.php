@@ -1077,9 +1077,9 @@ function acao_revogar_machine_token(array $corpo, array $usuario)
 
 function acao_popular_qtd_cliente(array $corpo, array $usuario)
 {
-    global $obraId;
-    // Soma o escopo de todas as empresas por nome de serviço e atualiza cliente.qtd
-    $linhas = q(
+    // q_global() evita ambiguidade de obra_id em JOIN (q() injeta obra_id sem alias)
+    $obraId = obra_atual_id();
+    $linhas = q_global(
         'SELECT s.nome, SUM(s.escopo) AS total
          FROM servicos s
          JOIN empresas e ON s.empresa_id = e.id
@@ -1089,8 +1089,9 @@ function acao_popular_qtd_cliente(array $corpo, array $usuario)
     )->fetchAll(PDO::FETCH_ASSOC);
     $atualizados = 0;
     foreach ($linhas as $linha) {
-        $n = q(
-            'UPDATE cliente SET qtd = ? WHERE obra_id = ? AND servico = ? AND (qtd IS NULL OR qtd = 0)',
+        // Sobrescreve sempre (não só quando qtd é nulo), conforme solicitado
+        $n = q_global(
+            'UPDATE cliente SET qtd = ? WHERE obra_id = ? AND servico = ?',
             [(float)$linha['total'], $obraId, $linha['nome']]
         )->rowCount();
         $atualizados += $n;
