@@ -1527,9 +1527,12 @@ function renderCliente() {
 
     // PREVISTO PERÍODO: usa a MAIOR data (deadline) entre F1+F2
     const prevPer = soma0(fases, f => (prevCliente({ ...f, inicio_plan: totInicioMax }, c) - prevCliente({ ...f, inicio_plan: totInicioMax }, antes)) || 0);
-    // REALIZADO PERÍODO: data real (ini até c)
+    // REALIZADO PERÍODO: F1 e F2 sequenciais — realizado é MIN(F1, F2) pois F2 só pode avançar até F1
     const porEmp = Object.fromEntries(emps.map(n => [n, soma0(fases, f => c >= ini ? prodServico(f.servico, n, ini, c) : 0)]));
-    const realPer = soma0(Object.values(porEmp), v => v);
+    const realPorFase = fases.length > 1
+      ? fases.map(f => soma0(emps, n => c >= ini ? prodServico(f.servico, n, ini, c) : 0))
+      : [soma0(Object.values(porEmp), v => v)];
+    const realPer = fases.length > 1 ? Math.min(...realPorFase) : realPorFase[0];
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
     const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
     const saldo = Math.max(totQtd - realAc, 0);
