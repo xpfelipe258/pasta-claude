@@ -840,10 +840,11 @@ function renderLanc() {
   const noCal = new Set(M.datas);
   const fechadosG = bmPeriodos(e.nome).filter(p => p.fechado);
 
-  const grupos = [];
-  e.servicos.forEach(sv => { const g = grupos[grupos.length - 1]; if (g && g.f === sv.frente) g.n++; else grupos.push({ f: sv.frente, n: 1 }); });
-  let h = '<thead><tr><th class="fixa" rowspan="2">Dia</th>' + grupos.map(g => `<th class="frente" colspan="${g.n}">${esc(g.f)}</th>`).join('') + (e.col_obs ? '<th rowspan="2">Observação / Nº RDO / foto</th>' : '') + '</tr><tr>';
-  h += e.servicos.map(sv => `<th class="n" title="${esc(sv.id)}">${esc(cap(sv.nome))}</th>`).join('') + '</tr></thead><tbody>';
+  // Exibe apenas serviços F1 (F2 removido da tabela de lançamento)
+  const svs = e.servicos.filter(sv => faseItem(sv.frente) !== '2');
+  let h = '<thead><tr><th class="fixa">Dia</th>';
+  h += svs.map(sv => `<th class="n" title="${esc(sv.id)}">${esc(cap(sv.nome))}</th>`).join('');
+  h += (e.col_obs ? '<th>Observação / Nº RDO / foto</th>' : '') + '</tr></thead><tbody>';
 
   dias.forEach((d, i) => {
     const dentro = noCal.has(d);
@@ -856,12 +857,12 @@ function renderLanc() {
       const marcaF = fz ? `data-fechado="${fz.n}" title="Período do BM${fz.n}, já fechado: a correção entra como ajuste no BM em aberto"` : '';
       return `<td><input class="${cls} ${pend.has(k) ? 'editado' : ''} ${ehTexto && cls !== 'txt' ? 'texto-val' : ''}" data-d="${d}" data-c="${col}" value="${esc(v)}" ${dentro ? '' : 'disabled'} ${marcaF} inputmode="${cls === 'txt' ? 'text' : 'decimal'}" aria-label="${DIAS[i]} ${fd(d)}"></td>`;
     };
-    e.servicos.forEach(sv => h += campo(sv.col, 'num'));
+    svs.forEach(sv => h += campo(sv.col, 'num'));
     if (e.col_obs) h += campo(e.col_obs, 'txt');
     h += '</tr>';
   });
   h += '</tbody><tfoot>';
-  const rodape = (rot, fn) => `<tr><td class="fixa">${rot}</td>${e.servicos.map(sv => `<td>${fn(sv)}</td>`).join('')}${e.col_obs ? '<td></td>' : ''}</tr>`;
+  const rodape = (rot, fn) => `<tr><td class="fixa">${rot}</td>${svs.map(sv => `<td>${fn(sv)}</td>`).join('')}${e.col_obs ? '<td></td>' : ''}</tr>`;
   const acum = sv => soma(e, sv.col, '0000', '9999');
   h += rodape('Semana', sv => nf(soma(e, sv.col, s, add(s, 6)), 1));
   h += rodape('Acumulado', sv => nf(acum(sv), 1));
