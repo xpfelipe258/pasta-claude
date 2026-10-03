@@ -6,6 +6,7 @@ let M = null;            // modelo da planilha
 let T = null;            // tabelas do sistema (estoque, equipamentos)
 let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
+let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
 let abaAtual = 'painel';
 let empSel = null;
 let filtroImp = 'abertos';
@@ -384,7 +385,17 @@ function renderAba() {
 // ------------------------------------------------------------ PAINEL (por período)
 function renderPainel() {
   const c = corte();
-  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+  const ksAll = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+
+  // --- filtro de empresa ---
+  const emps = [...new Set(ksAll.map(k => k.emp))];
+  // reseta filtro se empresa sumiu dos dados
+  if (painelEmpFiltro && !emps.includes(painelEmpFiltro)) painelEmpFiltro = null;
+  $('#segPainelEmp').innerHTML =
+    `<button data-painel-emp="" class="${!painelEmpFiltro ? 'ativa' : ''}">Geral</button>` +
+    emps.map(n => `<button data-painel-emp="${esc(n)}" class="${n === painelEmpFiltro ? 'ativa' : ''}" style="--c:${corEmp(n)}">${esc(n)}</button>`).join('');
+
+  const ks = painelEmpFiltro ? ksAll.filter(k => k.emp === painelEmpFiltro) : ksAll;
   const du = c >= per.ini ? contarDiasUteis(add(per.ini, -1), c) : 0;
   $('#notaFarol').textContent = `Previsto distribuído pelos dias úteis das metas · corte em ${fdA(c)}`;
 
@@ -400,8 +411,12 @@ function renderPainel() {
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
       <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}</div></div>`;
   };
+  // No modo filtrado por empresa: só o tile da empresa. No modo geral: geral + por empresa.
+  const tileGeral = painelEmpFiltro
+    ? tile(painelEmpFiltro, tot, corEmp(painelEmpFiltro))
+    : tile('Geral da obra', tot, 'var(--fg)') + Object.entries(porEmp).map(([n, o]) => tile(n, o, corEmp(n))).join('');
   $('#tiles').innerHTML = ks.length
-    ? tile('Geral da obra', tot, 'var(--fg)') + Object.entries(porEmp).map(([n, o]) => tile(n, o, corEmp(n))).join('')
+    ? tileGeral
     : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
   let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th></tr></thead><tbody>`;
@@ -3758,6 +3773,13 @@ function ligarEventos() {
     const mv = ev.target.closest('[data-mov]');
     if (mv) abrirDialogo('movimentos', null, { codigo: mv.dataset.mov, tipo: 'ENTRADA' });
     if (ev.target.id === 'btnSemearMat') semearMateriais();
+  });
+
+  $('#segPainelEmp').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-painel-emp]');
+    if (!b) return;
+    painelEmpFiltro = b.dataset.painelEmp || null;
+    renderPainel();
   });
 
   $('#segEmpresas').addEventListener('click', ev => { const b = ev.target.closest('button[data-emp]'); if (b) { empSel = b.dataset.emp; renderLanc(); } });

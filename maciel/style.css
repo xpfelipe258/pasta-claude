@@ -293,6 +293,7 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
 .seg button { background: var(--card); border: 0; border-right: 1px solid var(--linha-forte); padding: 7px 14px; cursor: pointer; font-weight: 600; color: var(--fg2); }
 .seg button:last-child { border-right: 0; }
 .seg button.ativa { background: var(--fg); color: var(--bg); }
+#segPainelEmp button[data-painel-emp].ativa { background: var(--c, var(--fg)); color: #fff; }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; }
 
 .grade-lanc { background: var(--card); border: 1px solid var(--linha); border-radius: var(--r); max-height: 70vh; overflow: auto; }
