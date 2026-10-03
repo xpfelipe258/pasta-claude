@@ -13,6 +13,7 @@ let empSel = null;
 let filtroImp = 'abertos';
 const pend = new Map();  // `${aba}|${data}|${col}` -> texto digitado
 const metasPend = new Map(); // linha -> {meta_dia, du, gap}
+const planoPend = new Map(); // 'emp|serv' -> meta_dia digitada
 const graficos = {};
 let EP = null;           // dados de estoque da planilha (/api/estoque-planilha)
 let salvando = false;
@@ -429,7 +430,8 @@ function renderPainel() {
     if (k.prevTotal > 0) { o.prev += k.prev; o.real += k.real; o.total += k.prevTotal; }
   });
   // Projeção de período por empresa (baseada no escopo próprio de cada empresa)
-  projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro).forEach(x => {
+  const projEmp = projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro);
+  projEmp.forEach(x => {
     const o = porEmp[x.emp] ||= { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 };
     o.projetadoPer += x.projetadoPer;
     o.escopoTotal += x.escopo;
@@ -471,6 +473,7 @@ function renderPainel() {
   $('#tabFarol').innerHTML = h + '</tbody>';
   renderAlertas(ks, c);
   graficoPainel(ks);
+  renderPlanoAcao(c, projEmp);
 }
 
 function renderAlertas(ks, c) {
@@ -512,6 +515,118 @@ function renderAlertas(ks, c) {
   $('#alertas').innerHTML = al.length
     ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
     : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
+}
+
+// ------------------------------------------------------------ PLANO DE AÇÃO SEMANAL
+function renderPlanoAcao(c, projEmp) {
+  const proxSeg = add(segunda(ref), 7);
+  const proxFim = add(proxSeg, 5);
+  const segPass = add(segunda(ref), -7);
+  const fimPass = add(segPass, 5);
+  const duProx = contarDiasUteis(add(proxSeg, -1), proxFim);
+  const semAtual = segunda(ref);
+
+  // Agrupa por emp+serv (uma empresa pode ter o mesmo serviço em múltiplas frentes)
+  const agrupados = {};
+  projEmp.forEach(x => {
+    const k = x.emp + '|' + x.serv;
+    const o = agrupados[k] ||= { emp: x.emp, e: x.e, serv: x.serv, escopo: 0, acum: 0, saldo: 0, projetadoPer: 0, ritmo: 0 };
+    o.escopo += x.escopo;
+    o.acum += x.acum;
+    o.saldo += x.saldo;
+    o.projetadoPer += x.projetadoPer;
+    o.ritmo += x.ritmo;
+  });
+
+  let h = `<thead><tr>
+    <th>Empresa</th><th>Serviço</th>
+    <th class="n">Escopo</th><th class="n">Realiz.</th><th class="n">Saldo</th><th class="n">% concl.</th>
+    <th class="n" title="Somatória de (real − meta) em todas as semanas encerradas">Gap acum.</th>
+    <th class="n">Sem. passada<br><small>meta / real / gap</small></th>
+    <th class="n">Meta nec./dia</th>
+    <th>Próx. semana — meta/dia<br><small class="nota">${fdA(proxSeg)} → ${fdA(proxFim)} · ${duProx} d.u.</small></th>
+  </tr></thead><tbody>`;
+
+  Object.values(agrupados).forEach(x => {
+    // Gap acumulado: semanas encerradas antes da semana atual
+    const metasAnt = M.metas.filter(m => m.empresa === x.emp && m.servico === x.serv && m.fim < semAtual);
+    const gapAcum = soma0(metasAnt, m => prodServico(m.servico, x.emp, m.inicio, m.fim) - (m.meta_dia * m.du + (m.gap || 0)));
+
+    // Semana passada
+    const metasPass = M.metas.filter(m => m.empresa === x.emp && m.servico === x.serv && m.inicio === segPass);
+    const metaPassTotal = soma0(metasPass, m => m.meta_dia * m.du + (m.gap || 0));
+    const realPass = prodServico(x.serv, x.emp, segPass, fimPass);
+    const gapPass = realPass - metaPassTotal;
+
+    // Meta necessária/dia para entregar no prazo
+    const cl = M.cliente.find(cl2 => cl2.servico === x.serv);
+    const prazo = cl?.prazo;
+    const duRestAoPrazo = prazo && prazo > c ? contarDiasUteis(c, prazo) : null;
+    const metaNec = duRestAoPrazo && x.saldo > 0 ? x.saldo / duRestAoPrazo : null;
+
+    // Próxima semana: meta existente ou sugestão
+    const metaProx = M.metas.find(m => m.empresa === x.emp && m.servico === x.serv && m.inicio === proxSeg);
+    const pendKey = `${x.emp}|${x.serv}`;
+    const pendVal = planoPend.get(pendKey);
+    const suggested = metaNec != null ? +metaNec.toFixed(2) : '';
+    const inputVal = pendVal !== undefined ? pendVal : (metaProx != null ? metaProx.meta_dia : suggested);
+
+    const pct = x.escopo > 0 ? x.acum / x.escopo * 100 : null;
+    const inputNum = inputVal !== '' ? Number(inputVal) : 0;
+    const baixo = metaNec != null && inputNum > 0 && inputNum < metaNec * 0.9;
+
+    const semPassTxt = metaPassTotal > 0
+      ? `${nf(metaPassTotal, 1)} / ${nf(realPass, 1)} / <span style="color:${gapPass >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${gapPass > 0 ? '+' : ''}${nf(gapPass, 1)}</span>`
+      : `— / ${nf(realPass, 1)} / —`;
+
+    h += `<tr>
+      <td><span class="emp-tag" style="--c:${corEmp(x.emp)}">${esc(x.emp)}</span></td>
+      <td>${esc(cap(x.serv))}</td>
+      <td class="n">${nf(x.escopo)}</td>
+      <td class="n">${nf(x.acum, 1)}</td>
+      <td class="n"><b>${nf(x.saldo, 1)}</b></td>
+      <td class="n">${pct != null ? nf(pct, 1) + '%' : '—'}</td>
+      <td class="n" style="color:${gapAcum >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${(gapAcum > 0 ? '+' : '') + nf(gapAcum, 1)}</td>
+      <td class="n">${semPassTxt}</td>
+      <td class="n">${metaNec != null ? `<b>${nf(metaNec, 2)}</b>/dia` : '—'}</td>
+      <td>
+        <input class="plano-in" type="number" step="0.1" min="0"
+          data-plano-key="${esc(pendKey)}"
+          data-emp="${esc(x.emp)}" data-serv="${esc(x.serv)}"
+          data-prox="${proxSeg}" data-du="${duProx}"
+          data-linha="${metaProx?.linha ?? ''}"
+          value="${inputVal}" placeholder="${suggested}">
+        ${baixo ? '<span class="farol f-vermelho" style="font-size:.65em;margin-left:4px">ABAIXO DO NECESSÁRIO</span>' : ''}
+      </td>
+    </tr>`;
+  });
+
+  if (!Object.keys(agrupados).length) {
+    h += `<tr><td colspan="10" class="vazio">Nenhum serviço com escopo definido para o filtro atual.</td></tr>`;
+  }
+  $('#tabPlanoAcao').innerHTML = h + '</tbody>';
+  $('#btnSalvarPlano').disabled = !planoPend.size;
+  $('#planoTxt').textContent = planoPend.size
+    ? `${planoPend.size} meta(s) pendente(s) — clique em "Salvar" para registrar`
+    : `Sem. passada: ${fdA(segPass)}–${fdA(fimPass)} · Próx.: ${fdA(proxSeg)}–${fdA(proxFim)} · ${duProx} dias úteis`;
+}
+
+async function salvarPlanoAcao() {
+  if (!planoPend.size) return;
+  const metas = [];
+  planoPend.forEach((metaDia, key) => {
+    const inp = document.querySelector(`input[data-plano-key="${CSS.escape(key)}"]`);
+    if (!inp) return;
+    metas.push({ empresa: inp.dataset.emp, servico: inp.dataset.serv, inicio: inp.dataset.prox, du: +inp.dataset.du, meta_dia: +metaDia, linha: inp.dataset.linha || null });
+  });
+  if (!metas.length) return;
+  try {
+    const r = await postar(API + 'criar-meta', { metas });
+    planoPend.clear();
+    await carregar();
+    toast(`${r.criadas} meta(s) da próxima semana salva(s) ${ONDE}.`);
+    if (abaAtual === 'painel') renderPainel();
+  } catch (err) { toast(err.message, true); }
 }
 
 function eixos(extraY = {}, extraX = {}) {
@@ -795,7 +910,8 @@ function projecoesPorEmpresa(ate) {
       const acumIni14 = soma(e, sv.col, '0000', add(ini14, -1));
       const ritmo = (acum - acumIni14) / Math.max(du, 1);
       const realPer = soma(e, sv.col, per.ini, ate);
-      const projetadoPer = Math.max(0, realPer + ritmo * duRestante);
+      const maxProdPeriodo = Math.max(sv.escopo - (acum - realPer), 0);
+      const projetadoPer = Math.min(maxProdPeriodo, Math.max(0, realPer + ritmo * duRestante));
       const saldo = Math.max(sv.escopo - acum, 0);
       let projecao = null, status;
       if (saldo <= 0) {
@@ -4042,7 +4158,7 @@ function ligarEventos() {
       if (abaAtual === 'metas') salvarMetas(); else salvarLanc();
     }
   });
-  window.addEventListener('beforeunload', ev => { if (pend.size || bmPend.size || metasPend.size) { ev.preventDefault(); ev.returnValue = ''; } });
+  window.addEventListener('beforeunload', ev => { if (pend.size || bmPend.size || metasPend.size || planoPend.size) { ev.preventDefault(); ev.returnValue = ''; } });
 
   $('#tabMetas').addEventListener('change', ev => {
     const inp = ev.target; if (!inp.dataset.linha) return;
@@ -4054,6 +4170,21 @@ function ligarEventos() {
     renderMetas();
   });
   $('#btnSalvarMetas').onclick = salvarMetas;
+
+  $('#tabPlanoAcao').addEventListener('change', ev => {
+    const inp = ev.target.closest('.plano-in'); if (!inp) return;
+    const key = inp.dataset.planoKey;
+    const v = inp.value === '' ? null : Number(inp.value);
+    if (v === null || v < 0) {
+      planoPend.delete(key);
+    } else {
+      const orig = M.metas.find(m => m.empresa === inp.dataset.emp && m.servico === inp.dataset.serv && m.inicio === inp.dataset.prox);
+      if (orig && orig.meta_dia === v) planoPend.delete(key); else planoPend.set(key, v);
+    }
+    const c = corte();
+    renderPlanoAcao(c, projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro));
+  });
+  $('#btnSalvarPlano').onclick = salvarPlanoAcao;
 
   $('#filtroImp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-f]'); if (!b) return;

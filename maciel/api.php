@@ -114,6 +114,7 @@ try {
         'machine-token/revogar' => 'acao_revogar_machine_token',
         'popular-qtd-cliente' => 'acao_popular_qtd_cliente',
         'popular-fase2-servicos' => 'acao_popular_fase2_servicos',
+        'criar-meta' => 'acao_criar_meta',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -204,6 +205,43 @@ function acao_metas(array $corpo)
         }
     }
     return $n;
+}
+
+function acao_criar_meta(array $corpo)
+{
+    $obraId = obra_atual_id();
+    $criadas = 0;
+    foreach ($corpo['metas'] ?? [] as $m) {
+        $empresa = trim((string)($m['empresa'] ?? ''));
+        $servico = trim((string)($m['servico'] ?? ''));
+        $inicio  = trim((string)($m['inicio'] ?? ''));
+        $du      = max(0, (int)($m['du'] ?? 5));
+        $metaDia = max(0.0, (float)($m['meta_dia'] ?? 0));
+        $linha   = isset($m['linha']) && $m['linha'] !== '' && $m['linha'] !== null ? (int)$m['linha'] : null;
+        if (!$empresa || !$servico || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $inicio)) {
+            continue;
+        }
+        if ($linha !== null) {
+            if (!q('SELECT id FROM metas WHERE id = ? AND obra_id = ?', [$linha, $obraId])->fetch()) {
+                continue;
+            }
+            q('UPDATE metas SET meta_dia = ?, du = ? WHERE id = ?', [$metaDia, $du, $linha]);
+        } else {
+            $existe = q('SELECT id FROM metas WHERE obra_id = ? AND empresa = ? AND servico = ? AND inicio = ?',
+                [$obraId, $empresa, $servico, $inicio])->fetch();
+            if ($existe) {
+                q('UPDATE metas SET meta_dia = ?, du = ? WHERE id = ?', [$metaDia, $du, $existe['id']]);
+            } else {
+                $dt = new DateTime($inicio);
+                $dt->modify('+5 days');
+                $fim = $dt->format('Y-m-d');
+                q('INSERT INTO metas (obra_id, empresa, servico, inicio, fim, corte, meta_dia, du, gap) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0)',
+                    [$obraId, $empresa, $servico, $inicio, $fim, $metaDia, $du]);
+            }
+        }
+        $criadas++;
+    }
+    return ['criadas' => $criadas];
 }
 
 function acao_impacto(array $corpo)
