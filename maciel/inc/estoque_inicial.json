@@ -11267,7 +11267,94 @@
     "qtd_por_remessa": {},
     "total_recebido": 0.0
    }
-  ]
+  ],
+  "datas": {
+   "1ª REMESSA OE-198-02/03/04 20/07": {
+    "prevista_chegada": "15/07/2026 (OE-02) e 17/07/2026 (OE-04)",
+    "emissao_nota": "20/07/2026",
+    "chegada_obra": "20/07/2026"
+   },
+   "2° REMESSA OE-198-04/05 27/07": {
+    "prevista_chegada": "22/07/2026",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "3° REMESSA OE-198-05 R1 28/07": {
+    "prevista_chegada": "27/07/2026",
+    "emissao_nota": "27/07/2026",
+    "chegada_obra": "28/07/2026"
+   },
+   "4° REMESSA OE-198-06 r2 31/07": {
+    "prevista_chegada": "30/07/2026",
+    "emissao_nota": "31/07/2026",
+    "chegada_obra": "31/07/2026"
+   },
+   "5° REMESSA OE-198-07 06/08": {
+    "prevista_chegada": "06/08/2026",
+    "emissao_nota": "06/08/2026",
+    "chegada_obra": "06/08/2026"
+   },
+   "6° REMESSA OE-198-08 10/08": {
+    "prevista_chegada": "11/08/2026",
+    "emissao_nota": "10/08/2026",
+    "chegada_obra": "12/08/2026"
+   },
+   "7° REMESSA OE-198-09 11/09": {
+    "prevista_chegada": "11/08/2026",
+    "emissao_nota": "12/08/2026",
+    "chegada_obra": "15/08/2026"
+   },
+   "8° REMESSA OE-198-10/12 14/08": {
+    "prevista_chegada": "12/08/2026",
+    "emissao_nota": "14/08/2026",
+    "chegada_obra": "14/08/2026"
+   },
+   "9° REMESSA OE-198-11/14 21/08": {
+    "prevista_chegada": "20/08/2026",
+    "emissao_nota": "21/08/2026",
+    "chegada_obra": "28/08/2026"
+   },
+   "10° REMESSA OE-198-13 31/08": {
+    "prevista_chegada": "28/08/2026",
+    "emissao_nota": "31/08/2026",
+    "chegada_obra": "31/08/2026"
+   },
+   "12° REMESSA OE-198-15 27/08": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "13° REMESSA OE-198-16 03/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "14° ECLUSA OE198-17 04/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "15° OE198-18-10/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "16° OE198-20 - 18/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "16° OE198-22 - 22/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   },
+   "18 OE198-23 -25/09": {
+    "prevista_chegada": "",
+    "emissao_nota": "",
+    "chegada_obra": ""
+   }
+  }
  },
  "consumo_fisico": {
   "semanas": [

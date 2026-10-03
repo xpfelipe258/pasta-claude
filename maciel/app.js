@@ -1554,7 +1554,16 @@ function renderEstRemessas() {
   const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
   const ed = estEdit.rem, cxR = $('#tabEstRem').closest('.tabela-rolagem'), sxR = cxR.scrollLeft;
   $('#tabEstRem').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th>` +
-    cols.map(c => `<th class="n" title="${esc(c)}">${esc(abrev(c))}</th>`).join('') +
+    cols.map(c => {
+      const dt = (rem.datas || {})[c] || {};
+      const linha = (rot, v) => v ? `<div class="rem-data"><span>${rot}</span>${esc(v)}</div>` : '';
+      const dicas = [dt.prevista_chegada && `prevista ${dt.prevista_chegada}`,
+        dt.emissao_nota && `nota ${dt.emissao_nota}`,
+        dt.chegada_obra && `chegada ${dt.chegada_obra}`].filter(Boolean).join(' · ');
+      return `<th class="n" title="${esc(c)}${dicas ? ' — ' + esc(dicas) : ''}">${esc(abrev(c))}`
+        + linha('prev.', dt.prevista_chegada) + linha('NF', dt.emissao_nota)
+        + linha('obra', dt.chegada_obra) + `</th>`;
+    }).join('') +
     (ed ? `<th class="n col-nova"><input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +

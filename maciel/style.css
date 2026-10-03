@@ -572,3 +572,20 @@ td.col-nova { padding: 3px 6px; }
 .apc-p.pend:hover line { opacity: 1; stroke-width: 2.4; }
 .apc-p.feita line { stroke: var(--verde); stroke-width: 2.6; opacity: 1; }
 .apc-p.sel line { stroke: var(--sel, var(--acento)); stroke-width: 2.8; opacity: 1; }
+
+/* Datas de cada remessa no cabeçalho da tabela: prevista, emissão da nota e chegada em obra. */
+#tabEstRem thead th .rem-data {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1.35;
+  opacity: .75;
+  white-space: nowrap;
+}
+#tabEstRem thead th .rem-data span {
+  display: inline-block;
+  min-width: 30px;
+  opacity: .7;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
