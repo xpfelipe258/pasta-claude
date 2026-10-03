@@ -864,9 +864,10 @@ function renderLanc() {
   h += '</tbody><tfoot>';
   const rodape = (rot, fn) => `<tr><td class="fixa">${rot}</td>${svs.map(sv => `<td>${fn(sv)}</td>`).join('')}${e.col_obs ? '<td></td>' : ''}</tr>`;
   const acum = sv => soma(e, sv.col, '0000', '9999');
+  const totalEscopoEmp = soma0(svs, sv => sv.escopo);
   h += rodape('Semana', sv => nf(soma(e, sv.col, s, add(s, 6)), 1));
   h += rodape('Acumulado', sv => nf(acum(sv), 1));
-  h += rodape('Escopo', sv => nf(sv.escopo));
+  h += rodape('Escopo', sv => nf(totalEscopoEmp));
   h += rodape('% executado', sv => sv.escopo ? nf(acum(sv) / sv.escopo * 100, 1) + '%' : '—');
   $('#tabLanc').innerHTML = h + '</tfoot>';
 }
