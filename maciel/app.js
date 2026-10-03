@@ -1527,8 +1527,8 @@ function renderCliente() {
 
     // PREVISTO PERÍODO: meta_cliente/dia × dias úteis do período (ini até c)
     const prevPer = totMetaDia * contarDiasUteis(ini, c);
-    // REALIZADO PERÍODO: soma realizado de cada empresa no período (ini até c)
-    const porEmp = Object.fromEntries(emps.map(n => [n, soma0(fases, f => c >= ini ? prodServico(f.servico, n, ini, c) : 0)]));
+    // REALIZADO PERÍODO: soma realizado de cada empresa (chamar prodServico UMA VEZ por serviço, não por fase)
+    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? prodServico(servNome, n, ini, c) : 0]));
     const realPer = soma0(Object.values(porEmp), v => v);
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
     const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
