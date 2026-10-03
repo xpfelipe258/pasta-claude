@@ -111,6 +111,15 @@
   <span class="nota" id="perTxt"></span>
 </div>
 
+<div class="barra-fase" id="barraFase" hidden>
+  <span class="barra-fase-rot">Fase</span>
+  <div class="seg" id="segFase">
+    <button data-fase="" class="ativa">Total</button>
+    <button data-fase="1">Fase 1 – Galpão</button>
+    <button data-fase="2">Fase 2 – Anexos</button>
+  </div>
+</div>
+
 <main>
   <!-- PAINEL -->
   <section id="aba-painel">
@@ -219,6 +228,9 @@
   </section>
 
   <section id="aba-avanco" hidden>
+    <div class="barra-acoes">
+      <div id="avancoResumo" class="nota"></div>
+    </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
       <div class="tabela-rolagem"><table id="tabContrato"></table></div>

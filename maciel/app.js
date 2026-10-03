@@ -7,6 +7,7 @@ let T = null;            // tabelas do sistema (estoque, equipamentos)
 let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
+let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
 let abaAtual = 'painel';
 let empSel = null;
 let filtroImp = 'abertos';
@@ -21,6 +22,7 @@ const COR_EMP = { 'EJ': '--ej', 'CMM': '--cmm', 'GLOBO AÇOS': '--ga' };
 const API = window.API_BASE || 'api/';
 let ONDE = 'na planilha';
 const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia', 'kpi']);
+const ABAS_PRODUCAO = new Set(['painel', 'semana', 'lanc', 'apont', 'plan', 'avanco', 'gantt', 'cliente', 'tendencia', 'kpi']);
 const ABAS_ESTOQUE = new Set(['estmat', 'estrem', 'estcons', 'estinv', 'estcrit', 'estsis']);
 
 // ------------------------------------------------------------ utilidades
@@ -179,7 +181,14 @@ function prevMeta(m, ini, fim) {
 function paresMeta() {
   const vistos = new Map();
   M.metas.forEach(m => { const k = m.empresa + '|' + m.servico; if (!vistos.has(k)) vistos.set(k, [m.empresa, m.servico]); });
-  return [...vistos.values()];
+  let pares = [...vistos.values()];
+  if (faseFiltro) {
+    const svDaFase = new Set(
+      M.empresas.flatMap(e => e.servicos.filter(sv => faseItem(sv.frente) === faseFiltro).map(sv => sv.nome))
+    );
+    pares = pares.filter(([, serv]) => svDaFase.has(serv));
+  }
+  return pares;
 }
 function kpiPer(emp, serv, ini, fim, corte) {
   const e = empresa(emp), col = colDe(e, serv);
@@ -318,8 +327,14 @@ function mudarAba(nome) {
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
   $('#barraPeriodo').hidden = !ABAS_PERIODO.has(nome);
+  $('#barraFase').hidden = !ABAS_PRODUCAO.has(nome);
   try { localStorage.setItem('obra198_aba', nome); } catch { }
   renderAba();
+}
+
+function atualizarBotoesSegFase() {
+  document.querySelectorAll('#segFase button').forEach(b =>
+    b.classList.toggle('ativa', b.dataset.fase === faseFiltro));
 }
 
 function definirRef(d) {
@@ -704,15 +719,22 @@ async function salvarLanc() {
 // ------------------------------------------------------------ AVANÇO FÍSICO
 function realizadoTotal(servico, ate) { return prodServico(servico, null, '0000', ate); }
 
+function faseItem(frente) {
+  if (!frente) return null;
+  return frente.toUpperCase().startsWith('GALPÃO F1') ? '1' : '2';
+}
+
 function contratoLinhas(ate = ref) {
   const ini = add(ate, -14);
   let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
-  return M.cliente.filter(c => c.qtd).map(c => {
+  return M.cliente.filter(c => c.frente && (!faseFiltro || faseItem(c.frente) === faseFiltro)).map(c => {
     const real = realizadoTotal(c.servico, ate);
     const ritmo = (real - realizadoTotal(c.servico, add(ini, -1))) / Math.max(du, 1);
-    const saldo = Math.max(c.qtd - real, 0);
+    const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
     let projecao = null, status;
-    if (saldo <= 0) status = 'CONCLUÍDO';
+    if (!c.qtd) {
+      status = real > 0 ? 'EM ANDAMENTO' : 'SEM CONTRATO';
+    } else if (saldo <= 0) status = 'CONCLUÍDO';
     else if (ritmo <= 0 && c.inicio_plan && c.inicio_plan > ate) {
       status = 'NÃO INICIADO';
       if (c.meta_dia) projecao = somarDiasUteis(add(c.inicio_plan, -1), Math.ceil(saldo / c.meta_dia));
@@ -721,8 +743,8 @@ function contratoLinhas(ate = ref) {
       projecao = somarDiasUteis(ate, Math.ceil(saldo / ritmo));
       status = c.prazo && projecao > c.prazo ? 'ATRASO' : 'NO PRAZO';
     }
-    const necessario = c.prazo && saldo > 0 && c.prazo > ate ? saldo / Math.max(1, contarDiasUteis(ate, c.prazo)) : null;
-    return { ...c, real, ritmo, saldo, projecao, status, necessario };
+    const necessario = c.qtd && c.prazo && saldo > 0 && c.prazo > ate ? saldo / Math.max(1, contarDiasUteis(ate, c.prazo)) : null;
+    return { ...c, real, ritmo, saldo, projecao, status, necessario, fase: faseItem(c.frente) };
   });
 }
 const COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'ATRASO': 'vermelho', 'ATRASADO': 'vermelho', 'SEM RITMO': 'amarelo', 'NÃO INICIADO': 'pendente', 'NO LIMITE': 'amarelo' };
@@ -1109,18 +1131,33 @@ function renderPlanTimeline(ep) {
 let planEst = { frente: '' };
 
 function renderAvanco() {
-  const linhas = contratoLinhas();
+  const linhas = contratoLinhas(); // já filtrado por faseFiltro via contratoLinhas()
+
+  // resumo: itens com contrato / total / % concluídos
+  const comContrato = linhas.filter(c => c.qtd);
+  const concluidos = comContrato.filter(c => c.status === 'CONCLUÍDO').length;
+  $('#avancoResumo').textContent = `${linhas.length} serviços · ${comContrato.length} com quantidade contratada · ${concluidos} concluídos`;
+
+  const semContratoNote = '<span class="nota" title="Sem quantidade contratada cadastrada">s/ contrato</span>';
   $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n">Contrato</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th>Prazo</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
     (linhas.length ? linhas.map(c => {
-      const pct = c.real / c.qtd * 100;
-      return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td><td class="n">${nf(c.qtd)}</td><td class="n">${nf(c.real, 1)}</td>
-        <td><div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span></td>
-        <td class="n">${nf(c.saldo, 1)}</td><td class="n">${nf(c.ritmo, 2)}</td><td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
-        <td>${fdA(c.prazo)}</td><td>${fdA(c.projecao)}</td><td><span class="farol f-${COR_STATUS[c.status]}">${c.status}</span></td></tr>`;
-    }).join('') : '<tr><td colspan="11" class="vazio">Nenhuma quantidade contratada em METAS CLIENTE.</td></tr>') + '</tbody>';
+      const pct = c.qtd ? c.real / c.qtd * 100 : null;
+      const barraHtml = pct == null
+        ? (c.real > 0 ? `<span class="nota">${nf(c.real, 1)} lançados</span>` : '—')
+        : `<div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span>`;
+      return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td>
+        <td class="n">${c.qtd ? nf(c.qtd) : semContratoNote}</td><td class="n">${nf(c.real, 1)}</td>
+        <td>${barraHtml}</td>
+        <td class="n">${c.saldo != null ? nf(c.saldo, 1) : '—'}</td><td class="n">${nf(c.ritmo, 2)}</td>
+        <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
+        <td>${fdA(c.prazo)}</td><td>${fdA(c.projecao)}</td>
+        <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td></tr>`;
+    }).join('') : '<tr><td colspan="11" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
+  // avanço por empresa — filtrar serviços pela fase selecionada (global)
   $('#avancoEmpresas').innerHTML = M.empresas.map(e => {
-    const itens = e.servicos.map(sv => ({ sv, acum: soma(e, sv.col, '0000', ref) })).filter(x => x.sv.escopo || x.acum);
+    let itens = e.servicos.map(sv => ({ sv, acum: soma(e, sv.col, '0000', ref) })).filter(x => x.sv.escopo || x.acum);
+    if (faseFiltro) itens = itens.filter(x => faseItem(x.sv.frente) === faseFiltro);
     return `<div><h2 style="margin-bottom:10px"><span class="emp-tag" style="--c:${corEmp(e.nome)}">${esc(e.nome)}</span></h2>
       <table><thead><tr><th>Serviço</th><th class="n">Escopo</th><th class="n">Acum.</th><th style="min-width:90px">%</th></tr></thead><tbody>` +
       (itens.length ? itens.map(({ sv, acum }) => {
@@ -1136,7 +1173,9 @@ function prevCliente(c, ate) {
   if (!c.qtd || !c.inicio_plan || !c.meta_dia || ate < c.inicio_plan) return 0;
   return Math.min(c.qtd, c.meta_dia * contarDiasUteis(add(c.inicio_plan, -1), ate));
 }
-function itensCliente() { return M.cliente.filter(c => c.qtd); }
+function itensCliente() {
+  return M.cliente.filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
+}
 function avancoPonderado(ate, previsto) {
   const itens = itensCliente();
   const pesoTot = soma0(itens, c => c.peso);
@@ -3775,6 +3814,14 @@ function ligarEventos() {
     if (ev.target.id === 'btnSemearMat') semearMateriais();
   });
 
+  $('#segFase').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-fase]');
+    if (!b) return;
+    faseFiltro = b.dataset.fase;
+    atualizarBotoesSegFase();
+    renderAba();
+  });
+
   $('#segPainelEmp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-painel-emp]');
     if (!b) return;
@@ -3892,6 +3939,7 @@ function ligarEventos() {
   try { await carregar(); definirRef(ref); }
   catch (err) { $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; }
   patchDatas();
+  atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
   setInterval(verificarVersao, 4000);
   mostrarAtualizacao(); setInterval(mostrarAtualizacao, 20000);
