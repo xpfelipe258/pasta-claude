@@ -1417,23 +1417,68 @@ function renderAvanco() {
   $('#avancoResumo').textContent = `${linhas.length} serviços · ${comContrato.length} com quantidade contratada · ${concluidos} concluídos`;
 
   const semContratoNote = '<span class="nota" title="Sem quantidade contratada cadastrada">s/ contrato</span>';
-  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
-    (linhas.length ? linhas.map(c => {
+  const statusPrioridadeContrato = ['ATRASO', 'SEM RITMO', 'NO LIMITE', 'NÃO INICIADO', 'EM ANDAMENTO', 'NO PRAZO', 'SEM CONTRATO', 'CONCLUÍDO'];
+
+  // Agrupa por serviço para exibir Total (F1+F2) quando multiFase
+  const gruposContrato = {};
+  linhas.forEach(c => { (gruposContrato[c.servico] ||= []).push(c); });
+
+  let tBodyContrato = '';
+  Object.entries(gruposContrato).forEach(([serv, fases]) => {
+    const barra = (pct, real) => pct == null
+      ? (real > 0 ? `<span class="nota">${nf(real, 1)} lançados</span>` : '—')
+      : `<div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span>`;
+
+    if (fases.length === 1) {
+      const c = fases[0];
       const pct = c.qtd ? c.real / c.qtd * 100 : null;
-      const barraHtml = pct == null
-        ? (c.real > 0 ? `<span class="nota">${nf(c.real, 1)} lançados</span>` : '—')
-        : `<div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span>`;
-      return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td>
+      tBodyContrato += `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td>
         <td class="n editavel" data-edit-campo="qtd" data-edit-id="${c.linha}" data-edit-val="${c.qtd ?? ''}">${c.qtd ? nf(c.qtd) : semContratoNote}</td>
-        <td class="n">${nf(c.real, 1)}</td>
-        <td>${barraHtml}</td>
+        <td class="n">${nf(c.real, 1)}</td><td>${barra(pct, c.real)}</td>
         <td class="n">${c.saldo != null ? nf(c.saldo, 1) : '—'}</td><td class="n">${nf(c.ritmo, 2)}</td>
         <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
         <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.linha}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
         <td>${fdA(c.projecao)}</td>
         <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td>
         <td><button class="btn-icone" data-editar-reg="cliente" data-linha="${c.linha}" title="Editar / excluir serviço">✎</button></td></tr>`;
-    }).join('') : '<tr><td colspan="12" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
+    } else {
+      // Total: Contrato = soma; Projeção = max data
+      const totQtd = soma0(fases, f => f.qtd || 0);
+      const totReal = soma0(fases, f => f.real || 0);
+      const totSaldo = totQtd > 0 ? Math.max(totQtd - totReal, 0) : null;
+      const totPct = totQtd ? totReal / totQtd * 100 : null;
+      const totProjecao = fases.map(f => f.projecao).filter(Boolean).sort().pop() || null;
+      const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || null;
+      const totStatus = fases.map(f => f.status).sort((a, b) => statusPrioridadeContrato.indexOf(a) - statusPrioridadeContrato.indexOf(b))[0];
+      tBodyContrato += `<tr class="plano-total">
+        <td rowspan="${1 + fases.length}"><b>${esc(cap(serv))}</b></td>
+        <td class="nota"><b>Total</b></td>
+        <td class="n"><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
+        <td class="n"><b>${nf(totReal, 1)}</b></td><td>${barra(totPct, totReal)}</td>
+        <td class="n"><b>${totSaldo != null ? nf(totSaldo, 1) : '—'}</b></td>
+        <td class="n">—</td><td class="n">—</td>
+        <td>${fdA(prazoMax)}</td>
+        <td><b>${fdA(totProjecao)}</b></td>
+        <td><span class="farol f-${COR_STATUS[totStatus] || 'pendente'}">${totStatus}</span></td>
+        <td></td></tr>`;
+      fases.forEach(c => {
+        const pct = c.qtd ? c.real / c.qtd * 100 : null;
+        tBodyContrato += `<tr class="plano-sub">
+          <td class="nota">F${c.fase}</td>
+          <td class="n editavel" data-edit-campo="qtd" data-edit-id="${c.linha}" data-edit-val="${c.qtd ?? ''}">${c.qtd ? nf(c.qtd) : semContratoNote}</td>
+          <td class="n">${nf(c.real, 1)}</td><td>${barra(pct, c.real)}</td>
+          <td class="n">${c.saldo != null ? nf(c.saldo, 1) : '—'}</td><td class="n">${nf(c.ritmo, 2)}</td>
+          <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
+          <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.linha}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
+          <td>${fdA(c.projecao)}</td>
+          <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td>
+          <td><button class="btn-icone" data-editar-reg="cliente" data-linha="${c.linha}" title="Editar / excluir serviço">✎</button></td></tr>`;
+      });
+    }
+  });
+
+  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Fase</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
+    (tBodyContrato || '<tr><td colspan="12" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
   const projEmpAvanco = projecoesPorEmpresa(ref);
