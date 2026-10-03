@@ -937,6 +937,22 @@ async function salvarLanc() {
     }
     salvando = false;
     await carregar();
+
+    // Sincroniza apontamentos F2 para lançamentos se houver salvamento de produção
+    if (porAba) {
+      const e = M.empresas.find(x => x.aba === empSel);
+      if (e) {
+        const datasUnicas = new Set([...pend.keys()].filter(k => k.startsWith(empSel + '|')).map(k => k.split('|')[1]));
+        for (const data of datasUnicas) {
+          try {
+            await postarBruto(API + 'apontamentos/sincronizar-fase2', { data, empresa: e.nome });
+          } catch (err) {
+            console.warn('Sincronização F2 falhou:', err.message);
+          }
+        }
+      }
+    }
+
     if (baixas.length) {
       const agrup = {};
       baixas.forEach(b => { agrup[b.codigo] = (agrup[b.codigo] || 0) + b.quantidade; });

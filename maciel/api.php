@@ -1181,9 +1181,9 @@ function acao_sincronizar_apontamentos_fase2(array $corpo, array $usuario)
                 [$data, $empresa, $serv, '2'])->fetch();
 
         if ($ex) {
-            q('UPDATE producao SET valor = valor + ? WHERE id = ?', [$qtd, $ex['id']]);
+            q('UPDATE producao SET valor = valor + ?, origem_apontamento = 1 WHERE id = ?', [$qtd, $ex['id']]);
         } else {
-            q('INSERT INTO producao (data, empresa, servico, fase, valor) VALUES (?, ?, ?, ?, ?)',
+            q('INSERT INTO producao (data, empresa, servico, fase, valor, origem_apontamento) VALUES (?, ?, ?, ?, ?, 1)',
               [$data, $empresa, $serv, '2', $qtd]);
         }
         $sincronizados++;
