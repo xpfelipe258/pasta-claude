@@ -1569,8 +1569,8 @@ function renderCliente() {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
     // Busca a linha do cliente para obter o ID de edição
-    const clienteItem = M.cliente.find(c => c.servico === l.it.servico && c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
-    const idEdit = clienteItem?.linha ?? '';
+    const clienteItem = M.cliente.find(c => c.servico?.trim() === l.it.servico?.trim() && c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
+    const idEdit = clienteItem?.linha ?? 0;
     h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n"><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
@@ -4191,7 +4191,7 @@ function ligarEventos() {
 
   document.getElementById('aba-avanco').addEventListener('click', ev => {
     const td = ev.target.closest('td[data-edit-campo]');
-    if (!td || td.querySelector('input')) return;
+    if (!td || td.querySelector('input') || !td.dataset.editId) return;
     const campo = td.dataset.editCampo;
     const id = parseInt(td.dataset.editId);
     const valAtual = td.dataset.editVal;
