@@ -253,6 +253,10 @@ th { text-align: left; font-size: .7rem; text-transform: uppercase; letter-spaci
 td { padding: 7px 10px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
 td.n, th.n { text-align: right; white-space: nowrap; }
 tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
+tr.plano-sub td { background: var(--bg); font-size: .8rem; border-bottom: 1px solid var(--linha); }
+tr.plano-total td { border-bottom: none; }
+.plano-in { width: 80px; padding: 4px 6px; border: 1px solid var(--linha-forte); border-radius: 4px; background: var(--card); color: var(--fg); font-size: .85rem; text-align: right; }
+.plano-in:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
 .emp-tag { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 .emp-tag::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
 

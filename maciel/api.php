@@ -210,6 +210,8 @@ function acao_metas(array $corpo)
 function acao_criar_meta(array $corpo)
 {
     $obraId = obra_atual_id();
+    // Auto-migração: adiciona coluna fase se não existir
+    try { q("ALTER TABLE metas ADD COLUMN fase VARCHAR(1) NOT NULL DEFAULT ''", []); } catch (\Throwable $e) {}
     $criadas = 0;
     foreach ($corpo['metas'] ?? [] as $m) {
         $empresa = trim((string)($m['empresa'] ?? ''));
@@ -217,6 +219,7 @@ function acao_criar_meta(array $corpo)
         $inicio  = trim((string)($m['inicio'] ?? ''));
         $du      = max(0, (int)($m['du'] ?? 5));
         $metaDia = max(0.0, (float)($m['meta_dia'] ?? 0));
+        $fase    = in_array(trim((string)($m['fase'] ?? '')), ['1', '2'], true) ? trim((string)$m['fase']) : '';
         $linha   = isset($m['linha']) && $m['linha'] !== '' && $m['linha'] !== null ? (int)$m['linha'] : null;
         if (!$empresa || !$servico || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $inicio)) {
             continue;
@@ -225,18 +228,18 @@ function acao_criar_meta(array $corpo)
             if (!q('SELECT id FROM metas WHERE id = ? AND obra_id = ?', [$linha, $obraId])->fetch()) {
                 continue;
             }
-            q('UPDATE metas SET meta_dia = ?, du = ? WHERE id = ?', [$metaDia, $du, $linha]);
+            q('UPDATE metas SET meta_dia = ?, du = ?, fase = ? WHERE id = ?', [$metaDia, $du, $fase, $linha]);
         } else {
-            $existe = q('SELECT id FROM metas WHERE obra_id = ? AND empresa = ? AND servico = ? AND inicio = ?',
-                [$obraId, $empresa, $servico, $inicio])->fetch();
+            $existe = q('SELECT id FROM metas WHERE obra_id = ? AND empresa = ? AND servico = ? AND inicio = ? AND fase = ?',
+                [$obraId, $empresa, $servico, $inicio, $fase])->fetch();
             if ($existe) {
                 q('UPDATE metas SET meta_dia = ?, du = ? WHERE id = ?', [$metaDia, $du, $existe['id']]);
             } else {
                 $dt = new DateTime($inicio);
                 $dt->modify('+5 days');
                 $fim = $dt->format('Y-m-d');
-                q('INSERT INTO metas (obra_id, empresa, servico, inicio, fim, corte, meta_dia, du, gap) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0)',
-                    [$obraId, $empresa, $servico, $inicio, $fim, $metaDia, $du]);
+                q('INSERT INTO metas (obra_id, empresa, servico, inicio, fim, corte, meta_dia, du, gap, fase) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?)',
+                    [$obraId, $empresa, $servico, $inicio, $fim, $metaDia, $du, $fase]);
             }
         }
         $criadas++;

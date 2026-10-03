@@ -98,7 +98,7 @@ function montar_modelo()
             'inicio' => substr($m['inicio'], 0, 10), 'fim' => substr($m['fim'], 0, 10),
             'corte' => $m['corte'] ? substr($m['corte'], 0, 10) : null,
             'meta_dia' => numero($m['meta_dia']) ?: 0, 'du' => numero($m['du']) ?: 0, 'gap' => numero($m['gap']) ?: 0,
-            'realizado_manual' => false,
+            'fase' => (string)($m['fase'] ?? ''), 'realizado_manual' => false,
         ];
     }
     $cliente = [];

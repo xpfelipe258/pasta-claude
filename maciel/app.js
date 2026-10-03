@@ -473,7 +473,7 @@ function renderPainel() {
   $('#tabFarol').innerHTML = h + '</tbody>';
   renderAlertas(ks, c);
   graficoPainel(ks);
-  renderPlanoAcao(c, projEmp);
+  renderPlanoAcao(c);
 }
 
 function renderAlertas(ks, c) {
@@ -518,7 +518,10 @@ function renderAlertas(ks, c) {
 }
 
 // ------------------------------------------------------------ PLANO DE AÇÃO SEMANAL
-function renderPlanoAcao(c, projEmp) {
+// Chave interna usa \x1F como separador para evitar conflito com nomes
+function _pKey(emp, serv, fase) { return emp + '\x1F' + serv + '\x1F' + fase; }
+
+function renderPlanoAcao(c) {
   const proxSeg = add(segunda(ref), 7);
   const proxFim = add(proxSeg, 5);
   const segPass = add(segunda(ref), -7);
@@ -526,98 +529,170 @@ function renderPlanoAcao(c, projEmp) {
   const duProx = contarDiasUteis(add(proxSeg, -1), proxFim);
   const semAtual = segunda(ref);
 
-  // Agrupa por emp+serv (uma empresa pode ter o mesmo serviço em múltiplas frentes)
-  const agrupados = {};
-  projEmp.forEach(x => {
-    const k = x.emp + '|' + x.serv;
-    const o = agrupados[k] ||= { emp: x.emp, e: x.e, serv: x.serv, escopo: 0, acum: 0, saldo: 0, projetadoPer: 0, ritmo: 0 };
-    o.escopo += x.escopo;
-    o.acum += x.acum;
-    o.saldo += x.saldo;
-    o.projetadoPer += x.projetadoPer;
-    o.ritmo += x.ritmo;
+  // Calcula ritmo de 14 dias (usado para meta nec.)
+  const ini14 = add(c, -14);
+  let du14 = 0; for (let d = ini14; d <= c; d = add(d, 1)) if (diaUtil(d)) du14++;
+
+  // Constrói grupos: 'emp\x1Fserv' -> { emp, e, serv, fases: {f: {escopo,acum,saldo,ritmo}} }
+  const grupos = {};
+  M.empresas.forEach(e => {
+    if (painelEmpFiltro && e.nome !== painelEmpFiltro) return;
+    e.servicos.forEach(sv => {
+      const fase = faseItem(sv.frente);
+      // Filtra por faseFiltro se ativo (ao ver só F1 ou só F2)
+      if (faseFiltro && fase !== faseFiltro) return;
+      const acum = soma(e, sv.col, '0000', c);
+      const cl = M.cliente.find(cl2 => cl2.servico === sv.nome && faseItem(cl2.frente) === fase);
+      // Inclui serviço se tem escopo, produção ou contrato do cliente
+      if (!sv.escopo && !acum && !cl?.qtd) return;
+      const k = e.nome + '\x1F' + sv.nome;
+      const g = grupos[k] ||= { emp: e.nome, e, serv: sv.nome, fases: {} };
+      const fd = g.fases[fase] ||= { escopo: 0, acum: 0, saldo: 0, ritmo: 0 };
+      const acumIni14 = soma(e, sv.col, '0000', add(ini14, -1));
+      fd.escopo += sv.escopo || 0;
+      fd.acum   += acum;
+      fd.saldo  += Math.max((sv.escopo || 0) - acum, 0);
+      fd.ritmo  += (acum - acumIni14) / Math.max(du14, 1);
+    });
   });
 
   let h = `<thead><tr>
-    <th>Empresa</th><th>Serviço</th>
+    <th>Empresa</th><th>Fase</th><th>Serviço</th>
     <th class="n">Escopo</th><th class="n">Realiz.</th><th class="n">Saldo</th><th class="n">% concl.</th>
-    <th class="n" title="Somatória de (real − meta) em todas as semanas encerradas">Gap acum.</th>
+    <th class="n" title="Somatória de (real − meta) em semanas encerradas">Gap acum.</th>
     <th class="n">Sem. passada<br><small>meta / real / gap</small></th>
     <th class="n">Meta nec./dia</th>
     <th>Próx. semana — meta/dia<br><small class="nota">${fdA(proxSeg)} → ${fdA(proxFim)} · ${duProx} d.u.</small></th>
   </tr></thead><tbody>`;
 
-  Object.values(agrupados).forEach(x => {
-    // Gap acumulado: semanas encerradas antes da semana atual
-    const metasAnt = M.metas.filter(m => m.empresa === x.emp && m.servico === x.serv && m.fim < semAtual);
-    const gapAcum = soma0(metasAnt, m => prodServico(m.servico, x.emp, m.inicio, m.fim) - (m.meta_dia * m.du + (m.gap || 0)));
+  const vals = Object.values(grupos);
+  vals.forEach(g => {
+    const fasesOrdem = Object.keys(g.fases).sort(); // ['1'], ['2'], ou ['1','2']
+    const multiFase = fasesOrdem.length > 1;
 
-    // Semana passada
-    const metasPass = M.metas.filter(m => m.empresa === x.emp && m.servico === x.serv && m.inicio === segPass);
-    const metaPassTotal = soma0(metasPass, m => m.meta_dia * m.du + (m.gap || 0));
-    const realPass = prodServico(x.serv, x.emp, segPass, fimPass);
-    const gapPass = realPass - metaPassTotal;
+    // Calcula totais
+    const tot = { escopo: 0, acum: 0, saldo: 0, ritmo: 0 };
+    fasesOrdem.forEach(f => { const fd = g.fases[f]; tot.escopo += fd.escopo; tot.acum += fd.acum; tot.saldo += fd.saldo; tot.ritmo += fd.ritmo; });
 
-    // Meta necessária/dia para entregar no prazo
-    const cl = M.cliente.find(cl2 => cl2.servico === x.serv);
+    // Encontra prazo do serviço
+    const cl = M.cliente.find(cl2 => cl2.servico === g.serv);
     const prazo = cl?.prazo;
     const duRestAoPrazo = prazo && prazo > c ? contarDiasUteis(c, prazo) : null;
-    const metaNec = duRestAoPrazo && x.saldo > 0 ? x.saldo / duRestAoPrazo : null;
 
-    // Próxima semana: meta existente ou sugestão
-    const metaProx = M.metas.find(m => m.empresa === x.emp && m.servico === x.serv && m.inicio === proxSeg);
-    const pendKey = `${x.emp}|${x.serv}`;
-    const pendVal = planoPend.get(pendKey);
-    const suggested = metaNec != null ? +metaNec.toFixed(2) : '';
-    const inputVal = pendVal !== undefined ? pendVal : (metaProx != null ? metaProx.meta_dia : suggested);
-
-    const pct = x.escopo > 0 ? x.acum / x.escopo * 100 : null;
-    const inputNum = inputVal !== '' ? Number(inputVal) : 0;
-    const baixo = metaNec != null && inputNum > 0 && inputNum < metaNec * 0.9;
-
+    // Gap acum. e semana passada (Total — todas as fases juntas)
+    const metasAnt = M.metas.filter(m => m.empresa === g.emp && m.servico === g.serv && m.fim < semAtual);
+    const gapAcum = soma0(metasAnt, m => prodServico(m.servico, g.emp, m.inicio, m.fim) - (m.meta_dia * m.du + (m.gap || 0)));
+    const metasPass = M.metas.filter(m => m.empresa === g.emp && m.servico === g.serv && m.inicio === segPass);
+    const metaPassTotal = soma0(metasPass, m => m.meta_dia * m.du + (m.gap || 0));
+    const realPass = prodServico(g.serv, g.emp, segPass, fimPass);
+    const gapPass = realPass - metaPassTotal;
     const semPassTxt = metaPassTotal > 0
       ? `${nf(metaPassTotal, 1)} / ${nf(realPass, 1)} / <span style="color:${gapPass >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${gapPass > 0 ? '+' : ''}${nf(gapPass, 1)}</span>`
       : `— / ${nf(realPass, 1)} / —`;
 
-    h += `<tr>
-      <td><span class="emp-tag" style="--c:${corEmp(x.emp)}">${esc(x.emp)}</span></td>
-      <td>${esc(cap(x.serv))}</td>
-      <td class="n">${nf(x.escopo)}</td>
-      <td class="n">${nf(x.acum, 1)}</td>
-      <td class="n"><b>${nf(x.saldo, 1)}</b></td>
-      <td class="n">${pct != null ? nf(pct, 1) + '%' : '—'}</td>
-      <td class="n" style="color:${gapAcum >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${(gapAcum > 0 ? '+' : '') + nf(gapAcum, 1)}</td>
-      <td class="n">${semPassTxt}</td>
-      <td class="n">${metaNec != null ? `<b>${nf(metaNec, 2)}</b>/dia` : '—'}</td>
-      <td>
+    // Helper para uma célula de input
+    const inputCell = (fase, fd) => {
+      const metaNec = duRestAoPrazo && fd.saldo > 0 ? fd.saldo / duRestAoPrazo : null;
+      const metaProx = M.metas.find(m => m.empresa === g.emp && m.servico === g.serv && m.inicio === proxSeg && (m.fase || '') === fase);
+      const pKey = _pKey(g.emp, g.serv, fase);
+      const pendVal = planoPend.get(pKey);
+      const suggested = metaNec != null ? +metaNec.toFixed(2) : '';
+      const inputVal = pendVal !== undefined ? pendVal : (metaProx != null ? metaProx.meta_dia : suggested);
+      const inputNum = inputVal !== '' ? Number(inputVal) : 0;
+      const baixo = metaNec != null && inputNum > 0 && inputNum < metaNec * 0.9;
+      return `<td>
         <input class="plano-in" type="number" step="0.1" min="0"
-          data-plano-key="${esc(pendKey)}"
-          data-emp="${esc(x.emp)}" data-serv="${esc(x.serv)}"
+          data-emp="${esc(g.emp)}" data-serv="${esc(g.serv)}" data-fase="${fase}"
           data-prox="${proxSeg}" data-du="${duProx}"
           data-linha="${metaProx?.linha ?? ''}"
-          value="${inputVal}" placeholder="${suggested}">
-        ${baixo ? '<span class="farol f-vermelho" style="font-size:.65em;margin-left:4px">ABAIXO DO NECESSÁRIO</span>' : ''}
-      </td>
-    </tr>`;
+          value="${inputVal !== '' ? inputVal : ''}" placeholder="${suggested}">
+        ${baixo ? '<span class="farol f-vermelho" style="font-size:.65em;margin-left:4px">↑ INSUF.</span>' : ''}
+      </td>`;
+    };
+
+    if (multiFase) {
+      // Linha Total — rowspan 3 para Empresa
+      const totMetaNec = duRestAoPrazo && tot.saldo > 0 ? tot.saldo / duRestAoPrazo : null;
+      const totPend = planoPend.get(_pKey(g.emp, g.serv, 'T'));
+      // Valor do Total input: se pendente usa isso, senão soma dos inputs de fase
+      const f1Meta = M.metas.find(m => m.empresa === g.emp && m.servico === g.serv && m.inicio === proxSeg && (m.fase || '') === '1');
+      const f2Meta = M.metas.find(m => m.empresa === g.emp && m.servico === g.serv && m.inicio === proxSeg && (m.fase || '') === '2');
+      const totSaved = (f1Meta?.meta_dia || 0) + (f2Meta?.meta_dia || 0);
+      const totSuggest = totMetaNec != null ? +totMetaNec.toFixed(2) : '';
+      const totInputVal = totPend !== undefined ? totPend : (totSaved > 0 ? totSaved : totSuggest);
+      const totPct = tot.escopo > 0 ? tot.acum / tot.escopo * 100 : null;
+
+      h += `<tr class="plano-total">
+        <td rowspan="${1 + fasesOrdem.length}"><span class="emp-tag" style="--c:${corEmp(g.emp)}">${esc(g.emp)}</span></td>
+        <td><b>Total</b></td><td><b>${esc(cap(g.serv))}</b></td>
+        <td class="n"><b>${nf(tot.escopo)}</b></td><td class="n"><b>${nf(tot.acum, 1)}</b></td>
+        <td class="n"><b>${nf(tot.saldo, 1)}</b></td>
+        <td class="n">${totPct != null ? nf(totPct, 1) + '%' : '—'}</td>
+        <td class="n" style="color:${gapAcum >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${(gapAcum > 0 ? '+' : '') + nf(gapAcum, 1)}</td>
+        <td class="n">${semPassTxt}</td>
+        <td class="n">${totMetaNec != null ? `<b>${nf(totMetaNec, 2)}</b>/dia` : '—'}</td>
+        <td><input class="plano-in" type="number" step="0.1" min="0"
+          data-emp="${esc(g.emp)}" data-serv="${esc(g.serv)}" data-fase="T"
+          data-prox="${proxSeg}" data-du="${duProx}" data-linha=""
+          value="${totInputVal !== '' ? totInputVal : ''}" placeholder="${totSuggest}"></td>
+      </tr>`;
+
+      // Sub-linhas por fase
+      fasesOrdem.forEach(f => {
+        const fd = g.fases[f];
+        const fMetaNec = duRestAoPrazo && fd.saldo > 0 ? fd.saldo / duRestAoPrazo : null;
+        const fPct = fd.escopo > 0 ? fd.acum / fd.escopo * 100 : null;
+        h += `<tr class="plano-sub">
+          <td class="nota">F${f}</td><td class="nota">${esc(cap(g.serv))}</td>
+          <td class="n nota">${nf(fd.escopo)}</td><td class="n nota">${nf(fd.acum, 1)}</td>
+          <td class="n nota">${nf(fd.saldo, 1)}</td>
+          <td class="n nota">${fPct != null ? nf(fPct, 1) + '%' : '—'}</td>
+          <td class="n nota">—</td><td class="n nota">—</td>
+          <td class="n nota">${fMetaNec != null ? nf(fMetaNec, 2) + '/dia' : '—'}</td>
+          ${inputCell(f, fd)}
+        </tr>`;
+      });
+    } else {
+      // Serviço de fase única — linha simples
+      const fase = fasesOrdem[0];
+      const fd = g.fases[fase];
+      const metaNec = duRestAoPrazo && fd.saldo > 0 ? fd.saldo / duRestAoPrazo : null;
+      const pct = fd.escopo > 0 ? fd.acum / fd.escopo * 100 : null;
+      h += `<tr>
+        <td><span class="emp-tag" style="--c:${corEmp(g.emp)}">${esc(g.emp)}</span></td>
+        <td>F${fase}</td><td>${esc(cap(g.serv))}</td>
+        <td class="n">${nf(fd.escopo)}</td><td class="n">${nf(fd.acum, 1)}</td>
+        <td class="n"><b>${nf(fd.saldo, 1)}</b></td>
+        <td class="n">${pct != null ? nf(pct, 1) + '%' : '—'}</td>
+        <td class="n" style="color:${gapAcum >= 0 ? 'var(--verde)' : 'var(--vermelho)'}">${(gapAcum > 0 ? '+' : '') + nf(gapAcum, 1)}</td>
+        <td class="n">${semPassTxt}</td>
+        <td class="n">${metaNec != null ? `<b>${nf(metaNec, 2)}</b>/dia` : '—'}</td>
+        ${inputCell(fase, fd)}
+      </tr>`;
+    }
   });
 
-  if (!Object.keys(agrupados).length) {
-    h += `<tr><td colspan="10" class="vazio">Nenhum serviço com escopo definido para o filtro atual.</td></tr>`;
+  if (!vals.length) {
+    h += `<tr><td colspan="11" class="vazio">Nenhum serviço encontrado para o filtro atual.</td></tr>`;
   }
   $('#tabPlanoAcao').innerHTML = h + '</tbody>';
-  $('#btnSalvarPlano').disabled = !planoPend.size;
-  $('#planoTxt').textContent = planoPend.size
-    ? `${planoPend.size} meta(s) pendente(s) — clique em "Salvar" para registrar`
+  // pendentes reais: F1, F2 ou fase única (não T que é derivado)
+  const nPend = [...planoPend].filter(([k]) => !k.endsWith('\x1FT')).length;
+  $('#btnSalvarPlano').disabled = !nPend;
+  $('#planoTxt').textContent = nPend
+    ? `${nPend} meta(s) pendente(s) — clique em "Salvar" para registrar`
     : `Sem. passada: ${fdA(segPass)}–${fdA(fimPass)} · Próx.: ${fdA(proxSeg)}–${fdA(proxFim)} · ${duProx} dias úteis`;
 }
 
 async function salvarPlanoAcao() {
-  if (!planoPend.size) return;
   const metas = [];
   planoPend.forEach((metaDia, key) => {
-    const inp = document.querySelector(`input[data-plano-key="${CSS.escape(key)}"]`);
+    if (key.endsWith('\x1FT')) return; // Total é derivado, não salva
+    if (metaDia === null || metaDia === undefined) return;
+    const [emp, serv, fase] = key.split('\x1F');
+    const inp = document.querySelector(`input.plano-in[data-emp="${CSS.escape(emp)}"][data-serv="${CSS.escape(serv)}"][data-fase="${fase}"]`);
     if (!inp) return;
-    metas.push({ empresa: inp.dataset.emp, servico: inp.dataset.serv, inicio: inp.dataset.prox, du: +inp.dataset.du, meta_dia: +metaDia, linha: inp.dataset.linha || null });
+    metas.push({ empresa: emp, servico: serv, inicio: inp.dataset.prox, du: +inp.dataset.du, meta_dia: +metaDia, fase, linha: inp.dataset.linha || null });
   });
   if (!metas.length) return;
   try {
@@ -4171,18 +4246,34 @@ function ligarEventos() {
   });
   $('#btnSalvarMetas').onclick = salvarMetas;
 
-  $('#tabPlanoAcao').addEventListener('change', ev => {
+  $('#tabPlanoAcao').addEventListener('input', ev => {
     const inp = ev.target.closest('.plano-in'); if (!inp) return;
-    const key = inp.dataset.planoKey;
-    const v = inp.value === '' ? null : Number(inp.value);
-    if (v === null || v < 0) {
-      planoPend.delete(key);
+    const emp = inp.dataset.emp, serv = inp.dataset.serv, fase = inp.dataset.fase;
+    const v = inp.value === '' ? null : Math.max(0, Number(inp.value));
+    const sel = f => document.querySelector(`input.plano-in[data-emp="${CSS.escape(emp)}"][data-serv="${CSS.escape(serv)}"][data-fase="${f}"]`);
+
+    if (fase === 'T') {
+      // Total editado: F2 = Total - F1, F1 fica
+      const f1Val = +(sel('1')?.value || 0);
+      const f2Val = v !== null ? Math.max(0, v - f1Val) : null;
+      planoPend.set(_pKey(emp, serv, 'T'), v);
+      planoPend.set(_pKey(emp, serv, '2'), f2Val);
+      const f2Inp = sel('2'); if (f2Inp) f2Inp.value = f2Val !== null ? f2Val : '';
     } else {
-      const orig = M.metas.find(m => m.empresa === inp.dataset.emp && m.servico === inp.dataset.serv && m.inicio === inp.dataset.prox);
-      if (orig && orig.meta_dia === v) planoPend.delete(key); else planoPend.set(key, v);
+      // F1 ou F2 editado: Total = F1 + F2
+      planoPend.set(_pKey(emp, serv, fase), v);
+      const otherFase = fase === '1' ? '2' : '1';
+      const otherVal = +(sel(otherFase)?.value || 0);
+      const totVal = (v || 0) + otherVal;
+      planoPend.set(_pKey(emp, serv, 'T'), totVal);
+      const totInp = sel('T'); if (totInp) totInp.value = totVal;
     }
-    const c = corte();
-    renderPlanoAcao(c, projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro));
+
+    const nPend = [...planoPend].filter(([k]) => !k.endsWith('\x1FT')).length;
+    $('#btnSalvarPlano').disabled = !nPend;
+    $('#planoTxt').textContent = nPend
+      ? `${nPend} meta(s) pendente(s) — clique em "Salvar" para registrar`
+      : '';
   });
   $('#btnSalvarPlano').onclick = salvarPlanoAcao;
 
