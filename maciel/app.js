@@ -556,6 +556,28 @@ function renderPlanoAcao(c) {
     });
   });
 
+  // Garante F2 nos grupos com F1, mesmo que F2 tenha escopo/produção zero.
+  // Sem isso, multiFase nunca é ativado e Total = F1 apenas.
+  if (!faseFiltro || faseFiltro === '2') {
+    M.empresas.forEach(e => {
+      if (painelEmpFiltro && e.nome !== painelEmpFiltro) return;
+      e.servicos.forEach(sv => {
+        if (faseItem(sv.frente) !== '2') return;
+        const k = e.nome + '\x1F' + sv.nome;
+        const g = grupos[k];
+        if (!g || g.fases['2']) return; // grupo não existe ou F2 já adicionado
+        const acum2 = soma(e, sv.col, '0000', c);
+        const acumIni14_2 = soma(e, sv.col, '0000', add(ini14, -1));
+        g.fases['2'] = {
+          escopo: sv.escopo || 0,
+          acum: acum2,
+          saldo: Math.max((sv.escopo || 0) - acum2, 0),
+          ritmo: (acum2 - acumIni14_2) / Math.max(du14, 1)
+        };
+      });
+    });
+  }
+
   let h = `<thead><tr>
     <th>Empresa</th><th>Fase</th><th>Serviço</th>
     <th class="n">Escopo</th><th class="n">Realiz.</th><th class="n">Saldo</th><th class="n">% concl.</th>
