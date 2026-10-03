@@ -1570,14 +1570,11 @@ function renderCliente() {
     // Para linhas consolidadas F1+F2, usa o ID do primeiro item (fases[0])
     const primeiroItem = l.fases && l.fases[0];
     const idEdit = primeiroItem?.linha ?? '';
-    // Barra visual para Realizado Período (igual à aba Avanço)
-    const pctReal = l.prevPer > 0 ? Math.min(100, l.realPer / l.prevPer * 100) : null;
-    const barraReal = pctReal == null
-      ? (l.realPer > 0 ? `<span class="nota">${nf(l.realPer, 1)} realizado</span>` : '—')
-      : `<div class="barra" title="${nf(pctReal, 1)}%"><i style="width:${pctReal}%"></i></div><span class="nota">${nf(pctReal, 1)}%</span>`;
+    // Avanço físico realizado no período: min(1, realizado/qtd) * 100
+    const avancoPeríodo = l.qtd > 0 ? Math.min(1, l.realPer / l.qtd) * 100 : 0;
     h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n"><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
-      <td><b>${nf(l.realPer, 1)}</b><div style="margin-top:4px">${barraReal}</div></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
+      <td class="n"><b>${nf(avancoPeríodo, 1)}%</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
       <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n"><b>${nf(l.realAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
       <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
