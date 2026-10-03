@@ -130,7 +130,7 @@ function tabelas_spec()
     ];
 }
 
-const ESQUEMA_VERSAO = 7;
+const ESQUEMA_VERSAO = 8;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
