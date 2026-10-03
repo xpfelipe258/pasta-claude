@@ -1510,14 +1510,37 @@ function renderCliente() {
   const itens = itensCliente();
   const emps = M.empresas.map(e => e.nome);
   const proj = Object.fromEntries(contratoLinhas(c).map(x => [x.servico, x]));
-  const linhas = itens.map(it => {
-    const prevPer = prevCliente(it, c) - prevCliente(it, antes);
-    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? prodServico(it.servico, n, ini, c) : 0]));
+
+  // Agrupa itens por serviço para consolidar F1+F2
+  const gruposServ = {};
+  itens.forEach(it => {
+    const k = it.servico.trim();
+    (gruposServ[k] ||= []).push(it);
+  });
+
+  const linhas = Object.entries(gruposServ).map(([servNome, fases]) => {
+    // Totais consolidados F1+F2
+    const totQtd = soma0(fases, f => f.qtd || 0);
+    const totInicioMin = fases.map(f => f.inicio_plan).filter(Boolean).sort()[0] || null;
+    const totMetaDia = fases.length === 1 ? fases[0].meta_dia : soma0(fases, f => f.meta_dia || 0) / fases.length;
+
+    const prevPer = soma0(fases, f => (prevCliente(f, c) - prevCliente(f, antes)) || 0);
+    const porEmp = Object.fromEntries(emps.map(n => [n, soma0(fases, f => c >= ini ? prodServico(f.servico, n, ini, c) : 0)]));
     const realPer = soma0(Object.values(porEmp), v => v);
-    const prevAc = prevCliente(it, c), realAc = realizadoTotal(it.servico, c);
-    const p = proj[it.servico] || {};
-    const status = realAc >= it.qtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
-    return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo: Math.max(it.qtd - realAc, 0), p, status };
+    const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
+    const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
+    const saldo = Math.max(totQtd - realAc, 0);
+
+    // Status baseado no total consolidado
+    const status = realAc >= totQtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+
+    // Projeção agregada
+    const projFases = fases.map(f => proj[f.servico]).filter(Boolean);
+    const p = projFases.length > 0 ? projFases[0] : {};
+    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
+
+    const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax };
+    return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
   });
 
   const avPrev = avancoPonderado(c, true), avReal = avancoPonderado(c, false);
@@ -1536,14 +1559,15 @@ function renderCliente() {
     tile('Término projetado', projFinal ? fdA(projFinal) : 'Indefinido', projFinal ? `Prazo contratual: ${fdA(prazoFinal)}` : `Sem ritmo de produção: ${semRitmo.map(x => cap(x.servico)).join(', ')} · prazo ${fdA(prazoFinal)}`, projFinal && prazoFinal ? `<span class="farol f-${projFinal <= prazoFinal ? 'verde' : 'vermelho'}">${projFinal <= prazoFinal ? 'NO PRAZO' : 'ATRASO'}</span>` : '') +
     tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
 
-  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado`;
+  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado (F1+F2 consolidado)`;
   let h = `<thead><tr><th>Serviço</th><th class="n">Contrato</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Realizado acum.</th><th class="n">Saldo</th><th>Término projetado</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>`;
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
-    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n">${nf(l.it.qtd)}</td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
+    const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
+    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n"><b>${nf(l.it.qtd)}</b></td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
-      <td class="n">${l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—'}</td><td class="n">${nf(l.prevAc, 1)}</td><td class="n">${nf(l.realAc, 1)}</td><td class="n">${nf(l.saldo, 1)}</td>
+      <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n"><b>${nf(l.realAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
       <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
   $('#tabCliente').innerHTML = h + '</tbody>';
