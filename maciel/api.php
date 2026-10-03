@@ -650,12 +650,15 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
     if ($atual && $atual['valor_txt'] !== null) {
         throw new ErroValidacao("A célula de $servico de {$emp['nome']} em $data contém texto. Corrija em Lançamentos.");
     }
-    $novo = max(0, (float)($atual['valor_num'] ?? 0) + $delta);
+    $anterior = (float)($atual['valor_num'] ?? 0);
+    $novo = max(0, $anterior + $delta);
     q('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col = ?', [$emp['id'], $data, $col]);
     if ($novo > 0) {
         q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $data, $col, $novo]);
     }
-    return 1;
+    // devolve o lançamento para a tela poder mostrar onde foi parar
+    return ['empresa' => $emp['nome'], 'servico' => $servico, 'col' => $col, 'data' => $data,
+            'delta' => $delta, 'anterior' => $anterior, 'total' => $novo];
 }
 
 // Frentes montadas fora do plano das joists (fechamento lateral, marquise, contraventamento),
@@ -914,14 +917,16 @@ function acao_apontamento(array $corpo, array $usuario)
         gravar_linha('apontamentos', null, $vals);
         $ids[] = (int)bd()->lastInsertId();
     }
+    $lancamentos = [];
     if ($lanca) {
         foreach ($grupos as $g) {
             if ($g['servico']) {
-                soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
+                $lancamentos[] = soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
             }
         }
     }
-    return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [], 'linhas' => $ids];
+    return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [],
+            'linhas' => $ids, 'lancamentos' => $lancamentos];
 }
 
 function rua_valida($rua, array $eixos)
@@ -942,6 +947,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         throw new ErroValidacao('Apontamento não encontrado. Recarregue a tela.');
     }
     $somas = [];
+    $lancamentos = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -965,12 +971,12 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     }
     foreach ($somas as $chave => $delta) {
         list($nome, $servico, $dia) = explode('|', $chave);
-        soma_producao($nome, $servico, $dia, $delta, $usuario);
+        $lancamentos[] = soma_producao($nome, $servico, $dia, $delta, $usuario);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
     }
-    return ['celulas' => count($alvo), 'avisos' => []];
+    return ['celulas' => count($alvo), 'avisos' => [], 'lancamentos' => $lancamentos];
 }
 
 // Define a empresa de apontamentos de regularização (histórico), que não somaram na grade de produção.

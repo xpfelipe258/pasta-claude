@@ -2507,7 +2507,11 @@ async function salvarApontamento() {
     const r = await postar(API + 'apontamento', { data: s.data, lanca_producao: !s.regular, obs: s.obs.trim() || null, lote });
     s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.frente = new Map(); s.obs = '';
     await carregar();
-    toast(`${r.salvos} apontamento(s) salvo(s)${r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''}`, !!r.avisos?.length, r.avisos?.length ? 9000 : undefined);
+    const lanc = (r.lancamentos || []).map(l => `${l.empresa} · ${l.servico} +${nf(l.delta)} (dia fecha em ${nf(l.total)})`).join(' · ');
+    toast(`${r.salvos} apontamento(s) salvo(s)`
+      + (lanc ? `. Lançado em produção: ${lanc}` : (s.regular ? '. Regularização: não somou em Lançamentos.' : ''))
+      + (r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''),
+      !!r.avisos?.length, (r.avisos?.length || lanc) ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
 }
 
