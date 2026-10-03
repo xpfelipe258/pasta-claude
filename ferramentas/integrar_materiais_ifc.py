@@ -46,6 +46,18 @@ def main():
     est = json.load(open(est_cam, encoding='utf-8'))
     usadas = {m['tag'] for m in est['materiais']}
 
+    # Os materiais que já existiam são todos do galpão; recebem o local para
+    # a tabela poder ser lida e filtrada por prédio.
+    FIX = ('PORCA', 'ARRUELA', 'PARAFUSO', 'PARABOLT', 'CHUMBADOR',
+           'BARRA ROSCADA', 'PINO', 'REBITE', 'BUCHA', 'NUT', 'WASHER')
+    for m in est['materiais']:
+        m.setdefault('local', 'Galpão')
+        texto = ((m.get('produto') or '') + ' ' + (m.get('material') or '')).upper()
+        if any(x in texto for x in FIX):
+            m['tipo_material'] = 'FIXADOR'
+        elif not m.get('tipo_material'):
+            m['tipo_material'] = 'ESTRUTURAL'
+
     novos = []
     for f in sys.argv[1:]:
         if f.endswith('.json'):

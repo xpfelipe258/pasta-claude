@@ -64,6 +64,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             importar_pacote($pacote);
             $msg = 'Dados importados com sucesso.';
+        } elseif ($acao === 'importar_estoque') {
+            // Substitui SÓ o documento de estoque. Produção, apontamentos,
+            // medições e usuários não são tocados.
+            if (!empty($_FILES['arquivo_estoque']['tmp_name']) && is_uploaded_file($_FILES['arquivo_estoque']['tmp_name'])) {
+                $txt = file_get_contents($_FILES['arquivo_estoque']['tmp_name']);
+                $origem = 'arquivo enviado';
+            } else {
+                $arq = __DIR__ . '/inc/estoque_inicial.json';
+                if (!is_file($arq)) {
+                    throw new InvalidArgumentException('inc/estoque_inicial.json não encontrado no servidor.');
+                }
+                $txt = file_get_contents($arq);
+                $origem = 'inc/estoque_inicial.json';
+            }
+            $estoque = json_decode($txt, true);
+            if (!is_array($estoque) || empty($estoque['materiais'])) {
+                throw new InvalidArgumentException('JSON inválido: esperado um documento de estoque com a lista "materiais".');
+            }
+            estoque_planilha_gravar($estoque);
+            registrar_alteracao('estoque_importado', ['origem' => $origem, 'materiais' => count($estoque['materiais'])]);
+            $msg = sprintf('Estoque atualizado a partir de %s: %d materiais e %d remessas. Produção, apontamentos e medições não foram alterados.',
+                $origem, count($estoque['materiais']), count($estoque['remessas']['itens'] ?? []));
         } elseif ($acao === 'obra') {
             if (!data_valida($_POST['data_inicio'] ?? '') || !data_valida($_POST['data_fim'] ?? '') || $_POST['data_fim'] < $_POST['data_inicio']) {
                 throw new InvalidArgumentException('Datas da obra inválidas.');
@@ -156,6 +178,14 @@ pagina_inicio('Administração');
         <button class="btn primario">Importar</button>
       </form>
       <p><a class="btn" href="admin.php?acao=exportar&amp;csrf=<?= h($csrf) ?>">Baixar backup completo (JSON)</a></p>
+      <hr>
+      <h3>Atualizar somente o estoque</h3>
+      <p class="nota">Substitui apenas materiais, remessas, inventário e consumo físico. <b>Produção, apontamentos e medições não são tocados.</b> Sem arquivo, usa o <code>inc/estoque_inicial.json</code> que veio no sistema.</p>
+      <form method="post" enctype="multipart/form-data" class="campos-linha">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="importar_estoque">
+        <input type="file" name="arquivo_estoque" accept=".json,application/json">
+        <button class="btn">Atualizar estoque</button>
+      </form>
     </section>
     <section class="bloco">
       <div class="bloco-cab"><h2>Obra</h2></div>

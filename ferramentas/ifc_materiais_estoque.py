@@ -17,7 +17,31 @@ sys.path.insert(0, __file__.rsplit('/', 1)[0])
 from ifc_quantitativo import campos, ler_entidades, limpa, numero, refs, texto
 from ifc_quantitativo_bm import fase_para_item_bm
 
-FIXADORES = ('PORCA', 'ARRUELA', 'PARAFUSO', 'CHUMBADOR', 'BARRA ROSCADA', 'GROUT')
+FIXADORES = ('PORCA', 'ARRUELA', 'PARAFUSO', 'CHUMBADOR', 'BARRA ROSCADA',
+              'PARABOLT', 'PINO', 'REBITE', 'REBITES', 'BUCHA')
+
+# O PHASE.NAME diz a que prédio a peça pertence. Um mesmo IFC pode conter
+# mais de um: o modelo da portaria traz também a eclusa.
+LOCAIS = [
+    ('ECLUSA', 'Eclusa'),
+    ('PORTARIA', 'Portaria'),
+    ('VESTI', 'Vestiário'),
+    ('REFEIT', 'Refeitório'),
+    ('PASSAREL', 'Passarelas'),
+    ('VIV', 'Área de Vivência'),
+    ('QDF', 'QDF CAG'),
+    ('MARQUISE', 'Marquise'),
+    ('GALP', 'Galpão'),
+]
+
+
+def local_de(fases, padrao='Anexos'):
+    achados = {nome for f in fases for chave, nome in LOCAIS if chave in f.upper()}
+    if len(achados) == 1:
+        return achados.pop()
+    if achados:
+        return ' + '.join(sorted(achados))
+    return padrao
 
 # O Tekla acrescenta "(?)" à marca quando o conjunto tem marcação ambígua.
 AMBIGUA = re.compile(r"\(\?\)\s*$")
@@ -120,7 +144,11 @@ def extrair(caminho):
         marca = str(marca)
         ambigua = bool(AMBIGUA.search(marca))
         marca = AMBIGUA.sub('', marca).strip()
-        g = grupos[(marca, nome)]
+        # agrupa por local: a mesma marca em prédios diferentes vira linhas
+        # diferentes, para o estoque poder ser lido por local.
+        fase_peca = p.get('PHASE.NAME')
+        onde = local_de([str(fase_peca)] if fase_peca else [], '')
+        g = grupos[(marca, nome, onde)]
         g['ambigua'] = g.get('ambigua') or ambigua
         g['pecas'] += 1
         for chave, destino in (('WEIGHT', 'peso'), ('LENGTH', 'comp')):
@@ -138,6 +166,8 @@ def extrair(caminho):
 def main():
     arquivos = [a for a in sys.argv[1:] if a.endswith('.ifc')]
     etapa = sys.argv[sys.argv.index('--etapa') + 1] if '--etapa' in sys.argv else ''
+    # quando a fase diz só "ANEXOS", sem nomear o prédio, vale o local do modelo
+    padrao = sys.argv[sys.argv.index('--local') + 1] if '--local' in sys.argv else ''
 
     geral = defaultdict(lambda: {'pecas': 0, 'peso': [], 'comp': [],
                                  'perfil': set(), 'material': set(), 'fase': set()})
@@ -151,17 +181,19 @@ def main():
                 g[c] |= v[c]
 
     linhas = []
-    for (marca, nome), g in sorted(geral.items(), key=lambda kv: -kv[1]['pecas']):
+    for (marca, nome, onde), g in sorted(geral.items(), key=lambda kv: (kv[0][2], -kv[1]['pecas'])):
         pu = round(sum(g['peso']) / len(g['peso']), 2) if g['peso'] else 0.0
         cm = round(sum(g['comp']) / len(g['comp']), 1) if g['comp'] else 0.0
-        up = nome.upper()
+        perfil = ' / '.join(sorted(g['perfil'])) or ' / '.join(sorted(g['material']))
+        # fixador se o produto OU o perfil indicar (ex.: produto "NUT", perfil "PORCA Ø3/4")
+        up = (nome + ' ' + perfil).upper()
         item_bm = sorted({fase_para_item_bm(f)[0] for f in g['fase'] if fase_para_item_bm(f)[0]})
         linhas.append({
             'tag': marca,
             'peso_unitario': pu,
             'peso_total': round(pu * g['pecas'], 2),
             'comp_mm': cm,
-            'material': ' / '.join(sorted(g['perfil'])) or ' / '.join(sorted(g['material'])),
+            'material': perfil,
             'produto': nome,
             'planejado': float(g['pecas']),
             'chegou': 0.0,
@@ -174,6 +206,7 @@ def main():
             'tipo_material': 'FIXADOR' if any(x in up for x in FIXADORES) else 'ESTRUTURAL',
             'prioridade': 'P2',
             'etapa': etapa,
+            'local': onde or padrao or local_de(g['fase'], etapa),
             'item_bm': ', '.join(item_bm),
             'origem': 'IFC',
             'marca_ambigua': bool(g.get('ambigua')),

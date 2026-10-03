@@ -1470,6 +1470,9 @@ function renderEstoquePlanilha() {
 function _filtroMat() { return ($('#estMatFiltro')?.value || '').toUpperCase(); }
 function _filtroMatEtapa() { return ($('#estMatEtapa')?.value || ''); }
 function _filtroMatStatus() { return ($('#estMatStatus')?.value || ''); }
+function _filtroMatLocal() { return ($('#estMatLocal')?.value || ''); }
+function _filtroMatTipo() { return ($('#estMatTipo')?.value || ''); }
+function ehFixador(m) { return (m.tipo_material || '').toUpperCase() === 'FIXADOR'; }
 
 function renderEstMateriais() {
   if (!EP || !M) return;
@@ -1480,8 +1483,13 @@ function renderEstMateriais() {
   const posBaixaDe = m => cvMapa.has(m.tag) ? m.chegou - cvMapa.get(m.tag).cv : m.estoque_pos_baixa;
   const itens = EP.materiais;
   const f = _filtroMat(), fe = _filtroMatEtapa(), fs = _filtroMatStatus();
+  const fl = _filtroMatLocal(), ft = _filtroMatTipo();
   const vis = itens.filter(m => {
-    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f) && !(m.etapa || '').toUpperCase().includes(f)) return false;
+    if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)
+      && !(m.etapa || '').toUpperCase().includes(f) && !(m.local || '').toUpperCase().includes(f)) return false;
+    if (fl && (m.local || '') !== fl) return false;
+    if (ft === 'SO_FIXADOR' && !ehFixador(m)) return false;
+    if (ft === 'SEM_FIXADOR' && ehFixador(m)) return false;
     if (fe && m.etapa !== fe) return false;
     if (fs && m.status_logistico !== fs) return false;
     return true;
@@ -1494,10 +1502,14 @@ function renderEstMateriais() {
   const parciais = itens.filter(m => m.status_logistico === 'Recebimento Parcial').length;
   $('#estMatTiles').innerHTML =
     tile('Itens', itens.length, `${vis.length} visíveis no filtro`, 'var(--fg)') +
+    tile('Fixadores', itens.filter(ehFixador).length, `${itens.length - itens.filter(ehFixador).length} itens de estrutura`, 'var(--fg3)') +
     tile('Atendimento geral', atend + '%', `${nf(totCheg)} de ${nf(totPlan)} planejados`, 'var(--acento)') +
     tile('Críticos', criticos, 'nenhuma peça chegou', 'var(--vermelho)') +
     tile('Recebimento parcial', parciais, 'falta enviar', 'var(--amarelo)');
 
+  const locais = [...new Set(itens.map(m => m.local).filter(Boolean))].sort();
+  const selL = $('#estMatLocal');
+  if (selL && selL.options.length <= 1) locais.forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = l; selL.appendChild(o); });
   const etapas = [...new Set(itens.map(m => m.etapa).filter(Boolean))].sort();
   const selE = $('#estMatEtapa');
   if (selE && selE.options.length <= 1) etapas.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; selE.appendChild(o); });
@@ -1511,9 +1523,10 @@ function renderEstMateriais() {
     if (s === 'Crítico') return 'vermelho';
     return 'pendente';
   };
-  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th></tr></thead><tbody>` +
+  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr>
-      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>
+      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td>
+      <td>${esc(m.local || '—')}${ehFixador(m) ? ' <span class="nota">fixador</span>' : ''}</td><td>${esc(m.etapa)}</td>
       <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
       <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
@@ -3632,7 +3645,7 @@ function ligarEventos() {
   }));
   const sbToggle = document.getElementById('sidebarToggle');
   if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
-  ['estMatFiltro', 'estMatEtapa', 'estMatStatus'].forEach(id => {
+  ['estMatFiltro', 'estMatLocal', 'estMatTipo', 'estMatEtapa', 'estMatStatus'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => renderEstMateriais());
   });

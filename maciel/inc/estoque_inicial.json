@@ -18,7 +18,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "BZ002",
@@ -37,7 +38,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "BZ005",
@@ -56,7 +58,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "DN001",
@@ -75,7 +78,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "DN002",
@@ -94,7 +98,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "DN003",
@@ -113,7 +118,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "RF001",
@@ -132,7 +138,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "RF003",
@@ -151,7 +158,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "TV001",
@@ -170,7 +178,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "TV002",
@@ -189,7 +198,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "TV003",
@@ -208,7 +218,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "SPD01",
@@ -227,7 +238,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P1",
-   "etapa": "Pré-montagem / JOIST"
+   "etapa": "Pré-montagem / JOIST",
+   "local": "Galpão"
   },
   {
    "tag": "GRP03",
@@ -246,7 +258,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RCD01",
@@ -265,7 +278,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RCE01",
@@ -284,7 +298,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RCE02",
@@ -303,7 +318,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RO01",
@@ -322,7 +338,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RO02",
@@ -341,7 +358,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RPI01",
@@ -360,7 +378,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RS01",
@@ -379,7 +398,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RT01",
@@ -398,7 +418,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RT02",
@@ -417,7 +438,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "RTO01",
@@ -436,7 +458,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR01",
@@ -455,7 +478,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR02",
@@ -474,7 +498,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR03",
@@ -493,7 +518,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR04",
@@ -512,7 +538,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR05",
@@ -531,7 +558,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR06",
@@ -550,7 +578,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ARR07",
@@ -569,7 +598,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CBB01",
@@ -586,9 +616,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Crítico",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CBB02",
@@ -605,9 +636,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Crítico",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CBB03",
@@ -624,9 +656,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Crítico",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CBB04",
@@ -643,9 +676,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Crítico",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CH01",
@@ -664,7 +698,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH01",
@@ -683,7 +718,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH02",
@@ -702,7 +738,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH03",
@@ -721,7 +758,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH04",
@@ -740,7 +778,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH05",
@@ -759,7 +798,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CTH06",
@@ -778,7 +818,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "L01",
@@ -797,7 +838,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "MT01",
@@ -816,7 +858,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR01",
@@ -835,7 +878,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR02",
@@ -854,7 +898,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR03",
@@ -873,7 +918,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR04",
@@ -892,7 +938,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR05",
@@ -911,7 +958,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "PR06",
@@ -930,7 +978,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SJ01",
@@ -949,7 +998,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SJ02",
@@ -968,7 +1018,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "JOIST",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SJ03",
@@ -987,7 +1038,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SP01",
@@ -1006,7 +1058,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SP02",
@@ -1025,7 +1078,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SP03",
@@ -1044,7 +1098,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP01",
@@ -1063,7 +1118,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP02",
@@ -1082,7 +1138,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP03",
@@ -1101,7 +1158,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP04",
@@ -1120,7 +1178,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP05",
@@ -1139,7 +1198,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP06",
@@ -1158,7 +1218,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP07",
@@ -1177,7 +1238,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TP08",
@@ -1196,7 +1258,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV02",
@@ -1215,7 +1278,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV03",
@@ -1234,7 +1298,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV04",
@@ -1253,7 +1318,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV05",
@@ -1272,7 +1338,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV06",
@@ -1291,7 +1358,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TV07",
@@ -1310,7 +1378,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC01",
@@ -1329,7 +1398,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC02",
@@ -1348,7 +1418,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC03",
@@ -1367,7 +1438,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC04",
@@ -1386,7 +1458,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC05",
@@ -1405,7 +1478,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC06",
@@ -1424,7 +1498,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC07",
@@ -1443,7 +1518,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC08",
@@ -1462,7 +1538,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC09",
@@ -1481,7 +1558,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC10",
@@ -1500,7 +1578,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC11",
@@ -1519,7 +1598,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC12",
@@ -1538,7 +1618,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC13",
@@ -1557,7 +1638,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC14",
@@ -1576,7 +1658,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC15",
@@ -1595,7 +1678,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC16",
@@ -1614,7 +1698,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC17",
@@ -1633,7 +1718,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC18",
@@ -1652,7 +1738,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC19",
@@ -1671,7 +1758,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC20",
@@ -1690,7 +1778,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC21",
@@ -1709,7 +1798,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VC22",
@@ -1728,7 +1818,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ET01",
@@ -1747,7 +1838,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ET02",
@@ -1766,7 +1858,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ET03",
@@ -1785,7 +1878,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ET04",
@@ -1804,7 +1898,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ET05",
@@ -1823,7 +1918,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ST01",
@@ -1842,7 +1938,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "ST02",
@@ -1861,7 +1958,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF01",
@@ -1880,7 +1978,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF02",
@@ -1899,7 +1998,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF03",
@@ -1918,7 +2018,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF04",
@@ -1937,7 +2038,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF05",
@@ -1956,7 +2058,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF06",
@@ -1975,7 +2078,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF07",
@@ -1994,7 +2098,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF08",
@@ -2013,7 +2118,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF09",
@@ -2032,7 +2138,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF10",
@@ -2051,7 +2158,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF11",
@@ -2070,7 +2178,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF12",
@@ -2089,7 +2198,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF13",
@@ -2108,7 +2218,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF14",
@@ -2127,7 +2238,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF15",
@@ -2146,7 +2258,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TF16",
@@ -2165,7 +2278,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V10",
@@ -2184,7 +2298,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V11",
@@ -2203,7 +2318,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V12",
@@ -2222,7 +2338,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V14",
@@ -2241,7 +2358,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V15",
@@ -2260,7 +2378,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V16",
@@ -2279,7 +2398,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V17",
@@ -2298,7 +2418,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "V18",
@@ -2317,7 +2438,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CA02",
@@ -2336,7 +2458,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CA03",
@@ -2355,7 +2478,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "GRP01",
@@ -2374,7 +2498,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "GRP02",
@@ -2393,7 +2518,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "MF01",
@@ -2412,7 +2538,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "MF02",
@@ -2431,7 +2558,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "MF03",
@@ -2450,7 +2578,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "MF04",
@@ -2469,7 +2598,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "STM01",
@@ -2488,7 +2618,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SP04",
@@ -2507,7 +2638,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC01",
@@ -2526,7 +2658,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC02",
@@ -2545,7 +2678,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC03",
@@ -2564,7 +2698,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC04",
@@ -2583,7 +2718,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC05",
@@ -2602,7 +2738,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC06",
@@ -2621,7 +2758,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC07",
@@ -2640,7 +2778,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC08",
@@ -2659,7 +2798,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC09",
@@ -2678,7 +2818,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC10",
@@ -2697,7 +2838,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC11",
@@ -2716,7 +2858,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC12",
@@ -2735,7 +2878,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC13",
@@ -2754,7 +2898,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC14",
@@ -2773,7 +2918,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC15",
@@ -2792,7 +2938,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC16",
@@ -2811,7 +2958,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC17",
@@ -2830,7 +2978,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC18",
@@ -2849,7 +2998,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC19",
@@ -2868,7 +3018,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "TC20",
@@ -2887,7 +3038,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "VM01",
@@ -2906,7 +3058,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "API02",
@@ -2925,7 +3078,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "APP01",
@@ -2944,7 +3098,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CLP01",
@@ -2963,7 +3118,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CLP02",
@@ -2982,7 +3138,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "CA01",
@@ -3001,7 +3158,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "SC01",
@@ -3020,7 +3178,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Montagem"
+   "etapa": "Montagem",
+   "local": "Galpão"
   },
   {
    "tag": "FG001",
@@ -3039,7 +3198,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG002",
@@ -3058,7 +3218,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG003",
@@ -3077,7 +3238,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG004",
@@ -3096,7 +3258,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG005",
@@ -3115,7 +3278,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG006",
@@ -3134,7 +3298,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG007",
@@ -3153,7 +3318,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG008",
@@ -3172,7 +3338,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG009",
@@ -3191,7 +3358,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG010",
@@ -3210,7 +3378,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG011",
@@ -3229,7 +3398,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG012",
@@ -3248,7 +3418,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG013",
@@ -3267,7 +3438,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG014",
@@ -3286,7 +3458,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG015",
@@ -3305,7 +3478,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG017",
@@ -3324,7 +3498,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG018",
@@ -3343,7 +3518,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG019",
@@ -3362,7 +3538,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG020",
@@ -3381,7 +3558,8 @@
    "status_logistico": "Excedente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG021",
@@ -3400,7 +3578,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG022",
@@ -3419,7 +3598,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG023",
@@ -3438,7 +3618,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG024",
@@ -3457,7 +3638,8 @@
    "status_logistico": "Atendido",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FJ001",
@@ -3476,7 +3658,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FJ002",
@@ -3495,7 +3678,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FJ003",
@@ -3514,7 +3698,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FJ005",
@@ -3533,7 +3718,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FJ006",
@@ -3552,7 +3738,8 @@
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG025",
@@ -3571,7 +3758,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P3",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "FG026",
@@ -3590,7 +3778,8 @@
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P4",
-   "etapa": "Fixação"
+   "etapa": "Fixação",
+   "local": "Galpão"
   },
   {
    "tag": "L02",
@@ -3607,9 +3796,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "L03",
@@ -3626,9 +3816,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ESM01",
@@ -3645,9 +3836,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-DG01",
@@ -3664,9 +3856,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO01",
@@ -3683,9 +3876,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO02",
@@ -3702,9 +3896,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO03",
@@ -3721,9 +3916,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE03",
@@ -3740,9 +3936,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE06",
@@ -3759,9 +3956,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE08",
@@ -3778,9 +3976,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GRE01",
@@ -3797,9 +3996,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GRE02",
@@ -3816,9 +4016,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-LB01",
@@ -3835,9 +4036,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PTE01",
@@ -3854,9 +4056,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PTE02",
@@ -3873,9 +4076,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-SPE01",
@@ -3892,9 +4096,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-SPE02",
@@ -3911,9 +4116,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GCE01",
@@ -3930,9 +4136,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PUL01",
@@ -3949,9 +4156,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "PTE04",
@@ -3968,9 +4176,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "FG027",
@@ -3987,9 +4196,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "FG028",
@@ -4006,9 +4216,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "LVX01",
@@ -4025,9 +4236,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "L02",
@@ -4044,9 +4256,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "L03",
@@ -4063,9 +4276,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ESM01",
@@ -4082,9 +4296,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-DG01",
@@ -4101,9 +4316,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO01",
@@ -4120,9 +4336,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO02",
@@ -4139,9 +4356,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-ARO03",
@@ -4158,9 +4376,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE03",
@@ -4177,9 +4396,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE06",
@@ -4196,9 +4416,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-MTE08",
@@ -4215,9 +4436,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GRE01",
@@ -4234,9 +4456,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GRE02",
@@ -4253,9 +4476,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-LB01",
@@ -4272,9 +4496,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PTE01",
@@ -4291,9 +4516,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PTE02",
@@ -4310,9 +4536,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-SPE01",
@@ -4329,9 +4556,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-SPE02",
@@ -4348,9 +4576,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-GCE01",
@@ -4367,9 +4596,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "ROT-PUL01",
@@ -4386,9 +4616,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "PTE04",
@@ -4405,9 +4636,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "FG027",
@@ -4424,9 +4656,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "FG028",
@@ -4443,9 +4676,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "LVX01",
@@ -4462,9 +4696,10 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0,
    "status_logistico": "",
-   "tipo_material": "",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "",
-   "etapa": ""
+   "etapa": "",
+   "local": "Galpão"
   },
   {
    "tag": "TLP301",
@@ -4483,124 +4718,12 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.4.4",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "ND04"
-  },
-  {
-   "tag": "TLH301",
-   "peso_unitario": 52.17,
-   "peso_total": 6886.44,
-   "comp_mm": 17500.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 132.0,
-   "chegou": 0.0,
-   "necessario_real": 132.0,
-   "falta_enviar": 132.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd50"
-  },
-  {
-   "tag": "V33",
-   "peso_unitario": 0.77,
-   "peso_total": 71.61,
-   "comp_mm": 700.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 93.0,
-   "chegou": 0.0,
-   "necessario_real": 93.0,
-   "falta_enviar": 93.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "ARR301",
-   "peso_unitario": 0.01,
-   "peso_total": 0.91,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\" / ARRUELA Ø5/8\"",
-   "produto": "ARRUELA",
-   "planejado": 91.0,
-   "chegou": 0.0,
-   "necessario_real": 91.0,
-   "falta_enviar": 91.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.1, 3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "PR301",
-   "peso_unitario": 0.03,
-   "peso_total": 2.73,
-   "comp_mm": 12.5,
-   "material": "PORCA Ø1/2\" / PORCA Ø5/8\"",
-   "produto": "PORCA",
-   "planejado": 91.0,
-   "chegou": 0.0,
-   "necessario_real": 91.0,
-   "falta_enviar": 91.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.1, 3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "SP200",
-   "peso_unitario": 0.8,
-   "peso_total": 63.2,
-   "comp_mm": 64.9,
-   "material": "L190X60X6.4",
-   "produto": "SUPORTE CONT.",
-   "planejado": 79.0,
-   "chegou": 0.0,
-   "necessario_real": 79.0,
-   "falta_enviar": 79.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.1, 3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
   },
   {
    "tag": "SJX03",
@@ -4619,7 +4742,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -4641,33 +4765,82 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
   },
   {
-   "tag": "TLH302",
-   "peso_unitario": 29.36,
-   "peso_total": 1790.96,
-   "comp_mm": 9850.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 61.0,
+   "tag": "SP200",
+   "peso_unitario": 0.8,
+   "peso_total": 50.4,
+   "comp_mm": 64.9,
+   "material": "L190X60X6.4",
+   "produto": "SUPORTE CONT.",
+   "planejado": 63.0,
    "chegou": 0.0,
-   "necessario_real": 61.0,
-   "falta_enviar": 61.0,
+   "necessario_real": 63.0,
+   "falta_enviar": 63.0,
    "consumido": 0.0,
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
+   "etapa": "Anexos",
+   "local": "Eclusa",
+   "item_bm": "3.3.1",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "ARR301",
+   "peso_unitario": 0.01,
+   "peso_total": 0.63,
+   "comp_mm": 4.0,
+   "material": "ARRUELA Ø1/2\"",
+   "produto": "ARRUELA",
+   "planejado": 63.0,
+   "chegou": 0.0,
+   "necessario_real": 63.0,
+   "falta_enviar": 63.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Eclusa",
+   "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false,
-   "tag_modelo": "nd52"
+   "tag_modelo": "nd03"
+  },
+  {
+   "tag": "PR301",
+   "peso_unitario": 0.03,
+   "peso_total": 1.89,
+   "comp_mm": 12.0,
+   "material": "PORCA Ø1/2\"",
+   "produto": "PORCA",
+   "planejado": 63.0,
+   "chegou": 0.0,
+   "necessario_real": 63.0,
+   "falta_enviar": 63.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Eclusa",
+   "item_bm": "3.3.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd03"
   },
   {
    "tag": "TV200",
@@ -4686,7 +4859,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -4708,75 +4882,9 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.4.5",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V37",
-   "peso_unitario": 0.31,
-   "peso_total": 14.57,
-   "comp_mm": 280.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 47.0,
-   "chegou": 0.0,
-   "necessario_real": 47.0,
-   "falta_enviar": 47.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TLH303",
-   "peso_unitario": 2.44,
-   "peso_total": 107.36,
-   "comp_mm": 820.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 44.0,
-   "chegou": 0.0,
-   "necessario_real": 44.0,
-   "falta_enviar": 44.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd56"
-  },
-  {
-   "tag": "MF200",
-   "peso_unitario": 0.78,
-   "peso_total": 21.84,
-   "comp_mm": 745.1,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 28.0,
-   "chegou": 0.0,
-   "necessario_real": 28.0,
-   "falta_enviar": 28.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -4797,7 +4905,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -4817,35 +4926,14 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd05"
-  },
-  {
-   "tag": "V41",
-   "peso_unitario": 0.77,
-   "peso_total": 16.94,
-   "comp_mm": 695.3,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 22.0,
-   "chegou": 0.0,
-   "necessario_real": 22.0,
-   "falta_enviar": 22.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
   },
   {
    "tag": "JOIST200",
@@ -4864,56 +4952,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "",
    "origem": "IFC",
    "marca_ambigua": false
-  },
-  {
-   "tag": "TLH304",
-   "peso_unitario": 25.34,
-   "peso_total": 430.78,
-   "comp_mm": 8500.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 17.0,
-   "chegou": 0.0,
-   "necessario_real": 17.0,
-   "falta_enviar": 17.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd53"
-  },
-  {
-   "tag": "BCL301",
-   "peso_unitario": 0.2,
-   "peso_total": 2.4,
-   "comp_mm": 200.0,
-   "material": "Ø100X2 / Ø150X2",
-   "produto": "BOCAL DE CALHA",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.10",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "ND00"
   },
   {
    "tag": "SP204",
@@ -4932,7 +4975,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -4952,57 +4996,14 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
+   "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd37"
-  },
-  {
-   "tag": "CA199",
-   "peso_unitario": 18.35,
-   "peso_total": 220.2,
-   "comp_mm": 6000.0,
-   "material": "CH0.65X599.33",
-   "produto": "CALHA ECLUSA",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.10",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "SP201",
-   "peso_unitario": 0.71,
-   "peso_total": 7.1,
-   "comp_mm": 117.0,
-   "material": "L64X64X6.4",
-   "produto": "CHAPA",
-   "planejado": 10.0,
-   "chegou": 0.0,
-   "necessario_real": 10.0,
-   "falta_enviar": 10.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
   },
   {
    "tag": "CTH204",
@@ -5021,77 +5022,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
-  },
-  {
-   "tag": "MF201",
-   "peso_unitario": 0.78,
-   "peso_total": 5.46,
-   "comp_mm": 745.1,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 7.0,
-   "chegou": 0.0,
-   "necessario_real": 7.0,
-   "falta_enviar": 7.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC204",
-   "peso_unitario": 31.63,
-   "peso_total": 221.41,
-   "comp_mm": 990.6,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 7.0,
-   "chegou": 0.0,
-   "necessario_real": 7.0,
-   "falta_enviar": 7.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TLH305",
-   "peso_unitario": 7.15,
-   "peso_total": 50.05,
-   "comp_mm": 2400.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 7.0,
-   "chegou": 0.0,
-   "necessario_real": 7.0,
-   "falta_enviar": 7.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd54"
   },
   {
    "tag": "MT200",
@@ -5110,7 +5045,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5132,162 +5068,9 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC201",
-   "peso_unitario": 40.22,
-   "peso_total": 241.32,
-   "comp_mm": 7615.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC200",
-   "peso_unitario": 57.03,
-   "peso_total": 342.18,
-   "comp_mm": 11150.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC202",
-   "peso_unitario": 54.83,
-   "peso_total": 328.98,
-   "comp_mm": 10580.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC210",
-   "peso_unitario": 22.34,
-   "peso_total": 111.7,
-   "comp_mm": 934.1,
-   "material": "W250X17.9",
-   "produto": "VIGA COBERTURA",
-   "planejado": 5.0,
-   "chegou": 0.0,
-   "necessario_real": 5.0,
-   "falta_enviar": 5.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CA202",
-   "peso_unitario": 12.26,
-   "peso_total": 49.04,
-   "comp_mm": 6000.0,
-   "material": "CH0.65X400.3",
-   "produto": "CALHA",
-   "planejado": 4.0,
-   "chegou": 0.0,
-   "necessario_real": 4.0,
-   "falta_enviar": 4.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.10",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "SP202",
-   "peso_unitario": 3.45,
-   "peso_total": 13.8,
-   "comp_mm": 272.4,
-   "material": "CH8X170",
-   "produto": "CHAPA",
-   "planejado": 4.0,
-   "chegou": 0.0,
-   "necessario_real": 4.0,
-   "falta_enviar": 4.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC206",
-   "peso_unitario": 258.73,
-   "peso_total": 1034.92,
-   "comp_mm": 8916.6,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 4.0,
-   "chegou": 0.0,
-   "necessario_real": 4.0,
-   "falta_enviar": 4.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -5308,99 +5091,12 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "ND01"
-  },
-  {
-   "tag": "CA201",
-   "peso_unitario": 17.75,
-   "peso_total": 53.25,
-   "comp_mm": 6000.0,
-   "material": "CH0.65X579.92",
-   "produto": "CALHA",
-   "planejado": 3.0,
-   "chegou": 0.0,
-   "necessario_real": 3.0,
-   "falta_enviar": 3.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.10",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "SP203",
-   "peso_unitario": 3.42,
-   "peso_total": 10.26,
-   "comp_mm": 271.6,
-   "material": "CH8X170",
-   "produto": "CHAPA",
-   "planejado": 3.0,
-   "chegou": 0.0,
-   "necessario_real": 3.0,
-   "falta_enviar": 3.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC208",
-   "peso_unitario": 20.54,
-   "peso_total": 61.62,
-   "comp_mm": 3965.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 3.0,
-   "chegou": 0.0,
-   "necessario_real": 3.0,
-   "falta_enviar": 3.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CA200",
-   "peso_unitario": 18.38,
-   "peso_total": 55.14,
-   "comp_mm": 6000.0,
-   "material": "CH0.65X600.3",
-   "produto": "CALHA",
-   "planejado": 3.0,
-   "chegou": 0.0,
-   "necessario_real": 3.0,
-   "falta_enviar": 3.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.10",
-   "origem": "IFC",
-   "marca_ambigua": false
   },
   {
    "tag": "MT202",
@@ -5419,7 +5115,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5441,7 +5138,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5463,7 +5161,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5485,250 +5184,9 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CTH203",
-   "peso_unitario": 5.11,
-   "peso_total": 10.22,
-   "comp_mm": 4400.0,
-   "material": "BARRA.ROSC.12.5 / CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CTH202",
-   "peso_unitario": 5.98,
-   "peso_total": 11.96,
-   "comp_mm": 5200.0,
-   "material": "CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CTH201",
-   "peso_unitario": 7.71,
-   "peso_total": 15.42,
-   "comp_mm": 6800.0,
-   "material": "CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CTH200",
-   "peso_unitario": 8.31,
-   "peso_total": 16.62,
-   "comp_mm": 7350.0,
-   "material": "CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC204",
-   "peso_unitario": 3.39,
-   "peso_total": 6.78,
-   "comp_mm": 428.6,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC200",
-   "peso_unitario": 203.7,
-   "peso_total": 407.4,
-   "comp_mm": 7027.3,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC203",
-   "peso_unitario": 290.07,
-   "peso_total": 580.14,
-   "comp_mm": 9113.4,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC210",
-   "peso_unitario": 20.51,
-   "peso_total": 41.02,
-   "comp_mm": 3960.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC205",
-   "peso_unitario": 48.12,
-   "peso_total": 96.24,
-   "comp_mm": 9340.0,
-   "material": "UE127#1.25",
-   "produto": "CHAPA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CBB200",
-   "peso_unitario": 6.41,
-   "peso_total": 12.82,
-   "comp_mm": 366.0,
-   "material": "BARRA.RED.16",
-   "produto": "CHAPA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V49",
-   "peso_unitario": 30.26,
-   "peso_total": 60.52,
-   "comp_mm": 27495.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -5749,7 +5207,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false,
@@ -5772,7 +5231,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5794,7 +5254,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5816,52 +5277,9 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "03",
-   "peso_unitario": 38.81,
-   "peso_total": 38.81,
-   "comp_mm": 7450.0,
-   "material": "CH6.4X110",
-   "produto": "CHAPA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TCX199",
-   "peso_unitario": 20.54,
-   "peso_total": 20.54,
-   "comp_mm": 3965.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -5882,7 +5300,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5904,7 +5323,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5926,7 +5346,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5948,7 +5369,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -5970,495 +5392,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
-  },
-  {
-   "tag": "VC201",
-   "peso_unitario": 123.77,
-   "peso_total": 123.77,
-   "comp_mm": 3266.5,
-   "material": "W360X32.9",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC202",
-   "peso_unitario": 109.02,
-   "peso_total": 109.02,
-   "comp_mm": 3271.5,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC209",
-   "peso_unitario": 38.81,
-   "peso_total": 38.81,
-   "comp_mm": 7450.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC203",
-   "peso_unitario": 49.14,
-   "peso_total": 49.14,
-   "comp_mm": 9425.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC211",
-   "peso_unitario": 43.23,
-   "peso_total": 43.23,
-   "comp_mm": 8470.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC207",
-   "peso_unitario": 54.78,
-   "peso_total": 54.78,
-   "comp_mm": 10570.0,
-   "material": "UE127#1.25",
-   "produto": "TERÇA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TC206",
-   "peso_unitario": 48.92,
-   "peso_total": 48.92,
-   "comp_mm": 9625.0,
-   "material": "UE127#1.25",
-   "produto": "CHAPA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC207",
-   "peso_unitario": 405.79,
-   "peso_total": 405.79,
-   "comp_mm": 12000.0,
-   "material": "W360X32.9",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC209",
-   "peso_unitario": 297.72,
-   "peso_total": 297.72,
-   "comp_mm": 8730.0,
-   "material": "W360X32.9",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC208",
-   "peso_unitario": 255.27,
-   "peso_total": 255.27,
-   "comp_mm": 7524.0,
-   "material": "W360X32.9",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "VC205",
-   "peso_unitario": 324.7,
-   "peso_total": 324.7,
-   "comp_mm": 9113.4,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V39",
-   "peso_unitario": 20.44,
-   "peso_total": 20.44,
-   "comp_mm": 10212.9,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V38",
-   "peso_unitario": 20.44,
-   "peso_total": 20.44,
-   "comp_mm": 10215.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V48",
-   "peso_unitario": 0.5,
-   "peso_total": 0.5,
-   "comp_mm": 450.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V47",
-   "peso_unitario": 0.52,
-   "peso_total": 0.52,
-   "comp_mm": 473.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V46",
-   "peso_unitario": 0.49,
-   "peso_total": 0.49,
-   "comp_mm": 445.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V45",
-   "peso_unitario": 0.46,
-   "peso_total": 0.46,
-   "comp_mm": 422.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V43",
-   "peso_unitario": 20.47,
-   "peso_total": 20.47,
-   "comp_mm": 10212.9,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V00",
-   "peso_unitario": 20.44,
-   "peso_total": 20.44,
-   "comp_mm": 10215.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V35",
-   "peso_unitario": 32.34,
-   "peso_total": 32.34,
-   "comp_mm": 29387.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "V34",
-   "peso_unitario": 32.32,
-   "peso_total": 32.32,
-   "comp_mm": 29367.0,
-   "material": "L46X46X1.55",
-   "produto": "CANTONEIRA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.3.4",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "TLH306",
-   "peso_unitario": 7.15,
-   "peso_total": 7.15,
-   "comp_mm": 2400.0,
-   "material": "TELHA ZIP#0.65_482",
-   "produto": "TELHA COBERTURA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
-   "item_bm": "3.4.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd55"
   },
   {
    "tag": "VC211",
@@ -6477,7 +5415,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
@@ -6499,7 +5438,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false
@@ -6521,7 +5461,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false,
@@ -6544,11 +5485,1470 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Portaria e Eclusa",
+   "etapa": "Anexos",
+   "local": "Eclusa",
    "item_bm": "3.3.2",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "ND03"
+  },
+  {
+   "tag": "TLH301",
+   "peso_unitario": 52.17,
+   "peso_total": 6886.44,
+   "comp_mm": 17500.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 132.0,
+   "chegou": 0.0,
+   "necessario_real": 132.0,
+   "falta_enviar": 132.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd50"
+  },
+  {
+   "tag": "V33",
+   "peso_unitario": 0.77,
+   "peso_total": 71.61,
+   "comp_mm": 700.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 93.0,
+   "chegou": 0.0,
+   "necessario_real": 93.0,
+   "falta_enviar": 93.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TLH302",
+   "peso_unitario": 29.36,
+   "peso_total": 1790.96,
+   "comp_mm": 9850.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 61.0,
+   "chegou": 0.0,
+   "necessario_real": 61.0,
+   "falta_enviar": 61.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd52"
+  },
+  {
+   "tag": "V37",
+   "peso_unitario": 0.31,
+   "peso_total": 14.57,
+   "comp_mm": 280.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 47.0,
+   "chegou": 0.0,
+   "necessario_real": 47.0,
+   "falta_enviar": 47.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TLH303",
+   "peso_unitario": 2.44,
+   "peso_total": 107.36,
+   "comp_mm": 820.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 44.0,
+   "chegou": 0.0,
+   "necessario_real": 44.0,
+   "falta_enviar": 44.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd56"
+  },
+  {
+   "tag": "MF200",
+   "peso_unitario": 0.78,
+   "peso_total": 21.84,
+   "comp_mm": 745.1,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 28.0,
+   "chegou": 0.0,
+   "necessario_real": 28.0,
+   "falta_enviar": 28.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "ARR302",
+   "peso_unitario": 0.02,
+   "peso_total": 0.56,
+   "comp_mm": 4.0,
+   "material": "ARRUELA Ø1/2\" / ARRUELA Ø5/8\"",
+   "produto": "ARRUELA",
+   "planejado": 28.0,
+   "chegou": 0.0,
+   "necessario_real": 28.0,
+   "falta_enviar": 28.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd03"
+  },
+  {
+   "tag": "PR302",
+   "peso_unitario": 0.03,
+   "peso_total": 0.84,
+   "comp_mm": 13.7,
+   "material": "PORCA Ø1/2\" / PORCA Ø5/8\"",
+   "produto": "PORCA",
+   "planejado": 28.0,
+   "chegou": 0.0,
+   "necessario_real": 28.0,
+   "falta_enviar": 28.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd03"
+  },
+  {
+   "tag": "V41",
+   "peso_unitario": 0.77,
+   "peso_total": 16.94,
+   "comp_mm": 695.3,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 22.0,
+   "chegou": 0.0,
+   "necessario_real": 22.0,
+   "falta_enviar": 22.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TLH304",
+   "peso_unitario": 25.34,
+   "peso_total": 430.78,
+   "comp_mm": 8500.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 17.0,
+   "chegou": 0.0,
+   "necessario_real": 17.0,
+   "falta_enviar": 17.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd53"
+  },
+  {
+   "tag": "SP200_1",
+   "peso_unitario": 0.8,
+   "peso_total": 12.8,
+   "comp_mm": 64.9,
+   "material": "L190X60X6.4",
+   "produto": "SUPORTE CONT.",
+   "planejado": 16.0,
+   "chegou": 0.0,
+   "necessario_real": 16.0,
+   "falta_enviar": 16.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "BCL301",
+   "peso_unitario": 0.2,
+   "peso_total": 2.4,
+   "comp_mm": 200.0,
+   "material": "Ø100X2 / Ø150X2",
+   "produto": "BOCAL DE CALHA",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "ND00"
+  },
+  {
+   "tag": "CA199",
+   "peso_unitario": 18.35,
+   "peso_total": 220.2,
+   "comp_mm": 6000.0,
+   "material": "CH0.65X599.33",
+   "produto": "CALHA ECLUSA",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP201",
+   "peso_unitario": 0.71,
+   "peso_total": 7.1,
+   "comp_mm": 117.0,
+   "material": "L64X64X6.4",
+   "produto": "CHAPA",
+   "planejado": 10.0,
+   "chegou": 0.0,
+   "necessario_real": 10.0,
+   "falta_enviar": 10.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "MF201",
+   "peso_unitario": 0.78,
+   "peso_total": 5.46,
+   "comp_mm": 745.1,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 7.0,
+   "chegou": 0.0,
+   "necessario_real": 7.0,
+   "falta_enviar": 7.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC204",
+   "peso_unitario": 31.63,
+   "peso_total": 221.41,
+   "comp_mm": 990.6,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 7.0,
+   "chegou": 0.0,
+   "necessario_real": 7.0,
+   "falta_enviar": 7.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TLH305",
+   "peso_unitario": 7.15,
+   "peso_total": 50.05,
+   "comp_mm": 2400.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 7.0,
+   "chegou": 0.0,
+   "necessario_real": 7.0,
+   "falta_enviar": 7.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd54"
+  },
+  {
+   "tag": "TC201",
+   "peso_unitario": 40.22,
+   "peso_total": 241.32,
+   "comp_mm": 7615.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 6.0,
+   "chegou": 0.0,
+   "necessario_real": 6.0,
+   "falta_enviar": 6.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC200",
+   "peso_unitario": 57.03,
+   "peso_total": 342.18,
+   "comp_mm": 11150.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 6.0,
+   "chegou": 0.0,
+   "necessario_real": 6.0,
+   "falta_enviar": 6.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC202",
+   "peso_unitario": 54.83,
+   "peso_total": 328.98,
+   "comp_mm": 10580.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 6.0,
+   "chegou": 0.0,
+   "necessario_real": 6.0,
+   "falta_enviar": 6.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC210",
+   "peso_unitario": 22.34,
+   "peso_total": 111.7,
+   "comp_mm": 934.1,
+   "material": "W250X17.9",
+   "produto": "VIGA COBERTURA",
+   "planejado": 5.0,
+   "chegou": 0.0,
+   "necessario_real": 5.0,
+   "falta_enviar": 5.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CA202",
+   "peso_unitario": 12.26,
+   "peso_total": 49.04,
+   "comp_mm": 6000.0,
+   "material": "CH0.65X400.3",
+   "produto": "CALHA",
+   "planejado": 4.0,
+   "chegou": 0.0,
+   "necessario_real": 4.0,
+   "falta_enviar": 4.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP202",
+   "peso_unitario": 3.45,
+   "peso_total": 13.8,
+   "comp_mm": 272.4,
+   "material": "CH8X170",
+   "produto": "CHAPA",
+   "planejado": 4.0,
+   "chegou": 0.0,
+   "necessario_real": 4.0,
+   "falta_enviar": 4.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC206",
+   "peso_unitario": 258.73,
+   "peso_total": 1034.92,
+   "comp_mm": 8916.6,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 4.0,
+   "chegou": 0.0,
+   "necessario_real": 4.0,
+   "falta_enviar": 4.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CA201",
+   "peso_unitario": 17.75,
+   "peso_total": 53.25,
+   "comp_mm": 6000.0,
+   "material": "CH0.65X579.92",
+   "produto": "CALHA",
+   "planejado": 3.0,
+   "chegou": 0.0,
+   "necessario_real": 3.0,
+   "falta_enviar": 3.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP203",
+   "peso_unitario": 3.42,
+   "peso_total": 10.26,
+   "comp_mm": 271.6,
+   "material": "CH8X170",
+   "produto": "CHAPA",
+   "planejado": 3.0,
+   "chegou": 0.0,
+   "necessario_real": 3.0,
+   "falta_enviar": 3.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC208",
+   "peso_unitario": 20.54,
+   "peso_total": 61.62,
+   "comp_mm": 3965.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 3.0,
+   "chegou": 0.0,
+   "necessario_real": 3.0,
+   "falta_enviar": 3.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CA200",
+   "peso_unitario": 18.38,
+   "peso_total": 55.14,
+   "comp_mm": 6000.0,
+   "material": "CH0.65X600.3",
+   "produto": "CALHA",
+   "planejado": 3.0,
+   "chegou": 0.0,
+   "necessario_real": 3.0,
+   "falta_enviar": 3.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH203",
+   "peso_unitario": 5.11,
+   "peso_total": 10.22,
+   "comp_mm": 4400.0,
+   "material": "BARRA.ROSC.12.5 / CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH202",
+   "peso_unitario": 5.98,
+   "peso_total": 11.96,
+   "comp_mm": 5200.0,
+   "material": "CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH201",
+   "peso_unitario": 7.71,
+   "peso_total": 15.42,
+   "comp_mm": 6800.0,
+   "material": "CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH200",
+   "peso_unitario": 8.31,
+   "peso_total": 16.62,
+   "comp_mm": 7350.0,
+   "material": "CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC204",
+   "peso_unitario": 3.39,
+   "peso_total": 6.78,
+   "comp_mm": 428.6,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC200",
+   "peso_unitario": 203.7,
+   "peso_total": 407.4,
+   "comp_mm": 7027.3,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC203",
+   "peso_unitario": 290.07,
+   "peso_total": 580.14,
+   "comp_mm": 9113.4,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC210",
+   "peso_unitario": 20.51,
+   "peso_total": 41.02,
+   "comp_mm": 3960.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC205",
+   "peso_unitario": 48.12,
+   "peso_total": 96.24,
+   "comp_mm": 9340.0,
+   "material": "UE127#1.25",
+   "produto": "CHAPA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CBB200",
+   "peso_unitario": 6.41,
+   "peso_total": 12.82,
+   "comp_mm": 366.0,
+   "material": "BARRA.RED.16",
+   "produto": "CHAPA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V49",
+   "peso_unitario": 30.26,
+   "peso_total": 60.52,
+   "comp_mm": 27495.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "03",
+   "peso_unitario": 38.81,
+   "peso_total": 38.81,
+   "comp_mm": 7450.0,
+   "material": "CH6.4X110",
+   "produto": "CHAPA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TCX199",
+   "peso_unitario": 20.54,
+   "peso_total": 20.54,
+   "comp_mm": 3965.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC201",
+   "peso_unitario": 123.77,
+   "peso_total": 123.77,
+   "comp_mm": 3266.5,
+   "material": "W360X32.9",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC202",
+   "peso_unitario": 109.02,
+   "peso_total": 109.02,
+   "comp_mm": 3271.5,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC209",
+   "peso_unitario": 38.81,
+   "peso_total": 38.81,
+   "comp_mm": 7450.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC203",
+   "peso_unitario": 49.14,
+   "peso_total": 49.14,
+   "comp_mm": 9425.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC211",
+   "peso_unitario": 43.23,
+   "peso_total": 43.23,
+   "comp_mm": 8470.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC207",
+   "peso_unitario": 54.78,
+   "peso_total": 54.78,
+   "comp_mm": 10570.0,
+   "material": "UE127#1.25",
+   "produto": "TERÇA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TC206",
+   "peso_unitario": 48.92,
+   "peso_total": 48.92,
+   "comp_mm": 9625.0,
+   "material": "UE127#1.25",
+   "produto": "CHAPA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC207",
+   "peso_unitario": 405.79,
+   "peso_total": 405.79,
+   "comp_mm": 12000.0,
+   "material": "W360X32.9",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC209",
+   "peso_unitario": 297.72,
+   "peso_total": 297.72,
+   "comp_mm": 8730.0,
+   "material": "W360X32.9",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC208",
+   "peso_unitario": 255.27,
+   "peso_total": 255.27,
+   "comp_mm": 7524.0,
+   "material": "W360X32.9",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC205",
+   "peso_unitario": 324.7,
+   "peso_total": 324.7,
+   "comp_mm": 9113.4,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.3",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V39",
+   "peso_unitario": 20.44,
+   "peso_total": 20.44,
+   "comp_mm": 10212.9,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V38",
+   "peso_unitario": 20.44,
+   "peso_total": 20.44,
+   "comp_mm": 10215.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V48",
+   "peso_unitario": 0.5,
+   "peso_total": 0.5,
+   "comp_mm": 450.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V47",
+   "peso_unitario": 0.52,
+   "peso_total": 0.52,
+   "comp_mm": 473.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V46",
+   "peso_unitario": 0.49,
+   "peso_total": 0.49,
+   "comp_mm": 445.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V45",
+   "peso_unitario": 0.46,
+   "peso_total": 0.46,
+   "comp_mm": 422.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V43",
+   "peso_unitario": 20.47,
+   "peso_total": 20.47,
+   "comp_mm": 10212.9,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V00",
+   "peso_unitario": 20.44,
+   "peso_total": 20.44,
+   "comp_mm": 10215.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V35",
+   "peso_unitario": 32.34,
+   "peso_total": 32.34,
+   "comp_mm": 29387.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "V34",
+   "peso_unitario": 32.32,
+   "peso_total": 32.32,
+   "comp_mm": 29367.0,
+   "material": "L46X46X1.55",
+   "produto": "CANTONEIRA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.3.4",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TLH306",
+   "peso_unitario": 7.15,
+   "peso_total": 7.15,
+   "comp_mm": 2400.0,
+   "material": "TELHA ZIP#0.65_482",
+   "produto": "TELHA COBERTURA",
+   "planejado": 1.0,
+   "chegou": 0.0,
+   "necessario_real": 1.0,
+   "falta_enviar": 1.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Portaria",
+   "item_bm": "3.4.1",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd55"
   },
   {
    "tag": "TLH307",
@@ -6567,402 +6967,12 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
+   "etapa": "Anexos",
+   "local": "Vestiário",
    "item_bm": "3.4.1",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd48"
-  },
-  {
-   "tag": "PR302",
-   "peso_unitario": 0.03,
-   "peso_total": 2.88,
-   "comp_mm": 14.0,
-   "material": "PORCA Ø1/2\" / PORCA Ø3/4\"",
-   "produto": "PORCA",
-   "planejado": 96.0,
-   "chegou": 0.0,
-   "necessario_real": 96.0,
-   "falta_enviar": 96.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "ARR302",
-   "peso_unitario": 0.02,
-   "peso_total": 1.44,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\" / ARRUELA Ø3/4\"",
-   "produto": "ARRUELA",
-   "planejado": 72.0,
-   "chegou": 0.0,
-   "necessario_real": 72.0,
-   "falta_enviar": 72.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "STX300-VT",
-   "peso_unitario": 2.53,
-   "peso_total": 182.16,
-   "comp_mm": 170.0,
-   "material": "L170X75X8",
-   "produto": "SUPORTE DE TERÇA",
-   "planejado": 72.0,
-   "chegou": 0.0,
-   "necessario_real": 72.0,
-   "falta_enviar": 72.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "STX300"
-  },
-  {
-   "tag": "TCX301-VT",
-   "peso_unitario": 34.6,
-   "peso_total": 2076.0,
-   "comp_mm": 9100.0,
-   "material": "ZER-210#1.25",
-   "produto": "TERÇA COBERTURA",
-   "planejado": 60.0,
-   "chegou": 0.0,
-   "necessario_real": 60.0,
-   "falta_enviar": 60.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "TCX301"
-  },
-  {
-   "tag": "SP300-VT",
-   "peso_unitario": 0.8,
-   "peso_total": 38.4,
-   "comp_mm": 64.9,
-   "material": "L190X60X6.4",
-   "produto": "SUPORTE CONT.",
-   "planejado": 48.0,
-   "chegou": 0.0,
-   "necessario_real": 48.0,
-   "falta_enviar": 48.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP300"
-  },
-  {
-   "tag": "MF301-VT",
-   "peso_unitario": 1.02,
-   "peso_total": 30.6,
-   "comp_mm": 917.6,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 30.0,
-   "chegou": 0.0,
-   "necessario_real": 30.0,
-   "falta_enviar": 30.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF301"
-  },
-  {
-   "tag": "MF300-VT",
-   "peso_unitario": 1.02,
-   "peso_total": 30.6,
-   "comp_mm": 917.6,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 30.0,
-   "chegou": 0.0,
-   "necessario_real": 30.0,
-   "falta_enviar": 30.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF300"
-  },
-  {
-   "tag": "TCX300-VT",
-   "peso_unitario": 40.36,
-   "peso_total": 968.64,
-   "comp_mm": 8580.1,
-   "material": "ZER-210#1.55",
-   "produto": "TERÇA COBERTURA",
-   "planejado": 24.0,
-   "chegou": 0.0,
-   "necessario_real": 24.0,
-   "falta_enviar": 24.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "TCX300"
-  },
-  {
-   "tag": "STX302-VT",
-   "peso_unitario": 2.53,
-   "peso_total": 60.72,
-   "comp_mm": 170.0,
-   "material": "L170X75X8",
-   "produto": "SUPORTE DE TERÇA",
-   "planejado": 24.0,
-   "chegou": 0.0,
-   "necessario_real": 24.0,
-   "falta_enviar": 24.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "STX302"
-  },
-  {
-   "tag": "CTH301-VT",
-   "peso_unitario": 8.8,
-   "peso_total": 105.6,
-   "comp_mm": 7800.0,
-   "material": "CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CTH301"
-  },
-  {
-   "tag": "CTH300-VT",
-   "peso_unitario": 9.99,
-   "peso_total": 119.88,
-   "comp_mm": 8900.0,
-   "material": "CH2.3X60",
-   "produto": "CONTRAVENTAMENTO",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CTH300"
-  },
-  {
-   "tag": "SP303-VT",
-   "peso_unitario": 3.97,
-   "peso_total": 47.64,
-   "comp_mm": 271.8,
-   "material": "CH9.5X170",
-   "produto": "SUPORTE",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP303"
-  },
-  {
-   "tag": "VC300-VT",
-   "peso_unitario": 260.31,
-   "peso_total": 3123.72,
-   "comp_mm": 7307.8,
-   "material": "CH8X170",
-   "produto": "VIGA COBERTURA",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC300"
-  },
-  {
-   "tag": "MF303-VT",
-   "peso_unitario": 0.69,
-   "peso_total": 6.9,
-   "comp_mm": 621.4,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 10.0,
-   "chegou": 0.0,
-   "necessario_real": 10.0,
-   "falta_enviar": 10.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF303"
-  },
-  {
-   "tag": "MF302-VT",
-   "peso_unitario": 0.69,
-   "peso_total": 6.9,
-   "comp_mm": 621.5,
-   "material": "L46X46X1.55",
-   "produto": "MÃO FRANCESA",
-   "planejado": 10.0,
-   "chegou": 0.0,
-   "necessario_real": 10.0,
-   "falta_enviar": 10.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF302"
-  },
-  {
-   "tag": "CBB301-VT",
-   "peso_unitario": 5.78,
-   "peso_total": 34.68,
-   "comp_mm": 576.5,
-   "material": "BARRA.RED.19",
-   "produto": "CHUMBADOR",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CBB301"
-  },
-  {
-   "tag": "VC301-VT",
-   "peso_unitario": 315.2,
-   "peso_total": 1891.2,
-   "comp_mm": 4000.0,
-   "material": "CH8X170",
-   "produto": "VIGA COBERTURA",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC301"
   },
   {
    "tag": "BCL302",
@@ -6981,126 +6991,12 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
+   "etapa": "Anexos",
+   "local": "Vestiário",
    "item_bm": "3.4.10",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "ND00"
-  },
-  {
-   "tag": "PR300-VT",
-   "peso_unitario": 26.79,
-   "peso_total": 53.58,
-   "comp_mm": 887.4,
-   "material": "W250X17.9",
-   "produto": "PILARETE",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "PR300"
-  },
-  {
-   "tag": "SP302-VT",
-   "peso_unitario": 3.31,
-   "peso_total": 6.62,
-   "comp_mm": 145.0,
-   "material": "L165X180X9.5",
-   "produto": "CHAPA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP302"
-  },
-  {
-   "tag": "SP301-VT",
-   "peso_unitario": 3.31,
-   "peso_total": 6.62,
-   "comp_mm": 145.0,
-   "material": "L165X180X9.5",
-   "produto": "CHAPA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP301"
-  },
-  {
-   "tag": "VC302-VT",
-   "peso_unitario": 329.23,
-   "peso_total": 658.46,
-   "comp_mm": 11357.3,
-   "material": "W310X28.3",
-   "produto": "VIGA COBERTURA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC302"
-  },
-  {
-   "tag": "VC302-VT_1",
-   "peso_unitario": 329.23,
-   "peso_total": 658.46,
-   "comp_mm": 11357.3,
-   "material": "CH13X102",
-   "produto": "CHAPA",
-   "planejado": 2.0,
-   "chegou": 0.0,
-   "necessario_real": 2.0,
-   "falta_enviar": 2.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC302"
   },
   {
    "tag": "RFX301",
@@ -7119,8 +7015,517 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Vestiário",
+   "etapa": "Anexos",
+   "local": "Vestiário",
    "item_bm": "3.4.10",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "PR303",
+   "peso_unitario": 0.03,
+   "peso_total": 2.88,
+   "comp_mm": 14.0,
+   "material": "PORCA Ø1/2\" / PORCA Ø3/4\"",
+   "produto": "PORCA",
+   "planejado": 96.0,
+   "chegou": 0.0,
+   "necessario_real": 96.0,
+   "falta_enviar": 96.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd03"
+  },
+  {
+   "tag": "ARR303",
+   "peso_unitario": 0.02,
+   "peso_total": 1.44,
+   "comp_mm": 4.0,
+   "material": "ARRUELA Ø1/2\" / ARRUELA Ø3/4\"",
+   "produto": "ARRUELA",
+   "planejado": 72.0,
+   "chegou": 0.0,
+   "necessario_real": 72.0,
+   "falta_enviar": 72.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false,
+   "tag_modelo": "nd03"
+  },
+  {
+   "tag": "STX300",
+   "peso_unitario": 2.53,
+   "peso_total": 182.16,
+   "comp_mm": 170.0,
+   "material": "L170X75X8",
+   "produto": "SUPORTE DE TERÇA",
+   "planejado": 72.0,
+   "chegou": 0.0,
+   "necessario_real": 72.0,
+   "falta_enviar": 72.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TCX301",
+   "peso_unitario": 34.6,
+   "peso_total": 2076.0,
+   "comp_mm": 9100.0,
+   "material": "ZER-210#1.25",
+   "produto": "TERÇA COBERTURA",
+   "planejado": 60.0,
+   "chegou": 0.0,
+   "necessario_real": 60.0,
+   "falta_enviar": 60.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP300",
+   "peso_unitario": 0.8,
+   "peso_total": 38.4,
+   "comp_mm": 64.9,
+   "material": "L190X60X6.4",
+   "produto": "SUPORTE CONT.",
+   "planejado": 48.0,
+   "chegou": 0.0,
+   "necessario_real": 48.0,
+   "falta_enviar": 48.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "MF301",
+   "peso_unitario": 1.02,
+   "peso_total": 30.6,
+   "comp_mm": 917.6,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 30.0,
+   "chegou": 0.0,
+   "necessario_real": 30.0,
+   "falta_enviar": 30.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "MF300",
+   "peso_unitario": 1.02,
+   "peso_total": 30.6,
+   "comp_mm": 917.6,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 30.0,
+   "chegou": 0.0,
+   "necessario_real": 30.0,
+   "falta_enviar": 30.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "TCX300",
+   "peso_unitario": 40.36,
+   "peso_total": 968.64,
+   "comp_mm": 8580.1,
+   "material": "ZER-210#1.55",
+   "produto": "TERÇA COBERTURA",
+   "planejado": 24.0,
+   "chegou": 0.0,
+   "necessario_real": 24.0,
+   "falta_enviar": 24.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "STX302",
+   "peso_unitario": 2.53,
+   "peso_total": 60.72,
+   "comp_mm": 170.0,
+   "material": "L170X75X8",
+   "produto": "SUPORTE DE TERÇA",
+   "planejado": 24.0,
+   "chegou": 0.0,
+   "necessario_real": 24.0,
+   "falta_enviar": 24.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH301",
+   "peso_unitario": 8.8,
+   "peso_total": 105.6,
+   "comp_mm": 7800.0,
+   "material": "CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CTH300",
+   "peso_unitario": 9.99,
+   "peso_total": 119.88,
+   "comp_mm": 8900.0,
+   "material": "CH2.3X60",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP303",
+   "peso_unitario": 3.97,
+   "peso_total": 47.64,
+   "comp_mm": 271.8,
+   "material": "CH9.5X170",
+   "produto": "SUPORTE",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC300",
+   "peso_unitario": 260.31,
+   "peso_total": 3123.72,
+   "comp_mm": 7307.8,
+   "material": "CH8X170",
+   "produto": "VIGA COBERTURA",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "MF303",
+   "peso_unitario": 0.69,
+   "peso_total": 6.9,
+   "comp_mm": 621.4,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 10.0,
+   "chegou": 0.0,
+   "necessario_real": 10.0,
+   "falta_enviar": 10.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "MF302",
+   "peso_unitario": 0.69,
+   "peso_total": 6.9,
+   "comp_mm": 621.5,
+   "material": "L46X46X1.55",
+   "produto": "MÃO FRANCESA",
+   "planejado": 10.0,
+   "chegou": 0.0,
+   "necessario_real": 10.0,
+   "falta_enviar": 10.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "CBB301",
+   "peso_unitario": 5.78,
+   "peso_total": 34.68,
+   "comp_mm": 576.5,
+   "material": "BARRA.RED.19",
+   "produto": "CHUMBADOR",
+   "planejado": 6.0,
+   "chegou": 0.0,
+   "necessario_real": 6.0,
+   "falta_enviar": 6.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC301",
+   "peso_unitario": 315.2,
+   "peso_total": 1891.2,
+   "comp_mm": 4000.0,
+   "material": "CH8X170",
+   "produto": "VIGA COBERTURA",
+   "planejado": 6.0,
+   "chegou": 0.0,
+   "necessario_real": 6.0,
+   "falta_enviar": 6.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "PR300",
+   "peso_unitario": 26.79,
+   "peso_total": 53.58,
+   "comp_mm": 887.4,
+   "material": "W250X17.9",
+   "produto": "PILARETE",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP302",
+   "peso_unitario": 3.31,
+   "peso_total": 6.62,
+   "comp_mm": 145.0,
+   "material": "L165X180X9.5",
+   "produto": "CHAPA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "SP301",
+   "peso_unitario": 3.31,
+   "peso_total": 6.62,
+   "comp_mm": 145.0,
+   "material": "L165X180X9.5",
+   "produto": "CHAPA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC302",
+   "peso_unitario": 329.23,
+   "peso_total": 658.46,
+   "comp_mm": 11357.3,
+   "material": "W310X28.3",
+   "produto": "VIGA COBERTURA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
+   "origem": "IFC",
+   "marca_ambigua": false
+  },
+  {
+   "tag": "VC302_1",
+   "peso_unitario": 329.23,
+   "peso_total": 658.46,
+   "comp_mm": 11357.3,
+   "material": "CH13X102",
+   "produto": "CHAPA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "ESTRUTURAL",
+   "prioridade": "P2",
+   "etapa": "Anexos",
+   "local": "Vestiário",
+   "item_bm": "3.3.8",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -7141,14 +7546,15 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.4.2",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd48"
   },
   {
-   "tag": "PR303",
+   "tag": "PR304",
    "peso_unitario": 0.03,
    "peso_total": 1.92,
    "comp_mm": 14.0,
@@ -7164,14 +7570,15 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd03"
   },
   {
-   "tag": "TCX300-RF",
+   "tag": "TCX300_1",
    "peso_unitario": 40.37,
    "peso_total": 1937.76,
    "comp_mm": 8580.2,
@@ -7187,14 +7594,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "TCX300"
+   "marca_ambigua": false
   },
   {
-   "tag": "STX302-RF",
+   "tag": "STX302_1",
    "peso_unitario": 2.53,
    "peso_total": 121.44,
    "comp_mm": 170.0,
@@ -7210,14 +7617,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "STX302"
+   "marca_ambigua": false
   },
   {
-   "tag": "ARR303",
+   "tag": "ARR304",
    "peso_unitario": 0.02,
    "peso_total": 0.96,
    "comp_mm": 4.0,
@@ -7233,14 +7640,15 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "nd03"
   },
   {
-   "tag": "STX300-RF",
+   "tag": "STX300_1",
    "peso_unitario": 2.53,
    "peso_total": 121.44,
    "comp_mm": 170.0,
@@ -7256,14 +7664,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "STX300"
+   "marca_ambigua": false
   },
   {
-   "tag": "SP300-RF",
+   "tag": "SP300_1",
    "peso_unitario": 0.8,
    "peso_total": 25.6,
    "comp_mm": 64.9,
@@ -7279,11 +7687,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP300"
+   "marca_ambigua": false
   },
   {
    "tag": "RDC01",
@@ -7302,13 +7710,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "",
    "origem": "IFC",
    "marca_ambigua": false
   },
   {
-   "tag": "TCX301-RF",
+   "tag": "TCX301_1",
    "peso_unitario": 34.6,
    "peso_total": 830.4,
    "comp_mm": 9100.0,
@@ -7324,14 +7733,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "TCX301"
+   "marca_ambigua": false
   },
   {
-   "tag": "MF303-RF",
+   "tag": "MF303_1",
    "peso_unitario": 0.69,
    "peso_total": 13.8,
    "comp_mm": 621.4,
@@ -7347,14 +7756,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF303"
+   "marca_ambigua": false
   },
   {
-   "tag": "MF302-RF",
+   "tag": "MF302_1",
    "peso_unitario": 0.69,
    "peso_total": 13.8,
    "comp_mm": 621.5,
@@ -7370,14 +7779,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF302"
+   "marca_ambigua": false
   },
   {
-   "tag": "MF301-RF",
+   "tag": "MF301_1",
    "peso_unitario": 1.02,
    "peso_total": 20.4,
    "comp_mm": 917.6,
@@ -7393,14 +7802,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF301"
+   "marca_ambigua": false
   },
   {
-   "tag": "MF300-RF",
+   "tag": "MF300_1",
    "peso_unitario": 1.02,
    "peso_total": 20.4,
    "comp_mm": 917.6,
@@ -7416,11 +7825,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "MF300"
+   "marca_ambigua": false
   },
   {
    "tag": "CA300",
@@ -7439,7 +7848,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.4.10",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7461,14 +7871,15 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.4.10",
    "origem": "IFC",
    "marca_ambigua": false,
    "tag_modelo": "ND00"
   },
   {
-   "tag": "SP303-RF",
+   "tag": "SP303_1",
    "peso_unitario": 3.97,
    "peso_total": 31.76,
    "comp_mm": 271.8,
@@ -7484,14 +7895,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP303"
+   "marca_ambigua": false
   },
   {
-   "tag": "VC300-RF",
+   "tag": "VC300_1",
    "peso_unitario": 260.31,
    "peso_total": 2082.48,
    "comp_mm": 7307.8,
@@ -7507,14 +7918,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC300"
+   "marca_ambigua": false
   },
   {
-   "tag": "PR300-RF",
+   "tag": "PR300_1",
    "peso_unitario": 26.79,
    "peso_total": 107.16,
    "comp_mm": 887.4,
@@ -7530,14 +7941,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "PR300"
+   "marca_ambigua": false
   },
   {
-   "tag": "CBB301-RF",
+   "tag": "CBB301_1",
    "peso_unitario": 5.78,
    "peso_total": 23.12,
    "comp_mm": 576.5,
@@ -7553,11 +7964,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CBB301"
+   "marca_ambigua": false
   },
   {
    "tag": "CTH303",
@@ -7576,7 +7987,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7598,13 +8010,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
   },
   {
-   "tag": "SP302-RF",
+   "tag": "SP302_1",
    "peso_unitario": 3.31,
    "peso_total": 13.24,
    "comp_mm": 145.0,
@@ -7620,14 +8033,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP302"
+   "marca_ambigua": false
   },
   {
-   "tag": "SP301-RF",
+   "tag": "SP301_1",
    "peso_unitario": 3.31,
    "peso_total": 13.24,
    "comp_mm": 145.0,
@@ -7643,14 +8056,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "SP301"
+   "marca_ambigua": false
   },
   {
-   "tag": "VC302-RF",
+   "tag": "VC302_2",
    "peso_unitario": 329.23,
    "peso_total": 1316.92,
    "comp_mm": 11357.3,
@@ -7666,14 +8079,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC302"
+   "marca_ambigua": false
   },
   {
-   "tag": "VC302-RF_1",
+   "tag": "VC302_3",
    "peso_unitario": 329.23,
    "peso_total": 1316.92,
    "comp_mm": 11357.3,
@@ -7689,14 +8102,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC302"
+   "marca_ambigua": false
   },
   {
-   "tag": "VC301-RF",
+   "tag": "VC301_1",
    "peso_unitario": 315.2,
    "peso_total": 1260.8,
    "comp_mm": 4000.0,
@@ -7712,11 +8125,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "VC301"
+   "marca_ambigua": false
   },
   {
    "tag": "V07",
@@ -7733,15 +8146,16 @@
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
+   "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
   },
   {
-   "tag": "CTH301-RF",
+   "tag": "CTH301_1",
    "peso_unitario": 8.8,
    "peso_total": 35.2,
    "comp_mm": 7800.0,
@@ -7757,14 +8171,14 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CTH301"
+   "marca_ambigua": false
   },
   {
-   "tag": "CTH300-RF",
+   "tag": "CTH300_1",
    "peso_unitario": 9.99,
    "peso_total": 39.96,
    "comp_mm": 8900.0,
@@ -7780,11 +8194,11 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "CTH300"
+   "marca_ambigua": false
   },
   {
    "tag": "CA04",
@@ -7803,7 +8217,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7825,7 +8240,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7847,7 +8263,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7869,7 +8286,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7891,7 +8309,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
@@ -7913,7 +8332,8 @@
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
    "prioridade": "P2",
-   "etapa": "Anexos / Refeitório",
+   "etapa": "Anexos",
+   "local": "Refeitório",
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
