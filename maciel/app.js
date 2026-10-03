@@ -1155,12 +1155,12 @@ function renderAvanco() {
         ? (c.real > 0 ? `<span class="nota">${nf(c.real, 1)} lançados</span>` : '—')
         : `<div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span>`;
       return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td>
-        <td class="n editavel" data-edit-campo="qtd" data-edit-id="${c.id}" data-edit-val="${c.qtd ?? ''}">${c.qtd ? nf(c.qtd) : semContratoNote}</td>
+        <td class="n editavel" data-edit-campo="qtd" data-edit-id="${c.linha}" data-edit-val="${c.qtd ?? ''}">${c.qtd ? nf(c.qtd) : semContratoNote}</td>
         <td class="n">${nf(c.real, 1)}</td>
         <td>${barraHtml}</td>
         <td class="n">${c.saldo != null ? nf(c.saldo, 1) : '—'}</td><td class="n">${nf(c.ritmo, 2)}</td>
         <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
-        <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.id}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
+        <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.linha}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
         <td>${fdA(c.projecao)}</td>
         <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td></tr>`;
     }).join('') : '<tr><td colspan="11" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
@@ -3860,7 +3860,7 @@ function ligarEventos() {
       else { const n = raw === '' ? null : parseFloat(raw); campos[campo] = n; }
       try {
         await postar(API + 'registro', { tabela: 'cliente', linha: id, campos });
-        const idx = M.cliente.findIndex(c => c.id === id);
+        const idx = M.cliente.findIndex(c => c.linha === id);
         if (idx >= 0) Object.assign(M.cliente[idx], campos);
         renderAvanco();
       } catch (e) {
@@ -3881,7 +3881,7 @@ function ligarEventos() {
     try {
       const r = await postar(API + 'popular-qtd-cliente', {});
       toast(`${r.atualizados} serviço(s) atualizado(s).`);
-      await carregarDados();
+      await carregar();
       renderAvanco();
     } catch (e) {
       toast(e.message || 'Erro ao importar quantidades.');
@@ -3935,7 +3935,7 @@ function ligarEventos() {
       ci.disabled = true;
       try {
         await postar(API + 'registro', { tabela: 'bm_periodos', linha: id, campos: { corte: val } });
-        await carregarDados();
+        await carregar();
         renderBM();
       } catch (e) {
         toast(e.message || 'Erro ao salvar data de corte.');
