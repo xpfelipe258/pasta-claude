@@ -242,12 +242,11 @@
    "item_desc": "Estrutura metálica para cobertura da eclusa",
    "atividade": "Instalação das vigas",
    "unidade": "un",
-   "qtd": 9,
+   "qtd": 9.0,
    "peso": 0.25,
    "valor_qpc": 28383.3,
    "valor_rotula": 31524.08,
-   "controle": null,
-   "origem_qtd": "IFC VIGA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.1-02",
@@ -334,12 +333,11 @@
    "item_desc": "Estrutura metálica para cobertura da portaria",
    "atividade": "Instalação das vigas",
    "unidade": "un",
-   "qtd": 26,
+   "qtd": 26.0,
    "peso": 0.35,
    "valor_qpc": 12625.54,
    "valor_rotula": 14022.62,
-   "controle": null,
-   "origem_qtd": "IFC VIGA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.3-02",
@@ -348,12 +346,11 @@
    "item_desc": "Estrutura metálica para cobertura da portaria",
    "atividade": "Instalação de terças",
    "unidade": "un",
-   "qtd": 30,
+   "qtd": 34.0,
    "peso": 0.35,
    "valor_qpc": 12625.54,
    "valor_rotula": 14022.62,
-   "controle": null,
-   "origem_qtd": "IFC TERÇA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.3-03",
@@ -492,12 +489,11 @@
    "item_desc": "Estrutura metálica para cobertura do refeitório",
    "atividade": "Instalação das vigas",
    "unidade": "un",
-   "qtd": 16,
+   "qtd": 20.0,
    "peso": 0.35,
    "valor_qpc": 34281.27,
    "valor_rotula": 38074.69,
-   "controle": null,
-   "origem_qtd": "IFC VIGA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.7-02",
@@ -506,12 +502,11 @@
    "item_desc": "Estrutura metálica para cobertura do refeitório",
    "atividade": "Instalação de terças",
    "unidade": "un",
-   "qtd": 72,
+   "qtd": 72.0,
    "peso": 0.35,
    "valor_qpc": 34281.27,
    "valor_rotula": 38074.69,
-   "controle": null,
-   "origem_qtd": "IFC TERÇA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.7-03",
@@ -546,12 +541,11 @@
    "item_desc": "Estrutura metálica para cobertura do vestiário",
    "atividade": "Instalação das vigas",
    "unidade": "un",
-   "qtd": 20,
+   "qtd": 22.0,
    "peso": 0.35,
    "valor_qpc": 30296.75,
    "valor_rotula": 33649.26,
-   "controle": null,
-   "origem_qtd": "IFC VIGA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.8-02",
@@ -560,12 +554,11 @@
    "item_desc": "Estrutura metálica para cobertura do vestiário",
    "atividade": "Instalação de terças",
    "unidade": "un",
-   "qtd": 84,
+   "qtd": 84.0,
    "peso": 0.35,
    "valor_qpc": 30296.75,
    "valor_rotula": 33649.26,
-   "controle": null,
-   "origem_qtd": "IFC TERÇA COBERTURA (conjuntos)"
+   "controle": null
   },
   {
    "codigo": "EJ-3.3.8-03",
@@ -1548,13 +1541,12 @@
    "item": "3.4.1",
    "item_desc": "Cobertura dos Anexos (Eclusa, Portaria, Passarelas, Vestiário,  QDF CAG) em Telha Simples TP40 Aço",
    "atividade": "Instalação de telhas Portaria",
-   "unidade": "un",
-   "qtd": 262,
+   "unidade": "m²",
+   "qtd": 517.44,
    "peso": 0.10463926768695601,
    "valor_qpc": 94440.83,
    "valor_rotula": 115913.69,
-   "controle": null,
-   "origem_qtd": "IFC TELHA COBERTURA (modelo 220)"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.1-03",
@@ -1575,13 +1567,12 @@
    "item": "3.4.1",
    "item_desc": "Cobertura dos Anexos (Eclusa, Portaria, Passarelas, Vestiário,  QDF CAG) em Telha Simples TP40 Aço",
    "atividade": "Instalação de telhas Vestiário",
-   "unidade": "un",
-   "qtd": 109,
+   "unidade": "m²",
+   "qtd": 1241.67,
    "peso": 0.321078655513417,
    "valor_qpc": 94440.83,
    "valor_rotula": 115913.69,
-   "controle": null,
-   "origem_qtd": "IFC TELHA COBERTURA (modelo 230)"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.1-05",
@@ -1641,13 +1632,12 @@
    "item": "3.4.2",
    "item_desc": "Cobertura do Refeitório",
    "atividade": "Instalação das telhas",
-   "unidade": "un",
-   "qtd": 93,
+   "unidade": "m²",
+   "qtd": 1404.97,
    "peso": 0.7,
    "valor_qpc": 30909.34,
    "valor_rotula": 37934.19,
-   "controle": null,
-   "origem_qtd": "IFC TELHA_COB (modelo 235)"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.2-02",
@@ -1746,13 +1736,12 @@
    "item": "3.4.4",
    "item_desc": "Platibanda Interna da Eclusa",
    "atividade": "Instalação de telhas",
-   "unidade": "un",
-   "qtd": 136,
+   "unidade": "m²",
+   "qtd": 246.75,
    "peso": 0.7,
    "valor_qpc": 3300.0,
    "valor_rotula": 4050.0,
-   "controle": null,
-   "origem_qtd": "IFC TELHA PLATIBANDA INT"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.4-02",
@@ -2086,12 +2075,11 @@
    "item_desc": "Calhas metálicas para os Anexos",
    "atividade": "Instalação das calhas - Eclusa",
    "unidade": "m",
-   "qtd": 72.0,
+   "qtd": 71.88,
    "peso": 0.02605575089716171,
    "valor_qpc": 59587.92,
    "valor_rotula": 73138.65,
-   "controle": null,
-   "origem_qtd": "IFC CALHA ECLUSA"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.10-09",
@@ -2100,12 +2088,11 @@
    "item_desc": "Calhas metálicas para os Anexos",
    "atividade": "Instalação das calhas - Portaria",
    "unidade": "m",
-   "qtd": 60.0,
+   "qtd": 117.74,
    "peso": 0.04267952296371479,
    "valor_qpc": 59587.92,
    "valor_rotula": 73138.65,
-   "controle": null,
-   "origem_qtd": "IFC CALHA (modelo 220)"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.10-10",
@@ -2153,12 +2140,11 @@
    "item_desc": "Calhas metálicas para os Anexos",
    "atividade": "Instalação das calhas - Refeitório",
    "unidade": "m",
-   "qtd": 96.0,
+   "qtd": 319.7,
    "peso": 0.1158879182223511,
    "valor_qpc": 59587.92,
    "valor_rotula": 73138.65,
-   "controle": null,
-   "origem_qtd": "IFC CALHA (modelo 235)"
+   "controle": null
   },
   {
    "codigo": "GLO-3.4.10-14",
