@@ -1459,7 +1459,7 @@ function renderAvanco() {
     tBodyContrato += `<tr>
       <td><b>${esc(cap(serv))}</b></td>
       <td class="n"><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
-      <td class="n"><b>${nf(totReal, 1)}</b></td>
+      <td><b>${nf(totReal, 1)}</b><div style="margin-top:4px">${barra(totPct, totReal)}</div></td>
       <td class="n">${totSaldo != null ? nf(totSaldo, 1) : '—'}</td>
       <td class="n">${nf(totRitmo, 2)}</td>
       <td class="n" style="color:${totNecessario && totRitmo < totNecessario ? 'var(--vermelho)' : 'inherit'}">${totNecessario ? nf(totNecessario, 2) : '—'}</td>
