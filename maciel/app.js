@@ -1148,18 +1148,20 @@ function renderAvanco() {
   $('#avancoResumo').textContent = `${linhas.length} serviços · ${comContrato.length} com quantidade contratada · ${concluidos} concluídos`;
 
   const semContratoNote = '<span class="nota" title="Sem quantidade contratada cadastrada">s/ contrato</span>';
-  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n">Contrato</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th>Prazo</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
+  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
     (linhas.length ? linhas.map(c => {
       const pct = c.qtd ? c.real / c.qtd * 100 : null;
       const barraHtml = pct == null
         ? (c.real > 0 ? `<span class="nota">${nf(c.real, 1)} lançados</span>` : '—')
         : `<div class="barra" title="${nf(pct, 1)}%"><i style="width:${Math.min(pct, 100)}%"></i></div><span class="nota">${nf(pct, 1)}%</span>`;
       return `<tr><td><b>${esc(cap(c.servico))}</b></td><td class="nota">${esc(c.frente || '')}</td>
-        <td class="n">${c.qtd ? nf(c.qtd) : semContratoNote}</td><td class="n">${nf(c.real, 1)}</td>
+        <td class="n editavel" data-edit-campo="qtd" data-edit-id="${c.id}" data-edit-val="${c.qtd ?? ''}">${c.qtd ? nf(c.qtd) : semContratoNote}</td>
+        <td class="n">${nf(c.real, 1)}</td>
         <td>${barraHtml}</td>
         <td class="n">${c.saldo != null ? nf(c.saldo, 1) : '—'}</td><td class="n">${nf(c.ritmo, 2)}</td>
         <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
-        <td>${fdA(c.prazo)}</td><td>${fdA(c.projecao)}</td>
+        <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.id}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
+        <td>${fdA(c.projecao)}</td>
         <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td></tr>`;
     }).join('') : '<tr><td colspan="11" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
@@ -3830,6 +3832,48 @@ function ligarEventos() {
     atualizarFaseCaixa();
     document.getElementById('faseCaixa').removeAttribute('open');
     renderAba();
+  });
+
+  document.getElementById('aba-avanco').addEventListener('click', ev => {
+    const td = ev.target.closest('td[data-edit-campo]');
+    if (!td || td.querySelector('input')) return;
+    const campo = td.dataset.editCampo;
+    const id = parseInt(td.dataset.editId);
+    const valAtual = td.dataset.editVal;
+    const isDate = campo === 'prazo';
+    const inp = document.createElement('input');
+    inp.type = isDate ? 'date' : 'number';
+    inp.min = isDate ? undefined : '0';
+    inp.step = isDate ? undefined : '1';
+    inp.value = valAtual;
+    inp.style.cssText = 'width:100%;border:0;background:var(--acento-suave);padding:3px 5px;border-radius:3px;font:inherit;text-align:right;outline:1px solid var(--acento);';
+    td.textContent = '';
+    td.appendChild(inp);
+    inp.focus();
+    if (!isDate) inp.select();
+    let salvo = false;
+    async function salvarEdicao() {
+      if (salvo) return; salvo = true;
+      const raw = inp.value.trim();
+      const campos = {};
+      if (isDate) { campos[campo] = raw || null; }
+      else { const n = raw === '' ? null : parseFloat(raw); campos[campo] = n; }
+      try {
+        await postar(API + 'registro', { tabela: 'cliente', linha: id, campos });
+        const idx = M.cliente.findIndex(c => c.id === id);
+        if (idx >= 0) Object.assign(M.cliente[idx], campos);
+        renderAvanco();
+      } catch (e) {
+        salvo = false;
+        renderAvanco();
+        toast(e.message || 'Erro ao salvar.');
+      }
+    }
+    inp.addEventListener('blur', salvarEdicao);
+    inp.addEventListener('keydown', ke => {
+      if (ke.key === 'Enter') { ke.preventDefault(); inp.blur(); }
+      if (ke.key === 'Escape') { salvo = true; renderAvanco(); }
+    });
   });
 
   $('#segPainelEmp').addEventListener('click', ev => {

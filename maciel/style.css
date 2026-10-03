@@ -244,6 +244,8 @@ main > section { display: flex; flex-direction: column; gap: 16px; }
 .tile .sub { font-size: .8rem; color: var(--fg2); }
 
 .tabela-rolagem { overflow-x: auto; position: relative; }
+td.editavel { cursor: pointer; }
+td.editavel:hover { background: var(--acento-suave); }
 .scroll-topo { overflow-x: auto; overflow-y: hidden; height: 14px; min-height: 14px; border-bottom: 1px solid var(--linha); position: sticky; top: 0; z-index: 5; background: var(--bg); }
 .scroll-topo > div { height: 1px; }
 table { width: 100%; border-collapse: collapse; font-size: .85rem; }
