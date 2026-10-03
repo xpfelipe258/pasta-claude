@@ -1417,7 +1417,7 @@ function renderAvanco() {
   $('#avancoResumo').textContent = `${linhas.length} serviços · ${comContrato.length} com quantidade contratada · ${concluidos} concluídos`;
 
   const semContratoNote = '<span class="nota" title="Sem quantidade contratada cadastrada">s/ contrato</span>';
-  const statusPrioridadeContrato = ['ATRASO', 'SEM RITMO', 'NO LIMITE', 'NÃO INICIADO', 'EM ANDAMENTO', 'NO PRAZO', 'SEM CONTRATO', 'CONCLUÍDO'];
+  const statusPrioridadeContrato = ['ATRASO', 'SEM RITMO', 'NO LIMITE', 'EM ANDAMENTO', 'NO PRAZO', 'NÃO INICIADO', 'SEM CONTRATO', 'CONCLUÍDO'];
 
   // Agrupa por serviço para exibir Total (F1+F2) quando multiFase
   // trim() evita que espaços extras impeçam o agrupamento entre F1 e F2
