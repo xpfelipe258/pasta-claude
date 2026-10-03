@@ -425,21 +425,34 @@ function renderPainel() {
 
   const porEmp = {};
   ks.forEach(k => {
-    const o = porEmp[k.emp] ||= { prev: 0, real: 0, total: 0 };
+    const o = porEmp[k.emp] ||= { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 };
     if (k.prevTotal > 0) { o.prev += k.prev; o.real += k.real; o.total += k.prevTotal; }
   });
-  const tot = Object.values(porEmp).reduce((a, o) => ({ prev: a.prev + o.prev, real: a.real + o.real, total: a.total + o.total }), { prev: 0, real: 0, total: 0 });
+  // Projeção de período por empresa (baseada no escopo próprio de cada empresa)
+  projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro).forEach(x => {
+    const o = porEmp[x.emp] ||= { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 };
+    o.projetadoPer += x.projetadoPer;
+    o.escopoTotal += x.escopo;
+  });
+  const tot = Object.values(porEmp).reduce((a, o) => ({
+    prev: a.prev + o.prev, real: a.real + o.real, total: a.total + o.total,
+    projetadoPer: a.projetadoPer + o.projetadoPer, escopoTotal: a.escopoTotal + o.escopoTotal
+  }), { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 });
   const tile = (rot, o, cc) => {
     const pct = o.prev > 0 ? o.real / o.prev * 100 : null;
+    const pctProjEscopo = o.escopoTotal > 0 && o.projetadoPer > 0 ? o.projetadoPer / o.escopoTotal * 100 : null;
+    const projTxt = pctProjEscopo != null
+      ? ` · proj. período: ${nf(o.projetadoPer, 1)} (${nf(pctProjEscopo, 1)}% do escopo)`
+      : '';
     return `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.total === 0)}</div>
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
-      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}</div></div>`;
+      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}</div></div>`;
   };
   // No modo filtrado por empresa: só o tile da empresa. No modo geral: geral + por empresa.
   const tileGeral = painelEmpFiltro
     ? tile(painelEmpFiltro, tot, corEmp(painelEmpFiltro))
     : tile('Geral da obra', tot, 'var(--fg)') + Object.entries(porEmp).map(([n, o]) => tile(n, o, corEmp(n))).join('');
-  $('#tiles').innerHTML = ks.length
+  $('#tiles').innerHTML = Object.keys(porEmp).length
     ? tileGeral
     : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
@@ -485,8 +498,11 @@ function renderAlertas(ks, c) {
       .map(i => `${esc(cap(i.motivo))} (${diasEntre(i.data, ref)} dias)`);
     al.push(['vermelho', `<b>${abertos.length} impacto(s) em aberto</b>. Mais antigos: ${velhos.join('; ')}. <button class="link" data-ir-aba="impactos">Ver impactos</button>`]);
   }
-  contratoLinhas(c).filter(x => x.status === 'ATRASO').forEach(x =>
-    al.push(['vermelho', `<b>${esc(cap(x.servico))}</b>: no ritmo atual termina em ${fdA(x.projecao)}, depois do prazo ${fdA(x.prazo)}. Necessário ${nf(x.necessario, 2)}/dia; ritmo atual ${nf(x.ritmo, 2)}/dia.`]));
+  projecoesPorEmpresa(c).filter(x => (!painelEmpFiltro || x.emp === painelEmpFiltro) && x.status === 'ATRASO')
+    .forEach(x => {
+      const cl = M.cliente.find(cl2 => cl2.servico === x.serv && faseItem(cl2.frente) === faseItem(x.sv.frente));
+      al.push(['vermelho', `<b>${esc(x.emp)} · ${esc(cap(x.serv))}</b>: no ritmo atual termina em ${fdA(x.projecao)}${cl?.prazo ? ', depois do prazo ' + fdA(cl.prazo) : ''}. Escopo: ${nf(x.escopo)} · realizado: ${nf(x.acum, 1)} · ritmo: ${nf(x.ritmo, 2)}/dia.`]);
+    });
 
   M.cliente.filter(cl => cl.inicio_plan && cl.inicio_plan <= hoje()).forEach(cl => {
     const produzido = prodServico(cl.servico, null, '2000-01-01', hoje());
@@ -766,6 +782,36 @@ function contratoLinhas(ate = ref) {
   });
 }
 const COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'ATRASO': 'vermelho', 'ATRASADO': 'vermelho', 'SEM RITMO': 'amarelo', 'NÃO INICIADO': 'pendente', 'NO LIMITE': 'amarelo' };
+
+// Projeção de período por empresa — usa escopo próprio de cada empresa (servicos.escopo) e produção individual
+function projecoesPorEmpresa(ate) {
+  const ini14 = add(ate, -14);
+  let du = 0; for (let d = ini14; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
+  const duRestante = contarDiasUteis(ate, per.fim);
+  const result = [];
+  M.empresas.forEach(e => {
+    e.servicos.filter(sv => sv.escopo > 0 && (!faseFiltro || faseItem(sv.frente) === faseFiltro)).forEach(sv => {
+      const acum = soma(e, sv.col, '0000', ate);
+      const acumIni14 = soma(e, sv.col, '0000', add(ini14, -1));
+      const ritmo = (acum - acumIni14) / Math.max(du, 1);
+      const realPer = soma(e, sv.col, per.ini, ate);
+      const projetadoPer = Math.max(0, realPer + ritmo * duRestante);
+      const saldo = Math.max(sv.escopo - acum, 0);
+      let projecao = null, status;
+      if (saldo <= 0) {
+        status = 'CONCLUÍDO';
+      } else if (ritmo <= 0) {
+        status = acum > 0 ? 'SEM RITMO' : 'SEM PRODUÇÃO';
+      } else {
+        projecao = somarDiasUteis(ate, Math.ceil(saldo / ritmo));
+        const cl = M.cliente.find(c => c.servico === sv.nome && faseItem(c.frente) === faseItem(sv.frente));
+        status = cl?.prazo && projecao > cl.prazo ? 'ATRASO' : 'NO PRAZO';
+      }
+      result.push({ emp: e.nome, e, serv: sv.nome, sv, acum, ritmo, saldo, projecao, status, projetadoPer, escopo: sv.escopo });
+    });
+  });
+  return result;
+}
 
 // ------------------------------------------------------------ CRONOGRAMA (GANTT) PREVISTO x REALIZADO
 // Previsto: início planejado até o término pela meta do cliente (meta/dia x dias úteis), com o prazo contratual marcado.
@@ -1176,16 +1222,20 @@ function renderAvanco() {
     }).join('') : '<tr><td colspan="12" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
+  const projEmpAvanco = projecoesPorEmpresa(ref);
   $('#avancoEmpresas').innerHTML = M.empresas.map(e => {
     let itens = e.servicos.map(sv => ({ sv, acum: soma(e, sv.col, '0000', ref) })).filter(x => x.sv.escopo || x.acum);
     if (faseFiltro) itens = itens.filter(x => faseItem(x.sv.frente) === faseFiltro);
     return `<div><h2 style="margin-bottom:10px"><span class="emp-tag" style="--c:${corEmp(e.nome)}">${esc(e.nome)}</span></h2>
-      <table><thead><tr><th>Serviço</th><th class="n">Escopo</th><th class="n">Acum.</th><th style="min-width:90px">%</th></tr></thead><tbody>` +
+      <table><thead><tr><th>Serviço</th><th class="n">Escopo</th><th class="n">Acum.</th><th style="min-width:90px">%</th><th>Projeção término</th><th>Situação</th></tr></thead><tbody>` +
       (itens.length ? itens.map(({ sv, acum }) => {
         const p = sv.escopo ? acum / sv.escopo * 100 : null;
+        const proj = projEmpAvanco.find(x => x.emp === e.nome && x.serv === sv.nome && x.sv.col === sv.col);
         return `<tr><td>${esc(cap(sv.nome))}</td><td class="n">${nf(sv.escopo)}</td><td class="n">${nf(acum, 1)}</td>
-          <td>${p == null ? '<span class="nota">sem escopo</span>' : `<div class="barra"><i style="width:${Math.min(p, 100)}%;--c:${corEmp(e.nome)}"></i></div><span class="nota">${nf(p, 1)}%</span>`}</td></tr>`;
-      }).join('') : '<tr><td colspan="4" class="vazio">Sem escopo ou produção.</td></tr>') + '</tbody></table></div>';
+          <td>${p == null ? '<span class="nota">sem escopo</span>' : `<div class="barra"><i style="width:${Math.min(p, 100)}%;--c:${corEmp(e.nome)}"></i></div><span class="nota">${nf(p, 1)}%</span>`}</td>
+          <td>${proj ? fdA(proj.projecao) : '—'}</td>
+          <td>${proj ? `<span class="farol f-${COR_STATUS[proj.status] || 'pendente'}">${proj.status}</span>` : '—'}</td></tr>`;
+      }).join('') : '<tr><td colspan="6" class="vazio">Sem escopo ou produção.</td></tr>') + '</tbody></table></div>';
   }).join('');
 }
 
