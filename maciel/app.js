@@ -326,15 +326,24 @@ function mudarAba(nome) {
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
-  $('#barraPeriodo').hidden = !ABAS_PERIODO.has(nome);
-  $('#barraFase').hidden = !ABAS_PRODUCAO.has(nome);
+  const emPeriodo = ABAS_PERIODO.has(nome);
+  const emProducao = ABAS_PRODUCAO.has(nome);
+  $('#barraPeriodo').hidden = !(emPeriodo || emProducao);
+  const pc = $('#perControles');
+  if (pc) pc.style.display = emPeriodo ? 'contents' : 'none';
+  $('#faseCaixa').hidden = !emProducao;
   try { localStorage.setItem('obra198_aba', nome); } catch { }
   renderAba();
 }
 
+function atualizarFaseCaixa() {
+  const labels = { '': 'Total', '1': 'Fase 1', '2': 'Fase 2' };
+  const el = $('#faseCaixaTxt');
+  if (el) el.textContent = labels[faseFiltro] ?? 'Total';
+}
+
 function atualizarBotoesSegFase() {
-  document.querySelectorAll('#segFase button').forEach(b =>
-    b.classList.toggle('ativa', b.dataset.fase === faseFiltro));
+  atualizarFaseCaixa();
 }
 
 function definirRef(d) {
@@ -3814,11 +3823,12 @@ function ligarEventos() {
     if (ev.target.id === 'btnSemearMat') semearMateriais();
   });
 
-  $('#segFase').addEventListener('click', ev => {
+  $('#faseCaixaLista').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-fase]');
     if (!b) return;
     faseFiltro = b.dataset.fase;
-    atualizarBotoesSegFase();
+    atualizarFaseCaixa();
+    document.getElementById('faseCaixa').removeAttribute('open');
     renderAba();
   });
 

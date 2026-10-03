@@ -100,24 +100,25 @@
 </div>
 
 <div class="periodo" id="barraPeriodo" hidden>
-  <label>Data início<input type="date" id="perIni"></label>
-  <label>Data fim<input type="date" id="perFim"></label>
-  <div class="seg" id="perAtalhos">
-    <button data-p="semana">Semana</button>
-    <button data-p="mes">Mês</button>
-    <button data-p="30">Últimos 30 dias</button>
-    <button data-p="obra">Obra toda</button>
+  <div id="perControles" style="display:contents">
+    <label>Data início<input type="date" id="perIni"></label>
+    <label>Data fim<input type="date" id="perFim"></label>
+    <div class="seg" id="perAtalhos">
+      <button data-p="semana">Semana</button>
+      <button data-p="mes">Mês</button>
+      <button data-p="30">Últimos 30 dias</button>
+      <button data-p="obra">Obra toda</button>
+    </div>
+    <span class="nota" id="perTxt"></span>
   </div>
-  <span class="nota" id="perTxt"></span>
-</div>
-
-<div class="barra-fase" id="barraFase" hidden>
-  <span class="barra-fase-rot">Fase</span>
-  <div class="seg" id="segFase">
-    <button data-fase="" class="ativa">Total</button>
-    <button data-fase="1">Fase 1 – Galpão</button>
-    <button data-fase="2">Fase 2 – Anexos</button>
-  </div>
+  <details class="fase-caixa" id="faseCaixa" hidden>
+    <summary><span id="faseCaixaTxt">Total</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l4 4 4-4"/></svg></summary>
+    <div class="fase-caixa-lista" id="faseCaixaLista">
+      <button data-fase="">Total</button>
+      <button data-fase="1">Fase 1 – Galpão</button>
+      <button data-fase="2">Fase 2 – Anexos</button>
+    </div>
+  </details>
 </div>
 
 <main>

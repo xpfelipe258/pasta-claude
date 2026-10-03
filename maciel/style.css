@@ -333,7 +333,7 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
   .sidebar-toggle { display: grid; place-items: center; }
   .sidebar { transform: translateX(-100%); }
   .sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,.2); }
-  .topo, main, .faixa, .periodo, .barra-fase { margin-left: 0; }
+  .topo, main, .faixa, .periodo { margin-left: 0; }
   .topo { padding-left: 56px; }
 }
 @media (max-width: 600px) {
@@ -348,20 +348,32 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
 }
 .periodo label { display: flex; flex-direction: column; gap: 2px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg2); }
 .periodo .nota { align-self: center; }
-.barra-fase {
-  display: flex; align-items: center; gap: 16px;
-  padding: 8px 20px; background: var(--card); border-bottom: 2px solid var(--linha-forte); margin-left: 230px;
+/* Fase dropdown — top-right of the period bar */
+.fase-caixa { position: relative; margin-left: auto; flex-shrink: 0; }
+.fase-caixa summary {
+  list-style: none; display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px 5px 14px; border-radius: 7px;
+  border: 1.5px solid var(--linha-forte);
+  background: var(--card); color: var(--fg);
+  cursor: pointer; font-size: .82rem; font-weight: 600;
+  user-select: none; white-space: nowrap;
 }
-.barra-fase-rot { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--fg2); white-space: nowrap; }
-/* Fase filter: colored-border buttons — always visible regardless of theme */
-#segFase { background: transparent; border: none; border-radius: 0; overflow: visible; display: flex; gap: 8px; }
-#segFase button { border-radius: 6px; padding: 6px 18px; font-weight: 700; font-size: .82rem; cursor: pointer; transition: background .15s, color .15s; }
-#segFase button[data-fase=""]  { background: transparent; border: 2px solid var(--fg3); color: var(--fg); }
-#segFase button[data-fase="1"] { background: transparent; border: 2px solid #2563eb; color: #2563eb; }
-#segFase button[data-fase="2"] { background: transparent; border: 2px solid #7c3aed; color: #7c3aed; }
-#segFase button[data-fase=""].ativa  { background: var(--fg); border-color: var(--fg); color: var(--bg); }
-#segFase button[data-fase="1"].ativa { background: #2563eb; border-color: #2563eb; color: #fff; }
-#segFase button[data-fase="2"].ativa { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.fase-caixa summary::-webkit-details-marker { display: none; }
+.fase-caixa[open] summary { border-color: var(--acento); color: var(--acento); }
+.fase-caixa-lista {
+  position: absolute; top: calc(100% + 5px); right: 0; z-index: 200;
+  background: var(--card); border: 1px solid var(--linha-forte); border-radius: 9px;
+  overflow: hidden; min-width: 170px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+.fase-caixa-lista button {
+  display: block; width: 100%; padding: 10px 16px; text-align: left;
+  background: none; border: 0; font-size: .85rem; font-weight: 600;
+  cursor: pointer; color: var(--fg);
+}
+.fase-caixa-lista button:hover { background: var(--acento-suave); }
+.fase-caixa-lista button[data-fase="1"] { color: #2563eb; }
+.fase-caixa-lista button[data-fase="2"] { color: #7c3aed; }
 
 dialog { border: 1px solid var(--linha-forte); border-radius: 10px; padding: 18px; background: var(--card); color: var(--fg); width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog::backdrop { background: rgba(0,0,0,.45); }
