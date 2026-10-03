@@ -727,6 +727,14 @@ async function salvarLanc() {
 
 // ------------------------------------------------------------ AVANÇO FÍSICO
 function realizadoTotal(servico, ate) { return prodServico(servico, null, '0000', ate); }
+function realizadoFase(servico, fase, ate) {
+  let t = 0;
+  M.empresas.forEach(e => {
+    e.servicos.filter(s => s.nome === servico && faseItem(s.frente) === fase)
+      .forEach(s => t += soma(e, s.col, '0000', ate));
+  });
+  return t;
+}
 
 function faseItem(frente) {
   if (!frente) return '1';
@@ -737,8 +745,9 @@ function contratoLinhas(ate = ref) {
   const ini = add(ate, -14);
   let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
   return M.cliente.filter(c => !faseFiltro || faseItem(c.frente) === faseFiltro).map(c => {
-    const real = realizadoTotal(c.servico, ate);
-    const ritmo = (real - realizadoTotal(c.servico, add(ini, -1))) / Math.max(du, 1);
+    const fase = faseItem(c.frente);
+    const real = realizadoFase(c.servico, fase, ate);
+    const ritmo = (real - realizadoFase(c.servico, fase, add(ini, -1))) / Math.max(du, 1);
     const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
     let projecao = null, status;
     if (!c.qtd) {
@@ -1148,7 +1157,7 @@ function renderAvanco() {
   $('#avancoResumo').textContent = `${linhas.length} serviços · ${comContrato.length} com quantidade contratada · ${concluidos} concluídos`;
 
   const semContratoNote = '<span class="nota" title="Sem quantidade contratada cadastrada">s/ contrato</span>';
-  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th></tr></thead><tbody>` +
+  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th>Frente</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th style="min-width:120px">Avanço</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
     (linhas.length ? linhas.map(c => {
       const pct = c.qtd ? c.real / c.qtd * 100 : null;
       const barraHtml = pct == null
@@ -1162,8 +1171,9 @@ function renderAvanco() {
         <td class="n" style="color:${c.necessario && c.ritmo < c.necessario ? 'var(--vermelho)' : 'inherit'}">${nf(c.necessario, 2)}</td>
         <td class="editavel" data-edit-campo="prazo" data-edit-id="${c.linha}" data-edit-val="${c.prazo ?? ''}">${fdA(c.prazo)}</td>
         <td>${fdA(c.projecao)}</td>
-        <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td></tr>`;
-    }).join('') : '<tr><td colspan="11" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
+        <td><span class="farol f-${COR_STATUS[c.status] || 'pendente'}">${c.status}</span></td>
+        <td><button class="btn-icone" data-editar-reg="cliente" data-linha="${c.linha}" title="Editar / excluir serviço">✎</button></td></tr>`;
+    }).join('') : '<tr><td colspan="12" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
   $('#avancoEmpresas').innerHTML = M.empresas.map(e => {
@@ -3503,6 +3513,17 @@ const FORMS = {
   estoque_inventario: { tit: 'contagem de inventário', campos: [
     ['data', 'Data', 'date', 1], ['codigo', 'Código do material', 'text', 1],
     ['quantidade', 'Quantidade contada', 'num', 1], ['responsavel', 'Responsável', 'text'],
+    ['obs', 'Observação', 'text', 0, 'largo']] },
+  cliente: { tit: 'serviço do contrato', campos: [
+    ['servico', 'Serviço', 'servico', 1],
+    ['frente', 'Frente (Fase 1 = ECLUSA / GALPÃO F1 etc.; Fase 2 = GALPÃO F2)', 'text'],
+    ['qtd', 'Quantidade contratada', 'num'],
+    ['inicio_plan', 'Início planejado', 'date'],
+    ['meta_dia', 'Meta cliente / dia', 'num'],
+    ['du_semana', 'Dias úteis / semana', 'num'],
+    ['prazo', 'Prazo', 'date'],
+    ['peso', 'Peso (0–100)', 'num'],
+    ['responsavel', 'Responsável', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] }
 };
 
@@ -3886,6 +3907,12 @@ function ligarEventos() {
     } catch (e) {
       toast(e.message || 'Erro ao importar quantidades.');
     }
+  });
+
+  document.getElementById('btnNovoServico').addEventListener('click', () => {
+    const preset = {};
+    if (faseFiltro === '2') preset.frente = 'GALPÃO F2';
+    abrirDialogo('cliente', null, preset);
   });
 
   $('#segPainelEmp').addEventListener('click', ev => {

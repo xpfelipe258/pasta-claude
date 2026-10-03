@@ -1080,20 +1080,36 @@ function acao_popular_qtd_cliente(array $corpo, array $usuario)
     // q_global() evita ambiguidade de obra_id em JOIN (q() injeta obra_id sem alias)
     $obraId = obra_atual_id();
     $linhas = q_global(
-        'SELECT s.nome, SUM(s.escopo) AS total
+        'SELECT s.nome, s.frente, SUM(s.escopo) AS total
          FROM servicos s
          JOIN empresas e ON s.empresa_id = e.id
          WHERE e.obra_id = ? AND s.escopo IS NOT NULL AND s.escopo > 0
-         GROUP BY s.nome',
+         GROUP BY s.nome, s.frente',
         [$obraId]
     )->fetchAll(PDO::FETCH_ASSOC);
     $atualizados = 0;
     foreach ($linhas as $linha) {
-        // Sobrescreve sempre (não só quando qtd é nulo), conforme solicitado
-        $n = q_global(
-            'UPDATE cliente SET qtd = ? WHERE obra_id = ? AND servico = ?',
-            [(float)$linha['total'], $obraId, $linha['nome']]
-        )->rowCount();
+        $nome   = $linha['nome'];
+        $frente = $linha['frente'];
+        $total  = (float)$linha['total'];
+        // Verifica se já existe linha com esse (servico, frente)
+        $existe = q_global(
+            'SELECT id FROM cliente WHERE obra_id = ? AND servico = ?
+             AND (frente = ? OR (frente IS NULL AND ? IS NULL)) LIMIT 1',
+            [$obraId, $nome, $frente, $frente]
+        )->fetch(PDO::FETCH_ASSOC);
+        if ($existe) {
+            $n = q_global(
+                'UPDATE cliente SET qtd = ? WHERE obra_id = ? AND servico = ?
+                 AND (frente = ? OR (frente IS NULL AND ? IS NULL))',
+                [$total, $obraId, $nome, $frente, $frente]
+            )->rowCount();
+        } else {
+            $n = q_global(
+                'INSERT INTO cliente (obra_id, servico, frente, qtd) VALUES (?, ?, ?, ?)',
+                [$obraId, $nome, $frente, $total]
+            )->rowCount();
+        }
         $atualizados += $n;
     }
     return ['atualizados' => $atualizados];
