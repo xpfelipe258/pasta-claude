@@ -619,47 +619,27 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Montagem",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "CBB02",
    "peso_unitario": 3.11,
-   "peso_total": 111.93,
+   "peso_total": 431.67,
    "comp_mm": 669.0,
    "material": "BARRA.RED.19",
    "produto": "CHUMBADOR",
-   "planejado": 36.0,
-   "chegou": 0.0,
-   "necessario_real": 36.0,
-   "falta_enviar": -36.0,
-   "consumido": 0.0,
+   "planejado": 132.0,
+   "chegou": 0,
+   "necessario_real": 132.0,
+   "falta_enviar": 132.0,
+   "consumido": 0,
    "estoque_pos_baixa": 0.0,
    "atendimento": 0.0,
    "status_logistico": "Crítico",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Montagem",
-   "local": "Galpão"
-  },
-  {
-   "tag": "CBB03",
-   "peso_unitario": 7.27,
-   "peso_total": 319.74,
-   "comp_mm": 669.0,
-   "material": "BARRA.RED.19",
-   "produto": "CHUMBADOR",
-   "planejado": 44.0,
-   "chegou": 0.0,
-   "necessario_real": 44.0,
-   "falta_enviar": -44.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Crítico",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Montagem",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "CBB04",
@@ -679,7 +659,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Montagem",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "CH01",
@@ -3199,7 +3179,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG002",
@@ -3219,7 +3199,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG003",
@@ -3239,7 +3219,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG004",
@@ -3259,7 +3239,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG005",
@@ -3279,7 +3259,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG006",
@@ -3299,7 +3279,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG007",
@@ -3319,7 +3299,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG008",
@@ -3339,7 +3319,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG009",
@@ -3359,7 +3339,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG010",
@@ -3379,7 +3359,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG011",
@@ -3399,7 +3379,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG012",
@@ -3419,7 +3399,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG013",
@@ -3439,7 +3419,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG014",
@@ -3459,7 +3439,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG015",
@@ -3468,18 +3448,18 @@
    "comp_mm": 0,
    "material": "A307",
    "produto": "PORCA Ø1/2\"",
-   "planejado": 8215.0,
+   "planejado": 8374.0,
    "chegou": 3850.0,
-   "necessario_real": 4365.0,
-   "falta_enviar": -4365.0,
+   "necessario_real": 4524.0,
+   "falta_enviar": 4524.0,
    "consumido": 1067.0,
    "estoque_pos_baixa": 2783.0,
-   "atendimento": 0.46865489957395007,
+   "atendimento": 0.459756388822546,
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG017",
@@ -3499,7 +3479,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG018",
@@ -3508,18 +3488,18 @@
    "comp_mm": 0,
    "material": "LISA",
    "produto": "ARRUELA Ø1/2\"",
-   "planejado": 8135.0,
+   "planejado": 8294.0,
    "chegou": 2800.0,
-   "necessario_real": 5335.0,
-   "falta_enviar": -5335.0,
+   "necessario_real": 5494.0,
+   "falta_enviar": 5494.0,
    "consumido": 1067.0,
    "estoque_pos_baixa": 1733.0,
-   "atendimento": 0.3441917639827904,
+   "atendimento": 0.3375934410417169,
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG019",
@@ -3539,7 +3519,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG020",
@@ -3559,7 +3539,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG021",
@@ -3579,7 +3559,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG022",
@@ -3588,18 +3568,18 @@
    "comp_mm": 0,
    "material": "A194-2H",
    "produto": "PORCA Ø3/4\"",
-   "planejado": 736.0,
+   "planejado": 840.0,
    "chegou": 560.0,
-   "necessario_real": 176.0,
-   "falta_enviar": -176.0,
+   "necessario_real": 280.0,
+   "falta_enviar": 280.0,
    "consumido": 0.0,
    "estoque_pos_baixa": 560.0,
-   "atendimento": 0.7608695652173914,
+   "atendimento": 0.6666666666666666,
    "status_logistico": "Recebimento Parcial",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG023",
@@ -3619,7 +3599,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG024",
@@ -3628,18 +3608,18 @@
    "comp_mm": 0,
    "material": "F-436",
    "produto": "ARRUELA Ø3/4\"",
-   "planejado": 488.0,
+   "planejado": 540.0,
    "chegou": 488.0,
-   "necessario_real": 0.0,
-   "falta_enviar": 0.0,
+   "necessario_real": 52,
+   "falta_enviar": 52.0,
    "consumido": 0.0,
    "estoque_pos_baixa": 488.0,
-   "atendimento": 1.0,
+   "atendimento": 0.9037037037037037,
    "status_logistico": "Atendido",
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FJ001",
@@ -3659,7 +3639,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FJ002",
@@ -3679,7 +3659,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FJ003",
@@ -3699,7 +3679,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FJ005",
@@ -3719,7 +3699,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FJ006",
@@ -3739,7 +3719,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG025",
@@ -3759,7 +3739,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P3",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "FG026",
@@ -3779,7 +3759,7 @@
    "tipo_material": "FIXADOR",
    "prioridade": "P4",
    "etapa": "Fixação",
-   "local": "Galpão"
+   "local": "Todos os locais"
   },
   {
    "tag": "L02",
@@ -4795,54 +4775,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "ARR301",
-   "peso_unitario": 0.01,
-   "peso_total": 0.63,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\"",
-   "produto": "ARRUELA",
-   "planejado": 63.0,
-   "chegou": 0.0,
-   "necessario_real": 63.0,
-   "falta_enviar": 63.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Eclusa",
-   "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "PR301",
-   "peso_unitario": 0.03,
-   "peso_total": 1.89,
-   "comp_mm": 12.0,
-   "material": "PORCA Ø1/2\"",
-   "produto": "PORCA",
-   "planejado": 63.0,
-   "chegou": 0.0,
-   "necessario_real": 63.0,
-   "falta_enviar": 63.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Eclusa",
-   "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
    "tag": "TV200",
    "peso_unitario": 1.97,
    "peso_total": 94.56,
@@ -4912,30 +4844,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "NUT301",
-   "peso_unitario": 0.08,
-   "peso_total": 1.92,
-   "comp_mm": 19.0,
-   "material": "PORCA Ø3/4\"",
-   "produto": "NUT",
-   "planejado": 24.0,
-   "chegou": 0.0,
-   "necessario_real": 24.0,
-   "falta_enviar": 24.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Eclusa",
-   "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd05"
-  },
-  {
    "tag": "JOIST200",
    "peso_unitario": 356.9,
    "peso_total": 6424.2,
@@ -4982,30 +4890,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "WAS301",
-   "peso_unitario": 0.02,
-   "peso_total": 0.24,
-   "comp_mm": 3.0,
-   "material": "ARRUELA Ø3/4\"",
-   "produto": "WASHER",
-   "planejado": 12.0,
-   "chegou": 0.0,
-   "necessario_real": 12.0,
-   "falta_enviar": 12.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Eclusa",
-   "item_bm": "3.3.1",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd37"
-  },
-  {
    "tag": "CTH204",
    "peso_unitario": 16.81,
    "peso_total": 134.48,
@@ -5048,29 +4932,6 @@
    "etapa": "Anexos",
    "local": "Eclusa",
    "item_bm": "3.3.2",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "CBB201",
-   "peso_unitario": 3.01,
-   "peso_total": 18.06,
-   "comp_mm": 649.3,
-   "material": "BARRA.RED.19",
-   "produto": "CHUMBADOR",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Eclusa",
-   "item_bm": "3.3.1",
    "origem": "IFC",
    "marca_ambigua": false
   },
@@ -5632,54 +5493,6 @@
    "item_bm": "3.3.3",
    "origem": "IFC",
    "marca_ambigua": false
-  },
-  {
-   "tag": "ARR302",
-   "peso_unitario": 0.02,
-   "peso_total": 0.56,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\" / ARRUELA Ø5/8\"",
-   "produto": "ARRUELA",
-   "planejado": 28.0,
-   "chegou": 0.0,
-   "necessario_real": 28.0,
-   "falta_enviar": 28.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Portaria",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "PR302",
-   "peso_unitario": 0.03,
-   "peso_total": 0.84,
-   "comp_mm": 13.7,
-   "material": "PORCA Ø1/2\" / PORCA Ø5/8\"",
-   "produto": "PORCA",
-   "planejado": 28.0,
-   "chegou": 0.0,
-   "necessario_real": 28.0,
-   "falta_enviar": 28.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Portaria",
-   "item_bm": "3.3.3",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
   },
   {
    "tag": "V41",
@@ -7022,54 +6835,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "PR303",
-   "peso_unitario": 0.03,
-   "peso_total": 2.88,
-   "comp_mm": 14.0,
-   "material": "PORCA Ø1/2\" / PORCA Ø3/4\"",
-   "produto": "PORCA",
-   "planejado": 96.0,
-   "chegou": 0.0,
-   "necessario_real": 96.0,
-   "falta_enviar": 96.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
-   "tag": "ARR303",
-   "peso_unitario": 0.02,
-   "peso_total": 1.44,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\" / ARRUELA Ø3/4\"",
-   "produto": "ARRUELA",
-   "planejado": 72.0,
-   "chegou": 0.0,
-   "necessario_real": 72.0,
-   "falta_enviar": 72.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
    "tag": "STX300",
    "peso_unitario": 2.53,
    "peso_total": 182.16,
@@ -7369,29 +7134,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "CBB301",
-   "peso_unitario": 5.78,
-   "peso_total": 34.68,
-   "comp_mm": 576.5,
-   "material": "BARRA.RED.19",
-   "produto": "CHUMBADOR",
-   "planejado": 6.0,
-   "chegou": 0.0,
-   "necessario_real": 6.0,
-   "falta_enviar": 6.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Vestiário",
-   "item_bm": "3.3.8",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
    "tag": "VC301",
    "peso_unitario": 315.2,
    "peso_total": 1891.2,
@@ -7554,30 +7296,6 @@
    "tag_modelo": "nd48"
   },
   {
-   "tag": "PR304",
-   "peso_unitario": 0.03,
-   "peso_total": 1.92,
-   "comp_mm": 14.0,
-   "material": "PORCA Ø1/2\" / PORCA Ø3/4\"",
-   "produto": "PORCA",
-   "planejado": 64.0,
-   "chegou": 0.0,
-   "necessario_real": 64.0,
-   "falta_enviar": 64.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
-  },
-  {
    "tag": "TCX300_1",
    "peso_unitario": 40.37,
    "peso_total": 1937.76,
@@ -7622,30 +7340,6 @@
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
-  },
-  {
-   "tag": "ARR304",
-   "peso_unitario": 0.02,
-   "peso_total": 0.96,
-   "comp_mm": 4.0,
-   "material": "ARRUELA Ø1/2\" / ARRUELA Ø3/4\"",
-   "produto": "ARRUELA",
-   "planejado": 48.0,
-   "chegou": 0.0,
-   "necessario_real": 48.0,
-   "falta_enviar": 48.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false,
-   "tag_modelo": "nd03"
   },
   {
    "tag": "STX300_1",
@@ -7948,29 +7642,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "CBB301_1",
-   "peso_unitario": 5.78,
-   "peso_total": 23.12,
-   "comp_mm": 576.5,
-   "material": "BARRA.RED.19",
-   "produto": "CHUMBADOR",
-   "planejado": 4.0,
-   "chegou": 0.0,
-   "necessario_real": 4.0,
-   "falta_enviar": 4.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
    "tag": "CTH303",
    "peso_unitario": 8.58,
    "peso_total": 34.32,
@@ -8201,29 +7872,6 @@
    "marca_ambigua": false
   },
   {
-   "tag": "CA04",
-   "peso_unitario": 0.01,
-   "peso_total": 0.04,
-   "comp_mm": 8.0,
-   "material": "PORCA Ø5/16\"",
-   "produto": "PORCA Ø5/16\"",
-   "planejado": 4.0,
-   "chegou": 0.0,
-   "necessario_real": 4.0,
-   "falta_enviar": 4.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
    "tag": "SCX02",
    "peso_unitario": 0.12,
    "peso_total": 0.24,
@@ -8239,52 +7887,6 @@
    "atendimento": 0.0,
    "status_logistico": "Pendente",
    "tipo_material": "ESTRUTURAL",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "SCX04",
-   "peso_unitario": 0.04,
-   "peso_total": 0.04,
-   "comp_mm": 100.0,
-   "material": "BARRA.ROSC.8",
-   "produto": "BARRA ROSCADA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
-   "prioridade": "P2",
-   "etapa": "Anexos",
-   "local": "Refeitório",
-   "item_bm": "3.3.7",
-   "origem": "IFC",
-   "marca_ambigua": false
-  },
-  {
-   "tag": "SCX03",
-   "peso_unitario": 0.05,
-   "peso_total": 0.05,
-   "comp_mm": 150.0,
-   "material": "BARRA.ROSC.8",
-   "produto": "BARRA ROSCADA",
-   "planejado": 1.0,
-   "chegou": 0.0,
-   "necessario_real": 1.0,
-   "falta_enviar": 1.0,
-   "consumido": 0.0,
-   "estoque_pos_baixa": 0.0,
-   "atendimento": 0.0,
-   "status_logistico": "Pendente",
-   "tipo_material": "FIXADOR",
    "prioridade": "P2",
    "etapa": "Anexos",
    "local": "Refeitório",
@@ -8337,6 +7939,132 @@
    "item_bm": "3.3.7",
    "origem": "IFC",
    "marca_ambigua": false
+  },
+  {
+   "tag": "FX301",
+   "peso_unitario": 0.1735,
+   "peso_total": 27.75,
+   "comp_mm": 0.0,
+   "material": "BARRA.ROSC.12.5",
+   "produto": "CONTRAVENTAMENTO",
+   "planejado": 160.0,
+   "chegou": 0.0,
+   "necessario_real": 160.0,
+   "falta_enviar": 160.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
+  },
+  {
+   "tag": "FX302",
+   "peso_unitario": 0.4522,
+   "peso_total": 5.43,
+   "comp_mm": 0.0,
+   "material": "BARRA.RED.16",
+   "produto": "CHUMBADOR",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
+  },
+  {
+   "tag": "FX303",
+   "peso_unitario": 0.0199,
+   "peso_total": 0.24,
+   "comp_mm": 0.0,
+   "material": "ARRUELA Ø5/8\"",
+   "produto": "ARRUELA",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
+  },
+  {
+   "tag": "FX304",
+   "peso_unitario": 0.0,
+   "peso_total": 0.0,
+   "comp_mm": 0.0,
+   "material": "PORCA Ø5/8\"",
+   "produto": "PORCA",
+   "planejado": 12.0,
+   "chegou": 0.0,
+   "necessario_real": 12.0,
+   "falta_enviar": 12.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
+  },
+  {
+   "tag": "FX305",
+   "peso_unitario": 0.0057,
+   "peso_total": 0.02,
+   "comp_mm": 0.0,
+   "material": "PORCA Ø5/16\"",
+   "produto": "PORCA Ø5/16\"",
+   "planejado": 4.0,
+   "chegou": 0.0,
+   "necessario_real": 4.0,
+   "falta_enviar": 4.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
+  },
+  {
+   "tag": "FX306",
+   "peso_unitario": 0.0444,
+   "peso_total": 0.09,
+   "comp_mm": 0.0,
+   "material": "BARRA.ROSC.8",
+   "produto": "BARRA ROSCADA",
+   "planejado": 2.0,
+   "chegou": 0.0,
+   "necessario_real": 2.0,
+   "falta_enviar": 2.0,
+   "consumido": 0.0,
+   "estoque_pos_baixa": 0.0,
+   "atendimento": 0.0,
+   "status_logistico": "Pendente",
+   "tipo_material": "FIXADOR",
+   "prioridade": "P2",
+   "etapa": "Fixação",
+   "local": "Todos os locais",
+   "origem": "IFC"
   }
  ],
  "remessas": {
@@ -9860,14 +9588,6 @@
     "total_recebido": 0
    },
    {
-    "material": "MATERIAL",
-    "produto": "PRODUTO",
-    "tag": "TAG",
-    "etapa": "",
-    "qtd_por_remessa": {},
-    "total_recebido": 0
-   },
-   {
     "material": "PARABOLT",
     "produto": "ARRUELA Ø1\"",
     "tag": "FG023",
@@ -10170,6 +9890,1382 @@
      "4° REMESSA OE-198-06 r2 31/07": 700.0
     },
     "total_recebido": 1219.0
+   },
+   {
+    "material": "A325N",
+    "produto": "PARAF. Ø5/8\" X 2\"",
+    "tag": "FG025",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "A307",
+    "produto": "PARAF. Ø1/2\" X 2 1/2\"",
+    "tag": "FG026",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L64X64X4.8",
+    "produto": "CANTONEIRA ARREMATE",
+    "tag": "L02",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L64X64X4.8",
+    "produto": "CANTONEIRA ARREMATE",
+    "tag": "L03",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "ESCADA MARINHEIRO",
+    "tag": "ROT-ESM01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "DEGRAU ESCADA",
+    "tag": "ROT-DG01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "ARO ESCADA",
+    "tag": "ROT-ARO01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "ARO ESCADA",
+    "tag": "ROT-ARO02",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "ARO ESCADA",
+    "tag": "ROT-ARO03",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "MONTANTE ESCADA",
+    "tag": "ROT-MTE03",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "MONTANTE ESCADA",
+    "tag": "ROT-MTE06",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "MONTANTE ESCADA",
+    "tag": "ROT-MTE08",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "GRADE ESCADA",
+    "tag": "ROT-GRE01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "GRADE ESCADA",
+    "tag": "ROT-GRE02",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "LONGARINA ESCADA",
+    "tag": "ROT-LB01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "PATAMAR ESCADA",
+    "tag": "ROT-PTE01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "PATAMAR ESCADA",
+    "tag": "ROT-PTE02",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "SUPORTE ESCADA",
+    "tag": "ROT-SPE01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "SUPORTE ESCADA",
+    "tag": "ROT-SPE02",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "GRADE CONTEN. ESC",
+    "tag": "ROT-GCE01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "CORRIMAO ESCADA",
+    "tag": "ROT-PUL01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "FABRICADO ROTULA",
+    "produto": "PATAMAR",
+    "tag": "PTE04",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "OLHAL A307",
+    "produto": "PARAF. OLHAL Ø1/2'' X 13F",
+    "tag": "FG027",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "OLHAL A307",
+    "produto": "PARAF. OLHAL Ø3/4'' X 10F",
+    "tag": "FG028",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CABO ACO",
+    "produto": "CABO DE ACO LINHA DE VIDA",
+    "tag": "LVX01",
+    "etapa": "",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA TP40#0.50",
+    "produto": "TELHA PLATIBANDA INT",
+    "tag": "TLP301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6.4X123.68",
+    "produto": "SUPORTE JOIST",
+    "tag": "SJX03",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6.4X123.68",
+    "produto": "SUPORTE JOIST",
+    "tag": "SJX04",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L190X60X6.4",
+    "produto": "SUPORTE CONT.",
+    "tag": "SP200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TRAVAMENTO VIGA",
+    "tag": "TV200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X458.61",
+    "produto": "RUFO CHAPÉU",
+    "tag": "RCH01",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH205",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CR132#1.25 / CR45#0.95",
+    "produto": "BANZO",
+    "tag": "JOIST200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X157.63",
+    "produto": "SUPORTE",
+    "tag": "SP204",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH204",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6.4X63.5 / TB120X120X3.75",
+    "produto": "MONTANTE",
+    "tag": "MT200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZZ190-1.25-18-52",
+    "produto": "TERÇA",
+    "tag": "TER301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6X140",
+    "produto": "MONTANTE",
+    "tag": "MT202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6X140",
+    "produto": "MONTANTE",
+    "tag": "MT201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6X140",
+    "produto": "MONTANTE",
+    "tag": "MT204",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6X140",
+    "produto": "MONTANTE",
+    "tag": "MT203",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZZ300-1.95-30-100",
+    "produto": "TERÇA",
+    "tag": "TER302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH12.7X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC216",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH12.7X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC218",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH12.7X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC217",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH19X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC212",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH16X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC214",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH12.7X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC213",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH16X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC219",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH16X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC215",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH19X235",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC211",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CR45#0.95",
+    "produto": "TERÇA PLATIBANDA INT",
+    "tag": "B01",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZZ300-1.95-30-100",
+    "produto": "TERÇA",
+    "tag": "TER303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZZ300-1.95-30-100",
+    "produto": "TERÇA",
+    "tag": "TER304",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V33",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V37",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V41",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH304",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L190X60X6.4",
+    "produto": "SUPORTE CONT.",
+    "tag": "SP200_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "Ø100X2 / Ø150X2",
+    "produto": "BOCAL DE CALHA",
+    "tag": "BCL301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X599.33",
+    "produto": "CALHA ECLUSA",
+    "tag": "CA199",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L64X64X6.4",
+    "produto": "CHAPA",
+    "tag": "SP201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC204",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH305",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W250X17.9",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC210",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X400.3",
+    "produto": "CALHA",
+    "tag": "CA202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "CHAPA",
+    "tag": "SP202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC206",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X579.92",
+    "produto": "CALHA",
+    "tag": "CA201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "CHAPA",
+    "tag": "SP203",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC208",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X600.3",
+    "produto": "CALHA",
+    "tag": "CA200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "BARRA.ROSC.12.5 / CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH203",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC204",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC203",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC210",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "CHAPA",
+    "tag": "TC205",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "BARRA.RED.16",
+    "produto": "CHAPA",
+    "tag": "CBB200",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V49",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH6.4X110",
+    "produto": "CHAPA",
+    "tag": "03",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TCX199",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W360X32.9",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC201",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC202",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC209",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC203",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC211",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "TERÇA",
+    "tag": "TC207",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "UE127#1.25",
+    "produto": "CHAPA",
+    "tag": "TC206",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W360X32.9",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC207",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W360X32.9",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC209",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W360X32.9",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC208",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC205",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V39",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V38",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V48",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V47",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V46",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V45",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V43",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V00",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V35",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "CANTONEIRA",
+    "tag": "V34",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH306",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA COBERTURA",
+    "tag": "TLH307",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "Ø100X2",
+    "produto": "BOCAL DE CALHA",
+    "tag": "BCL302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.5X268.28",
+    "produto": "RUFO",
+    "tag": "RFX301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L170X75X8",
+    "produto": "SUPORTE DE TERÇA",
+    "tag": "STX300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZER-210#1.25",
+    "produto": "TERÇA COBERTURA",
+    "tag": "TCX301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L190X60X6.4",
+    "produto": "SUPORTE CONT.",
+    "tag": "SP300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZER-210#1.55",
+    "produto": "TERÇA COBERTURA",
+    "tag": "TCX300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L170X75X8",
+    "produto": "SUPORTE DE TERÇA",
+    "tag": "STX302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH9.5X170",
+    "produto": "SUPORTE",
+    "tag": "SP303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W250X17.9",
+    "produto": "PILARETE",
+    "tag": "PR300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L165X180X9.5",
+    "produto": "CHAPA",
+    "tag": "SP302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L165X180X9.5",
+    "produto": "CHAPA",
+    "tag": "SP301",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH13X102",
+    "produto": "CHAPA",
+    "tag": "VC302_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "TELHA ZIP#0.65_482",
+    "produto": "TELHA_COB",
+    "tag": "TLH308",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZER-210#1.55",
+    "produto": "TERÇA COBERTURA",
+    "tag": "TCX300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L170X75X8",
+    "produto": "SUPORTE DE TERÇA",
+    "tag": "STX302_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L170X75X8",
+    "produto": "SUPORTE DE TERÇA",
+    "tag": "STX300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L190X60X6.4",
+    "produto": "SUPORTE CONT.",
+    "tag": "SP300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X301.26",
+    "produto": "RUFO CADEIRA",
+    "tag": "RDC01",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ZER-210#1.25",
+    "produto": "TERÇA COBERTURA",
+    "tag": "TCX301_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF303_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF302_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF301_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L46X46X1.55",
+    "produto": "MÃO FRANCESA",
+    "tag": "MF300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.65X599.91",
+    "produto": "CALHA",
+    "tag": "CA300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "Ø100X2",
+    "produto": "BOCAL DE CALHA",
+    "tag": "BCL303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH9.5X170",
+    "produto": "SUPORTE",
+    "tag": "SP303_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W250X17.9",
+    "produto": "PILARETE",
+    "tag": "PR300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH303",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH302",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L165X180X9.5",
+    "produto": "CHAPA",
+    "tag": "SP302_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L165X180X9.5",
+    "produto": "CHAPA",
+    "tag": "SP301_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "W310X28.3",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC302_2",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH13X102 / W310X28.3",
+    "produto": "CHAPA",
+    "tag": "VC302_3",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH8X170",
+    "produto": "VIGA COBERTURA",
+    "tag": "VC301_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "50X300",
+    "produto": "GROUT",
+    "tag": "V07",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH301_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH2.3X60",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "CTH300_1",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "L50X50X3.2",
+    "produto": "CANTONEIRA",
+    "tag": "SCX02",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CR45#0.95",
+    "produto": "SUPORTE",
+    "tag": "SCX01",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "CH0.5X268.28",
+    "produto": "RUFO",
+    "tag": "RFX300",
+    "etapa": "Anexos",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "BARRA.ROSC.12.5",
+    "produto": "CONTRAVENTAMENTO",
+    "tag": "FX301",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "BARRA.RED.16",
+    "produto": "CHUMBADOR",
+    "tag": "FX302",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "ARRUELA Ø5/8\"",
+    "produto": "ARRUELA",
+    "tag": "FX303",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "PORCA Ø5/8\"",
+    "produto": "PORCA",
+    "tag": "FX304",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "PORCA Ø5/16\"",
+    "produto": "PORCA Ø5/16\"",
+    "tag": "FX305",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
+   },
+   {
+    "material": "BARRA.ROSC.8",
+    "produto": "BARRA ROSCADA",
+    "tag": "FX306",
+    "etapa": "Fixação",
+    "qtd_por_remessa": {},
+    "total_recebido": 0.0
    }
   ]
  },
