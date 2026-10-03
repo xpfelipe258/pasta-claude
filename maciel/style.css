@@ -502,6 +502,10 @@ th.col-nova, td.col-nova { background: var(--acento-suave); min-width: 130px; }
 .ed-cab { text-align: center; font-weight: 700; text-transform: none; letter-spacing: 0; border-color: var(--acento); }
 .ed-in.preenchido { border-color: var(--acento); font-weight: 700; }
 td.col-nova { padding: 3px 6px; }
+/* Datas de remessa na barra de criação */
+.ed-datas { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ed-datas label { display: flex; flex-direction: column; font-size: 11px; color: var(--fg2); gap: 2px; }
+.ed-datas .ed-dat { width: 120px; font-size: 13px; padding: 3px 6px; }
 .valor-pos { color: var(--verde); }
 .linha-total td { border-top: 1px solid var(--linha-forte); }
 

@@ -547,6 +547,16 @@ function acao_estoque_remessa(array $corpo)
     if (!in_array($nome, $dados['remessas']['colunas'], true)) {
         $dados['remessas']['colunas'][] = $nome;
     }
+    // Datas opcionais da remessa (prevista chegada, emissão NF, chegada obra)
+    $datasNova = is_array($corpo['datas'] ?? null) ? $corpo['datas'] : [];
+    if (!empty(array_filter($datasNova))) {
+        if (!isset($dados['remessas']['datas'])) { $dados['remessas']['datas'] = []; }
+        $dados['remessas']['datas'][$nome] = [
+            'prevista_chegada' => trim((string)($datasNova['prevista_chegada'] ?? '')),
+            'emissao_nota'     => trim((string)($datasNova['emissao_nota'] ?? '')),
+            'chegada_obra'     => trim((string)($datasNova['chegada_obra'] ?? '')),
+        ];
+    }
     foreach ($lancamentos as $tag => $qtd) {
         $item = &$dados['remessas']['itens'][$porTag[$tag]];
         $item['qtd_por_remessa'][$nome] = ($item['qtd_por_remessa'][$nome] ?? 0) + $qtd;

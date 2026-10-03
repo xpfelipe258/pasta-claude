@@ -154,7 +154,19 @@ function estoque_planilha_ler()
         $txt = is_file($p) ? file_get_contents($p) : null;
     }
     $d = $txt === null ? null : json_decode($txt, true);
-    return is_array($d) ? $d : null;
+    if (!is_array($d)) { return null; }
+    // Retrocompatibilidade: se o dado do banco não tem datas de remessa,
+    // mescla as datas do arquivo inicial (que sempre tem a versão atualizada).
+    if (!isset($d['remessas']['datas'])) {
+        $p = __DIR__ . '/estoque_inicial.json';
+        if (is_file($p)) {
+            $f = json_decode(file_get_contents($p), true);
+            if (isset($f['remessas']['datas'])) {
+                $d['remessas']['datas'] = $f['remessas']['datas'];
+            }
+        }
+    }
+    return $d;
 }
 
 function estoque_planilha_gravar(array $dados)

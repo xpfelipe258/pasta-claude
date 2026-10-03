@@ -1604,16 +1604,23 @@ function edBarra(k) {
     : `${itens.length} item(ns) · total ${nf(tot)}`;
   if (!box.dataset.pronto) {
     box.dataset.pronto = '1';
-    box.innerHTML = `<span><b>${k === 'rem' ? 'Nova remessa' : 'Novo consumo'}:</b> preencha a coluna no fim da tabela e escreva o ${k === 'rem' ? 'nº da remessa' : 'período da semana'} no cabeçalho.</span>
-      <span class="ed-resumo"></span><span class="espaco"></span>
-      <button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>
-      <button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
+    const datasHtml = k === 'rem'
+      ? `<span class="ed-datas"><label>Prev. chegada<input class="ed-dat" data-ed="${k}" data-ed-dat="prevista" placeholder="dd/mm/aaaa" value="${esc(ed.prevista)}"></label>`
+        + `<label>Emissão NF<input class="ed-dat" data-ed="${k}" data-ed-dat="emissaoNf" placeholder="dd/mm/aaaa" value="${esc(ed.emissaoNf)}"></label>`
+        + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
+    box.innerHTML = `<span><b>${k === 'rem' ? 'Nova remessa' : 'Novo consumo'}:</b> preencha a coluna no fim da tabela e escreva o ${k === 'rem' ? 'nº da remessa' : 'período da semana'} no cabeçalho.</span>`
+      + datasHtml
+      + `<span class="ed-resumo"></span><span class="espaco"></span>`
+      + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
+      + `<button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
   }
   box.querySelector('.ed-resumo').textContent = resumo;
 }
 function edAbrir(k) {
   if (!EP) return;
-  if (!estEdit[k]) estEdit[k] = { nome: '', val: new Map() };
+  if (!estEdit[k]) estEdit[k] = k === 'rem'
+    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '' }
+    : { nome: '', val: new Map() };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
   const cab = $(ED[k].tabela).querySelector('.ed-cab');
@@ -1631,7 +1638,11 @@ async function edSalvar(k) {
   if (!itens.length) { toast('Digite ao menos uma quantidade.', true); return; }
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
-    const r = await postar(API + ED[k].endpoint, { [ED[k].campo]: nome, itens });
+    const corpo = { [ED[k].campo]: nome, itens };
+    if (k === 'rem' && (ed.prevista || ed.emissaoNf || ed.chegadaObra)) {
+      corpo.datas = { prevista_chegada: ed.prevista, emissao_nota: ed.emissaoNf, chegada_obra: ed.chegadaObra };
+    }
+    const r = await postar(API + ED[k].endpoint, corpo);
     const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
     if (j) EP = j;
     estEdit[k] = null; $(ED[k].barra).dataset.pronto = '';
@@ -1648,6 +1659,7 @@ function ligarEdicaoEstoque() {
     const el = ev.target, k = el.dataset.ed;
     if (!k || !estEdit[k]) return;
     if (el.classList.contains('ed-cab')) estEdit[k].nome = el.value;
+    else if (el.dataset.edDat) { estEdit[k][el.dataset.edDat] = el.value; }
     else {
       const chave = el.dataset.emp ? `${el.dataset.tag}|${el.dataset.emp}` : el.dataset.tag;
       estEdit[k].val.set(chave, el.value);
