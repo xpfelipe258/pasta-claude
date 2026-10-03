@@ -71,6 +71,20 @@ ALTER TABLE estoque_remessas ADD COLUMN IF NOT EXISTS obra_id INT NOT NULL DEFAU
 ALTER TABLE estoque_inventario ADD COLUMN IF NOT EXISTS obra_id INT NOT NULL DEFAULT 1;
 ALTER TABLE apontamentos ADD COLUMN IF NOT EXISTS obra_id INT NOT NULL DEFAULT 1;
 
+CREATE TABLE IF NOT EXISTS apontamentos_sincronizados (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  obra_id INT NOT NULL DEFAULT 1,
+  data DATE NOT NULL,
+  empresa VARCHAR(150) NOT NULL,
+  servico VARCHAR(150) NOT NULL,
+  fase VARCHAR(1) NOT NULL DEFAULT '2',
+  quantidade DECIMAL(10,2) NOT NULL,
+  sincronizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  usuario_id INT NULL,
+  KEY (obra_id, data, empresa),
+  KEY (sincronizado_em)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Auditoria: apontamentos F2 sincronizados para lançamentos';
+
 INSERT IGNORE INTO usuarios_obras (usuario_id,obra_id)
 SELECT id,(SELECT id FROM obras ORDER BY id LIMIT 1) FROM usuarios;
 

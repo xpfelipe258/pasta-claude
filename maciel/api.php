@@ -105,7 +105,8 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
-        'apontamento' => 'acao_apontamento', 'referencia' => 'acao_referencia',
+        'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
+        'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
         'planejamento' => 'acao_salvar_planejamento',
@@ -1143,6 +1144,57 @@ function acao_importar_snapshot(array $corpo, array $usuario)
     sistema_gravar('dados_producao', json_encode($corpo, JSON_UNESCAPED_UNICODE));
     $apts = count($corpo['tabelas']['apontamentos'] ?? []);
     return ['ok' => true, 'apontamentos' => $apts];
+}
+
+// --------------------------------------------------------- sincronização apontamentos F2 → lançamentos
+function acao_sincronizar_apontamentos_fase2(array $corpo, array $usuario)
+{
+    $data = (string)($corpo['data'] ?? '');
+    $empresa = (string)($corpo['empresa'] ?? '');
+    if (!data_valida($data)) throw new ErroValidacao('Data inválida.');
+    if (!$empresa || !q('SELECT id FROM empresas WHERE nome = ?', [$empresa])->fetch()) {
+        throw new ErroValidacao('Empresa não encontrada.');
+    }
+
+    // Busca apontamentos F2 concluídos nesta data/empresa (statusFase=concluído)
+    $aps = q('SELECT * FROM apontamentos
+             WHERE data = ? AND empresa = ? AND statusFase = ?
+             ORDER BY id', [$data, $empresa, 'concluído'])->fetchAll();
+
+    if (!$aps) {
+        return ['ok' => false, 'msg' => 'Nenhum apontamento F2 concluído encontrado.', 'sincronizados' => 0];
+    }
+
+    $agrupado = [];
+    foreach ($aps as $a) {
+        $serv = (string)($a['servico'] ?? '');
+        if (!$serv) continue;
+        if (!isset($agrupado[$serv])) $agrupado[$serv] = 0;
+        $agrupado[$serv] += (float)($a['qtd'] ?? 0);
+    }
+
+    $sincronizados = 0;
+    foreach ($agrupado as $serv => $qtd) {
+        // Cria ou atualiza lançamento em producao com fase='2'
+        $ex = q('SELECT id FROM producao
+                 WHERE data = ? AND empresa = ? AND servico = ? AND fase = ?',
+                [$data, $empresa, $serv, '2'])->fetch();
+
+        if ($ex) {
+            q('UPDATE producao SET valor = valor + ? WHERE id = ?', [$qtd, $ex['id']]);
+        } else {
+            q('INSERT INTO producao (data, empresa, servico, fase, valor) VALUES (?, ?, ?, ?, ?)',
+              [$data, $empresa, $serv, '2', $qtd]);
+        }
+        $sincronizados++;
+
+        // Log de auditoria
+        q('INSERT INTO apontamentos_sincronizados (data, empresa, servico, fase, quantidade, sincronizado_em, usuario_id)
+          VALUES (?, ?, ?, ?, ?, NOW(), ?)',
+          [$data, $empresa, $serv, '2', $qtd, (int)($usuario['id'] ?? 0)]);
+    }
+
+    return ['ok' => true, 'sincronizados' => $sincronizados, 'msg' => "$sincronizados serviço(s) sincronizados."];
 }
 
 // --------------------------------------------------------- token de máquina
