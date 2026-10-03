@@ -350,11 +350,16 @@ tr.grupo td { font-weight: 700; background: var(--bg); font-size: .75rem; text-t
 .periodo .nota { align-self: center; }
 .barra-fase {
   display: flex; align-items: center; gap: 12px;
-  padding: 7px 20px; background: var(--bg); border-bottom: 1px solid var(--linha); margin-left: 230px;
+  padding: 6px 20px; background: var(--card); border-bottom: 2px solid var(--linha-forte); margin-left: 230px;
 }
 .barra-fase-rot { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--fg2); white-space: nowrap; }
-#segFase button[data-fase="1"].ativa { background: var(--azul, #2563eb); color: #fff; }
-#segFase button[data-fase="2"].ativa { background: var(--roxo, #7c3aed); color: #fff; }
+/* Fase filter: pill-style buttons — always visible in both light & dark themes */
+#segFase { background: transparent; border: none; border-radius: 0; overflow: visible; gap: 5px; }
+#segFase button { background: var(--bg); border: 1.5px solid var(--fg3); border-right: 1.5px solid var(--fg3); border-radius: 20px; color: var(--fg); font-size: .8rem; padding: 4px 14px; font-weight: 600; }
+#segFase button:last-child { border-right: 1.5px solid var(--fg3); }
+#segFase button.ativa { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+#segFase button[data-fase="1"].ativa { background: var(--azul, #2563eb); border-color: var(--azul, #2563eb); color: #fff; }
+#segFase button[data-fase="2"].ativa { background: var(--roxo, #7c3aed); border-color: var(--roxo, #7c3aed); color: #fff; }
 
 dialog { border: 1px solid var(--linha-forte); border-radius: 10px; padding: 18px; background: var(--card); color: var(--fg); width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog::backdrop { background: rgba(0,0,0,.45); }
