@@ -1534,8 +1534,9 @@ function renderCliente() {
     const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
     const saldo = Math.max(totQtd - realPer, 0);
 
-    // Status baseado no período (realizado vs previsto do período)
-    const status = realPer >= totQtd ? 'CONCLUÍDO' : prevPer === 0 && realPer === 0 ? 'NÃO INICIADO' : realPer >= prevPer ? 'ADIANTADO' : realPer >= prevPer * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    // Status baseado no período com margens: GAP >= +6 (ADIANTADO), GAP <= -7 (ATRASADO), entre -6 e +5 (NO LIMITE)
+    const gapStatus = realPer - prevPer;
+    const status = realPer >= totQtd ? 'CONCLUÍDO' : prevPer === 0 && realPer === 0 ? 'NÃO INICIADO' : gapStatus >= 6 ? 'ADIANTADO' : gapStatus <= -7 ? 'ATRASADO' : 'NO LIMITE';
 
     // Projeção agregada
     const projFases = fases.map(f => proj[f.servico]).filter(Boolean);
