@@ -127,6 +127,9 @@ function tabelas_spec()
         'apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'tipo' => 'txt', 'rua' => 'txt', 'faixa' => 'txt',
             'eixo' => 'txt', 'letra' => 'txt', 'viga_id' => 'txt', 'qtd' => 'num', 'lanca_producao' => 'txt',
             'obs' => 'txt', 'slot' => 'num'],
+        'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
+            'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
+            'peso' => 'num', 'frente' => 'txt'],
     ];
 }
 
