@@ -1522,9 +1522,12 @@ function renderCliente() {
     // Totais consolidados F1+F2
     const totQtd = soma0(fases, f => f.qtd || 0);
     const totInicioMin = fases.map(f => f.inicio_plan).filter(Boolean).sort()[0] || null;
+    const totInicioMax = fases.map(f => f.inicio_plan).filter(Boolean).sort().pop() || null;
     const totMetaDia = fases.length === 1 ? fases[0].meta_dia : soma0(fases, f => f.meta_dia || 0) / fases.length;
 
-    const prevPer = soma0(fases, f => (prevCliente(f, c) - prevCliente(f, antes)) || 0);
+    // PREVISTO PERÍODO: usa a MAIOR data (deadline) entre F1+F2
+    const prevPer = soma0(fases, f => (prevCliente({ ...f, inicio_plan: totInicioMax }, c) - prevCliente({ ...f, inicio_plan: totInicioMax }, antes)) || 0);
+    // REALIZADO PERÍODO: data real (ini até c)
     const porEmp = Object.fromEntries(emps.map(n => [n, soma0(fases, f => c >= ini ? prodServico(f.servico, n, ini, c) : 0)]));
     const realPer = soma0(Object.values(porEmp), v => v);
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
