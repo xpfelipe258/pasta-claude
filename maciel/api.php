@@ -112,6 +112,7 @@ try {
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
+        'popular-qtd-cliente' => 'acao_popular_qtd_cliente',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -1072,4 +1073,27 @@ function acao_revogar_machine_token(array $corpo, array $usuario)
     sistema_gravar('machine_token', '');
     registrar_alteracao('machine_token_revogado', ['por' => $usuario['login']]);
     return ['ok' => true, 'mensagem' => 'Token revogado. Nenhuma chamada via token será aceita até gerar um novo.'];
+}
+
+function acao_popular_qtd_cliente(array $corpo, array $usuario)
+{
+    global $obraId;
+    // Soma o escopo de todas as empresas por nome de serviço e atualiza cliente.qtd
+    $linhas = q(
+        'SELECT s.nome, SUM(s.escopo) AS total
+         FROM servicos s
+         JOIN empresas e ON s.empresa_id = e.id
+         WHERE e.obra_id = ? AND s.escopo IS NOT NULL AND s.escopo > 0
+         GROUP BY s.nome',
+        [$obraId]
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $atualizados = 0;
+    foreach ($linhas as $linha) {
+        $n = q(
+            'UPDATE cliente SET qtd = ? WHERE obra_id = ? AND servico = ? AND (qtd IS NULL OR qtd = 0)',
+            [(float)$linha['total'], $obraId, $linha['nome']]
+        )->rowCount();
+        $atualizados += $n;
+    }
+    return ['atualizados' => $atualizados];
 }

@@ -729,14 +729,14 @@ async function salvarLanc() {
 function realizadoTotal(servico, ate) { return prodServico(servico, null, '0000', ate); }
 
 function faseItem(frente) {
-  if (!frente) return null;
-  return frente.toUpperCase().startsWith('GALPÃO F1') ? '1' : '2';
+  if (!frente) return '1';
+  return frente.toUpperCase().startsWith('GALPÃO F2') ? '2' : '1';
 }
 
 function contratoLinhas(ate = ref) {
   const ini = add(ate, -14);
   let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
-  return M.cliente.filter(c => c.frente && (!faseFiltro || faseItem(c.frente) === faseFiltro)).map(c => {
+  return M.cliente.filter(c => !faseFiltro || faseItem(c.frente) === faseFiltro).map(c => {
     const real = realizadoTotal(c.servico, ate);
     const ritmo = (real - realizadoTotal(c.servico, add(ini, -1))) / Math.max(du, 1);
     const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
@@ -3874,6 +3874,18 @@ function ligarEventos() {
       if (ke.key === 'Enter') { ke.preventDefault(); inp.blur(); }
       if (ke.key === 'Escape') { salvo = true; renderAvanco(); }
     });
+  });
+
+  document.getElementById('btnPopularQtd').addEventListener('click', async () => {
+    if (!confirm('Preencher automaticamente as quantidades do contrato a partir dos escopos cadastrados por empresa?\nApenas serviços sem quantidade serão atualizados.')) return;
+    try {
+      const r = await postar(API + 'popular-qtd-cliente', {});
+      toast(`${r.atualizados} serviço(s) atualizado(s).`);
+      await carregarDados();
+      renderAvanco();
+    } catch (e) {
+      toast(e.message || 'Erro ao importar quantidades.');
+    }
   });
 
   $('#segPainelEmp').addEventListener('click', ev => {
