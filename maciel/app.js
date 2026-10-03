@@ -2234,7 +2234,9 @@ function apFormHtml(regras, ctx) {
 
 // ---- mapa em planta: eixos na horizontal, estações de viga (A, B, BC, C ... H) na vertical
 function apMapaSvg(ctx) {
-  const eixos = apEst.fase === 'fase1' ? ctx.cfg.eixos.filter(e => +e >= 11) : ctx.cfg.eixos;
+  const eixos = apEst.fase === 'fase1' ? ctx.cfg.eixos.filter(e => +e >= 11) :
+                apEst.fase === 'fase2' ? ctx.cfg.eixos.filter(e => +e <= 11) :
+                ctx.cfg.eixos;
   const passo = APM_PASSO[apEst.zoom] || APM_PASSO.normal, { mEsq, mTop, pad } = APM;
   const n = ctx.layout.length, altRua = n * passo, barH = passo - 3, colW = Math.round(passo * 7 + 6);
   // estações de viga alinhadas aos retângulos: cada faixa ocupa o trecho dos seus joists (em unidades de joist)
@@ -2443,7 +2445,7 @@ function apMapaHtml(ctx) {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
     const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
     const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
-    return `<div class="ap-linha ap-mapa-barra">${seg('segApFase', [['fase1', 'Eixos 11 a 20 (fase 1)'], ['todos', 'Todos os eixos']], apEst.fase, 'data-ap-fase')}
+    return `<div class="ap-linha ap-mapa-barra">${seg('segApFase', [['fase2', 'Fase 2 (Eixos 01-11)'], ['fase1', 'Fase 1 (Eixos 11-20)'], ['todos', 'Todos']], apEst.fase, 'data-ap-fase')}
       ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
       <div class="ap-legenda">${leg('joist feita', 'joist montada')}${leg('viga feita', 'viga montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
       <div id="apMapaInfo" class="ap-info">${AP_INFO_PADRAO}</div>
@@ -3913,6 +3915,18 @@ function ligarEventos() {
     const preset = {};
     if (faseFiltro === '2') preset.frente = 'GALPÃO F2';
     abrirDialogo('cliente', null, preset);
+  });
+
+  document.getElementById('btnCriarFase2').addEventListener('click', async () => {
+    if (!confirm('Criar serviços GALPÃO F2 (espelhos dos serviços existentes) para eixos 01-10?\nEscopos do IFC serão preenchidos onde disponíveis.')) return;
+    try {
+      const r = await postar(API + 'popular-fase2-servicos', {});
+      toast(`${r.criados} serviço(s) criado(s) para GALPÃO F2.`);
+      await carregar();
+      renderAvanco();
+    } catch (e) {
+      toast(e.message || 'Erro ao criar serviços Fase 2.');
+    }
   });
 
   $('#segPainelEmp').addEventListener('click', ev => {

@@ -113,6 +113,7 @@ try {
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
         'popular-qtd-cliente' => 'acao_popular_qtd_cliente',
+        'popular-fase2-servicos' => 'acao_popular_fase2_servicos',
     ];
     if (!isset($acoes[$rota])) {
         responder_json(404, ['erro' => 'Ação desconhecida.']);
@@ -327,7 +328,29 @@ function acao_registro(array $corpo)
             $vals[$c] = mb_substr(trim((string)$v), 0, 255);
         }
     }
-    return gravar_linha($tabela, $id, $vals);
+    $resultado = gravar_linha($tabela, $id, $vals);
+    // Propagação bidirecional: alteração de cliente.qtd (escopo do contrato) replica em servicos.escopo
+    // para que apontamento e lançamento enxerguem o mesmo valor de meta na grade de produção.
+    if ($tabela === 'cliente' && array_key_exists('qtd', $vals) && $id !== null) {
+        $cli = q_global('SELECT servico, frente FROM cliente WHERE id = ?', [$id])->fetch(PDO::FETCH_ASSOC);
+        if ($cli && !empty($cli['servico'])) {
+            $obraId = obra_atual_id();
+            if ($cli['frente'] !== null) {
+                q_global(
+                    'UPDATE servicos s JOIN empresas e ON e.id = s.empresa_id
+                     SET s.escopo = ? WHERE e.obra_id = ? AND s.nome = ? AND s.frente = ?',
+                    [$vals['qtd'], $obraId, $cli['servico'], $cli['frente']]
+                );
+            } else {
+                q_global(
+                    'UPDATE servicos s JOIN empresas e ON e.id = s.empresa_id
+                     SET s.escopo = ? WHERE e.obra_id = ? AND s.nome = ? AND (s.frente IS NULL OR s.frente NOT LIKE ?)',
+                    [$vals['qtd'], $obraId, $cli['servico'], 'GALPÃO F%']
+                );
+            }
+        }
+    }
+    return $resultado;
 }
 
 function acao_bm_apontar(array $corpo)
@@ -641,9 +664,15 @@ function acao_estoque_consumo(array $corpo)
 
 // ------------------------------------------------- apontamento de montagem (joists e vigas)
 
+// Retorna 'GALPÃO F2' para eixos 01-10 (Fase 2) e 'GALPÃO F1' para eixos 11-20 (Fase 1).
+function frente_galpao($eixo) {
+    return (int)$eixo < 11 ? 'GALPÃO F2' : 'GALPÃO F1';
+}
+
 // Soma `delta` na célula (empresa, serviço, dia) do controle de produção, que é de onde o BM,
 // o cronograma e os dashboards leem a produção.
-function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
+// $frente: quando informada, filtra o servicos pela frente correta (fase 1 vs fase 2).
+function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $frente = null)
 {
     $emp = q('SELECT * FROM empresas WHERE nome = ?', [$empresaNome])->fetch();
     if (!$emp) {
@@ -652,7 +681,15 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario)
     if (!empty($usuario['empresa']) && $usuario['empresa'] !== $emp['nome']) {
         throw new ErroValidacao('Seu usuário só pode apontar montagem da empresa ' . $usuario['empresa'] . '.');
     }
-    $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
+    // Tenta localizar o serviço na frente específica; se não existir, cai para busca sem frente (retrocompatível).
+    $col = null;
+    if ($frente !== null) {
+        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ? AND frente = ?',
+            [$emp['id'], $servico, $frente])->fetchColumn() ?: null;
+    }
+    if (!$col) {
+        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
+    }
     if (!$col) {
         throw new ErroValidacao("{$emp['nome']} não tem o serviço $servico no controle de produção.");
     }
@@ -838,6 +875,7 @@ function acao_apontamento(array $corpo, array $usuario)
         $base = ['data' => $data, 'empresa' => $empNome, 'lanca_producao' => $lanca ? 'SIM' : 'NÃO',
             'obs' => texto_ou_nulo($corpo['obs'] ?? null)];
         $doItem = [];
+        $frente = null;
         if (isset(tipos_frente()[$tipo])) {
             if (!$frentes) {
                 throw new ErroValidacao('Mapa das frentes não publicado no sistema online.');
@@ -846,6 +884,7 @@ function acao_apontamento(array $corpo, array $usuario)
             if (!$doItem) {
                 continue;
             }
+            // Frentes externas (fechamento, marquise, contraventamento) sem separação de fase por ora.
         } elseif ($tipo === 'JOIST') {
             $rua = (string)($item['rua'] ?? '');
             if (!rua_valida($rua, $cfg['eixos'])) {
@@ -880,6 +919,8 @@ function acao_apontamento(array $corpo, array $usuario)
             }
             $joistsRua[$rua] = $total;
             $servico = $cfg['servico_joist'];
+            // Determina fase pela rua: eixo inicial < 11 → GALPÃO F2, senão F1
+            $frente = frente_galpao(explode('-', $rua)[0]);
         } elseif ($tipo === 'VIGA') {
             $eixo = (string)($item['eixo'] ?? '');
             if (!in_array($eixo, $cfg['eixos'], true)) {
@@ -906,13 +947,15 @@ function acao_apontamento(array $corpo, array $usuario)
                 continue;
             }
             $servico = $cfg['servico_viga'];
+            // Determina fase pelo eixo: eixo < 11 → GALPÃO F2, senão F1
+            $frente = frente_galpao($eixo);
         } else {
             throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE ou CONTRAVENTAMENTO).');
         }
         $novas = array_merge($novas, $doItem);
-        $chave = $empNome . '|' . (string)$servico;
+        $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
-            $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'delta' => 0];
+            $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'frente' => $frente, 'delta' => 0];
         }
         $grupos[$chave]['delta'] += count($doItem);
     }
@@ -932,7 +975,7 @@ function acao_apontamento(array $corpo, array $usuario)
     if ($lanca) {
         foreach ($grupos as $g) {
             if ($g['servico']) {
-                $lancamentos[] = soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario);
+                $lancamentos[] = soma_producao($g['empresa'], $g['servico'], $data, $g['delta'], $usuario, $g['frente'] ?? null);
             }
         }
     }
@@ -967,6 +1010,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         $r = $porLinha[$lin];
         $t = mb_strtoupper((string)($r['tipo'] ?? ''));
         if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
+            $frente = null;
             if (isset(tipos_frente()[$t])) {
                 $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
                 $servico = $r['letra'] ?: ($fs['servico'] ?? null);
@@ -975,14 +1019,21 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                 }
             } else {
                 $servico = $t === 'JOIST' ? ($cfg['servico_joist'] ?? '') : ($cfg['servico_viga'] ?? '');
+                if ($t === 'JOIST' && !empty($r['rua'])) {
+                    $frente = frente_galpao(explode('-', (string)$r['rua'])[0]);
+                } elseif ($t === 'VIGA' && !empty($r['eixo'])) {
+                    $frente = frente_galpao((string)$r['eixo']);
+                }
             }
-            $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'];
-            $somas[$chave] = ($somas[$chave] ?? 0) - (float)($r['qtd'] ?? 0);
+            $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'] . '|' . ($frente ?? '');
+            if (!isset($somas[$chave])) {
+                $somas[$chave] = ['nome' => $r['empresa'], 'servico' => $servico, 'dia' => $r['data'], 'frente' => $frente, 'delta' => 0];
+            }
+            $somas[$chave]['delta'] -= (float)($r['qtd'] ?? 0);
         }
     }
-    foreach ($somas as $chave => $delta) {
-        list($nome, $servico, $dia) = explode('|', $chave);
-        $lancamentos[] = soma_producao($nome, $servico, $dia, $delta, $usuario);
+    foreach ($somas as $g) {
+        $lancamentos[] = soma_producao($g['nome'], $g['servico'], $g['dia'], $g['delta'], $usuario, $g['frente']);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
@@ -1113,4 +1164,55 @@ function acao_popular_qtd_cliente(array $corpo, array $usuario)
         $atualizados += $n;
     }
     return ['atualizados' => $atualizados];
+}
+
+// Cria espelhos de todos os serviços de Fase 1 para GALPÃO F2 (eixos 01-10).
+// Usa o mesmo col com sufixo '2' (ex.: "B" → "B2"). Escopos do IFC quando conhecidos.
+function acao_popular_fase2_servicos(array $corpo, array $usuario)
+{
+    $obraId = obra_atual_id();
+    $todos = q_global(
+        'SELECT s.id, s.empresa_id, s.col, s.nome, s.frente, s.id_crono, s.escopo, s.ordem
+         FROM servicos s JOIN empresas e ON e.id = s.empresa_id
+         WHERE e.obra_id = ? ORDER BY s.empresa_id, s.ordem, s.id',
+        [$obraId]
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    $temF2 = [];
+    $colsUsadas = [];
+    foreach ($todos as $s) {
+        $colsUsadas[] = $s['col'];
+        if ((string)($s['frente'] ?? '') === 'GALPÃO F2') {
+            $temF2[$s['empresa_id'] . '|' . $s['nome']] = true;
+        }
+    }
+
+    // Quantitativos Fase 2 do IFC (eixos 01-10, 10 ruas)
+    $escopoF2 = ['IÇAMENTO JOIST' => 430, 'VIGAS' => 130];
+
+    $criados = 0;
+    foreach ($todos as $s) {
+        if ((string)($s['frente'] ?? '') === 'GALPÃO F2') continue;
+        $chave = $s['empresa_id'] . '|' . $s['nome'];
+        if (isset($temF2[$chave])) continue;
+        $temF2[$chave] = true;
+
+        // Gera col única: original + '2', com fallbacks se já em uso
+        $novaCol = $s['col'] . '2';
+        foreach (['2', 'F2', 'G2', 'H2', 'I2', 'J2'] as $sfx) {
+            $tentativa = $s['col'] . $sfx;
+            if (!in_array($tentativa, $colsUsadas, true)) { $novaCol = $tentativa; break; }
+        }
+        $colsUsadas[] = $novaCol;
+
+        $escopo = $escopoF2[$s['nome']] ?? null;
+        q_global(
+            'INSERT INTO servicos (obra_id, empresa_id, col, nome, frente, id_crono, escopo, ordem)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$obraId, $s['empresa_id'], $novaCol, $s['nome'], 'GALPÃO F2',
+             $s['id_crono'], $escopo, ($s['ordem'] ?? 0) + 0.5]
+        );
+        $criados++;
+    }
+    return ['criados' => $criados];
 }
