@@ -1532,7 +1532,7 @@ function renderCliente() {
     const realPer = soma0(Object.values(porEmp), v => v);
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
     const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
-    const saldo = Math.max(totQtd - realAc, 0);
+    const saldo = Math.max(totQtd - realPer, 0);
 
     // Status baseado no total consolidado
     const status = realAc >= totQtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
@@ -1563,7 +1563,7 @@ function renderCliente() {
     tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
 
   $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado (F1+F2 consolidado)`;
-  let h = `<thead><tr><th>Serviço</th><th class="n">Contrato</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Realizado acum.</th><th class="n">Saldo</th><th>Término projetado</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Serviço</th><th class="n">Contrato</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>`;
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
@@ -1573,7 +1573,7 @@ function renderCliente() {
     h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n"><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
-      <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n"><b>${nf(l.realAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
+      <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
       <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
   $('#tabCliente').innerHTML = h + '</tbody>';
