@@ -2844,10 +2844,10 @@ function renderEquip() {
     Object.entries(porEq).sort((a, b) => (b[1].eq + b[1].comb) - (a[1].eq + a[1].comb)).map(([n, o]) =>
       `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(o.n, 1)}</td><td class="n">${rs(o.eq)}</td><td class="n">${nf(o.l, 1)}</td><td class="n">${rs(o.comb)}</td><td class="n"><b>${rs(o.eq + o.comb)}</b></td></tr>`).join('') + '</tbody>';
 
-  $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Situação</th><th></th></tr></thead><tbody>` +
-    (T.equipamentos.length ? T.equipamentos.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${esc(e.situacao || '')}</td>
+  $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Responsável</th><th>Situação</th><th></th></tr></thead><tbody>` +
+    (T.equipamentos.length ? T.equipamentos.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td>
       <td><button class="link" data-editar-reg="equipamentos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="6" class="vazio">Nenhum equipamento cadastrado.</td></tr>') + '</tbody>';
+      : '<tr><td colspan="7" class="vazio">Nenhum equipamento cadastrado.</td></tr>') + '</tbody>';
 
   $('#tabEqUso').innerHTML = `<thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">R$/L</th><th class="n">Combustível</th><th>Operador / obs.</th><th></th></tr></thead><tbody>` +
     (us.length ? [...us].sort((a, b) => b.data.localeCompare(a.data)).map(u => `<tr><td>${fdA(u.data)}</td><td>${esc(u.equipamento)}</td><td>${esc(u.empresa)}</td><td>${esc(u.uso)}</td><td class="n">${nf(u.quantidade, 1)}</td><td class="n">${u.custo ? rs(u.custo) : '—'}</td>
@@ -2977,20 +2977,34 @@ function bmPeriodos(emp) {
 
 // Desconto como nas planilhas: valor fixo ou % do medido no período (ex.: sinal de contrato 10%). Negativo = crédito.
 const bmValorDeducao = (d, medido) => d.percentual != null && d.percentual !== '' ? medido * d.percentual / 100 : (d.valor || 0);
+// Quantos meses-calendário o período toca (ex.: set/out = 2; dentro de set = 1).
+function mesesNoPeriodo(ini, fim) {
+  if (!ini || !fim) return 1;
+  const [ai, mi] = ini.split('-').map(Number);
+  const [af, mf] = fim.split('-').map(Number);
+  return Math.max(1, (af - ai) * 12 + (mf - mi) + 1);
+}
 function bmDeducoes(emp, p, medido = 0) {
-  let equip, comb, litros, usos = null;
+  let equip, comb, litros, usos = null, mensalEquip = 0, eqMensList = [];
   if (p.fechado && p.fech) {
     equip = p.fech.equip || 0; comb = p.fech.comb || 0; litros = p.fech.litros || 0;
   } else {
     const rt = ratear(bmTab('usos').filter(u => u.data && u.data >= p.ini && u.data <= p.fim)).filter(r => r.empAjust === emp);
     equip = soma0(rt, r => r.custoR); comb = soma0(rt, r => r.combR); litros = soma0(rt, r => r.litrosR); usos = rt.length;
+    // Equipamentos mensais com empresa responsável — deduzidos automaticamente
+    const meses = mesesNoPeriodo(p.ini, p.fim);
+    eqMensList = bmTab('equipamentos').filter(e =>
+      e.cobranca === 'MENSAL' && (e.responsavel || '').toUpperCase() === emp.toUpperCase() &&
+      e.valor && e.situacao !== 'DESMOBILIZADO');
+    mensalEquip = soma0(eqMensList, e => (e.valor || 0) * meses);
+    equip += mensalEquip;
   }
   const manuais = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
   const total = {};
   BM_CONTRATOS.forEach(c => {
     total[c] = (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => bmValorDeducao(d, medido));
   });
-  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos };
+  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos, mensalEquip, eqMensList };
 }
 
 // BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
@@ -3069,7 +3083,9 @@ function bmImprimir(r, emp, p) {
   let linhasDesc = `<tr><td style="padding:5px 8px">Acumulado da produção</td><td style="text-align:right;padding:5px 8px">${rs(tot.acum)}</td></tr>
     <tr><td style="padding:5px 8px">(−) Já medido em BMs anteriores${anteriores.length ? ' — ' + anteriores.map(x => 'BM' + x.n).join(' + ') : ''}</td><td style="text-align:right;padding:5px 8px">${rs(tot.ant)}</td></tr>
     <tr style="background:#f0f4f8"><td style="padding:6px 8px;font-weight:bold">Medição do BM${p.n}</td><td style="text-align:right;padding:6px 8px;font-weight:bold">${rs(tot.per)}</td></tr>`;
-  if (dd.equip) linhasDesc += `<tr><td style="padding:5px 8px">(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-(dd.equip + dd.comb))}</td></tr>`;
+  const _dailyEquip = dd.equip - dd.mensalEquip;
+  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td style="padding:5px 8px">(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
+  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td style="text-align:right;padding:5px 8px">${rs(-(e.valor * _m))}</td></tr>`; }); }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
     linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-v)}</td></tr>`;
@@ -3241,7 +3257,8 @@ function renderBMBoletim(box) {
     <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
     <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
-    (dd.equip ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-dd.equip)}</td></tr>` : '') +
+    (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
+    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× R$ ${nf(e.valor, 0)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>') +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
@@ -3379,7 +3396,9 @@ const FORMS = {
     ['obs', 'Observação', 'text', 0, 'largo']] },
   equipamentos: { tit: 'equipamento', campos: [
     ['equipamento', 'Equipamento', 'text', 1], ['tipo', 'Tipo (guindaste, PTA, munck…)', 'text'], ['locadora', 'Locadora / proprietário', 'text'],
-    ['cobranca', 'Cobrança', 'select:,DIÁRIA,HORA,TURNO,MENSAL'], ['valor', 'Valor unitário (R$)', 'num'], ['consumo_lh', 'Consumo estimado (L/h)', 'num'],
+    ['cobranca', 'Cobrança', 'select:,DIÁRIA,HORA,TURNO,MENSAL'], ['valor', 'Valor unitário (R$)', 'num'],
+    ['responsavel', 'Empresa responsável (MENSAL → deduzido da medição automaticamente)', 'empresa'],
+    ['consumo_lh', 'Consumo estimado (L/h)', 'num'],
     ['situacao', 'Situação', 'select:ATIVO,MANUTENÇÃO,DESMOBILIZADO'], ['obs', 'Observação', 'text', 0, 'largo']] },
   usos: { tit: 'uso / abastecimento', campos: [
     ['data', 'Data', 'date', 1], ['equipamento', 'Equipamento', 'equipamento', 1], ['empresa', 'Empresa (EJ/CMM divide o custo)', 'empresa', 1],

@@ -103,7 +103,7 @@ function tabelas_spec()
         'movimentos' => ['data' => 'data', 'codigo' => 'txt', 'tipo' => 'txt', 'quantidade' => 'num', 'documento' => 'txt',
             'empresa' => 'txt', 'obs' => 'txt'],
         'equipamentos' => ['equipamento' => 'txt', 'tipo' => 'txt', 'locadora' => 'txt', 'cobranca' => 'txt', 'valor' => 'num',
-            'consumo_lh' => 'num', 'situacao' => 'txt', 'obs' => 'txt'],
+            'consumo_lh' => 'num', 'situacao' => 'txt', 'responsavel' => 'txt', 'obs' => 'txt'],
         'usos' => ['data' => 'data', 'equipamento' => 'txt', 'empresa' => 'txt', 'uso' => 'txt', 'quantidade' => 'num',
             'custo' => 'num', 'litros' => 'num', 'preco_litro' => 'num', 'custo_combustivel' => 'num', 'operador' => 'txt',
             'obs' => 'txt', 'origem' => 'txt'],
