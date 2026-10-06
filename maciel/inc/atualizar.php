@@ -94,7 +94,7 @@ function sincronizar_para_github(array $cfg): array
 
     // 5. Novo commit
     $novoCommit = http_api_github('POST', $api . '/git/commits', $token, [
-        'message' => 'Sincronização do Hostinger · ' . date('d/m/Y H:i'),
+        'message' => 'Sincronização do Hostinger · ' . (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('d/m/Y H:i') . ' (BRT)',
         'tree'    => $novaTree['sha'],
         'parents' => [$commitSha],
     ]);
