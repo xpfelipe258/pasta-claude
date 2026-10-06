@@ -8,6 +8,7 @@ $eu = exigir_admin();
 $obraSelecionada = exigir_obra_pagina();
 $msg = '';
 $erro = '';
+$cfg = config();
 
 if (($_GET['acao'] ?? '') === 'exportar') {
     conferir_csrf();
@@ -156,9 +157,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             registrar_alteracao('machine_token_revogado', ['por' => $eu['login']]);
             $msg = 'Token revogado. Chamadas via Bearer serão recusadas.';
         }
+        // Auto-sync para o GitHub após qualquer ação bem-sucedida (exceto a própria sync)
+        if ($acao !== 'sincronizar_github' && !empty($cfg['github_token'])) {
+            try {
+                $rs = sincronizar_para_github($cfg);
+                $msg .= ' · ' . $rs['mensagem'];
+            } catch (Throwable $e) {
+                // Falha silenciosa — não prejudica a ação principal
+            }
+        }
     } catch (InvalidArgumentException $e) {
         $erro = $e->getMessage();
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $erro = 'Falha: ' . $e->getMessage();
     }
 }
@@ -169,7 +179,6 @@ $empresas = q('SELECT nome FROM empresas ORDER BY ordem')->fetchAll(PDO::FETCH_C
 $historico = q('SELECT * FROM historico ORDER BY id DESC LIMIT 150')->fetchAll();
 $obra = obra_info();
 $csrf = token_csrf();
-$cfg = config();
 $token_ativo = (sistema_ler('machine_token', '') !== '');
 $novo_token = '';
 if (strncmp($msg, 'TOKEN_GERADO:', 13) === 0) {
