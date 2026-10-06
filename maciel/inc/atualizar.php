@@ -1,6 +1,116 @@
 <?php
 // Atualiza os arquivos do sistema a partir do GitHub, preservando configuração e banco de dados.
 
+function http_api_github(string $metodo, string $url, string $token, array $dados = [])
+{
+    $cab = [
+        'User-Agent: obra198-sincronizador',
+        'Accept: application/vnd.github+json',
+        'Authorization: Bearer ' . $token,
+    ];
+    $ch = curl_init($url);
+    $opts = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60, CURLOPT_HTTPHEADER => $cab, CURLOPT_CUSTOMREQUEST => $metodo];
+    if ($dados) {
+        $json = json_encode($dados);
+        $opts[CURLOPT_POSTFIELDS] = $json;
+        $cab[] = 'Content-Type: application/json';
+        $opts[CURLOPT_HTTPHEADER] = $cab;
+    }
+    curl_setopt_array($ch, $opts);
+    $corpo = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $falha  = curl_error($ch);
+    curl_close($ch);
+    if ($corpo === false) throw new RuntimeException('Falha cURL: ' . $falha);
+    $r = json_decode($corpo, true);
+    if ($status >= 400) {
+        throw new RuntimeException('GitHub API ' . $status . ': ' . ($r['message'] ?? $corpo));
+    }
+    return $r;
+}
+
+function sincronizar_para_github(array $cfg): array
+{
+    $token = $cfg['github_token'] ?? '';
+    if (!$token) throw new RuntimeException('Token do GitHub não configurado. Edite inc/config.php e preencha github_token.');
+    $repo  = $cfg['github_repositorio'] ?? '';
+    $ramo  = $cfg['github_ramo'] ?? 'main';
+    $pasta = $cfg['github_pasta'] ?? 'maciel';
+    $api   = 'https://api.github.com/repos/' . $repo;
+
+    // Arquivos e prefixos excluídos da sincronização
+    $excArq = ['inc/config.php', 'tcpdf.php', 'tcpdf_autoconfig.php',
+               'tcpdf_barcodes_1d.php', 'tcpdf_barcodes_2d.php', 'chart.umd.js'];
+    $excPfx = ['dados/sessoes/', 'fonts/', 'include/', 'config/'];
+
+    // Extensões que identificam arquivos de código/dados (exclui binários e icc)
+    $extsOk = ['php','js','css','html','json','sql','txt','htaccess','gitignore'];
+
+    $raiz    = RAIZ;
+    $arquivos = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($raiz, RecursiveDirectoryIterator::SKIP_DOTS));
+    foreach ($it as $f) {
+        if (!$f->isFile()) continue;
+        $rel = str_replace('\\', '/', substr($f->getPathname(), strlen($raiz) + 1));
+        $ext = strtolower(ltrim(pathinfo($rel, PATHINFO_EXTENSION), '.'));
+        $base = basename($rel);
+        // Aceita .htaccess e .gitignore (sem extensão normal)
+        if ($base[0] === '.' && !in_array(ltrim($base, '.'), ['htaccess', 'gitignore'], true)) continue;
+        if ($ext !== '' && !in_array($ext, $extsOk, true)) continue;
+        if (in_array($rel, $excArq, true)) continue;
+        $pula = false;
+        foreach ($excPfx as $p) { if (strpos($rel, $p) === 0) { $pula = true; break; } }
+        if ($pula) continue;
+        $arquivos[$pasta . '/' . $rel] = $f->getPathname();
+    }
+
+    if (!$arquivos) throw new RuntimeException('Nenhum arquivo encontrado para sincronizar.');
+
+    // 1. SHA do commit atual do ramo
+    $ref       = http_api_github('GET', $api . '/git/ref/heads/' . rawurlencode($ramo), $token);
+    $commitSha = $ref['object']['sha'] ?? '';
+    if (!$commitSha) throw new RuntimeException('Não foi possível ler o commit atual do ramo.');
+
+    // 2. SHA da tree atual
+    $commit  = http_api_github('GET', $api . '/git/commits/' . $commitSha, $token);
+    $treeSha = $commit['tree']['sha'] ?? '';
+
+    // 3. Cria blobs para cada arquivo
+    $treeItems = [];
+    foreach ($arquivos as $caminho => $local) {
+        $conteudo = file_get_contents($local);
+        $blob = http_api_github('POST', $api . '/git/blobs', $token, [
+            'content'  => base64_encode($conteudo),
+            'encoding' => 'base64',
+        ]);
+        $treeItems[] = ['path' => $caminho, 'mode' => '100644', 'type' => 'blob', 'sha' => $blob['sha']];
+    }
+
+    // 4. Nova tree
+    $novaTree = http_api_github('POST', $api . '/git/trees', $token, [
+        'base_tree' => $treeSha,
+        'tree'      => $treeItems,
+    ]);
+
+    // 5. Novo commit
+    $novoCommit = http_api_github('POST', $api . '/git/commits', $token, [
+        'message' => 'Sincronização do Hostinger · ' . date('d/m/Y H:i'),
+        'tree'    => $novaTree['sha'],
+        'parents' => [$commitSha],
+    ]);
+
+    // 6. Atualiza referência do ramo
+    http_api_github('PATCH', $api . '/git/refs/heads/' . rawurlencode($ramo), $token, [
+        'sha'   => $novoCommit['sha'],
+        'force' => false,
+    ]);
+
+    $n = count($treeItems);
+    sistema_gravar('versao_codigo', $novoCommit['sha']);
+    registrar_alteracao('sincronizacao_github', ['commit' => substr($novoCommit['sha'], 0, 7), 'arquivos' => $n]);
+    return ['mensagem' => "Sincronizado com GitHub: $n arquivo(s) · commit " . substr($novoCommit['sha'], 0, 7) . '.'];
+}
+
 function http_get_github($url, $token)
 {
     $cab = ['User-Agent: obra198-atualizador', 'Accept: application/vnd.github+json'];

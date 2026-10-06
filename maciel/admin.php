@@ -141,6 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             registrar_alteracao('obra', ['nome' => $_POST['obra_nome'], 'inicio' => $_POST['data_inicio'], 'fim' => $_POST['data_fim']]);
             $msg = 'Dados da obra atualizados.';
+        } elseif ($acao === 'sincronizar_github') {
+            $r   = sincronizar_para_github($cfg);
+            $msg = $r['mensagem'];
         } elseif ($acao === 'atualizar') {
             throw new InvalidArgumentException('Atualização automática pausada nesta edição multiobras. Instale somente pacotes compatíveis para não perder o isolamento dos projetos.');
         } elseif ($acao === 'gerar_machine_token') {
@@ -250,9 +253,18 @@ pagina_inicio('Administração');
         <button class="btn primario">Salvar</button>
       </form>
       <div class="bloco-cab" style="margin-top:18px"><h2>Atualização do sistema</h2></div>
-      <p class="nota">Versão instalada: <?= h(substr((string)sistema_ler('versao_codigo', 'inicial'), 0, 7)) ?> · repositório <?= h($cfg['github_repositorio'] ?? '—') ?> (<?= h($cfg['github_ramo'] ?? '') ?>)
-        <?= empty($cfg['github_token']) ? '· <b>sem token configurado</b> (edite inc/config.php)' : '' ?></p>
-      <p class="nota">A atualização automática está pausada para impedir que uma versão antiga substitua os recursos multiobras.</p>
+      <p class="nota">Repositório: <b><?= h($cfg['github_repositorio'] ?? '—') ?></b> · ramo: <b><?= h($cfg['github_ramo'] ?? '') ?></b>
+        <?= empty($cfg['github_token']) ? ' · <b class="alerta-txt">sem token configurado</b> (edite inc/config.php → github_token)' : ' · token configurado ✓' ?></p>
+      <?php if (!empty($cfg['github_token'])): ?>
+      <form method="post" onsubmit="return confirm('Enviar todos os arquivos do servidor para o GitHub agora?')">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="acao" value="sincronizar_github">
+        <button class="btn primario">⬆ Sincronizar Hostinger → GitHub</button>
+        <span class="nota">Envia os arquivos de código do servidor para o repositório num único commit.</span>
+      </form>
+      <?php else: ?>
+      <p class="nota">Para ativar a sincronização, gere um token em <b>github.com → Settings → Developer settings → Personal access tokens → Fine-grained</b> com permissão <b>Contents: Read &amp; write</b> no repositório, e cole em <code>inc/config.php</code> no campo <code>github_token</code>.</p>
+      <?php endif; ?>
     </section>
   </div>
 
