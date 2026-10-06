@@ -9,6 +9,15 @@ function valor_celula($linha)
     return $linha['valor_txt'];
 }
 
+
+function nome_servico_padrao($v)
+{
+    if ($v === null || $v === '') {
+        return $v;
+    }
+    return str_ireplace(['PERFILAÇÃO', 'PERFILACAO', 'Perfilação', 'perfilação'], 'PERFILAGEM DE TELHAS', (string)$v);
+}
+
 function obra_info()
 {
     return [
@@ -41,7 +50,7 @@ function linhas_tabela($nome, $campos)
         $item = ['linha' => (int)$r['id']];
         foreach ($campos as $campo => $tipo) {
             $v = $r[$campo];
-            $item[$campo] = $tipo === 'num' ? numero($v) : ($v === '' ? null : $v);
+            $item[$campo] = $tipo === 'num' ? numero($v) : ($v === '' ? null : nome_servico_padrao($v));
         }
         $out[] = $item;
     }
@@ -62,7 +71,7 @@ function montar_modelo()
             continue;
         }
         $empresas[$porId[$s['empresa_id']]]['servicos'][] = [
-            'col' => $s['col'], 'nome' => $s['nome'], 'frente' => (string)$s['frente'],
+            'col' => $s['col'], 'nome' => nome_servico_padrao($s['nome']), 'frente' => (string)$s['frente'],
             'id' => (string)$s['id_crono'], 'escopo' => numero($s['escopo']),
         ];
     }
@@ -94,7 +103,7 @@ function montar_modelo()
     $metas = [];
     foreach (q('SELECT * FROM metas ORDER BY inicio, id')->fetchAll() as $m) {
         $metas[] = [
-            'linha' => (int)$m['id'], 'empresa' => $m['empresa'], 'servico' => $m['servico'],
+            'linha' => (int)$m['id'], 'empresa' => $m['empresa'], 'servico' => nome_servico_padrao($m['servico']),
             'inicio' => substr($m['inicio'], 0, 10), 'fim' => substr($m['fim'], 0, 10),
             'corte' => $m['corte'] ? substr($m['corte'], 0, 10) : null,
             'meta_dia' => numero($m['meta_dia']) ?: 0, 'du' => numero($m['du']) ?: 0, 'gap' => numero($m['gap']) ?: 0,
@@ -104,7 +113,7 @@ function montar_modelo()
     $cliente = [];
     foreach (q('SELECT * FROM cliente ORDER BY id')->fetchAll() as $c) {
         $cliente[] = [
-            'linha' => (int)$c['id'], 'servico' => $c['servico'], 'qtd' => numero($c['qtd']),
+            'linha' => (int)$c['id'], 'servico' => nome_servico_padrao($c['servico']), 'qtd' => numero($c['qtd']),
             'inicio_plan' => $c['inicio_plan'] ? substr($c['inicio_plan'], 0, 10) : null,
             'meta_dia' => numero($c['meta_dia']), 'du_semana' => numero($c['du_semana']),
             'responsavel' => $c['responsavel'], 'obs' => $c['obs'],
@@ -115,8 +124,8 @@ function montar_modelo()
     $impactos = [];
     foreach (q('SELECT * FROM impactos ORDER BY id')->fetchAll() as $i) {
         $impactos[] = [
-            'linha' => (int)$i['id'], 'data' => $i['data'], 'servico' => $i['servico'], 'empresas' => $i['empresas'] ?? '', 'motivo' => $i['motivo'],
-            'solucionado' => $i['solucionado'], 'tempo' => $i['tempo'], 'quando' => $i['quando'], 'paralisacao' => $i['paralisacao'],
+            'linha' => (int)$i['id'], 'data' => $i['data'], 'servico' => nome_servico_padrao($i['servico']), 'empresas' => $i['empresas'] ?? '', 'motivo' => nome_servico_padrao($i['motivo']),
+            'solucionado' => $i['solucionado'], 'tempo' => $i['tempo'], 'quando' => nome_servico_padrao($i['quando']), 'paralisacao' => nome_servico_padrao($i['paralisacao']),
         ];
     }
     $tabelas = [];

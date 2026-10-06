@@ -102,7 +102,7 @@ try {
     }
     $moduloRota = [
         'producao'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','referencia'=>'producao',
-        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos',
+        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
@@ -118,7 +118,7 @@ try {
         'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
-        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
         'planejamento' => 'acao_salvar_planejamento',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
@@ -635,6 +635,34 @@ function acao_estoque_remessa(array $corpo)
     if ($nome === '') {
         throw new ErroValidacao('Nome da remessa é obrigatório.');
     }
+    $original = trim((string)($corpo['original_remessa'] ?? ''));
+    $substituir = !empty($corpo['substituir']);
+    if ($substituir) {
+        $alvo = $original !== '' ? $original : $nome;
+        if (!in_array($alvo, $dados['remessas']['colunas'] ?? [], true)) {
+            throw new ErroValidacao('Remessa original não encontrada para edição.');
+        }
+        if ($alvo !== $nome) {
+            foreach ($dados['remessas']['colunas'] as $idx => $col) {
+                if ($col === $alvo) { $dados['remessas']['colunas'][$idx] = $nome; break; }
+            }
+            if (isset($dados['remessas']['datas'][$alvo]) && !isset($dados['remessas']['datas'][$nome])) {
+                $dados['remessas']['datas'][$nome] = $dados['remessas']['datas'][$alvo];
+            }
+            unset($dados['remessas']['datas'][$alvo]);
+            foreach ($dados['remessas']['itens'] as &$it0) {
+                if (isset($it0['qtd_por_remessa'][$alvo]) && !isset($it0['qtd_por_remessa'][$nome])) {
+                    $it0['qtd_por_remessa'][$nome] = $it0['qtd_por_remessa'][$alvo];
+                }
+                unset($it0['qtd_por_remessa'][$alvo]);
+            }
+            unset($it0);
+        }
+        foreach ($dados['remessas']['itens'] as &$it0) {
+            unset($it0['qtd_por_remessa'][$nome]);
+        }
+        unset($it0);
+    }
     $porTag = [];
     foreach ($dados['remessas']['itens'] as $i => $it) {
         $porTag[$it['tag']] = $i;
@@ -697,7 +725,7 @@ function acao_estoque_remessa(array $corpo)
     }
     foreach ($lancamentos as $tag => $qtd) {
         $item = &$dados['remessas']['itens'][$porTag[$tag]];
-        $item['qtd_por_remessa'][$nome] = ($item['qtd_por_remessa'][$nome] ?? 0) + $qtd;
+        $item['qtd_por_remessa'][$nome] = $substituir ? $qtd : (($item['qtd_por_remessa'][$nome] ?? 0) + $qtd);
         $item['total_recebido'] = array_sum($item['qtd_por_remessa']);
         $recebido = $item['total_recebido'];
         unset($item);
@@ -715,8 +743,48 @@ function acao_estoque_remessa(array $corpo)
             unset($mat);
         }
     }
+    foreach ($dados['remessas']['itens'] as &$itemRec) {
+        $itemRec['total_recebido'] = array_sum($itemRec['qtd_por_remessa'] ?? []);
+        $iMat = estoque_material($dados, $itemRec['tag'] ?? '');
+        if ($iMat !== null) {
+            $mat = &$dados['materiais'][$iMat];
+            $mat['chegou'] = $itemRec['total_recebido'];
+            $mat['estoque_pos_baixa'] = $mat['chegou'] - ($mat['consumido'] ?? 0);
+            $mat['atendimento'] = !empty($mat['planejado']) ? $mat['chegou'] / $mat['planejado'] : null;
+            if ($mat['atendimento'] !== null && $mat['atendimento'] >= 1) $mat['status_logistico'] = 'Atendido';
+            elseif ($mat['chegou'] > 0) $mat['status_logistico'] = 'Recebimento Parcial';
+            elseif (!empty($mat['planejado'])) $mat['status_logistico'] = 'Crítico';
+            unset($mat);
+        }
+    }
+    unset($itemRec);
     estoque_planilha_gravar($dados);
-    return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos)];
+    return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos), 'substituido' => $substituir];
+}
+
+
+function acao_estoque_remessa_datas(array $corpo)
+{
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $nome = trim((string)($corpo['remessa'] ?? ''));
+    if ($nome === '') {
+        throw new ErroValidacao('Nome da remessa é obrigatório.');
+    }
+    if (!in_array($nome, $dados['remessas']['colunas'] ?? [], true)) {
+        throw new ErroValidacao('Remessa não encontrada.');
+    }
+    $datasNova = is_array($corpo['datas'] ?? null) ? $corpo['datas'] : [];
+    if (!isset($dados['remessas']['datas'])) { $dados['remessas']['datas'] = []; }
+    $dados['remessas']['datas'][$nome] = [
+        'prevista_chegada' => trim((string)($datasNova['prevista_chegada'] ?? '')),
+        'emissao_nota'     => trim((string)($datasNova['emissao_nota'] ?? '')),
+        'chegada_obra'     => trim((string)($datasNova['chegada_obra'] ?? '')),
+    ];
+    estoque_planilha_gravar($dados);
+    return ['salvos' => 1];
 }
 
 function acao_estoque_consumo(array $corpo)

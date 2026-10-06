@@ -96,7 +96,7 @@
       <div class="sidebar-itens aberto" id="grp-gestao">
         <button data-aba="metas">Metas</button>
         <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
-        <button data-aba="dp">DP</button>
+        <button data-aba="dp">Pessoal</button>
       </div>
     </div>
   </nav>
@@ -489,10 +489,7 @@
   <!-- IMPACTOS -->
   <section id="aba-impactos" hidden>
     <div class="barra-acoes">
-      <div class="seg" id="filtroImp">
-        <button data-f="abertos" class="ativa">Em aberto</button>
-        <button data-f="todos">Todos</button>
-      </div>
+      <span class="nota">A lista exibe somente impactos em aberto. Impactos automáticos de suprimentos são solucionados na data de chegada da carga em obra.</span>
       <button class="btn" id="btnRelImp">Baixar relatório</button>
       <button class="btn primario" id="btnNovoImp">+ Novo impacto</button>
     </div>
@@ -505,7 +502,7 @@
           <label>Data final<input type="date" id="relImpFim"></label>
           <label class="largo">Empresas<select id="relImpEmpresas" multiple size="6"></select><span class="nota">Use Ctrl para selecionar mais de uma empresa. Se nenhuma ficar marcada, o relatório sai com todas.</span></label>
         </div>
-        <p class="nota">O relatório cruza impactos, produtividade das empresas selecionadas, uso de equipamentos no período e efetivo DP lançado por dia.</p>
+        <p class="nota">O relatório cruza impactos, produtividade das empresas selecionadas, uso de equipamentos no período e pessoal lançado por dia.</p>
         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-imp>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelImp">Gerar relatório</button></div>
       </div>
     </div>
@@ -529,17 +526,25 @@
         <button type="submit" class="btn primario btn-salvar-destino">Salvar na planilha</button>
       </div>
     </form>
+    <div id="impResumoGraf" class="imp-resumo-graf"></div>
     <div class="bloco"><div class="tabela-rolagem"><table id="tabImp"></table></div></div>
   </section>
 
 
-  <!-- DP -->
+  <!-- PESSOAL -->
   <section id="aba-dp" hidden>
     <div class="barra-acoes">
-      <span class="nota">Efetivo por data, empresa e função. Esses dados entram no relatório de impacto.</span>
-      <button class="btn primario" data-novo="dp_efetivo">+ Lançar efetivo</button>
+      <span class="nota">Pessoal por empresa, dia e função. Edite as quantidades diretamente na matriz mensal.</span>
+      <button class="btn primario" data-novo="dp_efetivo">+ Adicionar nova função</button>
     </div>
-    <div class="bloco"><div class="tabela-rolagem"><table id="tabDP"></table></div></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segDpEmp"></div>
+      <span class="nota" id="dpResumo"></span>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2 id="dpTitulo">Pessoal</h2><span class="nota">Cada linha representa um dia do mês da data de referência. As colunas são as funções cadastradas da empresa.</span></div>
+      <div class="tabela-rolagem tabela-larga"><table id="tabDP" class="dp-matriz"></table></div>
+    </div>
   </section>
 
   <!-- KPI / INSIGHTS GERAL -->
