@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obra 198 · Controle de Produção</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231c1b18%22/%3E%3Cpath d=%22M6 24h20M9 24V12l7-5 7 5v12%22 stroke=%22%23fff%22 stroke-width=%222.5%22 fill=%22none%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+<header class="topo">
+  <div class="marca">
+    <span class="marca-sigla">198</span>
+    <div>
+      <h1>Controle de Produção</h1>
+      <div class="arquivo" id="arquivo"><span class="ponto" id="pontoSync"></span><span id="arquivoTxt">Conectando à planilha…</span></div>
+      <div class="arquivo atualiz" id="atualiz" hidden><span id="atualizTxt"></span><button type="button" class="link" id="btnAtualizar">Verificar atualização</button></div>
+      <div class="usuario" id="usuarioBox" hidden></div>
+    </div>
+  </div>
+  <div class="ref">
+    <button class="btn-icone" id="semAnt" title="Semana anterior" aria-label="Semana anterior">‹</button>
+    <label class="ref-data"><span>Data de referência</span><input type="date" id="refData"></label>
+    <button class="btn-icone" id="semProx" title="Próxima semana" aria-label="Próxima semana">›</button>
+    <button class="btn" id="btnHoje">Hoje</button>
+    <span class="semana-txt" id="semanaTxt"></span>
+  </div>
+</header>
+
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
+<aside class="sidebar" id="sidebar">
+  <nav class="sidebar-nav" id="abas">
+    <div class="sidebar-grupo sidebar-dashboard">
+      <div class="sidebar-itens aberto">
+        <button type="button" id="menuDashboardGeral" onclick="window.location.href='dashboard_admin.php'">Dashboard</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="producao">
+        <span class="sidebar-icone">&#9783;</span>Produção<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-producao">
+        <button data-aba="painel" class="ativa">Painel</button>
+        <button data-aba="semana">Programação semanal</button>
+        <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
+        <button data-aba="apont">Apontar montagem</button>
+        <button data-aba="plan">Planejamento de montagem</button>
+        <button data-aba="avanco">Avanço físico</button>
+        <button data-aba="gantt">Cronograma (Gantt)</button>
+        <button data-aba="cliente">Dashboard cliente</button>
+        <button data-aba="tendencia">Tendências</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="suprimentos">
+        <span class="sidebar-icone">&#9744;</span>Suprimentos<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-suprimentos">
+        <button data-aba="estmat" title="Controle de materiais">Materiais <span class="contador alerta" id="estCont" hidden></span></button>
+        <button data-aba="estrem">Remessas</button>
+        <button data-aba="estcons">Consumo físico</button>
+        <button data-aba="estinv">Inventário <span class="contador alerta" id="invCritCont" hidden></span></button>
+        <button data-aba="estcrit">Fixadores críticos <span class="contador alerta" id="fixCritCont" hidden></span></button>
+        <button data-aba="estsis" title="Sistema: baixa automática por IFC">Baixa automática <span class="contador alerta" id="faltaSemanaCont" hidden></span></button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="consumo">
+        <span class="sidebar-icone">&#9881;</span>Consumo<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-consumo">
+        <button data-aba="equip">Equipamentos</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="financeiro">
+        <span class="sidebar-icone">&#36;</span>Financeiro<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-financeiro">
+        <button data-aba="bm">Medição (BM)</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="kpi">
+        <span class="sidebar-icone">&#9733;</span>KPI / Insights<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-kpi">
+        <button data-aba="kpi">Visão Geral <span class="contador alerta" id="kpiCont" hidden></span></button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="gestao">
+        <span class="sidebar-icone">&#9670;</span>Gestão<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-gestao">
+        <button data-aba="metas">Metas</button>
+        <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
+        <button data-aba="dp">DP</button>
+      </div>
+    </div>
+  </nav>
+</aside>
+
+<div class="faixa" id="faixaExterna" hidden>
+  A planilha foi alterada fora do sistema. Salve ou descarte seus lançamentos pendentes para recarregar.
+</div>
+
+<div class="periodo" id="barraPeriodo" hidden>
+  <div id="perControles" style="display:contents">
+    <label>Data início<input type="date" id="perIni"></label>
+    <label>Data fim<input type="date" id="perFim"></label>
+    <div class="seg" id="perAtalhos">
+      <button data-p="semana">Semana</button>
+      <button data-p="mes">Mês</button>
+      <button data-p="30">Últimos 30 dias</button>
+      <button data-p="obra">Obra toda</button>
+    </div>
+    <span class="nota" id="perTxt"></span>
+  </div>
+  <details class="fase-caixa" id="faseCaixa" hidden>
+    <summary><span id="faseCaixaTxt">Total</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l4 4 4-4"/></svg></summary>
+    <div class="fase-caixa-lista" id="faseCaixaLista">
+      <button data-fase="">Total</button>
+      <button data-fase="1">Fase 1 – Galpão + Anexos</button>
+      <button data-fase="2">Fase 2 – Galpão F2</button>
+    </div>
+  </details>
+</div>
+
+<main>
+  <!-- PAINEL -->
+  <section id="aba-painel">
+    <div class="barra-acoes" id="painelFiltroBar">
+      <div class="seg" id="segPainelEmp"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farol do período</h2><span class="nota" id="notaFarol"></span></div>
+        <div class="tabela-rolagem"><table id="tabFarol"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Pontos de atenção</h2></div>
+        <ul class="alertas" id="alertas"></ul>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Previsto × realizado no período</h2>
+        <div class="legenda"><span><i class="leg-prev"></i>Previsto até a data de corte</span><span><i class="leg-real"></i>Realizado</span></div>
+      </div>
+      <div class="grafico alto"><canvas id="gPainel"></canvas></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab">
+        <h2>Plano de ação semanal</h2>
+        <span class="nota">Saldo = escopo por empresa − realizado · Meta necessária/dia = saldo ÷ dias úteis até o prazo · Gap acum. = soma de (real − meta) em todas as semanas encerradas</span>
+      </div>
+      <div class="tabela-rolagem"><table id="tabPlanoAcao"></table></div>
+      <div class="barra-acoes" style="margin-top:8px">
+        <button id="btnSalvarPlano" class="btn primario" disabled>Salvar metas da próxima semana</button>
+        <span class="nota" id="planoTxt"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEMANA -->
+  <section id="aba-semana" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Programação × realizado por dia</h2><span class="nota">Cada célula: realizado / meta do dia. Dias futuros mostram o planejado.</span></div>
+      <div class="tabela-rolagem"><table id="tabSemana" class="tab-semana"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Planejado para entrar nesta semana</h2></div>
+        <ul class="lista" id="planejado"></ul>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Impactos registrados na semana</h2></div>
+        <ul class="lista" id="impSemana"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- LANÇAMENTOS -->
+  <section id="aba-lanc" hidden>
+    <div class="barra-acoes">
+      <div class="seg" id="segEmpresas"></div>
+      <div class="acoes">
+        <span class="nota" id="pendTxt"></span>
+        <button class="btn" id="btnDescartar" disabled>Descartar</button>
+        <button class="btn primario btn-salvar-destino" id="btnSalvar" disabled>Salvar na planilha</button>
+      </div>
+    </div>
+    <p class="nota">Digite a quantidade executada no dia. Texto (ex.: INTEGRAÇÃO, CHUVA) também é aceito. Enter desce para o próximo dia · Ctrl+S salva.</p>
+    <div class="tabela-rolagem grade-lanc"><table id="tabLanc"></table></div>
+  </section>
+
+  <!-- AVANÇO -->
+  <section id="aba-apont" hidden>
+    <div class="tiles" id="apTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segApModo"></div>
+      <span class="nota">Um apontamento alimenta produção, cronograma, medição (BM) e baixa de fixadores.</span>
+    </div>
+    <div class="ap-barra" id="apBarra"></div>
+    <div class="bloco pilha" id="apForm"></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2 id="apMapaTit"></h2><button class="btn" id="btnBaixarMapa">⤓ Baixar mapa</button></div>
+      <div id="apMapa"></div>
+      <div id="apEfeitos"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Conciliação com os lançamentos</h2><span class="nota">Lançadas = produção no controle (base do BM). Apontadas = peças marcadas no mapa. Dif. = lançadas − apontadas.</span></div>
+      <div class="tabela-rolagem"><table id="tabApConc"></table></div>
+      <div id="apDefEmp"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Últimos apontamentos</h2></div>
+      <div class="tabela-rolagem"><table id="tabApHist"></table></div>
+    </div>
+  </section>
+
+  <!-- PLANEJAMENTO DE MONTAGEM -->
+  <section id="aba-plan" hidden>
+    <div class="tiles" id="planTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segPlanFrente"></div>
+      <button class="btn primario" id="btnSalvarPlan">Salvar planejamento</button>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab">
+        <h2>Datas planejadas × realizadas × chegada de material</h2>
+        <span class="nota">Preencha as datas planejadas de início e fim por setor. O impacto é calculado comparando a montagem real com o planejado e com a chegada de material.</span>
+      </div>
+      <div class="tabela-rolagem"><table id="tabPlan"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Análise de impacto logístico</h2><span class="nota">Setores onde chegada de material atrasou ou antecipou a montagem.</span></div>
+      <div id="planImpacto"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Timeline de remessas × montagem</h2></div>
+      <div id="planTimeline"></div>
+    </div>
+  </section>
+
+  <section id="aba-avanco" hidden>
+    <div class="barra-acoes">
+      <div id="avancoResumo" class="nota"></div>
+      <button id="btnPopularQtd" class="btn-sec">↓ Importar quantidades do escopo</button>
+      <button id="btnNovoServico" class="btn-sec">+ Novo serviço</button>
+      <button id="btnCriarFase2" class="btn-sec">⊕ Criar serviços Fase 2</button>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
+      <div class="tabela-rolagem"><table id="tabContrato"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Avanço por empresa</h2></div>
+      <div id="avancoEmpresas" class="grade-3"></div>
+    </div>
+  </section>
+
+  <!-- CLIENTE -->
+  <section id="aba-cliente" hidden>
+    <div class="tiles" id="cliTiles"></div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Curva S — avanço físico ponderado</h2>
+          <div class="legenda"><span><i class="leg-prev"></i>Previsto cliente</span><span><i class="leg-real"></i>Realizado</span></div>
+        </div>
+        <div class="grafico"><canvas id="gCurvaS"></canvas></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Insights e pontos de atenção</h2><button class="btn" id="btnCopiarCli">Copiar resumo para o cliente</button></div>
+        <ul class="alertas" id="cliInsights"></ul>
+        <textarea id="cliResumo" class="resumo" rows="8" hidden readonly></textarea>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Previsto do cliente × realizado por serviço</h2><span class="nota" id="cliNota"></span></div>
+      <div class="tabela-rolagem"><table id="tabCliente"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Posição por frente</h2><span class="nota">Percentuais ponderados pelo peso de cada serviço (METAS CLIENTE, coluna L).</span></div>
+      <div class="tabela-rolagem"><table id="tabFrentes"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · CONTROLE DE MATERIAIS -->
+  <section id="aba-estmat" hidden>
+    <div class="tiles" id="estMatTiles"></div>
+    <div class="barra-acoes">
+      <input type="text" id="estMatFiltro" class="input-filtro" placeholder="Filtrar por TAG, produto, local ou etapa...">
+      <select id="estMatLocal" class="input-filtro"><option value="">Todos os locais</option></select>
+      <select id="estMatTipo" class="input-filtro"><option value="">Estrutura e fixadores</option><option value="SO_FIXADOR">Somente fixadores</option><option value="SEM_FIXADOR">Sem fixadores</option></select>
+      <select id="estMatEtapa" class="input-filtro"><option value="">Todas as etapas</option></select>
+      <select id="estMatStatus" class="input-filtro"><option value="">Todos os status</option></select>
+      <div class="acoes">
+        <button class="btn" data-novo="movimentos">+ Movimentação</button>
+        <button class="btn primario" data-novo="materiais">+ Cadastrar material</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="tabela-rolagem"><table id="tabEstMat"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · REMESSAS -->
+  <section id="aba-estrem" hidden>
+    <div class="tiles" id="estRemTiles"></div>
+    <div class="barra-acoes">
+      <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
+      <div class="acoes">
+        <button class="btn primario" id="btnNovaRemessa">+ Nova remessa</button>
+      </div>
+    </div>
+    <div class="ed-barra" id="estRemEd" hidden></div>
+    <div class="bloco">
+      <div class="tabela-rolagem tabela-larga"><table id="tabEstRem"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · CONSUMO FÍSICO -->
+  <section id="aba-estcons" hidden>
+    <div class="tiles" id="estConsTiles"></div>
+    <div class="barra-acoes">
+      <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
+      <div class="acoes">
+        <button class="btn primario" id="btnNovoConsumo">+ Registrar consumo</button>
+      </div>
+    </div>
+    <div class="ed-barra" id="estConsEd" hidden></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Consumo por semana (EJ + CMM)</h2></div>
+      <div class="tabela-rolagem tabela-larga"><table id="tabEstCons"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Inventario fisico semanal</h2></div>
+      <div class="tabela-rolagem"><table id="tabEstConsInv"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · FIXADORES CRÍTICOS -->
+  <section id="aba-estcrit" hidden>
+    <div class="tiles" id="estCritTiles"></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Fixadores criticos — consumo JOIST (premontagem)</h2>
+        <span class="nota">Consumo teorico baseado na producao de joists × regras de baixa. Comparado com remessas recebidas.</span></div>
+      <div class="tabela-rolagem"><table id="tabEstCrit"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · INVENTÁRIO -->
+  <section id="aba-estinv" hidden>
+    <div class="tiles" id="estInvTiles"></div>
+    <div class="barra-acoes">
+      <input type="text" id="estInvFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
+      <select id="estInvStatus" class="input-filtro"><option value="">Todos</option><option value="CRITICO">Critico</option><option value="ATENCAO">Atencao</option><option value="CONFORME">Conforme</option></select>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Inventario fisico × virtual</h2>
+        <span class="nota" id="estInvNota"></span></div>
+      <div class="tabela-rolagem"><table id="tabEstInv"></table></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE · SISTEMA (BAIXA AUTOMÁTICA) -->
+  <section id="aba-estsis" hidden>
+    <div id="estExterno"></div>
+    <div class="bloco-cab"><h2>Baixa automatica por IFC</h2>
+      <span class="nota" id="estIfcNota">Consumo teorico = eventos de producao x regras de baixa. Ao lancar producao, a baixa de fixadores e gerada automaticamente.</span></div>
+    <div class="tiles" id="estIfcTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota" id="estIfcResumo"></p>
+      <div class="acoes">
+        <button class="btn" data-novo="estoque_inventario">+ Inventario fisico</button>
+        <button class="btn" data-novo="estoque_remessas">+ Remessa</button>
+        <button class="btn primario" data-ir-aba="apont">Apontar montagem</button>
+      </div>
+    </div>
+    <ul class="alertas" id="estIfcAlertas"></ul>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Consumo teorico x chegou x fisico</h2>
+        <span class="nota">Uma linha por material. Saldo teorico = chegou - consumo.</span></div>
+      <div class="tabela-rolagem"><table id="tabEstIfc"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Joists por rua e faixa</h2>
+          <span class="nota">Projetado (IFC) vs. apontado. Max. 6 por faixa.</span></div>
+        <div class="tabela-rolagem"><table id="tabEstIfcRuas"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Ultimos eventos de producao</h2></div>
+        <div class="tabela-rolagem"><table id="tabEstEventos"></table></div>
+      </div>
+    </div>
+    <div class="bloco-cab"><h2>Materiais controlados no sistema</h2></div>
+    <div class="tiles" id="estTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota">Saldo = saldo inicial + entradas - saidas +/- ajustes. A baixa automatica cria saidas ao lancar producao.</p>
+      <div class="acoes">
+        <button class="btn" data-novo="movimentos">+ Movimentacao</button>
+        <button class="btn primario" data-novo="materiais">+ Material</button>
+        <button class="btn" id="btnSemearMat" title="Cadastra automaticamente os materiais (fixadores) do IFC">Auto-popular materiais IFC</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Materiais x necessidade da semana</h2><span class="nota" id="estNota"></span></div>
+      <div class="tabela-rolagem"><table id="tabEstoque"></table></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Ultimas movimentacoes</h2></div>
+      <div class="tabela-rolagem"><table id="tabMov"></table></div>
+    </div>
+  </section>
+
+  <!-- EQUIPAMENTOS -->
+  <section id="aba-equip" hidden>
+    <div class="tiles" id="eqTiles"></div>
+    <div class="barra-acoes">
+      <p class="nota">Registros com empresa compartilhada (ex.: EJ/CMM) têm o custo dividido igualmente entre as empresas.</p>
+      <div class="acoes relatorio-equip-acoes">
+        <button class="btn" id="btnRelEquip">Baixar relatório</button>
+        <button class="btn" id="btnImportarEq">Importar abas mensais</button>
+        <button class="btn" data-novo="equipamentos">+ Equipamento</button>
+        <button class="btn primario" data-novo="usos">+ Uso / abastecimento</button>
+      </div>
+    </div>
+
+    <div class="modal-admin" id="modalRelEquip" hidden>
+      <div class="modal-admin-fundo" data-fechar-rel-equip></div>
+      <div class="modal-admin-caixa relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="tituloRelEquip">
+        <div class="modal-admin-topo"><div><h2 id="tituloRelEquip">Baixar relatório de equipamentos</h2><p>Escolha o período e o filtro do documento.</p></div><button type="button" class="modal-admin-x" data-fechar-rel-equip aria-label="Fechar">×</button></div>
+        <div class="grade-modal">
+          <label>Tipo de relatório<select id="relEquipTipo"><option value="geral">Relatório geral</option><option value="EJ">EJ</option><option value="CMM">CMM</option><option value="GLOBO AÇOS">GLOBO AÇOS</option></select></label>
+          <label>Tipo de uso<select id="relEquipUso"><option value="todos">Equipamento + abastecimento</option><option value="equipamento">Somente equipamento</option><option value="abastecimento">Somente abastecimento</option></select></label>
+          <label>Data inicial<input type="date" id="relEquipIni"></label>
+          <label>Data final<input type="date" id="relEquipFim"></label>
+        </div>
+        <p class="nota">O relatório geral lista uso diário por equipamento e empresa. Você pode filtrar somente uso de equipamento ou somente abastecimento. O relatório por empresa inclui campo de assinatura do responsável.</p>
+        <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-equip>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelEquip">Gerar relatório</button></div>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Custo por empresa no período</h2><div class="legenda" id="legEq"></div></div>
+      <div class="grafico"><canvas id="gEquip"></canvas></div>
+      <div class="tabela-rolagem"><table id="tabEqEmp"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Por equipamento</h2></div>
+        <div class="tabela-rolagem"><table id="tabEqEquip"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Cadastro de equipamentos</h2></div>
+        <div class="tabela-rolagem"><table id="tabEqCad"></table></div>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Registros de uso e abastecimento no período</h2></div>
+      <div class="tabela-rolagem"><table id="tabEqUso"></table></div>
+    </div>
+  </section>
+
+  <!-- METAS -->
+  <section id="aba-bm" hidden>
+    <div class="barra-acoes">
+      <div class="seg" id="segBmEmp"></div>
+      <div class="seg" id="segBmSub"></div>
+    </div>
+    <div id="bmCorpo" class="pilha"></div>
+  </section>
+  <section id="aba-metas" hidden>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Metas da semana</h2>
+        <div class="acoes">
+          <label class="check"><input type="checkbox" id="propagar"> Aplicar também às semanas seguintes</label>
+          <button class="btn primario" id="btnSalvarMetas" disabled>Salvar metas</button>
+        </div>
+      </div>
+      <div class="tabela-rolagem"><table id="tabMetas"></table></div>
+      <p class="nota">Grava em METAS EMPRESAS (colunas F, G e I). Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
+    </div>
+  </section>
+
+  <!-- IMPACTOS -->
+  <section id="aba-impactos" hidden>
+    <div class="barra-acoes">
+      <div class="seg" id="filtroImp">
+        <button data-f="abertos" class="ativa">Em aberto</button>
+        <button data-f="todos">Todos</button>
+      </div>
+      <button class="btn" id="btnRelImp">Baixar relatório</button>
+      <button class="btn primario" id="btnNovoImp">+ Novo impacto</button>
+    </div>
+    <form class="bloco form-imp" id="formImp" hidden>
+      <div class="bloco-cab"><h2 id="formImpTit">Novo impacto</h2></div>
+      <div class="campos">
+        <label>Data<input type="date" name="data" required></label>
+        <label>Serviço<input name="servico" list="listaServicos" required></label>
+        <label class="largo">Empresas impactadas<select name="empresasSel" multiple size="4"></select><span class="nota">Use Ctrl para marcar mais de uma empresa.</span></label>
+        <label class="largo">Motivo<textarea name="motivo" rows="2" required></textarea></label>
+        <label>Tempo perdido<input name="tempo" placeholder="ex.: 8H, 2 DIAS"></label>
+        <label>Quando<input name="quando" placeholder="ex.: IÇAMENTO"></label>
+        <label class="largo">Paralisação / efeito<input name="paralisacao"></label>
+        <label>Data solucionada<input type="date" name="solucionado"></label>
+      </div>
+      <div class="acoes">
+        <button type="button" class="btn perigo" id="btnExcluirImp" hidden>Excluir</button>
+        <span class="espaco"></span>
+        <button type="button" class="btn" id="btnCancelarImp">Cancelar</button>
+        <button type="submit" class="btn primario btn-salvar-destino">Salvar na planilha</button>
+      </div>
+    </form>
+    <div class="bloco"><div class="tabela-rolagem"><table id="tabImp"></table></div></div>
+  </section>
+
+
+  <!-- DP -->
+  <section id="aba-dp" hidden>
+    <div class="barra-acoes">
+      <span class="nota">Efetivo por data, empresa e função. Esses dados entram no relatório de impacto.</span>
+      <button class="btn primario" data-novo="dp_efetivo">+ Lançar efetivo</button>
+    </div>
+    <div class="bloco"><div class="tabela-rolagem"><table id="tabDP"></table></div></div>
+  </section>
+
+  <!-- KPI / INSIGHTS GERAL -->
+  <section id="aba-kpi" hidden>
+    <div class="tiles" id="kpiTiles"></div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Prontidao de materiais — proxima semana</h2>
+        <span class="nota">Verifica se os materiais necessarios para as atividades planejadas estao disponiveis em estoque ou foram recebidos (remessas).</span></div>
+      <div class="tabela-rolagem"><table id="tabKpiProntidao"></table></div>
+    </div>
+    <div class="grade-2">
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farois de producao</h2></div>
+        <div class="tabela-rolagem"><table id="tabKpiProd"></table></div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Farois de estoque</h2></div>
+        <div class="tabela-rolagem"><table id="tabKpiEstoque"></table></div>
+      </div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Prazos e alertas</h2></div>
+      <ul class="alertas" id="kpiAlertas"></ul>
+    </div>
+  </section>
+
+  <!-- CRONOGRAMA (GANTT) PREVISTO x REALIZADO -->
+  <section id="aba-gantt" hidden>
+    <div class="tiles" id="ganTiles"></div>
+    <div class="barra-acoes">
+      <div class="seg" id="segGanZoom"></div>
+      <label class="check">Frente <select id="selGanFrente"></select></label>
+      <button class="btn primario" id="btnGanDatas" type="button">Alterar datas</button>
+      <label class="check"><input type="checkbox" id="chkGanEmp"> Mostrar por empresa</label>
+      <div class="legenda" id="ganLegenda"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Cronograma previsto x realizado</h2><span class="nota" id="ganNota"></span></div>
+      <div class="tabela-rolagem gantt-rolagem"><div id="ganGrafico" class="gantt"></div></div>
+    </div>
+  </section>
+
+  <!-- TENDÊNCIAS -->
+  <section id="aba-tendencia" hidden>
+    <div class="barra-acoes">
+      <label class="check">Serviço <select id="selServ"></select></label>
+      <div class="legenda" id="legTend"></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2 id="titAting">Atingimento semanal por empresa</h2></div>
+      <div class="grafico"><canvas id="gAting"></canvas></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2 id="titProd">Produção semanal por empresa</h2><span class="nota">Linha tracejada: meta somada das empresas.</span></div>
+      <div class="grafico"><canvas id="gServ"></canvas></div>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Comparativo das empresas por serviço no período</h2><span class="nota" id="notaComp"></span></div>
+      <div class="grafico"><canvas id="gComp"></canvas></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="dlgForm" method="dialog">
+    <div class="bloco-cab"><h2 id="dlgTit"></h2><button type="button" class="btn-icone" id="dlgFechar" aria-label="Fechar">×</button></div>
+    <div class="campos" id="dlgCampos"></div>
+    <div class="acoes">
+      <button type="button" class="btn perigo" id="dlgExcluir" hidden>Excluir</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn" id="dlgCancelar">Cancelar</button>
+      <button type="submit" class="btn primario btn-salvar-destino">Salvar na planilha</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="listaServicos"></datalist>
+<datalist id="listaEmpresas"></datalist>
+<datalist id="listaEquip"></datalist>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+
