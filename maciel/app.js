@@ -998,7 +998,7 @@ function contratoLinhas(ate = ref) {
     const real = realizadoFase(c.servico, fase, ate);
     const ritmo = (real - realizadoFase(c.servico, fase, add(ini, -1))) / Math.max(du, 1);
     const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
-let projecao = null, status;
+    let projecao = null, status;
     if (!c.qtd) {
       status = real > 0 ? 'EM ANDAMENTO' : 'SEM CONTRATO';
     } else if (saldo <= 0) status = 'CONCLUÍDO';
@@ -1998,7 +1998,7 @@ function renderCliente() {
 
 function graficoCurvaS(c) {
   const itens = itensCliente();
-if (!itens.length) return;
+  if (!itens.length) return;
   const inicio = segunda(itens.map(x => x.inicio_plan).filter(Boolean).sort()[0] || M.datas[0]);
   const fimPlan = maxD(itens.map(x => x.prazo).filter(Boolean).sort().pop() || c, c);
   const semanas = [];
@@ -2998,7 +2998,7 @@ function apFormHtml(regras, ctx) {
   } else if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
       <p class="nota">Escolha a empresa na barra do topo e clique nos retângulos (joists) e nos quadrados (vigas) do mapa; dá para arrastar o mouse sobre várias joists. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
-} else {
+  } else {
     h += `<div class="ap-linha">${data}
       <label class="rot-sel">Eixo <select id="apEixo">${ctx.cfg.eixos.map(x => `<option ${x === s.eixo ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
       <p class="nota">Marque as vigas montadas neste eixo (a empresa é a da barra do topo). Cada viga só pode ser apontada uma vez; o kit de fixadores vem do tipo.</p>
@@ -3998,7 +3998,7 @@ function bmPeriodos(emp) {
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((a, b) => a.corte.localeCompare(b.corte));
   const lista = [];
   let ant = null;
-ps.forEach((p, i) => {
+  ps.forEach((p, i) => {
     const n = p.bm || i + 1, fech = bmFech(emp, n);
     lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, cortado: true, fechado: !!fech, fech,
       rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
@@ -4652,13 +4652,35 @@ function baixarHtml(nome, html) {
   const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
+function preencherEmpresasRelImpacto() {
+  const sel = $('#relImpEmpresas');
+  if (!sel) return;
+  const nomes = [...new Set((M.empresas || []).map(e => e.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = nomes.map(nome => `<option value="${esc(nome)}" selected>${esc(nome)}</option>`).join('');
+}
 function abrirRelImpacto() {
-  const ini0=per?.ini||ref||hoje(), fim0=per?.fim||ref||hoje(), empresas=[...new Set((M.empresas||[]).map(e=>e.nome).filter(Boolean))];
-  const box=document.createElement('div'); box.className='rel-modal-backdrop';
-  box.innerHTML=`<div class="rel-modal"><h2>Relatório de impactos</h2><p class="nota">Defina período, empresas e filtros do relatório.</p><div class="rel-grid"><label>Data inicial<input type="date" id="relIni" value="${ini0}"></label><label>Data final<input type="date" id="relFim" value="${fim0}"></label></div><label>Empresas<select id="relEmp" multiple size="6">${empresas.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('')}</select></label><label><input type="checkbox" id="relTodos" checked> Todas as empresas</label><div class="rel-acoes"><button class="btn" data-rel-cancelar>Cancelar</button><button class="btn primario" data-rel-gerar>Gerar relatório</button></div></div>`;
-  document.body.appendChild(box); const todos=box.querySelector('#relTodos'), sel=box.querySelector('#relEmp'); todos.onchange=()=>sel.disabled=todos.checked; sel.disabled=true;
-  box.querySelector('[data-rel-cancelar]').onclick=()=>box.remove();
-  box.querySelector('[data-rel-gerar]').onclick=()=>{const ini=box.querySelector('#relIni').value,fim=box.querySelector('#relFim').value;if(!ehISO(ini)||!ehISO(fim)||fim<ini)return toast('Informe um período válido.',true);const emp=todos.checked?[]:[...sel.selectedOptions].map(o=>o.value);box.remove();baixarRelImpacto(ini,fim,emp);};
+  const pop = $('#modalRelImp');
+  if (!pop) return baixarRelImpacto(per?.ini || ref, per?.fim || ref, []);
+  $('#relImpIni').value = per?.ini || ref;
+  $('#relImpFim').value = per?.fim || ref;
+  preencherEmpresasRelImpacto();
+  pop.hidden = false;
+  document.body.classList.add('modal-aberto');
+  setTimeout(() => $('#relImpIni')?.focus(), 50);
+}
+function fecharRelImpactoPopup() {
+  const pop = $('#modalRelImp');
+  if (pop) pop.hidden = true;
+  document.body.classList.remove('modal-aberto');
+}
+function gerarRelImpactoPopup() {
+  const ini = $('#relImpIni')?.value || per?.ini || ref;
+  const fim = $('#relImpFim')?.value || per?.fim || ref;
+  if (!ehISO(ini) || !ehISO(fim) || fim < ini) return toast('Informe um período válido para o relatório.', true);
+  const sel = $('#relImpEmpresas');
+  const selecionadas = sel ? [...sel.selectedOptions].map(o => o.value).filter(Boolean) : [];
+  fecharRelImpactoPopup();
+  baixarRelImpacto(ini, fim, selecionadas);
 }
 function baixarRelImpacto(ini, fim, empFiltro = []) {
   const empsRel = empFiltro.length ? empFiltro : [...new Set(M.empresas.map(e => e.nome))];
@@ -4998,7 +5020,7 @@ function ligarEventos() {
     ev.preventDefault();
     const todos = [...tab.querySelectorAll(`input[data-d="${inp.dataset.d}"]:not(:disabled)`)];
     const prox = todos[todos.indexOf(inp) + passo];
-if (prox) { prox.focus(); prox.select(); }
+    if (prox) { prox.focus(); prox.select(); }
   });
   $('#aba-bm').addEventListener('click', ev => {
     const emp = ev.target.closest('[data-bm-emp]'); if (emp) { bmEmp = emp.dataset.bmEmp; bmPerSel = null; return renderBM(); }
@@ -5094,6 +5116,8 @@ if (prox) { prox.focus(); prox.select(); }
   });
   $('#btnNovoImp').onclick = () => abrirFormImp(null);
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
+  const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
+  const modalRelImp = $('#modalRelImp'); if (modalRelImp) modalRelImp.querySelectorAll('[data-fechar-rel-imp]').forEach(x => x.addEventListener('click', fecharRelImpactoPopup));
   $('#btnCancelarImp').onclick = () => $('#formImp').hidden = true;
   $('#tabImp').addEventListener('click', async ev => {
     const ed = ev.target.closest('[data-editar]');
@@ -5185,3 +5209,12 @@ if (prox) { prox.focus(); prox.select(); }
   const app=document.querySelector('#app,.conteudo,main'); if(app) obs.observe(app,{childList:true,subtree:true});
   setTimeout(()=>obs.disconnect(),5000);
 })();
+
+
+
+
+
+
+
+
+

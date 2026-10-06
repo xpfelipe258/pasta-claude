@@ -1,0 +1,12 @@
+PROJETO ATUALIZADO - TCPDF LOCAL
+
+A biblioteca TCPDF usada pelo sistema fica exclusivamente em:
+/tcpdf/tcpdf.php
+
+Arquivos principais:
+- pdf_html.php: PDF do Boletim de Medição, usando /tcpdf/tcpdf.php
+- relatorio_equipamentos_pdf.php: PDF de equipamentos, usando /tcpdf/tcpdf.php
+- inc/tcpdf_loader.php: loader padronizado para outros relatórios do projeto
+
+Não é necessário Composer.
+Compatível com a estrutura PHP 8.3 do projeto.

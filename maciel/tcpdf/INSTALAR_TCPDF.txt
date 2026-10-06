@@ -1,0 +1,15 @@
+TCPDF - ambiente PHP 8.3
+========================
+
+O sistema foi revisado para PHP 8.3.
+
+Instalação recomendada neste projeto SEM Composer:
+- TCPDF 6.11.3 completo
+- copie a distribuição para esta pasta
+- o arquivo abaixo precisa existir:
+  tcpdf/tcpdf.php
+
+A série TCPDF 6.11.3 funciona com PHP 8.3 e mantém a integração clássica usada pelo sistema.
+
+Observação: TCPDF 7 também suporta PHP 8.3, porém passou a depender do tc-lib-pdf e Composer.
+Como este sistema é legado e usa a API clássica, a opção 6.11.3 evita adicionar Composer ao projeto.

@@ -1,36 +1,19 @@
 <?php
 /**
- * Loader TCPDF para PHP 8.3.
- * Prioriza instalação local sem Composer (TCPDF 6.11.3) e aceita vendor/ quando existente.
+ * Loader único do TCPDF do projeto.
+ * A biblioteca oficial deve ficar na raiz em: /tcpdf/tcpdf.php
+ * Não usa Composer e não usa cópias alternativas do TCPDF.
  */
-$autoloads = [
-    __DIR__ . '/../vendor/autoload.php',
-    __DIR__ . '/../../vendor/autoload.php',
-];
-foreach ($autoloads as $autoload) {
-    if (is_file($autoload)) {
-        require_once $autoload;
-        if (class_exists('TCPDF', false) || class_exists('TCPDF')) {
-            return;
-        }
-    }
+$tcpdf = dirname(__DIR__) . '/tcpdf/tcpdf.php';
+
+if (!is_file($tcpdf)) {
+    http_response_code(500);
+    exit('TCPDF não encontrado. Envie a biblioteca para /tcpdf/tcpdf.php.');
 }
 
-$tcpdfCandidatos = [
-    __DIR__ . '/../tcpdf/tcpdf.php',
-    __DIR__ . '/../tcpdf.php',
-    __DIR__ . '/../tcpdf.8993/tcpdf.php',
-    __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php',
-    __DIR__ . '/../../tcpdf/tcpdf.php',
-];
-foreach ($tcpdfCandidatos as $arq) {
-    if (is_file($arq)) {
-        require_once $arq;
-        if (class_exists('TCPDF')) {
-            return;
-        }
-    }
-}
+require_once $tcpdf;
 
-http_response_code(500);
-exit("TCPDF não encontrado. Ambiente alvo: PHP 8.3. Para instalação sem Composer, publique o TCPDF em /tcpdf/tcpdf.php ou /tcpdf.php.\n");
+if (!class_exists('TCPDF')) {
+    http_response_code(500);
+    exit('A biblioteca /tcpdf/tcpdf.php foi encontrada, mas a classe TCPDF não foi carregada.');
+}
