@@ -12,6 +12,7 @@ let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'painel
 let empSel = null;
 let filtroImp = 'abertos';
 let dpEmpSel = null;
+let metasNavDate = null; // null = usa ref global
 const pend = new Map();  // `${aba}|${data}|${col}` -> texto digitado
 const metasPend = new Map(); // linha -> {meta_dia, du, gap}
 const planoPend = new Map(); // 'emp|serv' -> meta_dia digitada
@@ -725,8 +726,9 @@ function renderPlanoAcao(c) {
     const tot = { escopo: 0, acum: 0, saldo: 0, ritmo: 0 };
     fasesOrdem.forEach(f => { const fd = g.fases[f]; tot.escopo += fd.escopo; tot.acum += fd.acum; tot.saldo += fd.saldo; tot.ritmo += fd.ritmo; });
 
-    // Encontra prazo do serviço
-    const cl = M.cliente.find(cl2 => cl2.servico === g.serv);
+    // Encontra prazo do serviço — tenta a fase filtrada primeiro, cai para qualquer fase
+    const cl = M.cliente.find(cl2 => cl2.servico === g.serv && (!faseFiltro || faseItem(cl2.frente) === faseFiltro))
+               || M.cliente.find(cl2 => cl2.servico === g.serv);
     const prazo = cl?.prazo;
     const duRestAoPrazo = prazo && prazo > c ? contarDiasUteis(c, prazo) : null;
 
@@ -1992,7 +1994,9 @@ function renderAvanco() {
     const totSaldo = totQtd > 0 ? Math.max(totQtd - totReal, 0) : null;
     const totPct = totQtd ? totReal / totQtd * 100 : null;
     const totProjecao = fases.map(f => f.projecao).filter(Boolean).sort().pop() || null;
-    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || null;
+    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop()
+      || (faseFiltro ? M.cliente.find(c => c.servico?.trim() === serv)?.prazo : null)
+      || null;
     const totStatus = fases.map(f => f.status).sort((a, b) => statusPrioridadeContrato.indexOf(a) - statusPrioridadeContrato.indexOf(b))[0];
     const totNecessario = soma0(fases, f => f.necessario || 0) || null;
     const totRitmo = soma0(fases, f => f.ritmo || 0);
@@ -2081,7 +2085,9 @@ function renderCliente() {
     // Projeção agregada
     const projFases = fases.map(f => proj[f.servico]).filter(Boolean);
     const p = projFases.length > 0 ? projFases[0] : {};
-    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
+    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop()
+      || (faseFiltro ? M.cliente.find(c => c.servico?.trim() === servNome)?.prazo : null)
+      || p.prazo || null;
 
     const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
     return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
@@ -4876,13 +4882,20 @@ async function excluirDialogo() {
 
 // ------------------------------------------------------------ METAS
 function renderMetas() {
-  const ms = metasSemana(ref);
+  const navDate = metasNavDate || ref;
+  const seg = segunda(navDate);
+  const fimSem = add(seg, 4);
+
+  const lbl = document.querySelector('#metasNavLabel');
+  if (lbl) lbl.textContent = `${fd(seg)} – ${fd(fimSem)}`;
+
+  const ms = M.metas.filter(m => m.inicio === seg);
   let h = `<thead><tr><th>Empresa</th><th>Serviço</th><th>Semana</th><th class="n">Meta/dia</th><th class="n">Dias úteis</th><th class="n">GAP anterior</th><th class="n">Meta ajustada</th><th class="n">Realizado</th><th>Farol</th></tr></thead><tbody>`;
-  if (!ms.length) h += `<tr><td colspan="9" class="vazio">Sem metas cadastradas para a semana de ${fdA(segunda(ref))}.</td></tr>`;
+  if (!ms.length) h += `<tr><td colspan="9" class="vazio">Sem metas cadastradas para a semana de ${fdA(seg)}.</td></tr>`;
   ms.forEach(m => {
     const p = metasPend.get(m.linha) || {};
     const md = p.meta_dia ?? m.meta_dia, du = p.du ?? m.du, gap = p.gap ?? m.gap;
-    const k = kpi({ ...m, meta_dia: +md || 0, du: +du || 0, gap: +gap || 0 }, ref);
+    const k = kpi({ ...m, meta_dia: +md || 0, du: +du || 0, gap: +gap || 0 }, navDate);
     const inp = (campo, v, orig) => `<input class="metas-in ${String(v) !== String(orig) ? 'editado' : ''}" type="number" step="any" min="${campo === 'gap' ? '' : 0}" data-linha="${m.linha}" data-campo="${campo}" value="${esc(v)}">`;
     h += `<tr><td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td><td>${esc(cap(m.servico))}</td><td class="nota">${fd(m.inicio)} a ${fd(m.fim)}</td>
       <td class="n">${inp('meta_dia', md, m.meta_dia)}</td><td class="n">${inp('du', du, m.du)}</td><td class="n">${inp('gap', gap, m.gap)}</td>
@@ -4890,6 +4903,28 @@ function renderMetas() {
   });
   $('#tabMetas').innerHTML = h + '</tbody>';
   $('#btnSalvarMetas').disabled = !metasPend.size;
+
+  // Histórico: todas as semanas com metas, ordenadas da mais recente para a mais antiga
+  const histEl = document.querySelector('#tabMetasHist');
+  if (!histEl) return;
+  const semanas = [...new Set(M.metas.map(m => m.inicio))].sort().reverse();
+  let hh = `<thead><tr><th>Semana</th><th>Empresa</th><th>Serviço</th><th class="n">Meta ajust.</th><th class="n">Realizado</th><th class="n">%</th><th>Farol</th></tr></thead><tbody>`;
+  if (!semanas.length) { hh += `<tr><td colspan="7" class="vazio">Nenhuma meta cadastrada.</td></tr>`; }
+  semanas.forEach(s => {
+    M.metas.filter(m => m.inicio === s).forEach(m => {
+      const corte = m.fim < ref ? m.fim : ref;
+      const k = kpi(m, corte);
+      const pct = k.semana > 0 ? k.realSemana / k.semana * 100 : null;
+      hh += `<tr><td class="nota">${fd(m.inicio)} a ${fd(m.fim)}</td>
+        <td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td>
+        <td>${esc(cap(m.servico))}</td>
+        <td class="n">${nf(k.semana, 1)}</td>
+        <td class="n">${nf(k.realSemana, 1)}</td>
+        <td class="n">${pct != null ? nf(pct, 1) + '%' : '—'}</td>
+        <td>${farolHtml(pct, k.semana === 0)}</td></tr>`;
+    });
+  });
+  histEl.innerHTML = hh + '</tbody>';
 }
 
 async function salvarMetas() {
@@ -5497,6 +5532,18 @@ function ligarEventos() {
     renderMetas();
   });
   $('#btnSalvarMetas').onclick = salvarMetas;
+  document.getElementById('metasPrevSem')?.addEventListener('click', () => {
+    metasNavDate = add(segunda(metasNavDate || ref), -7);
+    renderMetas();
+  });
+  document.getElementById('metasHojeSem')?.addEventListener('click', () => {
+    metasNavDate = null;
+    renderMetas();
+  });
+  document.getElementById('metasNextSem')?.addEventListener('click', () => {
+    metasNavDate = add(segunda(metasNavDate || ref), 7);
+    renderMetas();
+  });
 
   $('#tabPlanoAcao').addEventListener('input', ev => {
     const inp = ev.target.closest('.plano-in'); if (!inp) return;

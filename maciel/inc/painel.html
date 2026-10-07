@@ -475,14 +475,24 @@
   </section>
   <section id="aba-metas" hidden>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Metas da semana</h2>
+      <div class="bloco-cab">
+        <h2>Metas da semana — <span id="metasNavLabel"></span></h2>
         <div class="acoes">
+          <div class="seg">
+            <button id="metasPrevSem" title="Semana anterior">&#8249;</button>
+            <button id="metasHojeSem">Semana atual</button>
+            <button id="metasNextSem" title="Próxima semana">&#8250;</button>
+          </div>
           <label class="check"><input type="checkbox" id="propagar"> Aplicar também às semanas seguintes</label>
           <button class="btn primario" id="btnSalvarMetas" disabled>Salvar metas</button>
         </div>
       </div>
       <div class="tabela-rolagem"><table id="tabMetas"></table></div>
-      <p class="nota">Grava em METAS EMPRESAS (colunas F, G e I). Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
+      <p class="nota">Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Histórico de metas</h2></div>
+      <div class="tabela-rolagem"><table id="tabMetasHist"></table></div>
     </div>
   </section>
 
