@@ -3075,6 +3075,10 @@ function renderEstCriticos() {
     return;
   }
   const totalJoists = prodServico('PREMONTAGEM', null, '2000-01-01', '2099-12-31');
+  const totalJ01 = prodServico('PREMONTAGEM_J01', null, '2000-01-01', '2099-12-31');
+  const totalJ02 = prodServico('PREMONTAGEM_J02', null, '2000-01-01', '2099-12-31');
+  const totalJ03 = prodServico('PREMONTAGEM_J03', null, '2000-01-01', '2099-12-31');
+  const totalJ04 = prodServico('PREMONTAGEM_J04', null, '2000-01-01', '2099-12-31');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const inv = inventarioCalculado(regras);
   const invPorTag = new Map(inv.map(m => [ganNorm(m.tag), m]));
@@ -3107,20 +3111,7 @@ function renderEstCriticos() {
       capVirtual, capReal, capacidade, coberturaVirtual, status, nivel };
   });
 
-  const codRegras = new Set(itensBase.map(i => ganNorm(i.codigo)));
-  const fixadoresManuais = (T?.materiais || []).filter(ehFixadorCadastro).filter(m => m.codigo && !codRegras.has(ganNorm(m.codigo))).map(m => {
-    const tag = ganNorm(m.codigo);
-    const remItem = remPorTag.get(tag);
-    const invItem = invPorTag.get(tag);
-    const inventarioReal = ultimoInventarioFisicoItem(invItem);
-    const recebido = remItem ? Number(remItem.total_recebido) || 0 : 0;
-    const saldoVirtual = invItem ? Number(invItem.estoque_virtual_atual) || 0 : recebido;
-    const saldoReal = inventarioReal ? inventarioReal.valor : (invItem ? Number(invItem.estoque_fisico) || 0 : recebido);
-    return { codigo: m.codigo, descricao: m.material || m.codigo, porUnidade: 0, teorico: 0, recebido, consumoVirtual: 0, consumoFisico: invItem ? invItem.consumo_fisico : 0,
-      saldoVirtual, saldoReal, inventarioReal, capVirtual: 0, capReal: 0, capacidade: 0, coberturaVirtual: recebido > 0 ? 100 : 0,
-      status: recebido > 0 ? 'CADASTRADO / COM ESTOQUE' : 'CADASTRADO', nivel: recebido > 0 ? 'verde' : 'pendente' };
-  });
-  const itens = itensBase.concat(fixadoresManuais);
+  const itens = itensBase;
   const gargalos = itensBase.filter(i => i.porUnidade > 0).sort((a, b) =>
     (a.capacidade - b.capacidade) || (a.saldoReal - b.saldoReal) || (a.saldoVirtual - b.saldoVirtual));
   const gargalo = gargalos[0];
@@ -3129,18 +3120,19 @@ function renderEstCriticos() {
   const ok = itensBase.filter(i => i.nivel === 'verde').length;
   const possivel = gargalo ? gargalo.capacidade : 0;
   document.getElementById('estCritTiles').innerHTML =
-    tile('Joists produzidas', nf(totalJoists), 'PREMONTAGEM acumulado', 'var(--acento)') +
+    tile('Joists produzidas', nf(totalJoists), `J01:${nf(totalJ01)} · J02:${nf(totalJ02)} · J03:${nf(totalJ03)} · J04:${nf(totalJ04)}`, 'var(--acento)') +
     tile('Posso produzir', nf(possivel), gargalo ? `limitado por ${esc(gargalo.codigo)}` : 'sem regra de material', possivel > 25 ? 'var(--verde)' : (possivel > 0 ? 'var(--amarelo)' : 'var(--vermelho)')) +
     tile('Item mais crítico', gargalo ? esc(gargalo.codigo) : '—', gargalo ? `real ${nf(gargalo.saldoReal)} · virtual ${nf(gargalo.saldoVirtual)}` : 'sem dados', gargalo && gargalo.nivel === 'verde' ? 'var(--verde)' : 'var(--vermelho)') +
     tile('Alertas', criticos + atencao, `${criticos} críticos · ${atencao} atenção · ${ok} OK`, criticos ? 'var(--vermelho)' : (atencao ? 'var(--amarelo)' : 'var(--verde)'));
 
+  const isFixadorJoist = i => /^FJ/i.test(i.codigo) || ehFixadorCadastro({ codigo: i.codigo, material: i.descricao || '' });
   const termoCrit = ganNorm(document.getElementById('estCritFiltro')?.value || '');
   const filtrados = termoCrit ? itens.filter(i => ganNorm(`${i.codigo || ''} ${i.descricao || ''} ${i.status || ''}`).includes(termoCrit)) : itens;
   const ordenarCrit = lista => [...lista].sort((a, b) =>
     (a.capacidade - b.capacidade) || (a.saldoReal - b.saldoReal) || String(a.codigo).localeCompare(String(b.codigo)));
-  const premFiltrados = ordenarCrit(filtrados.filter(i => i.porUnidade > 0));
-  const fixFiltrados = ordenarCrit(filtrados.filter(i => !(i.porUnidade > 0)));
-  const sorted = [...premFiltrados, ...fixFiltrados];
+  const compEstrutura = ordenarCrit(filtrados.filter(i => i.porUnidade > 0 && !isFixadorJoist(i)));
+  const fixJoist = ordenarCrit(filtrados.filter(i => i.porUnidade > 0 && isFixadorJoist(i)));
+  const sorted = [...compEstrutura, ...fixJoist];
   const tabCrit = document.getElementById('tabEstCrit');
   const wrapCrit = tabCrit?.closest('.tabela-rolagem');
   if (wrapCrit && !document.getElementById('estCritFiltro')) {
@@ -3162,8 +3154,8 @@ function renderEstCriticos() {
       <td class="n"><b>${i.porUnidade ? nf(i.capacidade) : '—'}</b></td>
       <td><span class="farol f-${i.nivel}">${esc(i.status)}</span></td></tr>`;
   let corpoCrit = '';
-  if (premFiltrados.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Itens de premontagem vinculados ao JOIST</b></td></tr>` + premFiltrados.map(linhaCrit).join('');
-  if (fixFiltrados.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Fixadores / itens cadastrados fora da regra de premontagem</b></td></tr>` + fixFiltrados.map(linhaCrit).join('');
+  if (compEstrutura.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Componentes estruturais — Joists J01 / J02 / J03 / J04</b></td></tr>` + compEstrutura.map(linhaCrit).join('');
+  if (fixJoist.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Fixadores Joist (parafusos, porcas, arruelas)</b></td></tr>` + fixJoist.map(linhaCrit).join('');
   document.getElementById('tabEstCrit').innerHTML =
     `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Recebido</th><th class="n">Consumo virtual</th><th class="n">Saldo virtual</th><th class="n">Estoque real</th><th class="n">Cap. virtual</th><th class="n">Cap. real</th><th class="n">Posso produzir</th><th>Status</th></tr></thead><tbody>` +
     (corpoCrit || '<tr><td colspan="11" class="vazio">Nenhum material encontrado para o filtro.</td></tr>') + '</tbody>';
