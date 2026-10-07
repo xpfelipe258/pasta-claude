@@ -11,6 +11,7 @@ let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase
 let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'painel';
 let empSel = null;
 let filtroImp = 'abertos';
+let dpEmpSel = null;
 const pend = new Map();  // `${aba}|${data}|${col}` -> texto digitado
 const metasPend = new Map(); // linha -> {meta_dia, du, gap}
 const planoPend = new Map(); // 'emp|serv' -> meta_dia digitada
@@ -88,6 +89,10 @@ function corEmpHex(nome) { return cor(COR_EMP[nome] || '--fg3'); }
 function diaUtil(s) { return dow(s) < 5; }
 function somarDiasUteis(s, n) { let d = s; while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }
 function contarDiasUteis(a, b) { let n = 0; for (let d = add(a, 1); d <= b; d = add(d, 1)) if (diaUtil(d)) n++; return n; }
+function inicioMes(s) { return ehISO(s) ? s.slice(0, 8) + '01' : hoje().slice(0, 8) + '01'; }
+function fimMes(s) { const d = dU(inicioMes(s)); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); }
+function datasMes(s) { const a = inicioMes(s), b = fimMes(s), xs = []; for (let d = a; d <= b; d = add(d, 1)) xs.push(d); return xs; }
+function diaSemana(s) { return ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'][dow(s)] || ''; }
 function normEmp(s) { const t = String(s || '').trim().toUpperCase(); return t === 'GA' || t.startsWith('GLOBO') ? 'GLOBO AÇOS' : t; }
 function empresasDe(s) {
   const bruto = String(s || '').replace(/\s+(?:E|&|AND)\s+/gi, '/').split(/[\/;,\+]+/);
@@ -156,7 +161,17 @@ function vigiarScrollTopo() {
 
 // ------------------------------------------------------------ dados de produção
 function empresa(nome) { return M.empresas.find(e => e.nome === nome); }
-function colDe(e, serv) { const s = e && e.servicos.find(x => x.nome === serv); return s ? s.col : null; }
+function servicoCompat(nomeFonte, nomeAlvo) {
+  const f = ganNorm(nomeFonte), a = ganNorm(nomeAlvo);
+  if (!f || !a) return false;
+  if (f === a) return true;
+  const fontePerfil = f.includes('PERFILAG') || f.includes('PERFILAC');
+  const alvoPerfil = a.includes('PERFILAG') || a.includes('PERFILAC');
+  if (alvoPerfil) return fontePerfil;
+  if (a === 'TELHAR' || a.includes('TELHAR')) return !fontePerfil && !f.includes('PERFIL') && (f.includes('INSTALACAO DE TELH') || f.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || f.includes('FACEFELT') || f.includes('MONTAGEM TELH') || f === 'TELHAS' || f === 'TELHA' || f.includes(' TELHAS') || f.includes(' TELHA'));
+  return f.includes(a) || a.includes(f);
+}
+function colDe(e, serv) { const s = e && e.servicos.find(x => servicoCompat(x.nome, serv)); return s ? s.col : null; }
 function soma(e, col, ini, fim) {
   let t = 0;
   for (const d in e.registros) {
@@ -164,13 +179,89 @@ function soma(e, col, ini, fim) {
   }
   return t;
 }
+const GLOBO_M2_POR_UN = 177.32 * 0.475; // 84,23 m² por unidade de telha/fechamento
+function precisaConverterGloboM2(e, servico) {
+  return false;
+}
+function producaoServicoValor(e, sv, ini, fim) {
+  return soma(e, sv.col, ini, fim);
+}
+function bmAtividadeCompatServico(a, servico) {
+  const alvo = ganNorm(servico);
+  const item = ganNorm(a?.item_desc || '');
+  const ativ = ganNorm(a?.atividade || '');
+  const ctl = ganNorm(a?.controle || '');
+  if (!alvo) return false;
+  if (ctl && servicoCompat(ctl, servico)) return true;
+  const alvoPerfil = alvo.includes('PERFILAG') || alvo.includes('PERFILAC');
+  if (alvoPerfil) return ativ.includes('PERFILAG') || ativ.includes('PERFILAC');
+  if (alvo.includes('TELHAR')) return !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT') || ativ === 'TELHAS' || ativ.includes(' TELHAS'));
+  if (servicoCompat(item, servico) || servicoCompat(ativ, servico)) return true;
+  return false;
+}
+
+function bmTextoAtividade(a) { return ganNorm(`${a?.codigo || ''} ${a?.item || ''} ${a?.item_desc || ''} ${a?.atividade || ''} ${a?.controle || ''} ${a?.obs || ''}`); }
+function bmAtividadeFase(a) {
+  const t = bmTextoAtividade(a);
+  if (t.includes('FASE 2') || t.includes('F2') || t.includes('EIXO 21') || t.includes('EIXOS 21') || t.includes('21 A') || t.includes('21 AO')) return '2';
+  if (t.includes('FASE 1') || t.includes('F1') || t.includes('EIXO 11') || t.includes('EIXOS 11') || t.includes('11 A 20') || t.includes('11 AO 20')) return '1';
+  return '';
+}
+function bmAtividadePertenceFase(a, fase) {
+  if (!fase) return true;
+  const f = bmAtividadeFase(a);
+  return !f || f === String(fase);
+}
+function bmCatalogoServico(servico, fase = '') {
+  const alvo = ganNorm(servico);
+  return bmTab('bm_atividades').filter(a => {
+    if (!bmAtividadePertenceFase(a, fase)) return false;
+    const emp = ganNorm(a.empresa), txt = bmTextoAtividade(a), ativ = ganNorm(a.atividade || '');
+    const itemCobGalpao = txt.includes('COBERTURA DO GALPAO EM TELHA ZIPADA') || txt.includes('COBERTURA DO GALPAO EM TELHA');
+    if ((alvo.includes('PERFILAG') || alvo.includes('PERFILAC'))) return emp === 'GLOBO ACOS' && itemCobGalpao && (ativ.includes('PERFILAG') || ativ.includes('PERFILAC'));
+    if (alvo.includes('TELHAR')) return emp === 'GLOBO ACOS' && itemCobGalpao && !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT'));
+    if (alvo === 'FECHAMENTO') return emp === 'GLOBO ACOS' && !itemCobGalpao && (txt.includes('FECHAMENTO LATERAL') || txt.includes('RUFO') || txt.includes('RUFOS'));
+    if (alvo.includes('FECH LATERAL ESTRUTURA') || alvo.includes('FECHAMENTO LATERAL ESTRUTURA')) return (emp === 'EJ' || emp === 'CMM') && txt.includes('FECHAMENTO LATERAL');
+    return false;
+  });
+}
+function contratoCatalogoServico(servico, fase = '') {
+  const ats = bmCatalogoServico(servico, fase);
+  const alvo = ganNorm(servico);
+  if (alvo.includes('TELHAR')) return ats.length ? Math.max(...ats.map(a => Number(a.qtd) || 0)) : 0;
+  return soma0(ats, a => Number(a.qtd) || 0);
+}
+function servicoUsaCatalogoM2(servico) {
+  const s = ganNorm(servico);
+  return s.includes('PERFILAG') || s.includes('PERFILAC') || s.includes('TELHAR') || s === 'FECHAMENTO' || s.includes('FECH LATERAL ESTRUTURA') || s.includes('FECHAMENTO LATERAL ESTRUTURA');
+}
+function bmApontamentoServicoValor(a, quantidade, servico) {
+  const emp = normEmp(a?.empresa || '');
+  const un = bmNormUn(a?.unidade || '');
+  const qtd = Number(quantidade) || 0;
+  const alvo = ganNorm(servico);
+  return qtd;
+}
+function prodServicoBm(servico, empresaNome, ini, fim) {
+  if (!T || !Array.isArray(T.bm_atividades) || !Array.isArray(T.bm_apontamentos)) return 0;
+  const atividades = T.bm_atividades.filter(a => (!empresaNome || normEmp(a.empresa) === normEmp(empresaNome)) && bmAtividadeCompatServico(a, servico));
+  if (!atividades.length) return 0;
+  const porCod = new Map(atividades.map(a => [String(a.codigo), a]));
+  let t = 0;
+  T.bm_apontamentos.forEach(x => {
+    const a = porCod.get(String(x.codigo));
+    if (!a || !x.data || x.data < ini || x.data > fim) return;
+    t += bmApontamentoServicoValor(a, x.quantidade, servico);
+  });
+  return t;
+}
 function prodServico(servico, empresaNome, ini, fim) {
   let t = 0;
   M.empresas.forEach(e => {
     if (empresaNome && e.nome !== empresaNome) return;
-    e.servicos.filter(s => s.nome === servico).forEach(s => t += soma(e, s.col, ini, fim));
+    e.servicos.filter(s => servicoCompat(s.nome, servico)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
   });
-  return t;
+  return t + prodServicoBm(servico, empresaNome, ini, fim);
 }
 function metasSemana(r) { const s = segunda(r); return M.metas.filter(m => m.inicio === s); }
 const metaSemanaTotal = m => m.meta_dia * m.du + (m.gap || 0);
@@ -243,19 +334,6 @@ async function carregar() {
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
-  // Contratos de cobertura devem seguir o catálogo Globo Aços; evita duplicar o mesmo escopo
-  // quando ele aparece em mais de uma linha/fase do catálogo.
-  if (Array.isArray(M.cliente) && Array.isArray(T.bm_atividades)) {
-    const norm = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-    const cat = T.bm_atividades.filter(a => norm(a.empresa).includes('GLOBO') && norm(a.item_desc || a.item).includes('COBERTURA') && (norm(a.item_desc || a.item).includes('TELHA') || norm(a.item_desc || a.item).includes('GALPAO')));
-    M.cliente.forEach(c => {
-      const s = norm(c.servico);
-      if (!s.includes('PERFILAG') && !s.includes('TELHAR')) return;
-      const rows = cat.filter(a => { const x = norm(a.atividade); return s.includes('PERFILAG') ? x.includes('PERFILAG') : !x.includes('PERFIL') && (x.includes('INSTALACAO DE TELH') || x.includes('ISOLAMENTO') || x.includes('FACEFELT')); });
-      const qtd = rows.reduce((m, a) => Math.max(m, Number(a.qtd) || 0), 0);
-      if (qtd > 0) c.qtd = qtd;
-    });
-  }
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
@@ -426,7 +504,7 @@ function atalhoPeriodo(p) {
 
 function renderTudo() {
   if (!M) return;
-  const abertos = M.impactos.filter(i => !i.solucionado).length;
+  const abertos = impactosComAutomaticos().filter(i => !i.solucionado).length;
   $('#impCont').hidden = !abertos; $('#impCont').textContent = abertos;
   const rExt = estoqueExternoResumo();
   // Badge de Materiais = somente as linhas vermelhas exibidas em Materiais.
@@ -444,7 +522,7 @@ function atualizarContadorKpi() {
   if (!kpiC || !M) return;
   const c = corte();
   const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
-  const n = ks.filter(k => k.pct != null && k.pct < 90).length + M.impactos.filter(i => !i.solucionado).length
+  const n = ks.filter(k => k.pct != null && k.pct < 90).length + impactosComAutomaticos().filter(i => !i.solucionado).length
     + (EP ? EP.materiais.filter(m => m.status_logistico === 'Crítico').length : 0);
   kpiC.hidden = !n; kpiC.textContent = n;
 }
@@ -546,7 +624,7 @@ function renderAlertas(ks, c) {
     al.push([l.nivel, `<b>Estoque · ${esc(l.material)}</b>: ${esc(l.status.toLowerCase())}. Saldo ${nf(l.saldo, 1)} ${esc(l.unidade || '')}, necessário ${nf(l.necSemana + l.necProx, 1)} até a próxima semana. <button class="link" data-ir-aba="estsis">Ver estoque</button>`]));
 
   alertasEstoqueExterno().forEach(x => al.push(x));
-  const abertos = M.impactos.filter(i => !i.solucionado);
+  const abertos = impactosComAutomaticos().filter(i => !i.solucionado);
   if (abertos.length) {
     const velhos = abertos.filter(i => ehISO(i.data)).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3)
       .map(i => `${esc(cap(i.motivo))} (${diasEntre(i.data, ref)} dias)`);
@@ -592,14 +670,14 @@ function renderPlanoAcao(c) {
       const fase = faseItem(sv.frente);
       // Filtra por faseFiltro se ativo (ao ver só F1 ou só F2)
       if (faseFiltro && fase !== faseFiltro) return;
-      const acum = soma(e, sv.col, '0000', c);
+      const acum = producaoServicoValor(e, sv, '0000', c);
       const cl = M.cliente.find(cl2 => cl2.servico === sv.nome && faseItem(cl2.frente) === fase);
       // Inclui serviço se tem escopo, produção ou contrato do cliente
       if (!sv.escopo && !acum && !cl?.qtd) return;
       const k = e.nome + '\x1F' + sv.nome;
       const g = grupos[k] ||= { emp: e.nome, e, serv: sv.nome, fases: {} };
       const fd = g.fases[fase] ||= { escopo: 0, acum: 0, saldo: 0, ritmo: 0 };
-      const acumIni14 = soma(e, sv.col, '0000', add(ini14, -1));
+      const acumIni14 = producaoServicoValor(e, sv, '0000', add(ini14, -1));
       fd.escopo += sv.escopo || 0;
       fd.acum   += acum;
       fd.saldo  += Math.max((sv.escopo || 0) - acum, 0);
@@ -617,8 +695,8 @@ function renderPlanoAcao(c) {
         const k = e.nome + '\x1F' + sv.nome;
         const g = grupos[k];
         if (!g || g.fases['2']) return; // grupo não existe ou F2 já adicionado
-        const acum2 = soma(e, sv.col, '0000', c);
-        const acumIni14_2 = soma(e, sv.col, '0000', add(ini14, -1));
+        const acum2 = producaoServicoValor(e, sv, '0000', c);
+        const acumIni14_2 = producaoServicoValor(e, sv, '0000', add(ini14, -1));
         g.fases['2'] = {
           escopo: sv.escopo || 0,
           acum: acum2,
@@ -863,7 +941,7 @@ function renderSemana() {
     : '<li class="vazio">Nenhum serviço com meta nesta semana.</li>';
 
   const fim = add(s, 6);
-  const imps = M.impactos.filter(i => ehISO(i.data) && i.data >= s && i.data <= fim);
+  const imps = impactosComAutomaticos().filter(i => ehISO(i.data) && i.data >= s && i.data <= fim);
   $('#impSemana').innerHTML = imps.length ? imps.map(i => `<li><span><b>${fd(i.data)}</b> · ${esc(cap(i.servico))}: ${esc(i.motivo)}</span><span>${i.solucionado ? '<span class="farol f-verde">SOLUCIONADO</span>' : '<span class="farol f-vermelho">ABERTO</span>'}</span></li>`).join('')
     : '<li class="vazio">Nenhum impacto registrado nesta semana.</li>';
 }
@@ -992,10 +1070,17 @@ function realizadoTotal(servico, ate) { return prodServico(servico, null, '0000'
 function realizadoFase(servico, fase, ate) {
   let t = 0;
   M.empresas.forEach(e => {
-    e.servicos.filter(s => s.nome === servico && faseItem(s.frente) === fase)
-      .forEach(s => t += soma(e, s.col, '0000', ate));
+    e.servicos.filter(s => {
+      if (!servicoCompat(s.nome, servico)) return false;
+      const sf = faseItem(s.frente);
+      if (sf === fase) return true;
+      const emp = normEmp(e.nome);
+      const sv = ganNorm(s.nome);
+      const globoCobertura = emp === 'GLOBO AÇOS' && ['PERFILACAO', 'PERFILAGEM', 'TELHAR', 'TELHA', 'TELHAS', 'INSTALACAO DE TELH'].some(x => sv.includes(x));
+      return globoCobertura;
+    }).forEach(s => t += producaoServicoValor(e, s, '0000', ate));
   });
-  return t;
+  return t + prodServicoBm(servico, null, '0000', ate);
 }
 
 function faseItem(frente) {
@@ -1003,15 +1088,33 @@ function faseItem(frente) {
   return frente.toUpperCase().startsWith('GALPÃO F2') ? '2' : '1';
 }
 
+function clienteQtdContrato(c) {
+  const fase = faseItem(c?.frente);
+  if (servicoUsaCatalogoM2(c?.servico)) {
+    const qFase = contratoCatalogoServico(c.servico, fase);
+    if (qFase > 0) return qFase;
+    const qTotal = contratoCatalogoServico(c.servico, '');
+    if (qTotal > 0) return fase === '1' ? qTotal : 0;
+  }
+  return Number(c?.qtd) || 0;
+}
+function clienteComContratoAtual(c) {
+  const qtd = clienteQtdContrato(c);
+  const meta_dia = c?.qtd ? (Number(c.meta_dia) || 0) * (qtd / (Number(c.qtd) || qtd || 1)) : (Number(c?.meta_dia) || 0);
+  const peso = c?.qtd ? (Number(c.peso) || Number(c.qtd) || qtd) * (qtd / (Number(c.qtd) || qtd || 1)) : (Number(c?.peso) || qtd);
+  return { ...c, qtd, meta_dia, peso };
+}
+
 function contratoLinhas(ate = ref) {
   const ini = add(ate, -14);
   let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
-  return M.cliente.filter(c => !faseFiltro || faseItem(c.frente) === faseFiltro).map(c => {
+  return M.cliente.filter(c => !faseFiltro || faseItem(c.frente) === faseFiltro).map(c0 => {
+    const c = clienteComContratoAtual(c0);
     const fase = faseItem(c.frente);
     const real = realizadoFase(c.servico, fase, ate);
     const ritmo = (real - realizadoFase(c.servico, fase, add(ini, -1))) / Math.max(du, 1);
     const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
-let projecao = null, status;
+    let projecao = null, status;
     if (!c.qtd) {
       status = real > 0 ? 'EM ANDAMENTO' : 'SEM CONTRATO';
     } else if (saldo <= 0) status = 'CONCLUÍDO';
@@ -1039,10 +1142,10 @@ function projecoesPorEmpresa(ate) {
   const result = [];
   M.empresas.forEach(e => {
     e.servicos.filter(sv => sv.escopo > 0 && (!faseFiltro || faseItem(sv.frente) === faseFiltro)).forEach(sv => {
-      const acum = soma(e, sv.col, '0000', ate);
-      const acumIni14 = soma(e, sv.col, '0000', add(ini14, -1));
+      const acum = producaoServicoValor(e, sv, '0000', ate);
+      const acumIni14 = producaoServicoValor(e, sv, '0000', add(ini14, -1));
       const ritmo = (acum - acumIni14) / Math.max(du, 1);
-      const realPer = soma(e, sv.col, per.ini, ate);
+      const realPer = producaoServicoValor(e, sv, per.ini, ate);
       const maxProdPeriodo = Math.max(sv.escopo - (acum - realPer), 0);
       const projetadoPer = Math.min(maxProdPeriodo, Math.max(0, realPer + ritmo * duRestante));
       const saldo = Math.max(sv.escopo - acum, 0);
@@ -1053,7 +1156,7 @@ function projecoesPorEmpresa(ate) {
         status = acum > 0 ? 'SEM RITMO' : 'SEM PRODUÇÃO';
       } else {
         projecao = somarDiasUteis(ate, Math.ceil(saldo / ritmo));
-        const cl = M.cliente.find(c => c.servico === sv.nome && faseItem(c.frente) === faseItem(sv.frente));
+        const cl = M.cliente.find(c => servicoCompat(sv.nome, c.servico) && faseItem(c.frente) === faseItem(sv.frente));
         status = cl?.prazo && projecao > cl.prazo ? 'ATRASO' : 'NO PRAZO';
       }
       result.push({ emp: e.nome, e, serv: sv.nome, sv, acum, ritmo, saldo, projecao, status, projetadoPer, escopo: sv.escopo });
@@ -1185,7 +1288,12 @@ function ganServicosFonte(itOuServico) {
 
 function ganServicoCombina(servicoFonte, servicoLancado) {
   const a = ganNorm(servicoFonte), b = ganNorm(servicoLancado);
-  return a && b && (a === b || a.includes(b) || b.includes(a));
+  if (!a || !b) return false;
+  const alvoPerfil = a.includes('PERFILAG') || a.includes('PERFILAC');
+  const fontePerfil = b.includes('PERFILAG') || b.includes('PERFILAC');
+  if (alvoPerfil) return fontePerfil;
+  if (a.includes('TELHAR')) return !fontePerfil && !b.includes('PERFIL') && (b.includes('INSTALACAO DE TELH') || b.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || b.includes('FACEFELT') || b === 'TELHAS' || b.includes(' TELHAS'));
+  return a === b || a.includes(b) || b.includes(a);
 }
 
 function ganProducao(itOuServico, empNome) {
@@ -1195,9 +1303,21 @@ function ganProducao(itOuServico, empNome) {
     if (empNome && e.nome !== empNome) return;
     e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome))).forEach(s => Object.keys(e.registros).forEach(d => {
       const v = e.registros[d].v[s.col];
-      if (typeof v === 'number' && v > 0) ds.push([d, v]);
+      const ajustado = v;
+      if (typeof ajustado === 'number' && ajustado > 0) ds.push([d, ajustado]);
     }));
   });
+  if (T && Array.isArray(T.bm_atividades) && Array.isArray(T.bm_apontamentos)) {
+    fontes.forEach(f => {
+      const atividades = T.bm_atividades.filter(a => (!empNome || normEmp(a.empresa) === normEmp(empNome)) && bmAtividadeCompatServico(a, f));
+      const porCod = new Map(atividades.map(a => [String(a.codigo), a]));
+      T.bm_apontamentos.forEach(x => {
+        const a = porCod.get(String(x.codigo));
+        if (!a || !x.data || !(Number(x.quantidade) > 0)) return;
+        ds.push([x.data, bmApontamentoServicoValor(a, x.quantidade, f)]);
+      });
+    });
+  }
   return ds.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -1218,15 +1338,16 @@ function ganSimilarCronograma(a, b) {
 }
 
 function ganQtdRef(cr) {
-  const exata = (M.cliente || []).find(c => ganFaseNumero(c) === cr.fase && ganNorm(c.servico) === ganNorm(cr.servico) && (c.qtd || 0));
+  const clientes = (M.cliente || []).map(clienteComContratoAtual);
+  const exata = clientes.find(c => ganFaseNumero(c) === cr.fase && ganNorm(c.servico) === ganNorm(cr.servico) && (c.qtd || 0));
   if (exata) return exata.qtd || 1;
-  const fonte = (M.cliente || []).find(c => ganFaseNumero(c) === cr.fase && (cr.fontes || []).some(f => ganServicoCombina(f, c.servico)) && (c.qtd || 0));
+  const fonte = clientes.find(c => ganFaseNumero(c) === cr.fase && (cr.fontes || []).some(f => ganServicoCombina(f, c.servico)) && (c.qtd || 0));
   if (fonte) return fonte.qtd || 1;
   return 1;
 }
 
 function ganItensCliente() {
-  const base = (M.cliente || []).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
+  const base = (M.cliente || []).map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
   GAN_CRONOGRAMA_CLIENTE.forEach(cr => {
     if (faseFiltro && cr.fase !== faseFiltro) return;
     let alvo = base.find(c => ganChavePlanejada(c) === ganChavePlanejada(cr));
@@ -1246,7 +1367,7 @@ function ganItensCliente() {
 function ganLimiteFaseAnterior(it) {
   const faseAtual = Number(ganFaseNumero(it) || 1);
   if (!Number.isFinite(faseAtual) || faseAtual <= 1) return 0;
-  return soma0(M.cliente || [], c => {
+  return soma0((M.cliente || []).map(clienteComContratoAtual), c => {
     if (c.servico !== it.servico || !(c.qtd || 0)) return 0;
     const fase = Number(faseItem(c.frente) || 1);
     return Number.isFinite(fase) && fase < faseAtual ? c.qtd || 0 : 0;
@@ -1283,8 +1404,7 @@ function ganBmAtividades(it) {
     if (ehFechEstrutura) {
       return (emp === 'EJ' || emp === 'CMM') && item === 'FECHAMENTO LATERAL';
     }
-    if (ctl && fontes.includes(ctl)) return true;
-    return item && fontes.some(f => item === f || item.includes(f) || f.includes(item));
+    return fontes.some(f => bmAtividadeCompatServico(a, f));
   });
 }
 
@@ -1308,6 +1428,32 @@ function ganBmDatasAtividade(a, ate) {
 function ganBmResumo(it, ate) {
   const ats = ganBmAtividades(it);
   if (!ats.length || !it.qtd) return null;
+  const servNorm = ganNorm(it.servico);
+  const estruturaMediaEmpresas = servNorm.includes('FECH LATERAL ESTRUTURA') || servNorm.includes('FECHAMENTO LATERAL ESTRUTURA');
+  if (estruturaMediaEmpresas) {
+    const porEmpresa = new Map();
+    ats.forEach(a => {
+      const emp = ganNorm(a.empresa);
+      if (!(emp === 'EJ' || emp === 'CMM')) return;
+      const o = porEmpresa.get(a.empresa) || { somaPesos: 0, pct: 0, ds: [] };
+      const peso = a.peso || 0;
+      const real = bmRealizado(a, ate);
+      const pctAtiv = a.qtd ? Math.min(1, Math.max(0, real / a.qtd)) : 0;
+      o.somaPesos += peso;
+      o.pct += pctAtiv * peso;
+      o.ds.push(...ganBmDatasAtividade(a, ate));
+      porEmpresa.set(a.empresa, o);
+    });
+    const nomes = ['EJ', 'CMM'];
+    const pcts = nomes.map(n => { const o = porEmpresa.get(n); return o && o.somaPesos ? o.pct / o.somaPesos : 0; });
+    const pct = Math.min(1, Math.max(0, soma0(pcts, x => x) / nomes.length));
+    const ds = [];
+    const porEmp = [];
+    porEmpresa.forEach((o, nome) => { if (o.ds.length) { const lista = o.ds.sort((a,b)=>a[0].localeCompare(b[0])); ds.push(...lista); porEmp.push({ nome, ds: lista }); } });
+    if (!ds.length && pct <= 0) return null;
+    return { real: pct * it.qtd, pct, ds: ds.sort((a,b)=>a[0].localeCompare(b[0])), porEmp };
+  }
+
   const grupos = new Map();
   ats.forEach(a => {
     const k = `${a.empresa}|${a.item}|${a.item_desc}`;
@@ -1869,7 +2015,7 @@ function renderAvanco() {
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
   const projEmpAvanco = projecoesPorEmpresa(ref);
   $('#avancoEmpresas').innerHTML = M.empresas.map(e => {
-    let itens = e.servicos.map(sv => ({ sv, acum: soma(e, sv.col, '0000', ref) })).filter(x => x.sv.escopo || x.acum);
+    let itens = e.servicos.map(sv => ({ sv, acum: producaoServicoValor(e, sv, '0000', ref) })).filter(x => x.sv.escopo || x.acum);
     if (faseFiltro) itens = itens.filter(x => faseItem(x.sv.frente) === faseFiltro);
     return `<div><h2 style="margin-bottom:10px"><span class="emp-tag" style="--c:${corEmp(e.nome)}">${esc(e.nome)}</span></h2>
       <table><thead><tr><th>Serviço</th><th class="n">Escopo</th><th class="n">Acum.</th><th style="min-width:90px">%</th><th>Projeção término</th><th>Situação</th></tr></thead><tbody>` +
@@ -1890,13 +2036,13 @@ function prevCliente(c, ate) {
   return Math.min(c.qtd, c.meta_dia * contarDiasUteis(add(c.inicio_plan, -1), ate));
 }
 function itensCliente() {
-  return M.cliente.filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
+  return M.cliente.map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
 }
 function avancoPonderado(ate, previsto) {
   const itens = itensCliente();
   const pesoTot = soma0(itens, c => c.peso);
   if (!pesoTot) return 0;
-  return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoTotal(c.servico, ate)) / c.qtd)) / pesoTot * 100;
+  return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoFase(c.servico, faseItem(c.frente), ate)) / c.qtd)) / pesoTot * 100;
 }
 
 function renderCliente() {
@@ -1925,8 +2071,8 @@ function renderCliente() {
     const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? prodServico(servNome, n, ini, c) : 0]));
     const realPer = soma0(Object.values(porEmp), v => v);
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
-    const realAc = soma0(fases, f => realizadoTotal(f.servico, c) || 0);
-    const saldo = Math.max(totQtd - realPer, 0);
+    const realAc = soma0(fases, f => realizadoFase(f.servico, faseItem(f.frente), c) || 0);
+    const saldo = Math.max(totQtd - realAc, 0);
 
     // Status baseado no período com margens: GAP >= +6 (ADIANTADO), GAP <= -7 (ATRASADO), entre -6 e +5 (NO LIMITE)
     const gapStatus = realPer - prevPer;
@@ -1937,7 +2083,7 @@ function renderCliente() {
     const p = projFases.length > 0 ? projFases[0] : {};
     const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
 
-    const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax };
+    const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
     return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
   });
 
@@ -1995,7 +2141,7 @@ function renderCliente() {
   atrasados.forEach(l => ins.push(['vermelho', `<b>${esc(cap(l.it.servico))}</b>: ${nf(l.realAc, 1)} de ${nf(l.prevAc, 1)} previstos (faltam ${nf(l.prevAc - l.realAc, 1)} para alcançar o cliente).${l.p.necessario ? ` Para cumprir o prazo são necessários ${nf(l.p.necessario, 2)}/dia; ritmo atual ${nf(l.p.ritmo, 2)}/dia.` : ''}`]));
   linhas.filter(l => l.status === 'NO LIMITE').forEach(l => ins.push(['amarelo', `<b>${esc(cap(l.it.servico))}</b> no limite do previsto (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
   linhas.filter(l => l.status === 'ADIANTADO' && l.realAc > 0).forEach(l => ins.push(['verde', `<b>${esc(cap(l.it.servico))}</b> à frente do previsto do cliente (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
-  const abertos = M.impactos.filter(i => !i.solucionado);
+  const abertos = impactosComAutomaticos().filter(i => !i.solucionado);
   if (abertos.length) ins.push(['amarelo', `<b>${abertos.length} impacto(s) em aberto</b> afetando a produção: ${[...new Set(abertos.map(i => cap(i.motivo).trim()))].slice(0, 4).map(esc).join('; ')}.`]);
   alertasEstoqueExterno().filter(x => x[0] === 'vermelho').forEach(x => ins.push(['vermelho', x[1].replace(/<button[^>]*>.*?<\/button>/g, '')]));
   const falta = estoqueLinhas().filter(l => l.nivel === 'vermelho');
@@ -2011,7 +2157,7 @@ function renderCliente() {
 
 function graficoCurvaS(c) {
   const itens = itensCliente();
-if (!itens.length) return;
+  if (!itens.length) return;
   const inicio = segunda(itens.map(x => x.inicio_plan).filter(Boolean).sort()[0] || M.datas[0]);
   const fimPlan = maxD(itens.map(x => x.prazo).filter(Boolean).sort().pop() || c, c);
   const semanas = [];
@@ -2412,19 +2558,26 @@ function renderEstRemessas() {
     tile('Total recebido', nf(totRec), 'soma de todas as remessas', 'var(--verde)');
 
   const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
+  const dataRemInput = (remessa, campo, rot, valor) => `<label class="rem-data rem-data-edit"><span>${rot}</span><input type="text" value="${esc(valor || '')}" placeholder="dd/mm/aaaa" data-remessa-data="${esc(remessa)}" data-remessa-campo="${esc(campo)}"></label>`;
+  const novaDataInput = (campo, rot, valor, prop) => `<label class="rem-data rem-data-edit"><span>${rot}</span><input type="text" class="ed-dat-head" data-ed="rem" data-ed-dat="${esc(prop)}" placeholder="dd/mm/aaaa" value="${esc(valor || '')}"></label>`;
   const ed = estEdit.rem, cxR = $('#tabEstRem').closest('.tabela-rolagem'), sxR = cxR.scrollLeft;
   $('#tabEstRem').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th>` +
     cols.map(c => {
       const dt = (rem.datas || {})[c] || {};
-      const linha = (rot, v) => v ? `<div class="rem-data"><span>${rot}</span>${esc(v)}</div>` : '';
       const dicas = [dt.prevista_chegada && `prevista ${dt.prevista_chegada}`,
         dt.emissao_nota && `nota ${dt.emissao_nota}`,
         dt.chegada_obra && `chegada ${dt.chegada_obra}`].filter(Boolean).join(' · ');
-      return `<th class="n" title="${esc(c)}${dicas ? ' — ' + esc(dicas) : ''}">${esc(abrev(c))}`
-        + linha('prev.', dt.prevista_chegada) + linha('NF', dt.emissao_nota)
-        + linha('obra', dt.chegada_obra) + `</th>`;
+      return `<th class="n rem-head" title="${esc(c)}${dicas ? ' — ' + esc(dicas) : ''}">`
+        + dataRemInput(c, 'prevista_chegada', 'Prev.', dt.prevista_chegada)
+        + dataRemInput(c, 'emissao_nota', 'NF', dt.emissao_nota)
+        + dataRemInput(c, 'chegada_obra', 'Obra', dt.chegada_obra)
+        + `<div class="rem-numero">${esc(c)}</div><button type="button" class="link" data-rem-editar="${esc(c)}">Editar remessa</button></th>`;
     }).join('') +
-    (ed ? `<th class="n col-nova"><input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
+    (ed ? `<th class="n col-nova rem-head">`
+      + novaDataInput('prevista_chegada', 'Prev.', ed.prevista, 'prevista')
+      + novaDataInput('emissao_nota', 'NF', ed.emissaoNf, 'emissaoNf')
+      + novaDataInput('chegada_obra', 'Obra', ed.chegadaObra, 'chegadaObra')
+      + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
       cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') +
@@ -2468,7 +2621,7 @@ function edBarra(k) {
       ? `<span class="ed-datas"><label>Prev. chegada<input class="ed-dat" data-ed="${k}" data-ed-dat="prevista" placeholder="dd/mm/aaaa" value="${esc(ed.prevista)}"></label>`
         + `<label>Emissão NF<input class="ed-dat" data-ed="${k}" data-ed-dat="emissaoNf" placeholder="dd/mm/aaaa" value="${esc(ed.emissaoNf)}"></label>`
         + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
-    box.innerHTML = `<span><b>${k === 'rem' ? 'Nova remessa' : 'Novo consumo'}:</b> preencha a coluna no fim da tabela e escreva o ${k === 'rem' ? 'nº da remessa' : 'período da semana'} no cabeçalho.</span>`
+    box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
       + datasHtml
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
       + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
@@ -2479,7 +2632,7 @@ function edBarra(k) {
 function edAbrir(k) {
   if (!EP) return;
   if (!estEdit[k]) estEdit[k] = k === 'rem'
-    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '' }
+    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false }
     : { nome: '', val: new Map() };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
@@ -2487,6 +2640,22 @@ function edAbrir(k) {
   const cx = $(ED[k].tabela).closest('.tabela-rolagem');
   cx.scrollLeft = cx.scrollWidth;   // mostra as últimas colunas, com a nova à direita
   if (cab) cab.focus({ preventScroll: true });
+  agendarScrollTopo();
+}
+function edAbrirRemessaExistente(nome) {
+  if (!EP || !nome) return;
+  const rem = estRemessasComCadastros();
+  const dt = (rem.datas || {})[nome] || {};
+  const ed = estEdit.rem = { nome, val: new Map(), prevista: dt.prevista_chegada || '', emissaoNf: dt.emissao_nota || '', chegadaObra: dt.chegada_obra || '', original: nome, substituir: true };
+  (rem.itens || []).forEach(i => {
+    const v = (i.qtd_por_remessa || {})[nome];
+    if (v != null && v !== '') ed.val.set(i.tag, String(v).replace('.', ','));
+  });
+  $('#estRemEd').dataset.pronto = '';
+  renderEstRemessas();
+  const cx = $('#tabEstRem').closest('.tabela-rolagem');
+  cx.scrollLeft = cx.scrollWidth;
+  setTimeout(() => $('#tabEstRem .ed-cab')?.focus({ preventScroll: true }), 0);
   agendarScrollTopo();
 }
 function edFechar(k) { estEdit[k] = null; $(ED[k].barra).dataset.pronto = ''; ED[k].render(); }
@@ -2499,8 +2668,9 @@ async function edSalvar(k) {
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
     const corpo = { [ED[k].campo]: nome, itens };
-    if (k === 'rem' && (ed.prevista || ed.emissaoNf || ed.chegadaObra)) {
-      corpo.datas = { prevista_chegada: ed.prevista, emissao_nota: ed.emissaoNf, chegada_obra: ed.chegadaObra };
+    if (k === 'rem') {
+      if (ed.substituir) { corpo.substituir = true; corpo.original_remessa = ed.original || nome; }
+      if (ed.prevista || ed.emissaoNf || ed.chegadaObra || ed.substituir) corpo.datas = { prevista_chegada: ed.prevista, emissao_nota: ed.emissaoNf, chegada_obra: ed.chegadaObra };
     }
     const r = await postar(API + ED[k].endpoint, corpo);
     const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
@@ -2509,6 +2679,23 @@ async function edSalvar(k) {
     renderEstoquePlanilha();
     toast(`${r.salvos ?? itens.length} lançamento(s) salvos ${ONDE}`);
   } catch (err) { toast(err.message, true); b.disabled = false; }
+}
+async function salvarDataRemessa(inp) {
+  const remessa = inp.dataset.remessaData, campo = inp.dataset.remessaCampo;
+  if (!remessa || !campo) return;
+  const dt = ((EP?.remessas?.datas || {})[remessa] || {});
+  const datas = { prevista_chegada: dt.prevista_chegada || '', emissao_nota: dt.emissao_nota || '', chegada_obra: dt.chegada_obra || '' };
+  datas[campo] = inp.value.trim();
+  inp.disabled = true;
+  try {
+    await postar(API + 'estoque-planilha/remessa-datas', { remessa, datas });
+    const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+    if (j) EP = j;
+    renderEstRemessas();
+    atualizarContadorKpi();
+    if (abaAtual === 'impactos') renderImpactos();
+    toast('Datas da remessa atualizadas');
+  } catch (err) { toast(err.message || 'Erro ao salvar datas da remessa.', true); inp.disabled = false; }
 }
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
@@ -2527,6 +2714,10 @@ function ligarEdicaoEstoque() {
       edBarra(k);
     }
   });
+  sec.addEventListener('change', ev => {
+    const el = ev.target.closest('[data-remessa-data]');
+    if (el) salvarDataRemessa(el);
+  });
   sec.addEventListener('keydown', ev => {
     const el = ev.target;
     if (!el.classList?.contains('ed-in') || ev.key !== 'Enter') return;
@@ -2537,6 +2728,8 @@ function ligarEdicaoEstoque() {
     if (prox) { prox.focus(); prox.select(); }
   });
   sec.addEventListener('click', ev => {
+    const er = ev.target.closest('[data-rem-editar]');
+    if (er) { ev.preventDefault(); return edAbrirRemessaExistente(er.dataset.remEditar); }
     const c = ev.target.closest('[data-ed-cancelar]'), s = ev.target.closest('[data-ed-salvar]');
     if (s) return edSalvar(s.dataset.edSalvar);
     if (c) {
@@ -2750,7 +2943,16 @@ function renderEstInventario() {
   requestAnimationFrame(syncScrollTopo);
 }
 
-// ------------------------------------------------------------ FIXADORES CRÍTICOS (consumo JOIST premontagem)
+// ------------------------------------------------------------ MATERIAIS CRÍTICOS (PREMONTAGEM / JOIST)
+function ultimoInventarioFisicoItem(m) {
+  const invs = m && m.inventarios_fisicos ? Object.entries(m.inventarios_fisicos) : [];
+  const validos = invs.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '' && !Number.isNaN(Number(v)));
+  validos.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  if (!validos.length) return null;
+  const [data, valor] = validos[validos.length - 1];
+  return { data, valor: Number(valor) };
+}
+
 function renderEstCriticos() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstCriticos);
@@ -2767,45 +2969,97 @@ function renderEstCriticos() {
   }
   const totalJoists = prodServico('PREMONTAGEM', null, '2000-01-01', '2099-12-31');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const inv = inventarioCalculado(regras);
+  const invPorTag = new Map(inv.map(m => [ganNorm(m.tag), m]));
+  const remPorTag = new Map(estRemessasComCadastros().itens.map(r => [ganNorm(r.tag), r]));
+  const fisPorTag = new Map(EP.consumo_fisico.itens.map(c => [ganNorm(c.tag), c]));
+
   const itensBase = premont.itens.map(item => {
-    const teorico = Math.ceil(item.por_unidade * totalJoists);
-    const remItem = estRemessasComCadastros().itens.find(r => r.tag === item.codigo);
-    const recebido = remItem ? remItem.total_recebido : 0;
-    const regFisico = EP.consumo_fisico.itens.find(c => c.tag === item.codigo);
-    const consumoFisico = regFisico ? regFisico.total_consumo : null;
-    const desvio = regFisico ? consumoFisico - teorico : null;
-    const saldo = recebido - teorico;
-    const cobertura = totalJoists > 0 ? recebido / (item.por_unidade * totalJoists) * 100 : 100;
-    const status = saldo >= 0 ? 'OK' : (recebido === 0 ? 'SEM ESTOQUE' : 'INSUFICIENTE');
-    const nivel = saldo >= 0 ? 'verde' : (recebido === 0 ? 'vermelho' : 'amarelo');
-    return { ...item, teorico, recebido, consumoFisico, desvio, saldo, cobertura, status, nivel };
+    const tag = ganNorm(item.codigo);
+    const porUnidade = Number(item.por_unidade) || 0;
+    const teorico = Math.ceil(porUnidade * totalJoists);
+    const remItem = remPorTag.get(tag);
+    const invItem = invPorTag.get(tag);
+    const regFisico = fisPorTag.get(tag);
+    const inventarioReal = ultimoInventarioFisicoItem(invItem);
+    const recebido = remItem ? Number(remItem.total_recebido) || 0 : 0;
+    const consumoFisico = regFisico ? Number(regFisico.total_consumo) || 0 : (invItem ? Number(invItem.consumo_fisico) || 0 : 0);
+    const consumoVirtual = invItem ? Number(invItem.consumo_virtual) || 0 : teorico;
+    const saldoVirtual = invItem ? Number(invItem.estoque_virtual_atual) || 0 : recebido - consumoVirtual;
+    const estoqueFisicoCalculado = invItem ? Number(invItem.estoque_fisico) || 0 : recebido - consumoFisico;
+    const saldoReal = inventarioReal ? inventarioReal.valor : estoqueFisicoCalculado;
+    const capVirtual = porUnidade > 0 ? Math.floor(Math.max(0, saldoVirtual) / porUnidade) : 0;
+    const capReal = porUnidade > 0 ? Math.floor(Math.max(0, saldoReal) / porUnidade) : 0;
+    const capacidade = Math.min(capVirtual, capReal);
+    const coberturaVirtual = teorico > 0 ? (recebido / teorico) * 100 : 100;
+    let status = 'OK', nivel = 'verde';
+    if (porUnidade <= 0) { status = 'SEM REGRA'; nivel = 'pendente'; }
+    else if (capacidade <= 0 || saldoReal < porUnidade || saldoVirtual < porUnidade) { status = 'CRÍTICO'; nivel = 'vermelho'; }
+    else if (capacidade <= 25 || saldoReal < porUnidade * 25 || saldoVirtual < porUnidade * 25) { status = 'ATENÇÃO'; nivel = 'amarelo'; }
+    return { ...item, porUnidade, teorico, recebido, consumoVirtual, consumoFisico, saldoVirtual, saldoReal, inventarioReal,
+      capVirtual, capReal, capacidade, coberturaVirtual, status, nivel };
   });
+
   const codRegras = new Set(itensBase.map(i => ganNorm(i.codigo)));
   const fixadoresManuais = (T?.materiais || []).filter(ehFixadorCadastro).filter(m => m.codigo && !codRegras.has(ganNorm(m.codigo))).map(m => {
-    const remItem = estRemessasComCadastros().itens.find(r => ganNorm(r.tag) === ganNorm(m.codigo));
-    const recebido = remItem ? remItem.total_recebido : 0;
-    return { codigo: m.codigo, descricao: m.material || m.codigo, por_unidade: 0, teorico: 0, recebido, consumoFisico: null, desvio: null, saldo: recebido, cobertura: recebido > 0 ? 100 : 0, status: recebido > 0 ? 'CADASTRADO / COM ESTOQUE' : 'CADASTRADO', nivel: recebido > 0 ? 'verde' : 'pendente' };
+    const tag = ganNorm(m.codigo);
+    const remItem = remPorTag.get(tag);
+    const invItem = invPorTag.get(tag);
+    const inventarioReal = ultimoInventarioFisicoItem(invItem);
+    const recebido = remItem ? Number(remItem.total_recebido) || 0 : 0;
+    const saldoVirtual = invItem ? Number(invItem.estoque_virtual_atual) || 0 : recebido;
+    const saldoReal = inventarioReal ? inventarioReal.valor : (invItem ? Number(invItem.estoque_fisico) || 0 : recebido);
+    return { codigo: m.codigo, descricao: m.material || m.codigo, porUnidade: 0, teorico: 0, recebido, consumoVirtual: 0, consumoFisico: invItem ? invItem.consumo_fisico : 0,
+      saldoVirtual, saldoReal, inventarioReal, capVirtual: 0, capReal: 0, capacidade: 0, coberturaVirtual: recebido > 0 ? 100 : 0,
+      status: recebido > 0 ? 'CADASTRADO / COM ESTOQUE' : 'CADASTRADO', nivel: recebido > 0 ? 'verde' : 'pendente' };
   });
   const itens = itensBase.concat(fixadoresManuais);
-  const criticos = itens.filter(i => i.nivel === 'vermelho').length;
-  const insuf = itens.filter(i => i.nivel === 'amarelo').length;
-  const ok = itens.filter(i => i.nivel === 'verde').length;
+  const gargalos = itensBase.filter(i => i.porUnidade > 0).sort((a, b) =>
+    (a.capacidade - b.capacidade) || (a.saldoReal - b.saldoReal) || (a.saldoVirtual - b.saldoVirtual));
+  const gargalo = gargalos[0];
+  const criticos = itensBase.filter(i => i.nivel === 'vermelho').length;
+  const atencao = itensBase.filter(i => i.nivel === 'amarelo').length;
+  const ok = itensBase.filter(i => i.nivel === 'verde').length;
+  const possivel = gargalo ? gargalo.capacidade : 0;
   document.getElementById('estCritTiles').innerHTML =
     tile('Joists produzidas', nf(totalJoists), 'PREMONTAGEM acumulado', 'var(--acento)') +
-    tile('Sem estoque', criticos, 'nenhuma peca recebida', 'var(--vermelho)') +
-    tile('Insuficientes', insuf, 'recebido < consumo teorico', 'var(--amarelo)') +
-    tile('OK', ok, 'estoque atende', 'var(--verde)');
-  const sorted = [...itens].sort((a, b) => a.saldo - b.saldo);
-  document.getElementById('tabEstCrit').innerHTML =
-    `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Consumo teorico</th><th class="n">Recebido (remessas)</th><th class="n">Retirado (fisico)</th><th class="n">Retirado − teorico</th><th class="n">Saldo</th><th class="n">Cobertura</th><th>Status</th></tr></thead><tbody>` +
-    sorted.map(i => `<tr>
+    tile('Posso produzir', nf(possivel), gargalo ? `limitado por ${esc(gargalo.codigo)}` : 'sem regra de material', possivel > 25 ? 'var(--verde)' : (possivel > 0 ? 'var(--amarelo)' : 'var(--vermelho)')) +
+    tile('Item mais crítico', gargalo ? esc(gargalo.codigo) : '—', gargalo ? `real ${nf(gargalo.saldoReal)} · virtual ${nf(gargalo.saldoVirtual)}` : 'sem dados', gargalo && gargalo.nivel === 'verde' ? 'var(--verde)' : 'var(--vermelho)') +
+    tile('Alertas', criticos + atencao, `${criticos} críticos · ${atencao} atenção · ${ok} OK`, criticos ? 'var(--vermelho)' : (atencao ? 'var(--amarelo)' : 'var(--verde)'));
+
+  const termoCrit = ganNorm(document.getElementById('estCritFiltro')?.value || '');
+  const filtrados = termoCrit ? itens.filter(i => ganNorm(`${i.codigo || ''} ${i.descricao || ''} ${i.status || ''}`).includes(termoCrit)) : itens;
+  const ordenarCrit = lista => [...lista].sort((a, b) =>
+    (a.capacidade - b.capacidade) || (a.saldoReal - b.saldoReal) || String(a.codigo).localeCompare(String(b.codigo)));
+  const premFiltrados = ordenarCrit(filtrados.filter(i => i.porUnidade > 0));
+  const fixFiltrados = ordenarCrit(filtrados.filter(i => !(i.porUnidade > 0)));
+  const sorted = [...premFiltrados, ...fixFiltrados];
+  const tabCrit = document.getElementById('tabEstCrit');
+  const wrapCrit = tabCrit?.closest('.tabela-rolagem');
+  if (wrapCrit && !document.getElementById('estCritFiltro')) {
+    const filtro = document.createElement('div');
+    filtro.className = 'filtros';
+    filtro.innerHTML = '<label>Filtrar materiais críticos <input id="estCritFiltro" type="search" placeholder="código, descrição ou status"></label>';
+    wrapCrit.parentNode.insertBefore(filtro, wrapCrit);
+    filtro.querySelector('input').addEventListener('input', renderEstCriticos);
+  }
+  const linhaCrit = i => `<tr>
       <td><b>${esc(i.codigo)}</b></td><td>${esc(i.descricao)}</td>
-      <td class="n">${nf(i.por_unidade)}</td><td class="n">${nf(i.teorico)}</td>
-      <td class="n">${nf(i.recebido)}</td><td class="n">${i.desvio == null ? '—' : nf(i.consumoFisico)}</td>
-      <td class="n ${i.desvio != null && i.desvio > i.teorico * 0.02 ? 'valor-neg' : ''}">${i.desvio == null ? '—' : (i.desvio > 0 ? '+' : '') + nf(i.desvio)}</td>
-      <td class="n ${i.saldo < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldo)}</b></td>
-      <td class="n">${nf(i.cobertura, 1)}%</td>
-      <td><span class="farol f-${i.nivel}">${i.status}</span></td></tr>`).join('') + '</tbody>';
+      <td class="n">${i.porUnidade ? nf(i.porUnidade, 2) : '—'}</td>
+      <td class="n">${nf(i.recebido)}</td>
+      <td class="n">${i.teorico ? `<b>${nf(i.consumoVirtual)}</b><br><span class="nota">teórico premontagem ${nf(i.teorico)}</span>` : '—'}</td>
+      <td class="n ${i.saldoVirtual < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldoVirtual)}</b></td>
+      <td class="n ${i.saldoReal < 0 ? 'valor-neg' : ''}"><b>${nf(i.saldoReal)}</b>${i.inventarioReal ? `<br><span class="nota">inventário ${esc(i.inventarioReal.data)}</span>` : `<br><span class="nota">recebido - baixa física</span>`}</td>
+      <td class="n">${i.porUnidade ? nf(i.capVirtual) : '—'}</td>
+      <td class="n">${i.porUnidade ? nf(i.capReal) : '—'}</td>
+      <td class="n"><b>${i.porUnidade ? nf(i.capacidade) : '—'}</b></td>
+      <td><span class="farol f-${i.nivel}">${esc(i.status)}</span></td></tr>`;
+  let corpoCrit = '';
+  if (premFiltrados.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Itens de premontagem vinculados ao JOIST</b></td></tr>` + premFiltrados.map(linhaCrit).join('');
+  if (fixFiltrados.length) corpoCrit += `<tr class="grupo-item"><td colspan="11"><b>Fixadores / itens cadastrados fora da regra de premontagem</b></td></tr>` + fixFiltrados.map(linhaCrit).join('');
+  document.getElementById('tabEstCrit').innerHTML =
+    `<thead><tr><th>Codigo</th><th>Descricao</th><th class="n">Por joist</th><th class="n">Recebido</th><th class="n">Consumo virtual</th><th class="n">Saldo virtual</th><th class="n">Estoque real</th><th class="n">Cap. virtual</th><th class="n">Cap. real</th><th class="n">Posso produzir</th><th>Status</th></tr></thead><tbody>` +
+    (corpoCrit || '<tr><td colspan="11" class="vazio">Nenhum material encontrado para o filtro.</td></tr>') + '</tbody>';
 }
 
 // ------------------------------------------------------------ APONTAMENTO DE MONTAGEM
@@ -3011,7 +3265,7 @@ function apFormHtml(regras, ctx) {
   } else if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
       <p class="nota">Escolha a empresa na barra do topo e clique nos retângulos (joists) e nos quadrados (vigas) do mapa; dá para arrastar o mouse sobre várias joists. Cada peça fica com a empresa escolhida no momento do clique; dá para alternar entre EJ e CMM no mesmo salvamento.</p><div class="ap-linha">${rodape}</div>`;
-} else {
+  } else {
     h += `<div class="ap-linha">${data}
       <label class="rot-sel">Eixo <select id="apEixo">${ctx.cfg.eixos.map(x => `<option ${x === s.eixo ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
       <p class="nota">Marque as vigas montadas neste eixo (a empresa é a da barra do topo). Cada viga só pode ser apontada uma vez; o kit de fixadores vem do tipo.</p>
@@ -3721,7 +3975,7 @@ function ratear(lista) {
     const eq = ganNorm(u.equipamento);
     const uso = ganNorm(u.uso);
     const ehAbastecimento = uso.includes('ABASTECIMENTO') || (u.litros || 0) > 0 || (u.custo_combustivel || 0) > 0;
-    const equipDivideAbast = ehAbastecimento && (eq.includes('MUNCK') || eq.includes('SKYJACK'));
+    const equipDivideAbast = ehAbastecimento && (eq === 'MUNCK AGTC' || eq.includes('SKYJACK'));
     if (equipDivideAbast && emps.length <= 1) emps = ['EJ', 'CMM'];
     const partes = emps.length ? emps : ['NÃO INFORMADA'];
     partes.forEach(emp => out.push({
@@ -3905,11 +4159,17 @@ const bmEmpresas = () => [...new Set(bmTab('bm_atividades').map(a => a.empresa))
 const bmChave = (emp, cod, d) => `${emp}|${cod}|${d}`;
 const bmTile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
 const bmNormUn = u => String(u || '').trim().toUpperCase().replace('²', '2').replace('³', '3');
-const bmUnProducao = a => a.controle ? 'und' : (a.unidade || '');
+function bmAtividadeUsaBaseFinanceira(a) {
+  const un = bmNormUn(a?.unidade || '');
+  const txt = ganNorm(`${a?.item_desc || ''} ${a?.atividade || ''} ${a?.controle || ''}`);
+  const alvo = txt.includes('COBERTURA') || txt.includes('TELHA') || txt.includes('TELHAR') || txt.includes('FACEFELT') || txt.includes('FECHAMENTO LATERAL');
+  return alvo && (un === 'M2' || un === 'M²' || un === 'M2');
+}
+const bmUnProducao = a => a.controle && !bmAtividadeUsaBaseFinanceira(a) ? 'und' : (a.unidade || '');
 const bmUnFinanceira = a => a.unidade || '';
-const BM_GLOBO_TELHA_M2_POR_UND = 88.88;
+const BM_GLOBO_TELHA_M2_POR_UND = GLOBO_M2_POR_UN;
 const BM_GLOBO_TELHA_COMP = 177.32;
-const BM_GLOBO_TELHA_LARG_UTIL = 0.487;
+const BM_GLOBO_TELHA_LARG_UTIL = 0.475;
 function bmEhGloboTelha(a) {
   const emp = ganNorm(a.empresa), txt = ganNorm(`${a.item_desc || ''} ${a.atividade || ''} ${a.controle || ''}`);
   return emp === 'GLOBO ACOS' && (txt.includes('TELHA') || txt.includes('FECHAMENTO'));
@@ -3921,6 +4181,7 @@ function bmFatorManual(a) {
 }
 function bmFatorControle(a) {
   if (!a.controle) return 1;
+  if (bmAtividadeUsaBaseFinanceira(a)) return 1;
   const manual = bmFatorManual(a);
   if (manual) return manual;
   const un = bmNormUn(a.unidade);
@@ -3943,7 +4204,7 @@ function bmQtdProducaoBruta(a, ini, fim) {
   return t;
 }
 function bmQtdContratadaUnd(a) {
-  if (!a.controle) return null;
+  if (!a.controle || bmAtividadeUsaBaseFinanceira(a)) return null;
   const fator = bmFatorControle(a);
   return fator ? (Number(a.qtd) || 0) / fator : null;
 }
@@ -3954,6 +4215,7 @@ function bmFmtQtdFinanceira(a, valor, undValor = null) {
 }
 function bmLegendaUnidade(a) {
   if (!a.controle) return esc(a.unidade || '');
+  if (bmAtividadeUsaBaseFinanceira(a)) return `${esc(a.unidade || '')} <span class="nota" title="Cobertura/telhas e fechamento lateral usam a própria quantidade e unidade financeira do catálogo de atividades.">catálogo</span>`;
   const fator = bmFatorControle(a);
   const fin = bmUnFinanceira(a) || 'und';
   return `${esc(fin)} <span class="nota" title="O apontamento produtivo fica em und; o BM/financeiro converte para ${esc(fin)}. Globo Aços/Telha: ${BM_GLOBO_TELHA_COMP} × ${BM_GLOBO_TELHA_LARG_UTIL} por unidade, adotando ${BM_GLOBO_TELHA_M2_POR_UND} m²/und conforme regra da obra.">(${esc(bmUnProducao(a))} × ${nf(fator, 2)})</span>`;
@@ -4011,7 +4273,7 @@ function bmPeriodos(emp) {
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((a, b) => a.corte.localeCompare(b.corte));
   const lista = [];
   let ant = null;
-ps.forEach((p, i) => {
+  ps.forEach((p, i) => {
     const n = p.bm || i + 1, fech = bmFech(emp, n);
     lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, cortado: true, fechado: !!fech, fech,
       rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
@@ -4374,7 +4636,7 @@ function renderBMCatalogo(box) {
     h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">RÓTULA ${rs(it.valor['RÓTULA'])}</td>
       <td colspan="3">${it.pesosAjustados ? `<span class="farol f-amarelo">pesos somam ${nf(it.somaPesos * 100, 1)}%</span>` : ''}</td></tr>`;
     it.ats.forEach(x => h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${bmLegendaUnidade(x.a)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
-      <td>${esc(x.a.controle || '')}</td><td>${x.a.controle ? `1 ${esc(bmUnProducao(x.a))} = ${nf(bmFatorControle(x.a), 2)} ${esc(bmUnFinanceira(x.a) || '')}` : '—'}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`);
+      <td>${esc(x.a.controle || '')}</td><td>${x.a.controle ? (bmAtividadeUsaBaseFinanceira(x.a) ? `produção = catálogo (${esc(bmUnFinanceira(x.a) || '')})` : `1 ${esc(bmUnProducao(x.a))} = ${nf(bmFatorControle(x.a), 2)} ${esc(bmUnFinanceira(x.a) || '')}`) : '—'}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`);
   });
   box.innerHTML = h + '</tbody></table></div></div>';
 }
@@ -4440,7 +4702,8 @@ function renderLancServico(e) {
       const semanaUnd = ctl ? soma(e, ctl, s, add(s, 6)) : null;
       const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? ' <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>' : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      const baseFin = bmAtividadeUsaBaseFinanceira(a);
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ' <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>') : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
@@ -4468,7 +4731,7 @@ const FORMS = {
     ['data', 'Data', 'date', 1], ['codigo', 'Material', 'material', 1], ['tipo', 'Tipo', 'select:ENTRADA,SAÍDA,AJUSTE', 1],
     ['quantidade', 'Quantidade (ajuste aceita negativo)', 'num', 1], ['documento', 'Documento (NF / romaneio)', 'text'], ['empresa', 'Empresa', 'empresa'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
-  dp_efetivo: { tit: 'efetivo DP', campos: [
+  dp_efetivo: { tit: 'função / efetivo de pessoal', campos: [
     ['data', 'Data', 'date', 1], ['empresa', 'Empresa', 'empresa', 1], ['funcao', 'Função', 'text', 1],
     ['quantidade', 'Quantidade de pessoas', 'num', 1], ['obs', 'Observação', 'text', 0, 'largo']] },
   equipamentos: { tit: 'equipamento', campos: [
@@ -4659,24 +4922,106 @@ function periodoImpacto(i) {
   const fim = i.solucionado && ehISO(i.solucionado) ? i.solucionado : ref;
   return { ini, fim: fim < ini ? ini : fim };
 }
-async function baixarHtml(nome, html) {
-  const dados=new URLSearchParams({html, nome, csrf:window.CSRF_TOKEN||''});
-  const resp=await fetch('pdf_html.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:dados});
-  if(!resp.ok) throw new Error('Não foi possível gerar o PDF ('+resp.status+')');
-  const blob=await resp.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a');
-  a.href=url; a.download=nome.replace(/\\.html?$/i,'.pdf'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+function dataRemessaIso(v) {
+  const t = String(v || '').trim();
+  if (!t) return null;
+  if (ehISO(t)) return t;
+  return brParaIso(t);
+}
+function remessasAtrasadas() {
+  const rem = estRemessasComCadastros ? estRemessasComCadastros() : (EP?.remessas || {});
+  const datas = rem?.datas || {};
+  return Object.entries(datas).map(([nome, dt]) => {
+    const prevista = dataRemessaIso(dt?.prevista_chegada);
+    const chegada = dataRemessaIso(dt?.chegada_obra);
+    if (!prevista || !chegada || chegada <= prevista) return null;
+    const dias = diasEntre(prevista, chegada);
+    const horas = dias * 24;
+    const itens = (rem.itens || []).map(it => ({ tag: it.tag, material: it.material || it.produto || it.tag, qtd: Number((it.qtd_por_remessa || {})[nome] || 0) })).filter(x => x.qtd > 0);
+    const qtdTotal = soma0(itens, x => x.qtd);
+    return { nome, prevista, chegada, dias, horas, qtdTotal, itens };
+  }).filter(Boolean).sort((a,b)=>String(b.chegada).localeCompare(String(a.chegada)) || String(a.nome).localeCompare(String(b.nome)));
+}
+function impactoDeRemessa(r) {
+  const materiais = r.itens.slice(0, 5).map(i => `${i.tag} ${nf(i.qtd)}`).join(', ');
+  return { _autoRemessa: true, linha: `REM-${r.nome}`, data: r.prevista, servico: 'SUPRIMENTOS', empresas: '', motivo: `Remessa ${r.nome} chegou ${r.dias} dia(s) após a data prevista`, tempo: `${r.horas}h (${r.dias} dia(s))`, quando: r.chegada, paralisacao: materiais ? `Materiais: ${materiais}${r.itens.length > 5 ? '...' : ''}` : 'Remessa com chegada real posterior à prevista', solucionado: r.chegada, _remessa: r };
+}
+function impactosComAutomaticos() {
+  return [...(M.impactos || []), ...remessasAtrasadas().map(impactoDeRemessa)];
+}
+function efetivoEmpresaDia(emp, data) {
+  const e = normEmp(emp);
+  const regs = (T.dp_efetivo || []).filter(r => normEmp(r.empresa) === e && r.data === data);
+  return { total: soma0(regs, r => r.quantidade || 0), regs };
+}
+function efetivoImpactoTexto(i) {
+  const xs = impactoEmpresas(i);
+  if (!xs.length || !ehISO(i.data)) return '—';
+  return xs.map(emp => {
+    const ef = efetivoEmpresaDia(emp, i.data);
+    return `${emp}: ${nf(ef.total,0)}`;
+  }).join(' / ');
+}
+function baixarHtml(nome, html) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
+    window.navigator.msSaveOrOpenBlob(blob, nome);
+    return true;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+function preencherEmpresasRelImpacto() {
+  const sel = $('#relImpEmpresas');
+  if (!sel) return;
+  const nomes = [...new Set((M.empresas || []).map(e => e.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = nomes.map(nome => `<option value="${esc(nome)}" selected>${esc(nome)}</option>`).join('');
 }
 function abrirRelImpacto() {
-  const ini0=per?.ini||ref||hoje(), fim0=per?.fim||ref||hoje(), empresas=[...new Set((M.empresas||[]).map(e=>e.nome).filter(Boolean))];
-  const box=document.createElement('div'); box.className='rel-modal-backdrop'; if(!document.getElementById('relModalCss')){const st=document.createElement('style');st.id='relModalCss';st.textContent='.rel-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:9999}.rel-modal{width:min(560px,calc(100vw - 32px));background:#211d2d;color:#f8fafc;border:1px solid #4b4561;border-radius:12px;padding:24px;box-shadow:0 20px 60px #000;font-family:inherit}.rel-modal h2{margin:0 0 8px;color:#fff}.rel-modal label{display:block;margin:14px 0 6px;color:#d7d2e5;font-size:13px}.rel-modal input,.rel-modal select{width:100%;box-sizing:border-box;margin-top:6px;background:#0f0d15;color:#fff;border:1px solid #5b536f;border-radius:6px;padding:10px}.rel-modal select{min-height:130px}.rel-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rel-check{display:flex!important;align-items:center;gap:8px}.rel-check input{width:auto!important;margin:0}.rel-acoes{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}';document.head.appendChild(st)}
-  box.innerHTML=`<div class="rel-modal"><h2>Relatório de impactos</h2><p class="nota">Defina período, empresas e filtros do relatório.</p><div class="rel-grid"><label>Data inicial<input type="date" id="relIni" value="${ini0}"></label><label>Data final<input type="date" id="relFim" value="${fim0}"></label></div><label>Empresas<select id="relEmp" multiple size="6">${empresas.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('')}</select></label><label><input type="checkbox" id="relTodos" checked> Todas as empresas</label><div class="rel-acoes"><button class="btn" data-rel-cancelar>Cancelar</button><button class="btn primario" data-rel-gerar>Gerar relatório</button></div></div>`;
-  document.body.appendChild(box); const todos=box.querySelector('#relTodos'), sel=box.querySelector('#relEmp'); todos.onchange=()=>sel.disabled=todos.checked; sel.disabled=true;
-  box.querySelector('[data-rel-cancelar]').onclick=()=>box.remove();
-  box.querySelector('[data-rel-gerar]').onclick=()=>{const ini=box.querySelector('#relIni').value,fim=box.querySelector('#relFim').value;if(!ehISO(ini)||!ehISO(fim)||fim<ini)return toast('Informe um período válido.',true);const emp=todos.checked?[]:[...sel.selectedOptions].map(o=>o.value);box.remove();baixarRelImpacto(ini,fim,emp);};
+  const pop = $('#modalRelImp');
+  if (!pop) return baixarRelImpacto(per?.ini || ref, per?.fim || ref, []);
+  $('#relImpIni').value = per?.ini || ref;
+  $('#relImpFim').value = per?.fim || ref;
+  preencherEmpresasRelImpacto();
+  pop.hidden = false;
+  document.body.classList.add('modal-aberto');
+  setTimeout(() => $('#relImpIni')?.focus(), 50);
+}
+function fecharRelImpactoPopup() {
+  const pop = $('#modalRelImp');
+  if (pop) pop.hidden = true;
+  document.body.classList.remove('modal-aberto');
+}
+function gerarRelImpactoPopup() {
+  const ini = $('#relImpIni')?.value || per?.ini || ref;
+  const fim = $('#relImpFim')?.value || per?.fim || ref;
+  if (!ehISO(ini) || !ehISO(fim) || fim < ini) return toast('Informe um período válido para o relatório.', true);
+  const sel = $('#relImpEmpresas');
+  const selecionadas = sel ? [...sel.selectedOptions].map(o => o.value).filter(Boolean) : [];
+  try {
+    baixarRelImpacto(ini, fim, selecionadas);
+    fecharRelImpactoPopup();
+    toast('Relatório de impactos gerado. Verifique a pasta de downloads.');
+  } catch (err) {
+    console.error('Erro ao gerar relatório de impactos', err);
+    toast(`Erro ao gerar relatório: ${err?.message || err}`, true, 7000);
+  }
 }
 function baixarRelImpacto(ini, fim, empFiltro = []) {
-  const empsRel = empFiltro.length ? empFiltro : [...new Set(M.empresas.map(e => e.nome))];
-  const imp = M.impactos.filter(i => {
+  const modelo = M || { empresas: [], metas: [], impactos: [] };
+  const tabelas = T || {};
+  const empsBase = [...new Set((modelo.empresas || []).map(e => e.nome).filter(Boolean))];
+  const empsRel = empFiltro.length ? empFiltro : empsBase;
+  const imp = impactosComAutomaticos().filter(i => {
     const p = periodoImpacto(i), xs = impactoEmpresas(i);
     const cruza = p.ini <= fim && p.fim >= ini;
     const empOk = !empFiltro.length || !xs.length || xs.some(e => empFiltro.includes(e));
@@ -4686,42 +5031,124 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const prodRows = [];
   empsRel.forEach(emp => servicos.forEach(serv => {
     const real = prodServico(serv, emp, ini, fim);
-    const metas = M.metas.filter(m => m.empresa === emp && m.servico === serv && m.fim >= ini && m.inicio <= fim);
-    const previsto = soma0(metas, m => metaNoPeriodo(m, ini, fim));
+    const metas = (modelo.metas || []).filter(m => m.empresa === emp && m.servico === serv && m.fim >= ini && m.inicio <= fim);
+    const previsto = soma0(metas, m => prevMeta(m, ini, fim));
     if (real || previsto) prodRows.push({ emp, serv, real, previsto, pct: previsto ? real / previsto * 100 : null });
   }));
-  const usos = ratear((T.usos || []).filter(u => u.data && u.data >= ini && u.data <= fim)).filter(r => empsRel.includes(r.empAjust));
-  const dp = (T.dp_efetivo || []).filter(d => d.data && d.data >= ini && d.data <= fim && empsRel.includes(normEmp(d.empresa)));
+  const usos = ratear((tabelas.usos || []).filter(u => u.data && u.data >= ini && u.data <= fim)).filter(r => empsRel.includes(r.empAjust));
+  const dp = (tabelas.dp_efetivo || []).filter(d => d.data && d.data >= ini && d.data <= fim && empsRel.includes(normEmp(d.empresa)));
   const css = `<style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.sub{color:#555}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.val{font-size:18px;font-weight:700}.no-print{margin-bottom:12px}@media print{.no-print{display:none}body{margin:12mm}}</style>`;
   const totalEquip = soma0(usos, u => (u.custoR || 0) + (u.combR || 0));
   const totalPessoasDia = soma0(dp, d => d.quantidade || 0);
-  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${esc(i.motivo)}</td><td>${esc(i.tempo || '')}</td><td>${esc(i.paralisacao || '')}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="7">Sem impactos no período.</td></tr>';
+  const remAtr = remessasAtrasadas().filter(r => r.chegada >= ini && r.chegada <= fim);
+  const totalHorasRem = soma0(remAtr, r => r.horas);
+  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${esc(i.motivo)}</td><td>${esc(i.tempo || '')}</td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="8">Sem impactos no período.</td></tr>';
+  const rowsRemAtr = remAtr.map(r => `<tr><td>${esc(r.nome)}</td><td>${fdA(r.prevista)}</td><td>${fdA(r.chegada)}</td><td class="n">${nf(r.dias,0)}</td><td class="n">${nf(r.horas,0)}h</td><td class="n">${nf(r.qtdTotal,1)}</td><td>${esc(r.itens.slice(0,8).map(i => i.tag + ' (' + nf(i.qtd,1) + ')').join(', '))}${r.itens.length > 8 ? '...' : ''}</td></tr>`).join('') || '<tr><td colspan="7">Sem remessas em atraso no período.</td></tr>';
   const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}</td><td class="n">${nf(r.real,1)}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
-  const rowsEqDia = usos.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(u => `<tr><td>${fdA(u.data)}</td><td>${esc(u.empAjust)}</td><td>${esc(u.equipamento)}</td><td>${esc(u.uso)}</td><td class="n">${nf(u.quantidade,1)}</td><td class="n">${nf(u.litrosR,1)}</td><td class="n">${rs((u.custoR||0)+(u.combR||0))}</td></tr>`).join('') || '<tr><td colspan="7">Sem uso de equipamentos no período.</td></tr>';
-  const porEqEmp = new Map(); usos.forEach(u => { const k = `${u.empAjust}|${u.equipamento||'NÃO INFORMADO'}`; const o = porEqEmp.get(k) || { emp:u.empAjust, eq:u.equipamento||'NÃO INFORMADO', qtd:0, litros:0, total:0 }; o.qtd += u.quantidade||0; o.litros += u.litrosR||0; o.total += (u.custoR||0)+(u.combR||0); porEqEmp.set(k,o); });
-  const rowsEqTot = [...porEqEmp.values()].map(o => `<tr><td>${esc(o.emp)}</td><td>${esc(o.eq)}</td><td class="n">${nf(o.qtd,1)}</td><td class="n">${nf(o.litros,1)}</td><td class="n">${rs(o.total)}</td></tr>`).join('') || '<tr><td colspan="5">Sem totais de equipamento.</td></tr>';
-  const rowsDP = dp.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(d => `<tr><td>${fdA(d.data)}</td><td>${esc(d.empresa)}</td><td>${esc(d.funcao)}</td><td class="n">${nf(d.quantidade,0)}</td><td>${esc(d.obs||'')}</td></tr>`).join('') || '<tr><td colspan="5">Sem efetivo DP no período.</td></tr>';
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div><h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table><h2>Uso diário de equipamentos das empresas</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Equipamento</th><th>Uso</th><th class="n">Qtd</th><th class="n">Litros</th><th class="n">Custo</th></tr></thead><tbody>${rowsEqDia}</tbody></table><h2>Total de equipamentos no período</h2><table><thead><tr><th>Empresa</th><th>Equipamento</th><th class="n">Qtd</th><th class="n">Litros</th><th class="n">Custo</th></tr></thead><tbody>${rowsEqTot}</tbody></table><h2>DP / efetivo por dia</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Função</th><th class="n">Pessoas</th><th>Obs.</th></tr></thead><tbody>${rowsDP}</tbody></table></body></html>`;
+  const empsEquip = [...new Set(usos.map(u => normEmp(u.empAjust)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const porEq = new Map();
+  usos.forEach(u => {
+    const emp = normEmp(u.empAjust);
+    const eqNome = String(u.equipamento || 'NÃO INFORMADO').trim() || 'NÃO INFORMADO';
+    const eqKey = ganNorm(eqNome);
+    const o = porEq.get(eqKey) || { eq:eqNome.toUpperCase(), porEmp:{}, total:0 };
+    const custo = (u.custoR || 0) + (u.combR || 0);
+    o.porEmp[emp] = (o.porEmp[emp] || 0) + custo;
+    o.total += custo;
+    porEq.set(eqKey, o);
+  });
+  const headEqTot = `<tr><th>Equipamento</th>${empsEquip.map(e => `<th class="n">${esc(e)}</th>`).join('')}<th class="n">Total</th></tr>`;
+  const rowsEqTot = [...porEq.values()].sort((a,b)=>b.total-a.total || a.eq.localeCompare(b.eq)).map(o => `<tr><td>${esc(o.eq)}</td>${empsEquip.map(e => `<td class="n">${rs(o.porEmp[e] || 0)}</td>`).join('')}<td class="n"><b>${rs(o.total)}</b></td></tr>`).join('') || `<tr><td colspan="${empsEquip.length + 2}">Sem totais de equipamento.</td></tr>`;
+  const footEqTot = empsEquip.length ? `<tfoot><tr><th>Total por empresa</th>${empsEquip.map(e => `<th class="n">${rs(soma0([...porEq.values()], o => o.porEmp[e] || 0))}</th>`).join('')}<th class="n">${rs(soma0([...porEq.values()], o => o.total))}</th></tr></tfoot>` : '';
+  const porDpDiaEmp = new Map(); dp.forEach(d => { const emp = normEmp(d.empresa); const k = `${d.data}|${emp}`; const o = porDpDiaEmp.get(k) || { data:d.data, empresa:emp, total:0 }; o.total += d.quantidade || 0; porDpDiaEmp.set(k, o); });
+  const rowsDP = [...porDpDiaEmp.values()].sort((a,b)=>String(a.data).localeCompare(String(b.data)) || String(a.empresa).localeCompare(String(b.empresa))).map(d => `<tr><td>${fdA(d.data)}</td><td>${esc(d.empresa)}</td><td class="n">${nf(d.total,0)}</td></tr>`).join('') || '<tr><td colspan="3">Sem pessoal lançado no período.</td></tr>';
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div><h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Efetivo no dia</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias</th><th class="n">Horas</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(totalHorasRem,0)}h</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table><h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead><tr><th>Data</th><th>Empresa</th><th class="n">Efetivo total</th></tr></thead><tbody>${rowsDP}</tbody></table></body></html>`;
   baixarHtml(`relatorio_impactos_${ini}_${fim}.html`, html);
 }
+function dpEmpresas() {
+  const nomes = new Set((M.empresas || []).map(e => e.nome).filter(Boolean));
+  (T.dp_efetivo || []).forEach(r => { if (r.empresa) nomes.add(normEmp(r.empresa)); });
+  return [...nomes].sort((a,b)=>(COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
+}
+function dpFuncoes(linhas) {
+  return [...new Set(linhas.map(r => String(r.funcao || '').trim().toUpperCase()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+}
+function dpRegistros(emp, data, funcao) {
+  return (T.dp_efetivo || []).filter(r => normEmp(r.empresa) === emp && r.data === data && String(r.funcao || '').trim().toUpperCase() === funcao);
+}
 function renderDP() {
-  const xs = [...(T.dp_efetivo || [])].sort((a,b)=>String(b.data).localeCompare(String(a.data)) || String(a.empresa).localeCompare(String(b.empresa)));
-  $('#tabDP').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Função</th><th class="n">Pessoas</th><th>Obs.</th><th></th></tr></thead><tbody>` +
-    (xs.length ? xs.map(r => `<tr><td>${fdA(r.data)}</td><td>${esc(r.empresa)}</td><td>${esc(r.funcao)}</td><td class="n">${nf(r.quantidade,0)}</td><td>${esc(r.obs||'')}</td><td><button class="link" data-editar-reg="dp_efetivo" data-linha="${r.linha}">Editar / excluir</button></td></tr>`).join('') : '<tr><td colspan="6" class="vazio">Nenhum efetivo lançado. Use + Lançar efetivo.</td></tr>') + '</tbody>';
+  const emps = dpEmpresas();
+  const todas = T.dp_efetivo || [];
+  if (!dpEmpSel || !emps.includes(dpEmpSel)) dpEmpSel = emps[0] || '';
+  const seg = $('#segDpEmp');
+  if (seg) seg.innerHTML = emps.map(n => {
+    const total = soma0(todas.filter(r => normEmp(r.empresa) === n), r => r.quantidade || 0);
+    return `<button data-dp-emp="${esc(n)}" class="${n === dpEmpSel ? 'ativa' : ''}" style="--c:${corEmp(n)}">${esc(n)}${total ? ` <span class="contador">${nf(total,0)}</span>` : ''}</button>`;
+  }).join('');
+  const linhasEmp = todas.filter(r => normEmp(r.empresa) === dpEmpSel && r.data);
+  const funcoes = dpFuncoes(linhasEmp);
+  const datas = datasMes(ref);
+  const totalEmp = soma0(linhasEmp, r => r.quantidade || 0);
+  const dias = datas.length;
+  const resumo = $('#dpResumo'); if (resumo) resumo.textContent = dpEmpSel ? `${dpEmpSel}: ${nf(totalEmp,0)} pessoa(s) lançada(s) · mês ${fdA(inicioMes(ref))} a ${fdA(fimMes(ref))}` : 'Sem empresas cadastradas.';
+  const titulo = $('#dpTitulo'); if (titulo) titulo.innerHTML = dpEmpSel ? `Pessoal — <span class="emp-tag" style="--c:${corEmp(dpEmpSel)}">${esc(dpEmpSel)}</span>` : 'Pessoal';
+  if (!emps.length) { $('#tabDP').innerHTML = '<tbody><tr><td class="vazio">Nenhuma empresa cadastrada para lançar pessoal.</td></tr></tbody>'; return; }
+  if (!funcoes.length) { $('#tabDP').innerHTML = '<tbody><tr><td class="vazio">Nenhuma função cadastrada para esta empresa. Use + Adicionar nova função para criar a primeira coluna.</td></tr></tbody>'; return; }
+  const head = `<thead><tr><th>Dia</th>${funcoes.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total do dia</th><th>Obs. / registros</th></tr></thead>`;
+  const body = datas.length ? datas.map(d => {
+    let totalDia = 0;
+    const obs = [];
+    const cells = funcoes.map(f => {
+      const regs = dpRegistros(dpEmpSel, d, f);
+      const q = soma0(regs, r => r.quantidade || 0);
+      totalDia += q;
+      regs.forEach(r => { if (r.obs) obs.push(r.obs); });
+      return `<td class="n"><input class="dp-qtd" type="text" inputmode="decimal" data-dp-data="${esc(d)}" data-dp-emp="${esc(dpEmpSel)}" data-dp-funcao="${esc(f)}" data-dp-linhas="${esc(regs.map(r => r.linha).join(','))}" value="${q ? esc(String(q).replace('.', ',')) : ''}" placeholder="0"></td>`;
+    }).join('');
+    return `<tr><td><b>${fdA(d)}</b><br><span class="nota">${diaSemana(d)}</span></td>${cells}<td class="n"><b>${nf(totalDia,0)}</b></td><td class="sub">${esc([...new Set(obs)].join(' · '))}</td></tr>`;
+  }).join('') : `<tr><td colspan="${funcoes.length + 3}" class="vazio">Nenhuma função cadastrada para ${esc(dpEmpSel)}. Use + Adicionar nova função.</td></tr>`;
+  $('#tabDP').innerHTML = head + '<tbody>' + body + '</tbody>';
+}
+async function salvarCelulaDP(inp) {
+  const emp = inp.dataset.dpEmp, data = inp.dataset.dpData, funcao = inp.dataset.dpFuncao;
+  let raw = String(inp.value || '').trim();
+  if (raw && raw.includes(',')) raw = raw.replace(/\./g, '').replace(',', '.');
+  const q = raw === '' ? 0 : Number(raw);
+  if (!data || !emp || !funcao || !isFinite(q) || q < 0) { toast('Informe uma quantidade válida de pessoal.', true); renderDP(); return; }
+  const existentes = dpRegistros(emp, data, funcao);
+  try {
+    if (q > 0) {
+      const primeiro = existentes[0];
+      await postar(API + 'registro', { tabela: 'dp_efetivo', linha: primeiro?.linha || null, campos: { data, empresa: emp, funcao, quantidade: q, obs: primeiro?.obs || null } });
+      for (const extra of existentes.slice(1)) await postar(API + 'registro', { tabela: 'dp_efetivo', linha: extra.linha, excluir: true });
+    } else {
+      for (const r of existentes) await postar(API + 'registro', { tabela: 'dp_efetivo', linha: r.linha, excluir: true });
+    }
+    await carregar();
+    toast('Pessoal atualizado');
+  } catch (err) { toast(err.message || 'Erro ao salvar pessoal.', true); renderDP(); }
 }
 
 // ------------------------------------------------------------ IMPACTOS
 function renderImpactos() {
-  const lista = M.impactos.filter(i => filtroImp === 'todos' || !i.solucionado)
+  const todosImpactos = impactosComAutomaticos();
+  const abertos = todosImpactos.filter(i => !i.solucionado).length;
+  const solucionados = todosImpactos.length - abertos;
+  const pctAberto = todosImpactos.length ? Math.round(abertos / todosImpactos.length * 100) : 0;
+  const pctSol = todosImpactos.length ? 100 - pctAberto : 0;
+  const graf = $('#impResumoGraf');
+  if (graf) graf.innerHTML = `<div class="imp-pizza-card"><div class="imp-pizza" style="--aberto:${pctAberto}%"><div class="imp-pizza-miolo"><b>${todosImpactos.length}</b><span>total</span></div></div><div class="imp-pizza-info"><h2>Impactos</h2><p><span class="leg-dot aberto"></span>Em aberto: <b>${abertos}</b> (${pctAberto}%)</p><p><span class="leg-dot sol"></span>Solucionados: <b>${solucionados}</b> (${pctSol}%)</p></div></div>`;
+  const lista = todosImpactos.filter(i => !i.solucionado)
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
   $('#tabImp').innerHTML = `<thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Quando</th><th>Paralisação / efeito</th><th>Situação</th><th></th></tr></thead><tbody>` +
     (lista.length ? lista.map(i => {
       const dias = ehISO(i.data) ? diasEntre(i.data, i.solucionado && ehISO(i.solucionado) ? i.solucionado : ref) : null;
+      const acao = i._autoRemessa ? '<span class="nota">automático</span>' : `${i.solucionado ? '' : `<button class="link" data-resolver="${i.linha}">Solucionar hoje</button> · `}<button class="link" data-editar="${i.linha}">Editar</button>`;
       return `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td class="motivo">${esc(i.motivo)}</td><td>${esc(i.tempo)}</td><td>${ehISO(i.quando) ? fdA(i.quando) : esc(i.quando)}</td>
         <td class="motivo">${esc(i.paralisacao)}</td>
         <td>${i.solucionado ? `<span class="farol f-verde">SOLUCIONADO ${fd(i.solucionado)}</span>` : `<span class="farol f-vermelho">ABERTO${dias != null ? ` · ${dias}d` : ''}</span>`}</td>
-        <td style="white-space:nowrap">${i.solucionado ? '' : `<button class="link" data-resolver="${i.linha}">Solucionar hoje</button> · `}<button class="link" data-editar="${i.linha}">Editar</button></td></tr>`;
-    }).join('') : `<tr><td colspan="9" class="vazio">${filtroImp === 'abertos' ? 'Nenhum impacto em aberto.' : 'Nenhum impacto registrado.'}</td></tr>`) + '</tbody>';
+        <td style="white-space:nowrap">${acao}</td></tr>`;
+    }).join('') : `<tr><td colspan="9" class="vazio">Nenhum impacto em aberto.</td></tr>`) + '</tbody>';
 }
 
 function abrirFormImp(linha) {
@@ -4903,6 +5330,7 @@ function ligarEventos() {
     const novo = ev.target.closest('[data-novo]');
     if (novo) {
       let preset = novo.dataset.novo.startsWith('bm_') && bmEmp ? { empresa: bmEmp } : {};
+      if (novo.dataset.novo === 'dp_efetivo' && dpEmpSel) preset = { ...preset, empresa: dpEmpSel };
       if (novo.dataset.preset) { try { preset = { ...preset, ...JSON.parse(novo.dataset.preset) }; } catch { } }
       abrirDialogo(novo.dataset.novo, null, preset);
     }
@@ -5055,7 +5483,7 @@ function ligarEventos() {
     ev.preventDefault();
     const todos = [...tab.querySelectorAll(`input[data-d="${inp.dataset.d}"]:not(:disabled)`)];
     const prox = todos[todos.indexOf(inp) + passo];
-if (prox) { prox.focus(); prox.select(); }
+    if (prox) { prox.focus(); prox.select(); }
   });
   $('#aba-bm').addEventListener('click', ev => {
     const emp = ev.target.closest('[data-bm-emp]'); if (emp) { bmEmp = emp.dataset.bmEmp; bmPerSel = null; return renderBM(); }
@@ -5143,7 +5571,8 @@ if (prox) { prox.focus(); prox.select(); }
   });
   $('#btnSalvarPlano').onclick = salvarPlanoAcao;
 
-  $('#filtroImp').addEventListener('click', ev => {
+  const filtroImpEl = $('#filtroImp');
+  if (filtroImpEl) filtroImpEl.addEventListener('click', ev => {
     const b = ev.target.closest('button[data-f]'); if (!b) return;
     filtroImp = b.dataset.f;
     document.querySelectorAll('#filtroImp button').forEach(x => x.classList.toggle('ativa', x === b));
@@ -5151,7 +5580,15 @@ if (prox) { prox.focus(); prox.select(); }
   });
   $('#btnNovoImp').onclick = () => abrirFormImp(null);
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
+  const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
+  const modalRelImp = $('#modalRelImp'); if (modalRelImp) modalRelImp.querySelectorAll('[data-fechar-rel-imp]').forEach(x => x.addEventListener('click', fecharRelImpactoPopup));
   $('#btnCancelarImp').onclick = () => $('#formImp').hidden = true;
+  const segDpEmp = $('#segDpEmp'); if (segDpEmp) segDpEmp.addEventListener('click', ev => { const b = ev.target.closest('button[data-dp-emp]'); if (b) { dpEmpSel = b.dataset.dpEmp; renderDP(); } });
+  const tabDP = $('#tabDP'); if (tabDP) {
+    tabDP.addEventListener('change', ev => { if (ev.target.matches('.dp-qtd')) salvarCelulaDP(ev.target); });
+    tabDP.addEventListener('keydown', ev => { if (ev.target.matches('.dp-qtd') && ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
+    tabDP.addEventListener('focusin', ev => { if (ev.target.matches('.dp-qtd')) ev.target.select(); });
+  }
   $('#tabImp').addEventListener('click', async ev => {
     const ed = ev.target.closest('[data-editar]');
     if (ed) abrirFormImp(+ed.dataset.editar);
@@ -5242,6 +5679,17 @@ if (prox) { prox.focus(); prox.select(); }
   const app=document.querySelector('#app,.conteudo,main'); if(app) obs.observe(app,{childList:true,subtree:true});
   setTimeout(()=>obs.disconnect(),5000);
 })();
+
+
+
+
+
+
+
+
+
+
+
 
 
 
