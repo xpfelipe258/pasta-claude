@@ -125,6 +125,7 @@ try {
         'machine-token/revogar' => 'acao_revogar_machine_token',
         'popular-qtd-cliente' => 'acao_popular_qtd_cliente',
         'popular-fase2-servicos' => 'acao_popular_fase2_servicos',
+        'popular-cliente-fase2' => 'acao_popular_cliente_fase2',
         'criar-meta' => 'acao_criar_meta',
     ];
     if (!isset($acoes[$rota])) {
@@ -1445,6 +1446,62 @@ function acao_popular_fase2_servicos(array $corpo, array $usuario)
             [$obraId, $s['empresa_id'], $novaCol, $s['nome'], 'GALPÃO F2',
              $s['id_crono'], $escopo, ($s['ordem'] ?? 0) + 0.5]
         );
+        $criados++;
+    }
+    return ['criados' => $criados];
+}
+
+// Cria linhas de planejamento F2 na tabela cliente, espelhando os serviços GALPÃO F1.
+// Usa quantitativos IFC F2 onde conhecidos (eixos 01-10, 10 ruas); copia prazo/inicio_plan de F1.
+function acao_popular_cliente_fase2(array $corpo, array $usuario)
+{
+    $obraId = obra_atual_id();
+    $pdo = bd();
+
+    // Quantitativos IFC para GALPÃO F2 (eixos 01-10, 10 ruas × 43 joists/rua = 430; 13 vigas/rua = 130)
+    $qtdF2 = ['IÇAMENTO JOIST' => 430, 'VIGAS' => 130];
+
+    $linhasF1 = $pdo->prepare(
+        "SELECT * FROM cliente WHERE obra_id = ? AND frente LIKE 'GALPÃO F1%' ORDER BY id"
+    );
+    $linhasF1->execute([$obraId]);
+    $f1 = $linhasF1->fetchAll(PDO::FETCH_ASSOC);
+
+    $stExist = $pdo->prepare(
+        "SELECT servico FROM cliente WHERE obra_id = ? AND frente = 'GALPÃO F2'"
+    );
+    $stExist->execute([$obraId]);
+    $jaExiste = array_flip(array_column($stExist->fetchAll(PDO::FETCH_ASSOC), 'servico'));
+
+    $ins = $pdo->prepare(
+        'INSERT INTO cliente (obra_id, servico, qtd, inicio_plan, meta_dia, du_semana, responsavel, obs, prazo, peso, frente)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    $criados = 0;
+    $vistos = [];
+    foreach ($f1 as $row) {
+        $serv = nome_servico_padrao($row['servico']);
+        if (isset($jaExiste[$serv]) || isset($vistos[$serv])) continue;
+        $vistos[$serv] = true;
+
+        $qtd = $qtdF2[$serv] ?? null;
+        // meta_dia proporcional ao quantitativo F2/F1; se não houver qtd definida, copia
+        $metaDia = null;
+        $qtdF1 = (float)($row['qtd'] ?? 0);
+        $metaF1 = (float)($row['meta_dia'] ?? 0);
+        if ($qtd && $qtdF1 > 0 && $metaF1 > 0) {
+            $metaDia = round($metaF1 * $qtd / $qtdF1, 2);
+        } elseif ($metaF1 > 0) {
+            $metaDia = $metaF1;
+        }
+
+        $ins->execute([
+            $obraId, $row['servico'], $qtd,
+            $row['inicio_plan'], $metaDia, $row['du_semana'],
+            $row['responsavel'], null,
+            $row['prazo'], $row['peso'], 'GALPÃO F2',
+        ]);
         $criados++;
     }
     return ['criados' => $criados];

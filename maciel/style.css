@@ -278,6 +278,7 @@ tr.plano-total td { border-bottom: none; }
 .legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--fg2); }
 .legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .legenda i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; background: var(--c); }
+.leg-crono { background: var(--verde) !important; }
 .leg-prev { background: var(--prev) !important; }
 .leg-real { background: var(--acento) !important; }
 .grafico { position: relative; height: 300px; }

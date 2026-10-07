@@ -2161,16 +2161,40 @@ function renderCliente() {
 
 function graficoCurvaS(c) {
   const itens = itensCliente();
-  if (!itens.length) return;
-  const inicio = segunda(itens.map(x => x.inicio_plan).filter(Boolean).sort()[0] || M.datas[0]);
-  const fimPlan = maxD(itens.map(x => x.prazo).filter(Boolean).sort().pop() || c, c);
+  const tit = document.querySelector('#aba-cliente .bloco-cab h2');
+  const faseLabel = faseFiltro === '1' ? ' — Fase 1' : faseFiltro === '2' ? ' — Fase 2' : '';
+  if (tit) tit.textContent = `Curva S — avanço físico ponderado${faseLabel}`;
+  if (!itens.length) {
+    if (typeof Chart !== 'undefined' && graficos['gCurvaS']) { graficos['gCurvaS'].destroy(); delete graficos['gCurvaS']; }
+    return;
+  }
+  const inicioData = itens.map(x => x.inicio_plan).filter(Boolean).sort()[0] || M.datas[0];
+  const inicio = segunda(inicioData);
+  const prazoFinal = itens.map(x => x.prazo).filter(Boolean).sort().pop() || null;
+  const fimPlan = maxD(prazoFinal || c, c);
   const semanas = [];
   for (let d = add(inicio, 6); d <= add(fimPlan, 6); d = add(d, 7)) semanas.push(d);
+  if (!semanas.length) return;
+
+  // Cronograma contratual: ramp linear de 0% a 100% de inicio até prazoFinal
+  const pesoTot = soma0(itens, x => x.peso) || 1;
+  const cronograma = semanas.map(d => {
+    if (!prazoFinal) return null;
+    const pct = soma0(itens, it => {
+      if (!it.inicio_plan || !it.prazo || it.prazo <= it.inicio_plan) return 0;
+      const dur = Math.max(1, contarDiasUteis(it.inicio_plan, it.prazo));
+      const decor = Math.max(0, Math.min(dur, contarDiasUteis(it.inicio_plan, minD(add(d, -6), it.prazo))));
+      return it.peso * decor / dur;
+    }) / pesoTot * 100;
+    return +pct.toFixed(1);
+  });
+
   trocarGrafico('gCurvaS', {
     type: 'line',
     data: {
       labels: semanas.map(fd),
       datasets: [
+        { label: 'Cronograma contratual', data: cronograma, borderColor: cor('--verde'), backgroundColor: cor('--verde'), borderDash: [2, 3], borderWidth: 1.5, pointRadius: 0, tension: 0 },
         { label: 'Previsto cliente', data: semanas.map(d => +avancoPonderado(d, true).toFixed(1)), borderColor: cor('--prev'), backgroundColor: cor('--prev'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
         { label: 'Realizado', data: semanas.map(d => add(d, -6) <= c ? +avancoPonderado(minD(d, c), false).toFixed(1) : null), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderWidth: 2, pointRadius: 3, tension: .2 },
       ],
@@ -5475,14 +5499,18 @@ function ligarEventos() {
   });
 
   document.getElementById('btnCriarFase2').addEventListener('click', async () => {
-    if (!confirm('Criar serviços GALPÃO F2 (espelhos dos serviços existentes) para eixos 01-10?\nEscopos do IFC serão preenchidos onde disponíveis.')) return;
+    if (!confirm('Criar serviços e planejamento GALPÃO F2 para eixos 01-10?\n• Escopos IFC: IÇAMENTO JOIST = 430, VIGAS = 130 (eixos 01-10, 10 ruas)\n• Demais serviços: quantidades e prazos copiados de F1 para edição posterior\nRegistros já existentes não serão duplicados.')) return;
     try {
-      const r = await postar(API + 'popular-fase2-servicos', {});
-      toast(`${r.criados} serviço(s) criado(s) para GALPÃO F2.`);
+      const [r1, r2] = await Promise.all([
+        postar(API + 'popular-fase2-servicos', {}),
+        postar(API + 'popular-cliente-fase2', {}),
+      ]);
+      toast(`Fase 2: ${r1.criados} coluna(s) de escopo + ${r2.criados} linha(s) de planejamento criados.`);
       await carregar();
       renderAvanco();
+      renderCliente();
     } catch (e) {
-      toast(e.message || 'Erro ao criar serviços Fase 2.');
+      toast(e.message || 'Erro ao criar Fase 2.');
     }
   });
 
