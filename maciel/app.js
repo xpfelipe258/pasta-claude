@@ -1156,6 +1156,8 @@ function faseItem(frente) {
 }
 
 function clienteQtdContrato(c) {
+  // Valor manual cadastrado tem prioridade sobre o catálogo BM
+  if (Number(c?.qtd) > 0) return Number(c.qtd);
   const fase = faseItem(c?.frente);
   if (servicoUsaCatalogoM2(c?.servico)) {
     const qFase = contratoCatalogoServico(c.servico, fase);
@@ -1163,7 +1165,7 @@ function clienteQtdContrato(c) {
     const qTotal = contratoCatalogoServico(c.servico, '');
     if (qTotal > 0) return fase === '1' ? qTotal : 0;
   }
-  return Number(c?.qtd) || 0;
+  return 0;
 }
 function clienteComContratoAtual(c) {
   const qtd = clienteQtdContrato(c);
