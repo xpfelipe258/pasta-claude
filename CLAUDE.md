@@ -1,6 +1,6 @@
 # CLAUDE.md — Contexto permanente do projeto
 
-> Atualizado em: 2026-10-06  
+> Atualizado em: 2026-10-07  
 > Responsável: Felipe (xpfelipe258@gmail.com)  
 > Engenheiro Civil — gestão de obras com estruturas metálicas
 
@@ -134,24 +134,32 @@ Obra ativa: **OBRA 198** (id=1)
 
 ---
 
-## Última sessão (2026-10-06)
+## Histórico de sessões
 
+### 2026-10-07
 **Corrigido:**
 - HTTP 500 em `admin.php` — `$cfg` era usado antes de ser definido (TypeError PHP 8)
 - Solução: `$cfg = config()` movido para linha 11 (antes do bloco POST)
-- `catch(Exception)` trocado por `catch(Throwable)` para capturar erros PHP 8
+- `catch(Exception)` trocado por `catch(Throwable)` para capturar qualquer erro PHP 8
 
 **Implementado:**
-- Auto-sync Hostinger → GitHub após qualquer ação POST bem-sucedida no admin
-- Timestamps de commit em horário de Brasília (BRT)
+- Auto-sync Hostinger → GitHub após qualquer ação POST bem-sucedida no `admin.php`
+- Timestamps de commit em horário de Brasília (BRT) com `DateTimeImmutable` + `DateTimeZone('America/Sao_Paulo')`
+- Este arquivo `CLAUDE.md` — memória persistente entre sessões
+- Instruções do Claude Project para acesso via celular/outros dispositivos
 
-**Commit:** `8c4a999` — branch `claude/brave-bardeen-jyxlhm`
+**Commits:** `8c4a999`, `d641780` — branch `claude/brave-bardeen-jyxlhm`
+
+### 2026-10-06
+- Upload inicial dos arquivos `config.php`, `atualizar.php`, `admin.php` para Hostinger
+- Botão de sincronização manual Hostinger → GitHub adicionado ao `admin.php`
+- Token GitHub configurado em `inc/config.php` (gitignored)
 
 ---
 
 ## Próximos passos sugeridos
 
-- [ ] Implementar sincronização automática em outros arquivos além do admin (ex: ao salvar dados de estoque)
 - [ ] Dashboard com KPIs visuais (gráficos por data, empresa, atividade)
 - [ ] Exportação de relatórios em PDF
 - [ ] Notificações de alertas de estoque por e-mail/WhatsApp
+- [ ] Sincronização automática em outros módulos além do admin (estoque, DP)
