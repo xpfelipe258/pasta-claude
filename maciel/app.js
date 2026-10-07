@@ -5468,18 +5468,6 @@ function ligarEventos() {
     });
   });
 
-  document.getElementById('btnPopularQtd').addEventListener('click', async () => {
-    if (!confirm('Preencher automaticamente as quantidades do contrato a partir dos escopos cadastrados por empresa?\nApenas serviços sem quantidade serão atualizados.')) return;
-    try {
-      const r = await postar(API + 'popular-qtd-cliente', {});
-      toast(`${r.atualizados} serviço(s) atualizado(s).`);
-      await carregar();
-      renderAvanco();
-    } catch (e) {
-      toast(e.message || 'Erro ao importar quantidades.');
-    }
-  });
-
   document.getElementById('btnNovoServico').addEventListener('click', () => {
     const preset = {};
     if (faseFiltro === '2') preset.frente = 'GALPÃO F2';
