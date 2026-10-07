@@ -2108,9 +2108,8 @@ function renderCliente() {
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
-    // Busca a linha do cliente para obter o ID de edição
-    const clienteItem = M.cliente.find(c => c.servico?.trim() === l.it.servico?.trim() && c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
-    const idEdit = clienteItem?.linha ?? 0;
+    // ID para edição inline: só habilitado quando há fase única (fases com múltiplas frentes não têm mapeamento 1:1)
+    const idEdit = l.fases.length === 1 ? (l.fases[0].linha ?? 0) : 0;
     h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n editavel" data-edit-campo="qtd" data-edit-id="${idEdit}" data-edit-val="${l.it.qtd ?? ''}" title="Clique para editar a quantidade contratada"><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
@@ -5419,8 +5418,7 @@ function ligarEventos() {
       else { const n = raw === '' ? null : parseFloat(raw); campos[campo] = n; }
       try {
         await postar(API + 'registro', { tabela: 'cliente', linha: id, campos });
-        const idx = M.cliente.findIndex(c => c.linha === id);
-        if (idx >= 0) Object.assign(M.cliente[idx], campos);
+        await carregar();
         renderCliente();
       } catch (e) {
         salvo = false;
