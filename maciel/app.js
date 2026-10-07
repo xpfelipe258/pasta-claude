@@ -1007,6 +1007,58 @@ function aoEditarLanc(inp) {
   if (b) b.innerHTML = `${esc(e.nome)}${n ? ` <span class="contador">${n}</span>` : ''}`;
 }
 
+// Popup para coletar breakdown de tipos de joist antes do salvar
+function pedirTiposJoist(totalJoists) {
+  return new Promise(resolve => {
+    const dlg = document.getElementById('dlgJoistTipo');
+    const nota = document.getElementById('dlgJoistNota');
+    const somaEl = document.getElementById('dlgJoistSoma');
+    const okBtn = document.getElementById('dlgJoistOk');
+    const campos = ['J01', 'J02', 'J03', 'J04'];
+    nota.textContent = `Você está salvando ${nf(totalJoists)} joist(s) de PRÉ-MONTAGEM. Informe quantas de cada tipo (soma deve ser ${nf(totalJoists)}):`;
+    // Preenche J01 com total por padrão
+    campos.forEach((t, i) => { document.getElementById('jTipo' + t).value = i === 0 ? totalJoists : 0; });
+    const atualizar = () => {
+      const soma = campos.reduce((s, t) => s + (parseInt(document.getElementById('jTipo' + t).value) || 0), 0);
+      const ok = soma === totalJoists;
+      somaEl.textContent = `Soma: ${soma} de ${totalJoists}${ok ? ' ✓' : ' — ajuste até igualar o total'}`;
+      somaEl.style.color = ok ? 'var(--verde)' : 'var(--vermelho)';
+      okBtn.disabled = !ok;
+    };
+    dlg.querySelectorAll('input').forEach(inp => inp.addEventListener('input', atualizar));
+    atualizar();
+    const fechar = (cancelar) => {
+      dlg.close();
+      dlg.querySelectorAll('input').forEach(inp => inp.removeEventListener('input', atualizar));
+      if (cancelar) { resolve(null); return; }
+      const qtds = {};
+      campos.forEach(t => { const v = parseInt(document.getElementById('jTipo' + t).value) || 0; if (v > 0) qtds[t] = v; });
+      resolve(qtds);
+    };
+    document.getElementById('dlgJoistFechar').onclick = () => fechar(true);
+    document.getElementById('dlgJoistCancelar').onclick = () => fechar(true);
+    document.getElementById('dlgJoistForm').onsubmit = e => { e.preventDefault(); fechar(false); };
+    dlg.showModal();
+  });
+}
+
+// Detecta total de PREMONTAGEM no pend para uma empresa
+function totalPremontPend(e) {
+  if (!e) return 0;
+  const regras = window._regras_baixa;
+  if (!regras?.consumo_por_servico?.PREMONTAGEM) return 0;
+  const colPrem = colDe(e, 'PREMONTAGEM');
+  if (!colPrem) return 0;
+  let total = 0;
+  pend.forEach((v, k) => {
+    const [aba, , col] = k.split('|');
+    if (aba === e.aba && col === colPrem && v !== '' && v !== null) {
+      total += parseFloat(String(v).replace(',', '.')) || 0;
+    }
+  });
+  return total;
+}
+
 async function salvarLanc() {
   if ((!pend.size && !bmPend.size) || salvando) return;
   const bmAlt = [];
@@ -1016,13 +1068,26 @@ async function salvarLanc() {
     if (v !== '' && (isNaN(q) || q < 0)) { toast(`Quantidade inválida em "${cod}" (${fdA(data)}): use somente números.`, true); return; }
     bmAlt.push({ empresa: emp, codigo: cod, data, quantidade: q });
   }
+
+  // Verificar se há PREMONTAGEM sendo salva → abrir popup de tipos
+  const empAtual = M.empresas.find(x => x.aba === empSel);
+  const totalPrem = totalPremontPend(empAtual);
+  let tipoJoistQtds = null;
+  if (totalPrem > 0) {
+    tipoJoistQtds = await pedirTiposJoist(Math.round(totalPrem));
+    if (!tipoJoistQtds) { toast('Salvo cancelado.'); return; } // usuário cancelou
+  }
+
   salvando = true; atualizarPendentes();
   const porAba = {};
   pend.forEach((v, k) => { const [aba, data, col] = k.split('|'); (porAba[aba] ||= []).push({ data, col, valor: v === '' ? null : v }); });
   try {
     let total = 0, baixas = [];
     for (const [aba, alteracoes] of Object.entries(porAba)) {
-      const r = await postarBruto(API + 'producao', { aba, alteracoes });
+      const corpo = { aba, alteracoes };
+      // Inclui breakdown de tipos somente na empresa com PREMONTAGEM
+      if (tipoJoistQtds && empAtual && aba === empAtual.aba) corpo.tipo_joist_qtds = tipoJoistQtds;
+      const r = await postarBruto(API + 'producao', corpo);
       total += r.celulas;
       if (r.baixa_auto && r.baixa_auto.length) baixas.push(...r.baixa_auto);
       [...pend.keys()].filter(k => k.startsWith(aba + '|')).forEach(k => pend.delete(k));

@@ -190,6 +190,36 @@ function acao_producao(array $corpo, array $usuario)
         }
         $ins->execute([obra_atual_id(), $emp['id'], $data, $col, $num, $num === null ? mb_substr((string)$valor, 0, 255) : null]);
     }
+
+    // Baixa automática por tipo de joist (quando tipo_joist_qtds é informado)
+    $tipoJoistQtds = $corpo['tipo_joist_qtds'] ?? null;
+    if (!empty($tipoJoistQtds) && is_array($tipoJoistQtds)) {
+        $regras = carregar_regras_baixa();
+        $csByServico = $regras['consumo_por_servico'] ?? [];
+        $baixaAgrup = [];
+        $descs = [];
+        foreach ($tipoJoistQtds as $tipo => $qtd) {
+            $qtd = (float)$qtd;
+            if ($qtd <= 0) continue;
+            $tipo = strtoupper(trim((string)$tipo));
+            $chave = 'PREMONTAGEM_' . $tipo;
+            $regra = $csByServico[$chave] ?? $csByServico['PREMONTAGEM'] ?? null;
+            if (!$regra) continue;
+            foreach ($regra['itens'] ?? [] as $item) {
+                $cod = (string)($item['codigo'] ?? '');
+                $por = (float)($item['por_unidade'] ?? 0);
+                if ($cod === '' || $por <= 0) continue;
+                $baixaAgrup[$cod] = ($baixaAgrup[$cod] ?? 0) + ($por * $qtd);
+                $descs[$cod] = (string)($item['descricao'] ?? $cod);
+            }
+        }
+        $baixaAuto = [];
+        foreach ($baixaAgrup as $cod => $qtdTotal) {
+            $baixaAuto[] = ['codigo' => $cod, 'material' => $descs[$cod] ?? $cod, 'quantidade' => round($qtdTotal, 2)];
+        }
+        return ['celulas' => $n, 'baixa_auto' => $baixaAuto, 'tipo_joist_qtds' => $tipoJoistQtds];
+    }
+
     return $n;
 }
 

@@ -62,7 +62,7 @@
         <button data-aba="estrem">Remessas</button>
         <button data-aba="estcons">Consumo físico</button>
         <button data-aba="estinv">Inventário <span class="contador alerta" id="invCritCont" hidden></span></button>
-        <button data-aba="estcrit">Fixadores críticos <span class="contador alerta" id="fixCritCont" hidden></span></button>
+        <button data-aba="estcrit">Consumo Joists <span class="contador alerta" id="fixCritCont" hidden></span></button>
         <button data-aba="estsis" title="Sistema: baixa automática por IFC">Baixa automática <span class="contador alerta" id="faltaSemanaCont" hidden></span></button>
       </div>
     </div>
@@ -350,11 +350,11 @@
     </div>
   </section>
 
-  <!-- ESTOQUE · FIXADORES CRÍTICOS -->
+  <!-- ESTOQUE · CONSUMO JOISTS -->
   <section id="aba-estcrit" hidden>
     <div class="tiles" id="estCritTiles"></div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Fixadores criticos — consumo JOIST (premontagem)</h2>
+      <div class="bloco-cab"><h2>Consumo Joists — premontagem por tipo (J01–J04)</h2>
         <span class="nota">Consumo teorico baseado na producao de joists × regras de baixa. Comparado com remessas recebidas.</span></div>
       <div class="tabela-rolagem"><table id="tabEstCrit"></table></div>
     </div>
@@ -639,6 +639,27 @@
       <span class="espaco"></span>
       <button type="button" class="btn" id="dlgCancelar">Cancelar</button>
       <button type="submit" class="btn primario btn-salvar-destino">Salvar na planilha</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgJoistTipo">
+  <form id="dlgJoistForm" method="dialog">
+    <div class="bloco-cab">
+      <h2>PRÉ-MONTAGEM — tipo de joist</h2>
+      <button type="button" class="btn-icone" id="dlgJoistFechar" aria-label="Fechar">×</button>
+    </div>
+    <p id="dlgJoistNota" class="nota" style="margin-bottom:14px"></p>
+    <div class="campos" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 18px">
+      <label>J01<input type="number" id="jTipoJ01" min="0" step="1" value="0" class="num" inputmode="numeric"></label>
+      <label>J02<input type="number" id="jTipoJ02" min="0" step="1" value="0" class="num" inputmode="numeric"></label>
+      <label>J03<input type="number" id="jTipoJ03" min="0" step="1" value="0" class="num" inputmode="numeric"></label>
+      <label>J04<input type="number" id="jTipoJ04" min="0" step="1" value="0" class="num" inputmode="numeric"></label>
+    </div>
+    <p id="dlgJoistSoma" class="nota" style="margin-top:10px;font-weight:700"></p>
+    <div class="acoes">
+      <button type="button" class="btn" id="dlgJoistCancelar">Cancelar</button>
+      <button type="submit" class="btn primario" id="dlgJoistOk">Confirmar e salvar</button>
     </div>
   </form>
 </dialog>
