@@ -2669,7 +2669,7 @@ function renderEstRemessas() {
   const novaDataInput = (campo, rot, valor, prop) => `<label class="rem-data rem-data-edit"><span>${rot}</span><input type="text" class="ed-dat-head" data-ed="rem" data-ed-dat="${esc(prop)}" placeholder="dd/mm/aaaa" value="${esc(valor || '')}"></label>`;
   const ed = estEdit.rem, cxR = $('#tabEstRem').closest('.tabela-rolagem'), sxR = cxR.scrollLeft;
   $('#tabEstRem').innerHTML = `<thead><tr><th>TAG</th><th>Material</th><th>Produto</th><th>Etapa</th>` +
-    cols.map(c => {
+    (!ed ? cols.map(c => {
       const dt = (rem.datas || {})[c] || {};
       const dicas = [dt.prevista_chegada && `prevista ${dt.prevista_chegada}`,
         dt.emissao_nota && `nota ${dt.emissao_nota}`,
@@ -2679,7 +2679,7 @@ function renderEstRemessas() {
         + dataRemInput(c, 'emissao_nota', 'NF', dt.emissao_nota)
         + dataRemInput(c, 'chegada_obra', 'Obra', dt.chegada_obra)
         + `<div class="rem-numero">${esc(c)}</div><button type="button" class="link" data-rem-editar="${esc(c)}">Editar remessa</button></th>`;
-    }).join('') +
+    }).join('') : '') +
     (ed ? `<th class="n col-nova rem-head">`
       + novaDataInput('prevista_chegada', 'Prev.', ed.prevista, 'prevista')
       + novaDataInput('emissao_nota', 'NF', ed.emissaoNf, 'emissaoNf')
@@ -2687,10 +2687,10 @@ function renderEstRemessas() {
       + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
-      cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') +
+      (!ed ? cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') : '') +
       (ed ? `<td class="col-nova"><input class="ed-in" data-ed="rem" data-tag="${esc(m.tag)}" data-col="q" inputmode="decimal" value="${esc(ed.val.get(m.tag) || '')}" aria-label="${esc(m.tag)}"></td>` : '') +
       `<td class="n"><b>${nf(m.total_recebido)}</b></td></tr>`).join('')
-    : `<tr><td colspan="${4 + cols.length + (ed ? 1 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+    : `<tr><td colspan="${4 + (ed ? 1 : cols.length) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
   cxR.scrollLeft = sxR;   // redesenhar (filtro, digitação) não pode voltar a tabela para o início
   edBarra('rem');
 }
