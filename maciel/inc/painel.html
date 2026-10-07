@@ -489,7 +489,11 @@
   <!-- IMPACTOS -->
   <section id="aba-impactos" hidden>
     <div class="barra-acoes">
-      <span class="nota">A lista exibe somente impactos em aberto. Impactos automáticos de suprimentos são solucionados na data de chegada da carga em obra.</span>
+      <div class="seg" id="filtroImp">
+        <button data-f="abertos" class="ativa">Em aberto</button>
+        <button data-f="todos">Todos</button>
+      </div>
+      <span class="nota">Impactos automáticos de suprimentos são solucionados na data de chegada da carga em obra.</span>
       <button class="btn" id="btnRelImp">Baixar relatório</button>
       <button class="btn primario" id="btnNovoImp">+ Novo impacto</button>
     </div>

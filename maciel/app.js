@@ -5138,8 +5138,9 @@ function renderImpactos() {
   const pctSol = todosImpactos.length ? 100 - pctAberto : 0;
   const graf = $('#impResumoGraf');
   if (graf) graf.innerHTML = `<div class="imp-pizza-card"><div class="imp-pizza" style="--aberto:${pctAberto}%"><div class="imp-pizza-miolo"><b>${todosImpactos.length}</b><span>total</span></div></div><div class="imp-pizza-info"><h2>Impactos</h2><p><span class="leg-dot aberto"></span>Em aberto: <b>${abertos}</b> (${pctAberto}%)</p><p><span class="leg-dot sol"></span>Solucionados: <b>${solucionados}</b> (${pctSol}%)</p></div></div>`;
-  const lista = todosImpactos.filter(i => !i.solucionado)
+  const lista = (filtroImp === 'todos' ? todosImpactos : todosImpactos.filter(i => !i.solucionado))
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const vazioMsg = filtroImp === 'todos' ? 'Nenhum impacto registrado.' : 'Nenhum impacto em aberto.';
   $('#tabImp').innerHTML = `<thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Quando</th><th>Paralisação / efeito</th><th>Situação</th><th></th></tr></thead><tbody>` +
     (lista.length ? lista.map(i => {
       const dias = ehISO(i.data) ? diasEntre(i.data, i.solucionado && ehISO(i.solucionado) ? i.solucionado : ref) : null;
@@ -5148,7 +5149,7 @@ function renderImpactos() {
         <td class="motivo">${esc(i.paralisacao)}</td>
         <td>${i.solucionado ? `<span class="farol f-verde">SOLUCIONADO ${fd(i.solucionado)}</span>` : `<span class="farol f-vermelho">ABERTO${dias != null ? ` · ${dias}d` : ''}</span>`}</td>
         <td style="white-space:nowrap">${acao}</td></tr>`;
-    }).join('') : `<tr><td colspan="9" class="vazio">Nenhum impacto em aberto.</td></tr>`) + '</tbody>';
+    }).join('') : `<tr><td colspan="9" class="vazio">${vazioMsg}</td></tr>`) + '</tbody>';
 }
 
 function abrirFormImp(linha) {
