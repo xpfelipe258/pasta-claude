@@ -713,3 +713,20 @@ td.col-nova { padding: 3px 6px; }
 .leg-dot.aberto { background: var(--vermelho); }
 .leg-dot.sol { background: var(--verde); }
 @media(max-width:640px){.imp-pizza-card{width:100%;box-sizing:border-box}.imp-pizza{width:108px;height:108px}.imp-pizza::after{inset:18px}}
+
+/* Remessas — toggle de colunas */
+.rem-col-toggles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0 4px; }
+.rem-col-toggles .nota { font-size: 11px; font-weight: 700; color: var(--fg3); text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; }
+.tag-toggle { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--linha-forte); background: transparent; color: var(--fg3); cursor: pointer; transition: background .15s, color .15s; }
+.tag-toggle.ativo { background: var(--acento); color: #fff; border-color: var(--acento); }
+.tag-toggle:not(.ativo) { text-decoration: line-through; opacity: .55; }
+
+/* Ocultar colunas TAG / Material / Produto / Etapa */
+#aba-estrem.rem-hide-tag #tabEstRem th:nth-child(1),
+#aba-estrem.rem-hide-tag #tabEstRem td:nth-child(1) { display: none; }
+#aba-estrem.rem-hide-material #tabEstRem th:nth-child(2),
+#aba-estrem.rem-hide-material #tabEstRem td:nth-child(2) { display: none; }
+#aba-estrem.rem-hide-produto #tabEstRem th:nth-child(3),
+#aba-estrem.rem-hide-produto #tabEstRem td:nth-child(3) { display: none; }
+#aba-estrem.rem-hide-etapa #tabEstRem th:nth-child(4),
+#aba-estrem.rem-hide-etapa #tabEstRem td:nth-child(4) { display: none; }

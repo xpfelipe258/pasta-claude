@@ -250,6 +250,8 @@
       <div id="avancoResumo" class="nota"></div>
       <button id="btnNovoServico" class="btn-sec">+ Novo serviço</button>
       <button id="btnCriarFase2" class="btn-sec">⊕ Criar serviços Fase 2</button>
+      <button id="btnAtualizarDatas" class="btn-sec">📅 Atualizar datas do cronograma</button>
+      <button id="btnAtualizarDatasForce" class="btn-sec">⟳ Forçar datas (sobrescrever)</button>
     </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Contrato: avanço e projeção de término</h2><span class="nota">Ritmo = média por dia útil nos últimos 15 dias até a data de referência.</span></div>
@@ -314,6 +316,13 @@
       <div class="acoes">
         <button class="btn primario" id="btnNovaRemessa">+ Nova remessa</button>
       </div>
+    </div>
+    <div class="rem-col-toggles" id="remColToggle">
+      <span class="nota">Colunas:</span>
+      <button type="button" class="tag-toggle ativo" data-rem-col="tag">TAG</button>
+      <button type="button" class="tag-toggle ativo" data-rem-col="material">Material</button>
+      <button type="button" class="tag-toggle ativo" data-rem-col="produto">Produto</button>
+      <button type="button" class="tag-toggle ativo" data-rem-col="etapa">Etapa</button>
     </div>
     <div class="ed-barra" id="estRemEd" hidden></div>
     <div class="bloco">

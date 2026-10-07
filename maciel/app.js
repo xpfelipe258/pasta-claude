@@ -2041,11 +2041,23 @@ function prevCliente(c, ate) {
 function itensCliente() {
   return M.cliente.map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
 }
-function avancoPonderado(ate, previsto) {
-  const itens = itensCliente();
+function avancoPonderado(ate, previsto, itensList) {
+  const itens = itensList ?? itensCliente();
   const pesoTot = soma0(itens, c => c.peso);
   if (!pesoTot) return 0;
   return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoFase(c.servico, faseItem(c.frente), ate)) / c.qtd)) / pesoTot * 100;
+}
+
+// No Total (faseFiltro=''), F2 items start only after F1's last prazo (sequential)
+function itensClienteSequencial() {
+  if (faseFiltro) return itensCliente();
+  const f1Max = M.cliente.filter(cl => faseItem(cl.frente) === '1').map(cl => cl.prazo).filter(Boolean).sort().pop() || null;
+  if (!f1Max) return itensCliente();
+  return itensCliente().map(it => {
+    if (faseItem(it.frente) !== '2') return it;
+    const novoInicio = it.inicio_plan && it.inicio_plan > f1Max ? it.inicio_plan : f1Max;
+    return { ...it, inicio_plan: novoInicio };
+  });
 }
 
 function renderCliente() {
@@ -2160,7 +2172,9 @@ function renderCliente() {
 }
 
 function graficoCurvaS(c) {
-  const itens = itensCliente();
+  // No Total, F2 items são deslocados para após F1 concluir (visão sequencial)
+  const itens = itensClienteSequencial();
+  const itensReal = itensCliente(); // Realizado usa produção real sem ajuste de sequência
   const tit = document.querySelector('#aba-cliente .bloco-cab h2');
   const faseLabel = faseFiltro === '1' ? ' — Fase 1' : faseFiltro === '2' ? ' — Fase 2' : '';
   if (tit) tit.textContent = `Curva S — avanço físico ponderado${faseLabel}`;
@@ -2176,7 +2190,7 @@ function graficoCurvaS(c) {
   for (let d = add(inicio, 6); d <= add(fimPlan, 6); d = add(d, 7)) semanas.push(d);
   if (!semanas.length) return;
 
-  // Cronograma contratual: ramp linear de 0% a 100% de inicio até prazoFinal
+  // Cronograma contratual: ramp ponderada por peso × dias úteis (usa itens sequenciais)
   const pesoTot = soma0(itens, x => x.peso) || 1;
   const cronograma = semanas.map(d => {
     if (!prazoFinal) return null;
@@ -2195,8 +2209,8 @@ function graficoCurvaS(c) {
       labels: semanas.map(fd),
       datasets: [
         { label: 'Cronograma contratual', data: cronograma, borderColor: cor('--verde'), backgroundColor: cor('--verde'), borderDash: [2, 3], borderWidth: 1.5, pointRadius: 0, tension: 0 },
-        { label: 'Previsto cliente', data: semanas.map(d => +avancoPonderado(d, true).toFixed(1)), borderColor: cor('--prev'), backgroundColor: cor('--prev'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
-        { label: 'Realizado', data: semanas.map(d => add(d, -6) <= c ? +avancoPonderado(minD(d, c), false).toFixed(1) : null), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderWidth: 2, pointRadius: 3, tension: .2 },
+        { label: 'Previsto cliente', data: semanas.map(d => +avancoPonderado(d, true, itens).toFixed(1)), borderColor: cor('--prev'), backgroundColor: cor('--prev'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
+        { label: 'Realizado', data: semanas.map(d => add(d, -6) <= c ? +avancoPonderado(minD(d, c), false, itensReal).toFixed(1) : null), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderWidth: 2, pointRadius: 3, tension: .2 },
       ],
     },
     options: {
@@ -5513,6 +5527,45 @@ function ligarEventos() {
       toast(e.message || 'Erro ao criar Fase 2.');
     }
   });
+
+  // Atualizar datas do cronograma
+  document.getElementById('btnAtualizarDatas')?.addEventListener('click', async () => {
+    try {
+      const r = await postar(API + 'atualizar-datas-cronograma', {});
+      toast(`Datas atualizadas: ${r.atualizados} registro(s).`);
+      await carregar(); renderCliente();
+    } catch (e) { toast(e.message || 'Erro ao atualizar datas.'); }
+  });
+  document.getElementById('btnAtualizarDatasForce')?.addEventListener('click', async () => {
+    if (!confirm('Forçar sobrescrita das datas existentes? Todos os registros serão atualizados.')) return;
+    try {
+      const r = await postar(API + 'atualizar-datas-cronograma', { force: true });
+      toast(`Datas forçadas: ${r.atualizados} registro(s).`);
+      await carregar(); renderCliente();
+    } catch (e) { toast(e.message || 'Erro ao forçar datas.'); }
+  });
+
+  // Toggle de colunas nas Remessas
+  const remColsHidden = new Set(JSON.parse(localStorage.getItem('remColsHidden') || '[]'));
+  function aplicarRemCols() {
+    const sec = document.getElementById('aba-estrem');
+    if (!sec) return;
+    ['tag', 'material', 'produto', 'etapa'].forEach(col => {
+      sec.classList.toggle('rem-hide-' + col, remColsHidden.has(col));
+    });
+    document.querySelectorAll('#remColToggle .tag-toggle').forEach(btn => {
+      btn.classList.toggle('ativo', !remColsHidden.has(btn.dataset.remCol));
+    });
+  }
+  document.getElementById('remColToggle')?.addEventListener('click', ev => {
+    const btn = ev.target.closest('.tag-toggle[data-rem-col]');
+    if (!btn) return;
+    const col = btn.dataset.remCol;
+    remColsHidden.has(col) ? remColsHidden.delete(col) : remColsHidden.add(col);
+    localStorage.setItem('remColsHidden', JSON.stringify([...remColsHidden]));
+    aplicarRemCols();
+  });
+  aplicarRemCols();
 
   $('#segPainelEmp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-painel-emp]');

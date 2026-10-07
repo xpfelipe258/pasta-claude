@@ -126,6 +126,7 @@ try {
         'popular-qtd-cliente' => 'acao_popular_qtd_cliente',
         'popular-fase2-servicos' => 'acao_popular_fase2_servicos',
         'popular-cliente-fase2' => 'acao_popular_cliente_fase2',
+        'atualizar-datas-cronograma' => 'acao_atualizar_datas_cronograma',
         'criar-meta' => 'acao_criar_meta',
     ];
     if (!isset($acoes[$rota])) {
@@ -1505,4 +1506,91 @@ function acao_popular_cliente_fase2(array $corpo, array $usuario)
         $criados++;
     }
     return ['criados' => $criados];
+}
+
+function acao_atualizar_datas_cronograma(array $corpo, array $usuario)
+{
+    $obraId = obra_atual_id();
+    $pdo = bd();
+    $force = !empty($corpo['force']);
+
+    $duUtil = function(string $ini, string $fim): int {
+        try {
+            $d = new DateTime($ini); $f = new DateTime($fim); $n = 0;
+            while ($d <= $f) { if ((int)$d->format('N') < 6) $n++; $d->modify('+1 day'); }
+            return max($n, 1);
+        } catch (\Throwable $e) { return 1; }
+    };
+
+    // [grupo, padrao_servico, inicio_plan, prazo]  — fonte: F.PLA.005 Cronograma Rótula LSF G200
+    $mapa = [
+        ['F1', 'IÇAMENTO JOIST', '2026-07-23', '2026-11-19'],
+        ['F1', 'PREMONTAGEM',    '2026-07-23', '2026-11-16'],
+        ['F1', 'PRÉ-MONTAGEM',  '2026-07-23', '2026-11-16'],
+        ['F1', 'PRE-MONTAGEM',  '2026-07-23', '2026-11-16'],
+        ['F1', 'VIGAS',         '2026-07-28', '2026-11-05'],
+        ['F1', 'TELHAS',        '2026-09-09', '2026-12-04'],
+        ['F1', 'CALHAS',        '2026-09-16', '2026-12-04'],
+        ['F1', 'ARREMATES',     '2026-09-23', '2026-12-11'],
+        ['F1', 'FECHAMENTO',    '2026-09-17', '2026-12-18'],
+        ['F1', 'MARQUISE',      '2026-09-24', '2026-12-30'],
+        ['F1', 'PERFILAÇÃO',    '2026-07-23', '2026-11-05'],
+        ['F1', 'PERFILACAO',    '2026-07-23', '2026-11-05'],
+        ['F2', 'IÇAMENTO JOIST', '2026-09-18', '2027-03-05'],
+        ['F2', 'PREMONTAGEM',    '2026-09-25', '2027-02-26'],
+        ['F2', 'PRÉ-MONTAGEM',  '2026-09-25', '2027-02-26'],
+        ['F2', 'PRE-MONTAGEM',  '2026-09-25', '2027-02-26'],
+        ['F2', 'VIGAS',         '2026-09-18', '2027-03-23'],
+        ['F2', 'TELHAS',        '2026-11-01', '2027-04-08'],
+        ['F2', 'CALHAS',        '2026-12-10', '2027-04-08'],
+        ['F2', 'ARREMATES',     '2027-01-05', '2027-04-08'],
+        ['F2', 'FECHAMENTO',    '2026-11-12', '2027-04-30'],
+        ['F2', 'MARQUISE',      '2026-12-22', '2027-04-16'],
+        ['F2', 'PERFILAÇÃO',    '2026-09-18', '2027-03-05'],
+        ['F2', 'PERFILACAO',    '2026-09-18', '2027-03-05'],
+        ['ANEX', 'ECLUSA',      '2026-09-08', '2026-11-16'],
+        ['ANEX', 'PORTARIA',    '2026-09-17', '2026-11-25'],
+        ['ANEX', 'REFEITÓRIO',  '2026-09-29', '2026-12-02'],
+        ['ANEX', 'REFEITORIO',  '2026-09-29', '2026-12-02'],
+        ['ANEX', 'VESTIÁRIO',   '2026-10-08', '2026-12-21'],
+        ['ANEX', 'VESTIARIO',   '2026-10-08', '2026-12-21'],
+        ['ANEX', 'PASSAREL',    '2026-09-08', '2027-01-07'],
+        ['ANEX', 'PEDESTRE',    '2026-10-08', '2027-01-07'],
+        ['ANEX', 'VIVÊNCIA',    '2026-09-08', '2027-01-07'],
+        ['ANEX', 'VIVENCIA',    '2026-09-08', '2027-01-07'],
+    ];
+
+    $atualizados = 0;
+    foreach ($mapa as [$grupo, $servPat, $ini, $pra]) {
+        if ($grupo === 'F1') {
+            $fCond = "AND frente LIKE 'GALPÃO F1%'";
+        } elseif ($grupo === 'F2') {
+            $fCond = "AND frente = 'GALPÃO F2'";
+        } else {
+            $fCond = "AND (frente IS NULL OR frente = '' OR (frente NOT LIKE 'GALPÃO F1%' AND frente NOT LIKE 'GALPÃO F2%'))";
+        }
+        $fxCond = $force ? '' : 'AND (inicio_plan IS NULL OR prazo IS NULL)';
+        $sql = "UPDATE cliente SET inicio_plan=?, prazo=?
+                WHERE obra_id=? AND servico LIKE ? COLLATE utf8mb4_unicode_ci $fCond $fxCond";
+        $st = $pdo->prepare($sql);
+        $st->execute([$ini, $pra, $obraId, '%' . $servPat . '%']);
+        $atualizados += $st->rowCount();
+    }
+
+    // Preenche meta_dia onde está NULL: qtd / dias_úteis(inicio_plan, prazo)
+    $rows = $pdo->prepare(
+        "SELECT id, qtd, inicio_plan, prazo FROM cliente
+         WHERE obra_id=? AND qtd>0 AND inicio_plan IS NOT NULL
+           AND prazo IS NOT NULL AND (meta_dia IS NULL OR meta_dia=0)"
+    );
+    $rows->execute([$obraId]);
+    $updMeta = $pdo->prepare('UPDATE cliente SET meta_dia=? WHERE id=?');
+    foreach ($rows->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $du   = $duUtil($r['inicio_plan'], $r['prazo']);
+        $meta = round((float)$r['qtd'] / $du, 2);
+        $updMeta->execute([$meta, $r['id']]);
+        $atualizados++;
+    }
+
+    return ['atualizados' => $atualizados];
 }
