@@ -1994,23 +1994,22 @@ function renderAvanco() {
     const totSaldo = totQtd > 0 ? Math.max(totQtd - totReal, 0) : null;
     const totPct = totQtd ? totReal / totQtd * 100 : null;
     const totProjecao = fases.map(f => f.projecao).filter(Boolean).sort().pop() || null;
-    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop()
-      || (faseFiltro ? M.cliente.find(c => c.servico?.trim() === serv)?.prazo : null)
-      || null;
+    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || null;
     const totStatus = fases.map(f => f.status).sort((a, b) => statusPrioridadeContrato.indexOf(a) - statusPrioridadeContrato.indexOf(b))[0];
     const totNecessario = soma0(fases, f => f.necessario || 0) || null;
     const totRitmo = soma0(fases, f => f.ritmo || 0);
+    const ed1 = fases.length === 1;
     tBodyContrato += `<tr>
       <td><b>${esc(cap(serv))}</b></td>
-      <td class="n"><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
+      <td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${fases[0].linha}" data-edit-val="${fases[0].qtd ?? ''}"` : ''}><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
       <td><b>${nf(totReal, 1)}</b><div style="margin-top:4px">${barra(totPct, totReal)}</div></td>
       <td class="n">${totSaldo != null ? nf(totSaldo, 1) : '—'}</td>
       <td class="n">${nf(totRitmo, 2)}</td>
       <td class="n" style="color:${totNecessario && totRitmo < totNecessario ? 'var(--vermelho)' : 'inherit'}">${totNecessario ? nf(totNecessario, 2) : '—'}</td>
-      <td>${fdA(prazoMax)}</td>
+      <td${ed1 ? ` class="editavel" data-edit-campo="prazo" data-edit-id="${fases[0].linha}" data-edit-val="${fases[0].prazo ?? ''}"` : ''}>${fdA(prazoMax)}</td>
       <td><b>${fdA(totProjecao)}</b></td>
       <td><span class="farol f-${COR_STATUS[totStatus] || 'pendente'}">${totStatus}</span></td>
-      <td>${fases.length === 1 ? `<button class="btn-icone" data-editar-reg="cliente" data-linha="${fases[0].linha}" title="Editar / excluir serviço">✎</button>` : ''}</td></tr>`;
+      <td>${ed1 ? `<button class="btn-icone" data-editar-reg="cliente" data-linha="${fases[0].linha}" title="Editar / excluir serviço">✎</button>` : ''}</td></tr>`;
   });
 
   $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
@@ -2085,9 +2084,7 @@ function renderCliente() {
     // Projeção agregada
     const projFases = fases.map(f => proj[f.servico]).filter(Boolean);
     const p = projFases.length > 0 ? projFases[0] : {};
-    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop()
-      || (faseFiltro ? M.cliente.find(c => c.servico?.trim() === servNome)?.prazo : null)
-      || p.prazo || null;
+    const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
 
     const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
     return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
@@ -2110,18 +2107,19 @@ function renderCliente() {
     tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
 
   $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado (F1+F2 consolidado)`;
-  let h = `<thead><tr><th>Serviço</th><th class="n">Contrato</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th>Prazo</th><th>Situação</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th title="Clique para editar">Prazo ✎</th><th>Situação</th></tr></thead><tbody>`;
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
     // Busca a linha do cliente para obter o ID de edição
     const clienteItem = M.cliente.find(c => c.servico?.trim() === l.it.servico?.trim() && c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
     const idEdit = clienteItem?.linha ?? 0;
-    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n"><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
+    const ed1 = l.fases.length === 1 && idEdit;
+    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${idEdit}" data-edit-val="${l.it.qtd ?? ''}"` : ''}><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
       <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
-      <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
+      <td>${fdA(l.p.projecao)}</td><td${ed1 ? ` class="editavel" data-edit-campo="prazo" data-edit-id="${idEdit}" data-edit-val="${l.it.prazo ?? ''}"` : ''}>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
   $('#tabCliente').innerHTML = h + '</tbody>';
 
@@ -5425,6 +5423,48 @@ function ligarEventos() {
     inp.addEventListener('keydown', ke => {
       if (ke.key === 'Enter') { ke.preventDefault(); inp.blur(); }
       if (ke.key === 'Escape') { salvo = true; renderAvanco(); }
+    });
+  });
+
+  document.getElementById('aba-cliente').addEventListener('click', ev => {
+    const td = ev.target.closest('td[data-edit-campo]');
+    if (!td || td.querySelector('input') || !td.dataset.editId) return;
+    const campo = td.dataset.editCampo;
+    const id = parseInt(td.dataset.editId);
+    const valAtual = td.dataset.editVal;
+    const isDate = campo === 'prazo' || campo === 'inicio_plan';
+    const inp = document.createElement('input');
+    inp.type = isDate ? 'date' : 'number';
+    inp.min = isDate ? undefined : '0';
+    inp.step = isDate ? undefined : (campo === 'meta_dia' ? '0.1' : '1');
+    inp.value = valAtual;
+    inp.style.cssText = 'width:100%;border:0;background:var(--acento-suave);padding:3px 5px;border-radius:3px;font:inherit;text-align:right;outline:1px solid var(--acento);';
+    td.textContent = '';
+    td.appendChild(inp);
+    inp.focus();
+    if (!isDate) inp.select();
+    let salvo = false;
+    async function salvarEdicaoCli() {
+      if (salvo) return; salvo = true;
+      const raw = inp.value.trim();
+      const campos = {};
+      if (isDate) { campos[campo] = raw || null; }
+      else { const n = raw === '' ? null : parseFloat(raw); campos[campo] = n; }
+      try {
+        await postar(API + 'registro', { tabela: 'cliente', linha: id, campos });
+        const idx = M.cliente.findIndex(c => c.linha === id);
+        if (idx >= 0) Object.assign(M.cliente[idx], campos);
+        renderCliente();
+      } catch (e) {
+        salvo = false;
+        renderCliente();
+        toast(e.message || 'Erro ao salvar.');
+      }
+    }
+    inp.addEventListener('blur', salvarEdicaoCli);
+    inp.addEventListener('keydown', ke => {
+      if (ke.key === 'Enter') { ke.preventDefault(); inp.blur(); }
+      if (ke.key === 'Escape') { salvo = true; renderCliente(); }
     });
   });
 
