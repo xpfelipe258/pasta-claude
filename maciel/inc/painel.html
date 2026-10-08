@@ -452,6 +452,23 @@
         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-equip>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelEquip">Gerar relatório</button></div>
       </div>
     </div>
+    <div class="barra-filtros" id="eqFiltros">
+      <label>Empresa
+        <select id="eqFiltroEmp"><option value="">Todas as empresas</option></select>
+      </label>
+      <label>Equipamento
+        <input type="search" id="eqFiltroNome" placeholder="Buscar nome…" autocomplete="off">
+      </label>
+      <label>Tipo de uso
+        <select id="eqFiltroUso">
+          <option value="todos">Equip. + abastecimento</option>
+          <option value="equipamento">Somente equipamento</option>
+          <option value="abastecimento">Somente abastecimento</option>
+        </select>
+      </label>
+      <button type="button" class="btn" id="eqFiltroClear">Limpar</button>
+      <span id="eqFiltroContador" class="nota"></span>
+    </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Custo por empresa no período</h2><div class="legenda" id="legEq"></div></div>
       <div class="grafico"><canvas id="gEquip"></canvas></div>

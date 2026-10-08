@@ -294,6 +294,9 @@ tr.plano-total td { border-bottom: none; }
 .tab-semana th.hoje, .tab-semana td.hoje { box-shadow: inset 0 2px 0 var(--acento); }
 
 .barra-acoes { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.barra-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 10px 14px; margin: 0 0 12px; background: var(--card); border: 1px solid var(--linha); border-radius: var(--r); }
+.barra-filtros label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--fg2); font-weight: 600; }
+.barra-filtros select, .barra-filtros input[type="search"] { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: .85rem; min-width: 140px; }
 .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .edit-corte-inline { display: inline-flex; align-items: center; gap: 5px; font-size: .82rem; color: var(--fg2); }
 .edit-corte-inline input[type=date] { font: inherit; font-size: .82rem; border: 1px solid var(--linha-forte); border-radius: 4px; padding: 4px 6px; background: var(--card); color: var(--fg); cursor: pointer; }

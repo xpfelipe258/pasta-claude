@@ -8,6 +8,7 @@ let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
+let eqFiltroEmp = '', eqFiltroNome = '', eqFiltroUso = 'todos';
 let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'painel';
 let empSel = null;
 let filtroImp = 'abertos';
@@ -4212,9 +4213,36 @@ function renderEquip() {
   const us = usosPeriodo(), rt = ratear(us);
   const relTipo = $('#relEquipTipo');
   if (relTipo) { const atual = relTipo.value || 'geral'; const opts = ['geral', ...new Set(rt.map(r => r.empAjust).filter(Boolean).sort())]; relTipo.innerHTML = opts.map(v => `<option value="${esc(v)}">${v === 'geral' ? 'Relatório geral' : 'Empresa: ' + esc(v)}</option>`).join(''); relTipo.value = opts.includes(atual) ? atual : 'geral'; }
-  const totEq = soma0(rt, r => r.custoR), totComb = soma0(rt, r => r.combR), totL = soma0(rt, r => r.litrosR);
+
+  // — filtros da aba —
+  const selFiltroEmp = $('#eqFiltroEmp');
+  if (selFiltroEmp) {
+    const empsAll = ['', ...new Set(rt.map(r => r.empAjust).filter(Boolean).sort())];
+    if (selFiltroEmp.options.length !== empsAll.length) {
+      selFiltroEmp.innerHTML = empsAll.map(v => `<option value="${esc(v)}">${v || 'Todas as empresas'}</option>`).join('');
+    }
+    if (!empsAll.includes(eqFiltroEmp)) eqFiltroEmp = '';
+    selFiltroEmp.value = eqFiltroEmp;
+  }
+  const selFiltroUso = $('#eqFiltroUso');
+  if (selFiltroUso) selFiltroUso.value = eqFiltroUso;
+  const inpFiltroNome = $('#eqFiltroNome');
+  if (inpFiltroNome && inpFiltroNome !== document.activeElement) inpFiltroNome.value = eqFiltroNome;
+
+  const nomeQ = ganNorm(eqFiltroNome);
+  let rtF = rt;
+  if (eqFiltroEmp) rtF = rtF.filter(r => r.empAjust === eqFiltroEmp);
+  if (nomeQ) rtF = rtF.filter(r => ganNorm(r.equipamento || '').includes(nomeQ));
+  if (eqFiltroUso === 'abastecimento') rtF = rtF.filter(r => ganNorm(r.uso || '').includes('ABASTECIMENTO') || (r.litrosR || 0) > 0);
+  if (eqFiltroUso === 'equipamento') rtF = rtF.filter(r => !ganNorm(r.uso || '').includes('ABASTECIMENTO') && ((r.custoR || 0) > 0 || !(r.litrosR || 0)));
+  const eqsCad = nomeQ ? T.equipamentos.filter(e => ganNorm(e.equipamento || '').includes(nomeQ)) : T.equipamentos;
+  const ativo = eqFiltroEmp || nomeQ || eqFiltroUso !== 'todos';
+  const cont = $('#eqFiltroContador');
+  if (cont) cont.textContent = ativo ? `${rtF.length} registro(s) filtrado(s) de ${rt.length}` : '';
+
+  const totEq = soma0(rtF, r => r.custoR), totComb = soma0(rtF, r => r.combR), totL = soma0(rtF, r => r.litrosR);
   const porEmp = {};
-  rt.forEach(r => { const o = porEmp[r.empAjust] ||= { eq: 0, comb: 0, l: 0, dias: new Set() }; o.eq += r.custoR; o.comb += r.combR; o.l += r.litrosR; o.dias.add(r.data); });
+  rtF.forEach(r => { const o = porEmp[r.empAjust] ||= { eq: 0, comb: 0, l: 0, dias: new Set() }; o.eq += r.custoR; o.comb += r.combR; o.l += r.litrosR; o.dias.add(r.data); });
   const emps = Object.keys(porEmp).sort((a, b) => (porEmp[b].eq + porEmp[b].comb) - (porEmp[a].eq + porEmp[a].comb));
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   $('#eqTiles').innerHTML = tile('Custo total no período', rs(totEq + totComb), `Equipamentos ${rs(totEq)} · combustível ${rs(totComb)}`, 'var(--fg)') +
@@ -4232,18 +4260,18 @@ function renderEquip() {
     }).join('') : '<tr><td colspan="9" class="vazio">Sem registros no período. Use "Importar abas mensais" ou "+ Uso / abastecimento".</td></tr>') + '</tbody>';
 
   const porEq = {};
-  rt.forEach(r => { const o = porEq[r.equipamento || 'NÃO INFORMADO'] ||= { n: 0, eq: 0, comb: 0, l: 0 }; if (r.custoR) o.n += r.quantidade || 1; o.eq += r.custoR || 0; o.comb += r.combR || 0; o.l += r.litrosR || 0; });
+  rtF.forEach(r => { const o = porEq[r.equipamento || 'NÃO INFORMADO'] ||= { n: 0, eq: 0, comb: 0, l: 0 }; if (r.custoR) o.n += r.quantidade || 1; o.eq += r.custoR || 0; o.comb += r.combR || 0; o.l += r.litrosR || 0; });
   $('#tabEqEquip').innerHTML = `<thead><tr><th>Equipamento</th><th class="n">Diárias/usos</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>` +
     Object.entries(porEq).sort((a, b) => (b[1].eq + b[1].comb) - (a[1].eq + a[1].comb)).map(([n, o]) =>
       `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(o.n, 1)}</td><td class="n">${rs(o.eq)}</td><td class="n">${nf(o.l, 1)}</td><td class="n">${rs(o.comb)}</td><td class="n"><b>${rs(o.eq + o.comb)}</b></td></tr>`).join('') + '</tbody>';
 
   $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Responsável</th><th>Situação</th><th></th></tr></thead><tbody>` +
-    (T.equipamentos.length ? T.equipamentos.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td>
+    (eqsCad.length ? eqsCad.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td>
       <td><button class="link" data-editar-reg="equipamentos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="7" class="vazio">Nenhum equipamento cadastrado.</td></tr>') + '</tbody>';
+      : '<tr><td colspan="7" class="vazio">Nenhum equipamento encontrado.</td></tr>') + '</tbody>';
 
   $('#tabEqUso').innerHTML = `<thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">R$/L</th><th class="n">Combustível</th><th>Operador / obs.</th><th></th></tr></thead><tbody>` +
-    (rt.length ? [...rt].sort((a, b) => b.data.localeCompare(a.data)).map(r => {
+    (rtF.length ? [...rtF].sort((a, b) => b.data.localeCompare(a.data)).map(r => {
       const partes = r.rateioAuto && empresasDe(r.empresa).length <= 1 ? ['EJ','CMM'] : empresasDe(r.empresa), dividido = partes.length > 1;
       return `<tr><td>${fdA(r.data)}</td><td>${esc(r.equipamento)}</td><td>${esc(r.empAjust)}${dividido ? `<br><span class="nota">rateio de ${esc(r.empresa)} ÷ ${partes.length}</span>` : ''}</td><td>${esc(r.uso)}</td><td class="n">${nf(r.quantidade, 1)}</td><td class="n">${r.custoR ? rs(r.custoR) : '—'}</td>
       <td class="n">${nf(r.litrosR, 1)}</td><td class="n">${r.preco_litro ? nf(r.preco_litro, 2) : '—'}</td><td class="n">${r.combR ? rs(r.combR) : '—'}</td><td class="sub">${esc([r.operador, r.obs].filter(Boolean).join(' · '))}</td>
@@ -4251,7 +4279,7 @@ function renderEquip() {
     }).join('')
       : '<tr><td colspan="11" class="vazio">Sem registros no período.</td></tr>') + '</tbody>';
 
-  graficoEquip(rt);
+  graficoEquip(rtF);
 }
 
 function graficoEquip(rt) {
@@ -5980,6 +6008,10 @@ function ligarEventos() {
   const btnRelEquip = $('#btnRelEquip'); if (btnRelEquip) btnRelEquip.onclick = abrirRelEquipPopup;
   const btnGerarRelEquip = $('#btnGerarRelEquip'); if (btnGerarRelEquip) btnGerarRelEquip.onclick = gerarRelEquipPopup;
   const modalRelEquip = $('#modalRelEquip'); if (modalRelEquip) modalRelEquip.querySelectorAll('[data-fechar-rel-equip]').forEach(x => x.addEventListener('click', fecharRelEquipPopup));
+  const _eqFE = $('#eqFiltroEmp'); if (_eqFE) _eqFE.addEventListener('change', e => { eqFiltroEmp = e.target.value; renderEquip(); });
+  const _eqFN = $('#eqFiltroNome'); if (_eqFN) _eqFN.addEventListener('input', e => { eqFiltroNome = e.target.value.trim(); renderEquip(); });
+  const _eqFU = $('#eqFiltroUso'); if (_eqFU) _eqFU.addEventListener('change', e => { eqFiltroUso = e.target.value; renderEquip(); });
+  const _eqFC = $('#eqFiltroClear'); if (_eqFC) _eqFC.addEventListener('click', () => { eqFiltroEmp = ''; eqFiltroNome = ''; eqFiltroUso = 'todos'; renderEquip(); });
   $('#btnCopiarCli').onclick = copiarResumo;
 
   $('#selServ').addEventListener('change', renderTendencia);
