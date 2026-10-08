@@ -5259,6 +5259,141 @@ async function salvarCelulaDP(inp) {
   } catch (err) { toast(err.message || 'Erro ao salvar pessoal.', true); renderDP(); }
 }
 
+// ------------------------------------------------------------ RELATÓRIO DP
+function abrirRelDP() {
+  const pop = $('#modalRelDP');
+  if (!pop) return baixarRelDP(inicioMes(ref), fimMes(ref), []);
+  $('#relDPIni').value = inicioMes(ref);
+  $('#relDPFim').value = fimMes(ref);
+  const sel = $('#relDPEmpresas');
+  if (sel) {
+    const nomes = dpEmpresas();
+    sel.innerHTML = nomes.map(n => `<option value="${esc(n)}" selected>${esc(n)}</option>`).join('');
+  }
+  pop.hidden = false;
+  document.body.classList.add('modal-aberto');
+  setTimeout(() => $('#relDPIni')?.focus(), 50);
+}
+function fecharRelDPPopup() {
+  const pop = $('#modalRelDP');
+  if (pop) pop.hidden = true;
+  document.body.classList.remove('modal-aberto');
+}
+function gerarRelDPPopup() {
+  const ini = $('#relDPIni')?.value || inicioMes(ref);
+  const fim = $('#relDPFim')?.value || fimMes(ref);
+  if (!ehISO(ini) || !ehISO(fim) || fim < ini) return toast('Informe um período válido para o relatório.', true);
+  const sel = $('#relDPEmpresas');
+  const selecionadas = sel ? [...sel.selectedOptions].map(o => o.value).filter(Boolean) : [];
+  try {
+    baixarRelDP(ini, fim, selecionadas);
+    fecharRelDPPopup();
+    toast('Relatório de efetivo gerado. Verifique a pasta de downloads.');
+  } catch (err) {
+    console.error('Erro ao gerar relatório de efetivo', err);
+    toast(`Erro ao gerar relatório: ${err?.message || err}`, true, 7000);
+  }
+}
+function baixarRelDP(ini, fim, empFiltro = []) {
+  const todas = T.dp_efetivo || [];
+  const empsBase = dpEmpresas();
+  const empsRel = empFiltro.length ? empFiltro : empsBase;
+  const linhas = todas.filter(r => r.data && r.data >= ini && r.data <= fim && empsRel.includes(normEmp(r.empresa)));
+  const obra = (window.OBRA_ATUAL && window.OBRA_ATUAL.nome) ? window.OBRA_ATUAL.nome : 'Obra';
+  const css = `<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:28px;color:#111;font-size:12px}h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;margin:20px 0 6px;text-transform:uppercase;border-bottom:2px solid #333;padding-bottom:4px}p.sub{margin:0 0 16px;color:#555;font-size:11px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f2f2f2;font-weight:700}.n{text-align:right;white-space:nowrap}.emp-head{background:#e8eef8}.totrow td,.totrow th{background:#f8f8d8;font-weight:700}.semrow td{background:#fafafa;font-style:italic;color:#666}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:8px;padding:10px;min-width:140px}.val{font-size:20px;font-weight:700;display:block}.lbl{font-size:10px;color:#666;text-transform:uppercase}@media print{.no-print{display:none}body{margin:10mm}}</style>`;
+  // Montar dados por empresa → função → dia
+  const porEmp = new Map();
+  empsRel.forEach(e => porEmp.set(e, { funcoes: new Set(), dias: new Map() }));
+  linhas.forEach(r => {
+    const emp = normEmp(r.empresa);
+    if (!porEmp.has(emp)) return;
+    const o = porEmp.get(emp);
+    const funcao = String(r.funcao || '').trim().toUpperCase();
+    if (funcao) o.funcoes.add(funcao);
+    const k = `${r.data}|${funcao}`;
+    o.dias.set(k, (o.dias.get(k) || 0) + (r.quantidade || 0));
+  });
+  const datas = datasIntervalo(ini, fim);
+  const totalGeral = soma0(linhas, r => r.quantidade || 0);
+  const totalDias = new Set(linhas.filter(r => r.quantidade > 0).map(r => r.data)).size;
+  const empsComDados = empsRel.filter(e => (porEmp.get(e)?.funcoes?.size || 0) > 0);
+  // KPI cards
+  const cardsHtml = `<div class="cards">
+    <div class="card"><span class="val">${empsComDados.length}</span><span class="lbl">Empresas</span></div>
+    <div class="card"><span class="val">${nf(totalGeral,0)}</span><span class="lbl">Total pessoas·dia</span></div>
+    <div class="card"><span class="val">${totalDias}</span><span class="lbl">Dias com lançamento</span></div>
+    <div class="card"><span class="val">${totalGeral && totalDias ? nf(totalGeral/totalDias,1) : '—'}</span><span class="lbl">Média diária</span></div>
+  </div>`;
+  // Tabela por empresa
+  let tabelasEmp = '';
+  for (const emp of empsRel) {
+    const o = porEmp.get(emp);
+    if (!o || !o.funcoes.size) continue;
+    const funcs = [...o.funcoes].sort((a,b)=>a.localeCompare(b));
+    let semAcum = Array(funcs.length + 1).fill(0);
+    let semIni = null;
+    const rows = [];
+    datas.forEach((d, idx) => {
+      const ds = diaSemana(d);
+      const cells = funcs.map((f, fi) => {
+        const v = o.dias.get(`${d}|${f}`) || 0;
+        semAcum[fi] += v;
+        semAcum[funcs.length] += v;
+        return `<td class="n">${v || ''}</td>`;
+      });
+      const totDia = funcs.reduce((s, f) => s + (o.dias.get(`${d}|${f}`) || 0), 0);
+      rows.push(`<tr><td><b>${fdA(d)}</b></td><td class="sub">${esc(ds)}</td>${cells.join('')}<td class="n"><b>${totDia || ''}</b></td></tr>`);
+      const isUltimoDaSemana = ds === 'Sáb' || ds === 'Dom' || idx === datas.length - 1;
+      if (isUltimoDaSemana && semIni !== null) {
+        const semFim = d;
+        const semCells = funcs.map((f, fi) => `<td class="n">${semAcum[fi] || ''}</td>`);
+        rows.push(`<tr class="semrow"><td colspan="2"><i>Subtotal semana ${fdA(semIni)}–${fdA(semFim)}</i></td>${semCells.join('')}<td class="n"><b>${semAcum[funcs.length] || ''}</b></td></tr>`);
+        semAcum = Array(funcs.length + 1).fill(0);
+        semIni = null;
+      }
+      if (semIni === null && ds !== 'Dom') semIni = d;
+    });
+    const totFuncs = funcs.map(f => soma0(linhas.filter(r => normEmp(r.empresa) === emp && String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0));
+    const totGEmp = soma0(totFuncs, v => v);
+    const totRow = `<tr class="totrow"><th colspan="2">TOTAL ${esc(emp)}</th>${totFuncs.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(totGEmp,0)}</td></tr>`;
+    tabelasEmp += `<h2>${esc(emp)}</h2>
+    <table><thead><tr class="emp-head"><th>Data</th><th>Dia</th>${funcs.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead>
+    <tbody>${rows.join('')}</tbody><tfoot>${totRow}</tfoot></table>`;
+  }
+  // Tabela resumo consolidado
+  const funcGlobal = [...new Set(linhas.map(r => String(r.funcao || '').trim().toUpperCase()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const resumoRows = empsRel.map(emp => {
+    const fCells = funcGlobal.map(f => {
+      const v = soma0(linhas.filter(r => normEmp(r.empresa) === emp && String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0);
+      return `<td class="n">${v || ''}</td>`;
+    });
+    const totEmp = soma0(linhas.filter(r => normEmp(r.empresa) === emp), r => r.quantidade || 0);
+    return totEmp ? `<tr><td>${esc(emp)}</td>${fCells.join('')}<td class="n"><b>${nf(totEmp,0)}</b></td></tr>` : '';
+  }).filter(Boolean).join('');
+  const totGFuncs = funcGlobal.map(f => soma0(linhas.filter(r => String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0));
+  const resumoFoot = `<tfoot><tr class="totrow"><th>TOTAL GERAL</th>${totGFuncs.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(totalGeral,0)}</td></tr></tfoot>`;
+  const resumoHtml = `<h2>Resumo consolidado por empresa</h2><table><thead><tr><th>Empresa</th>${funcGlobal.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${resumoRows || '<tr><td colspan="'+(funcGlobal.length+2)+'">Sem lançamentos no período.</td></tr>'}</tbody>${funcGlobal.length ? resumoFoot : ''}</table>`;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Efetivo ${ini} a ${fim}</title>${css}</head><body>
+  <h1>Relatório de Efetivo — ${esc(obra)}</h1>
+  <p class="sub">Período: ${fdA(ini)} a ${fdA(fim)} · Empresas: ${empsComDados.length ? esc(empsComDados.join(', ')) : 'Nenhuma'} · Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+  <div class="no-print"><button onclick="window.print()">🖨️ Imprimir / Salvar PDF</button></div>
+  ${cardsHtml}
+  ${resumoHtml}
+  ${tabelasEmp || '<p>Nenhum lançamento no período para as empresas selecionadas.</p>'}
+  </body></html>`;
+  baixarHtml(`efetivo_${ini}_${fim}.html`, html);
+}
+function datasIntervalo(ini, fim) {
+  const out = [];
+  let d = new Date(ini + 'T00:00:00');
+  const fimD = new Date(fim + 'T00:00:00');
+  while (d <= fimD) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
 // ------------------------------------------------------------ IMPACTOS
 function renderImpactos() {
   const todosImpactos = impactosComAutomaticos();
@@ -5756,6 +5891,9 @@ function ligarEventos() {
   const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
   const modalRelImp = $('#modalRelImp'); if (modalRelImp) modalRelImp.querySelectorAll('[data-fechar-rel-imp]').forEach(x => x.addEventListener('click', fecharRelImpactoPopup));
   $('#btnCancelarImp').onclick = () => $('#formImp').hidden = true;
+  const btnRelDP = $('#btnRelDP'); if (btnRelDP) btnRelDP.onclick = abrirRelDP;
+  const btnGerarRelDP = $('#btnGerarRelDP'); if (btnGerarRelDP) btnGerarRelDP.onclick = gerarRelDPPopup;
+  const modalRelDP = $('#modalRelDP'); if (modalRelDP) modalRelDP.querySelectorAll('[data-fechar-rel-dp]').forEach(x => x.addEventListener('click', fecharRelDPPopup));
   const segDpEmp = $('#segDpEmp'); if (segDpEmp) segDpEmp.addEventListener('click', ev => { const b = ev.target.closest('button[data-dp-emp]'); if (b) { dpEmpSel = b.dataset.dpEmp; renderDP(); } });
   const tabDP = $('#tabDP'); if (tabDP) {
     tabDP.addEventListener('change', ev => { if (ev.target.matches('.dp-qtd')) salvarCelulaDP(ev.target); });

@@ -557,7 +557,21 @@
   <section id="aba-dp" hidden>
     <div class="barra-acoes">
       <span class="nota">Pessoal por empresa, dia e função. Edite as quantidades diretamente na matriz mensal.</span>
+      <button class="btn" id="btnRelDP">Baixar relatório</button>
       <button class="btn primario" data-novo="dp_efetivo">+ Adicionar nova função</button>
+    </div>
+    <div class="modal-admin" id="modalRelDP" hidden>
+      <div class="modal-admin-fundo" data-fechar-rel-dp></div>
+      <div class="modal-admin-caixa relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="tituloRelDP">
+        <div class="modal-admin-topo"><div><h2 id="tituloRelDP">Baixar relatório de efetivo</h2><p>Escolha o período e as empresas para o relatório de pessoal.</p></div><button type="button" class="modal-admin-x" data-fechar-rel-dp aria-label="Fechar">×</button></div>
+        <div class="grade-modal">
+          <label>Data inicial<input type="date" id="relDPIni"></label>
+          <label>Data final<input type="date" id="relDPFim"></label>
+          <label class="largo">Empresas<select id="relDPEmpresas" multiple size="6"></select><span class="nota">Use Ctrl para selecionar mais de uma empresa. Se nenhuma ficar marcada, o relatório sai com todas.</span></label>
+        </div>
+        <p class="nota">O relatório mostra o efetivo diário por empresa e função, totais por semana e resumo consolidado do período.</p>
+        <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-dp>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelDP">Gerar relatório</button></div>
+      </div>
     </div>
     <div class="barra-acoes">
       <div class="seg" id="segDpEmp"></div>
