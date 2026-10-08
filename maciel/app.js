@@ -5243,6 +5243,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
 }
 function dpEmpresas() {
   const nomes = new Set((M.empresas || []).map(e => e.nome).filter(Boolean));
+  nomes.add('RÓTULA');
   (T.dp_efetivo || []).forEach(r => { if (r.empresa) nomes.add(normEmp(r.empresa)); });
   return [...nomes].sort((a,b)=>(COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
 }
@@ -5346,7 +5347,7 @@ function baixarRelDP(ini, fim, empFiltro = []) {
   const empsRel = empFiltro.length ? empFiltro : empsBase;
   const linhas = todas.filter(r => r.data && r.data >= ini && r.data <= fim && empsRel.includes(normEmp(r.empresa)));
   const obra = (window.OBRA_ATUAL && window.OBRA_ATUAL.nome) ? window.OBRA_ATUAL.nome : 'Obra';
-  const css = `<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:28px;color:#111;font-size:12px}h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;margin:20px 0 6px;text-transform:uppercase;border-bottom:2px solid #333;padding-bottom:4px}p.sub{margin:0 0 16px;color:#555;font-size:11px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f2f2f2;font-weight:700}.n{text-align:right;white-space:nowrap}.emp-head{background:#e8eef8}.totrow td,.totrow th{background:#f8f8d8;font-weight:700}.semrow td{background:#fafafa;font-style:italic;color:#666}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:8px;padding:10px;min-width:140px}.val{font-size:20px;font-weight:700;display:block}.lbl{font-size:10px;color:#666;text-transform:uppercase}@media print{.no-print{display:none}body{margin:10mm}}</style>`;
+  const css = `<style>@page{size:A4 landscape;margin:0}*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:12mm 15mm;color:#111;font-size:12px}h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;margin:20px 0 6px;text-transform:uppercase;border-bottom:2px solid #333;padding-bottom:4px}p.sub{margin:0 0 16px;color:#555;font-size:11px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f2f2f2;font-weight:700}.n{text-align:right;white-space:nowrap}.emp-head{background:#e8eef8}.totrow td,.totrow th{background:#f8f8d8;font-weight:700}.semrow td{background:#fafafa;font-style:italic;color:#666}.cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:8px;padding:10px;min-width:140px}.val{font-size:20px;font-weight:700;display:block}.lbl{font-size:10px;color:#666;text-transform:uppercase}@media print{.no-print{display:none}}</style>`;
   // Montar dados por empresa → função → dia
   const porEmp = new Map();
   empsRel.forEach(e => porEmp.set(e, { funcoes: new Set(), dias: new Map() }));
