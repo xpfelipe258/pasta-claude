@@ -522,6 +522,14 @@ i.ap-cel { min-width: 14px; height: 14px; padding: 0; vertical-align: middle; ma
 .ap-def { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linha); display: flex; flex-direction: column; gap: 8px; }
 .ap-def select { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
 .ap-info { min-height: 1.6em; margin: 0 0 8px; padding: 6px 10px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--linha); font-size: .8rem; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.ap-mapa-grid { display: flex; gap: 10px; align-items: flex-start; }
+.ap-mapa-grid #apMapaSvg { flex: 1; min-width: 0; }
+.ap-sel-log { width: 230px; flex-shrink: 0; background: var(--card); border: 1px solid var(--linha); border-radius: var(--r); font-size: .78rem; max-height: 560px; overflow-y: auto; }
+.ap-sel-log-vazio { padding: 14px 12px; color: var(--fg2); line-height: 1.6; }
+.ap-sel-log-topo { padding: 8px 12px; font-size: .8rem; background: var(--bg); border-bottom: 1px solid var(--linha); position: sticky; top: 0; z-index: 1; }
+.ap-sel-log-secao { padding: 6px 12px 3px; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--fg2); background: var(--bg); border-top: 1px solid var(--linha); }
+.ap-sel-log-emp { padding: 5px 12px; border-left: 3px solid var(--c, var(--acento)); background: color-mix(in srgb, var(--c, var(--acento)) 10%, transparent); }
+.ap-sel-log-linha { padding: 2px 12px 2px 18px; color: var(--fg2); font-variant-numeric: tabular-nums; line-height: 1.6; }
 .apm { user-select: none; -webkit-user-select: none; display: block; }
 .apm-slot .bar { transition: fill .08s; }
 .apm-slot.feita .bar { stroke: #c79a00; stroke-width: 1; }

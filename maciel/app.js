@@ -3602,7 +3602,10 @@ function apMapaHtml(ctx) {
       ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
       <div class="ap-legenda">${leg('joist feita', 'joist montada')}${leg('viga feita', 'viga montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
       <div id="apMapaInfo" class="ap-info">${AP_INFO_PADRAO}</div>
-      <div id="apMapaSvg" class="tabela-rolagem apm-caixa">${apMapaSvg(ctx)}</div>
+      <div class="ap-mapa-grid">
+        <div id="apMapaSvg" class="tabela-rolagem apm-caixa">${apMapaSvg(ctx)}</div>
+        <div id="apSelLog" class="ap-sel-log">${apSelLogHtml(ctx)}</div>
+      </div>
       <p class="nota">Cada retângulo é uma joist: são ${ctx.layout.length} por rua, da estação A (topo) à H (base); a posição do retângulo define a viga de apoio e o tipo de parafuso. Quadrados nos eixos: vigas (maior = apoio/VC01, menor = intermediária). Embaixo de cada rua: joists apontadas/${ctx.limRua}. Clique no número do eixo para marcar todas as vigas pendentes dele.</p>`;
   }
   return `<div class="tabela-rolagem"><table class="ap-mapa"><thead><tr><th>Eixo</th>${ctx.letras.map(l => `<th class="n" title="${ctx.crit[l].viga} · ${AP_TIPO[ctx.crit[l].evento_viga]}">${l}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
@@ -3617,6 +3620,47 @@ function apMapaHtml(ctx) {
     }).join('') + '</tbody></table></div>';
 }
 const AP_INFO_PADRAO = 'Passe o mouse sobre uma joist ou viga para ver a posição e o tipo.';
+
+function apSelLogHtml(ctx) {
+  const sel = apSelecao(ctx);
+  const total = sel.nJ + sel.nV + sel.nF;
+  if (!total) return `<div class="ap-sel-log-vazio">Nenhum item selecionado<br><span class="nota">Clique ou arraste no mapa para selecionar joists e vigas.</span></div>`;
+  let html = `<div class="ap-sel-log-topo"><b>${nf(total)}</b> item(ns) selecionado(s)</div>`;
+  if (sel.nJ) {
+    const porEmpJ = new Map();
+    sel.joists.forEach(j => { const e = j.emp || '?'; if (!porEmpJ.has(e)) porEmpJ.set(e, []); porEmpJ.get(e).push(j); });
+    html += `<div class="ap-sel-log-secao">Joists · ${nf(sel.nJ)}</div>`;
+    for (const [emp, items] of porEmpJ) {
+      html += `<div class="ap-sel-log-emp" style="--c:${corEmp(emp)}"><b>${esc(emp === '?' ? 'Sem empresa' : emp)}</b> · ${nf(items.length)} joist(s)</div>`;
+      const porRua = new Map();
+      items.forEach(j => { if (!porRua.has(j.rua)) porRua.set(j.rua, []); porRua.get(j.rua).push(j.slot); });
+      for (const [rua, slots] of [...porRua].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
+        const sl = [...slots].sort((a, b) => a - b);
+        const faixa = items.find(j => j.rua === rua)?.faixa || '';
+        html += `<div class="ap-sel-log-linha"><b>Rua ${esc(rua)}</b>${faixa ? ` <span class="nota">(${esc(faixa)})</span>` : ''}: slot ${sl.join(', ')}</div>`;
+      }
+    }
+  }
+  if (sel.nV) {
+    const porEmpV = new Map();
+    sel.vigas.forEach(v => { const e = v.emp || '?'; if (!porEmpV.has(e)) porEmpV.set(e, []); porEmpV.get(e).push(v); });
+    html += `<div class="ap-sel-log-secao">Vigas · ${nf(sel.nV)}</div>`;
+    for (const [emp, items] of porEmpV) {
+      html += `<div class="ap-sel-log-emp" style="--c:${corEmp(emp)}"><b>${esc(emp === '?' ? 'Sem empresa' : emp)}</b> · ${nf(items.length)} viga(s)</div>`;
+      items.forEach(v => { html += `<div class="ap-sel-log-linha">Eixo ${esc(v.eixo)} · Letra ${esc(v.letra)}</div>`; });
+    }
+  }
+  if (sel.nF) {
+    html += `<div class="ap-sel-log-secao">Frentes · ${nf(sel.nF)}</div>`;
+    const porEmpF = new Map();
+    sel.frente.forEach(f => { const e = f.emp || '?'; if (!porEmpF.has(e)) porEmpF.set(e, []); porEmpF.get(e).push(f); });
+    for (const [emp, items] of porEmpF) {
+      html += `<div class="ap-sel-log-emp" style="--c:${corEmp(emp)}"><b>${esc(emp === '?' ? 'Sem empresa' : emp)}</b> · ${nf(items.length)} trecho(s)</div>`;
+      items.forEach(f => { html += `<div class="ap-sel-log-linha">${esc(f.tipo)} · ${esc(f.parte)} · trecho ${esc(f.trecho)}</div>`; });
+    }
+  }
+  return html;
+}
 
 // Conciliação: o que foi lançado na produção (grade, base do BM) x o que foi apontado no mapa, por empresa.
 function apConciliacaoHtml(ctx) {
@@ -3728,6 +3772,8 @@ function apAtualizarSelecao(redesenharMapa) {
   $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
   $('#apResumo').textContent = apResumoTxt(ctx);
   if (redesenharMapa && apEst.modo === 'mapa') $('#apMapaSvg').innerHTML = apMapaSvg(ctx);
+  const logEl = $('#apSelLog');
+  if (logEl) logEl.innerHTML = apSelLogHtml(ctx);
 }
 
 async function salvarApontamento() {
