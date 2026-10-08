@@ -1773,7 +1773,7 @@ function renderGantt() {
 }
 
 // ------------------------------------------------------------ PLANEJAMENTO DE MONTAGEM
-function hojeIso() { return new Date().toISOString().slice(0, 10); }
+function hojeIso() { return hoje(); }
 let planDados = null; // cache dos dados de planejamento
 
 async function carregarPlanejamento() {
@@ -1877,8 +1877,10 @@ async function renderPlanejamento() {
     const real = datasApontSsetor(frente, parte);
     const etapa = frente === 'joist' ? 'JOIST' : 'MONTAGEM';
     const chegada = etapa === 'JOIST' ? chegadaJoist : chegadaMont;
-    const planInicio = s.data_plan_inicio || null;
-    const planFim = s.data_plan_fim || null;
+    const ed = planEdits[chave] || {};
+    const planInicio = 'ini' in ed ? (ed.ini || null) : (s.data_plan_inicio || null);
+    const planFim = 'fim' in ed ? (ed.fim || null) : (s.data_plan_fim || null);
+    const obs = 'obs' in ed ? ed.obs : (s.obs || '');
     const realInicio = real?.inicio || null;
 
     let status = 'sem-dado';
@@ -1900,10 +1902,29 @@ async function renderPlanejamento() {
       deltaMaterial = diasEntreDatas(chegada, planInicio);
     }
 
-    return { chave, frente, parte, s, real, etapa, chegada, planInicio, planFim, realInicio, status, deltaPlanReal, deltaMaterial };
+    return { chave, frente, parte, s, real, etapa, chegada, planInicio, planFim, obs, realInicio, status, deltaPlanReal, deltaMaterial };
   });
 
-  const filtrado = filtroFrente ? planSetores.filter(r => r.frente === filtroFrente) : planSetores;
+  const matMuitoTarde = r => r.deltaMaterial !== null && r.deltaMaterial < 0;
+  const porFrente = filtroFrente ? planSetores.filter(r => r.frente === filtroFrente) : planSetores;
+  const filtrosStatus = [
+    ['', 'Todos', porFrente.length],
+    ['atrasado', 'Atrasados', porFrente.filter(r => r.status === 'atrasado').length],
+    ['pendente', 'Pendentes', porFrente.filter(r => r.status === 'pendente').length],
+    ['sem-plano', 'Sem plano', porFrente.filter(r => !r.planInicio).length],
+    ['material', 'Material tardio', porFrente.filter(matMuitoTarde).length]
+  ];
+  const filtroStatus = planEst.status || '';
+  $('#segPlanStatus').innerHTML = filtrosStatus.map(([k, rot, n]) =>
+    `<button data-plan-status="${k}" class="${k === filtroStatus ? 'ativa' : ''}">${rot} (${n})</button>`).join('');
+  const passaStatus = r => !filtroStatus ? true
+    : filtroStatus === 'sem-plano' ? !r.planInicio
+    : filtroStatus === 'material' ? matMuitoTarde(r)
+    : r.status === filtroStatus;
+  const filtrado = porFrente.filter(passaStatus);
+  planUltimo = filtrado;
+  const nPend = Object.keys(planEdits).length;
+  $('#planPendentes').textContent = nPend ? `● ${nPend} setor(es) com alteração não salva` : '';
 
   // Tiles
   const atrasados = planSetores.filter(r => r.status === 'atrasado').length;
@@ -1944,7 +1965,7 @@ async function renderPlanejamento() {
     <td class="nota">${r.chegada ? fdA(r.chegada) : '—'}</td>
     <td class="n">${deltaIcon(r.deltaMaterial)}</td>
     <td>${statusFarol(r.status)}</td>
-    <td><input class="plan-obs" type="text" value="${esc(r.s?.obs || '')}" data-chave="${esc(r.chave)}" placeholder="Obs." style="width:100%"></td>
+    <td><input class="plan-obs" type="text" value="${esc(r.obs || '')}" data-chave="${esc(r.chave)}" placeholder="Obs." style="width:100%"></td>
   </tr>`).join('') + '</tbody>';
 
   // Análise de impacto
@@ -1968,8 +1989,113 @@ async function renderPlanejamento() {
       }).join('') + '</tbody></table></div>';
   }
 
+  renderPlanGantt(filtrado);
+
   // Timeline simplificada de remessas
   renderPlanTimeline(EP);
+}
+
+function renderPlanGantt(linhas) {
+  const el = $('#planGantt');
+  const hojeD = hoje();
+  const comData = linhas.filter(r => r.planInicio || r.planFim || r.realInicio);
+  if (!comData.length) { el.innerHTML = '<p class="vazio">Nenhum setor com data planejada ou apontamento para exibir.</p>'; return; }
+  const ext = r => ({
+    pi: r.planInicio || r.planFim, pf: r.planFim || r.planInicio,
+    ri: r.realInicio, rf: r.real?.fim || r.realInicio
+  });
+  const datas = [hojeD];
+  comData.forEach(r => { const e = ext(r); [e.pi, e.pf, e.ri, e.rf].forEach(d => d && datas.push(d)); });
+  datas.sort();
+  const ini = datas[0], fim = datas[datas.length - 1];
+  const dias = diasEntreDatas(ini, fim) + 1;
+  const px = Math.max(2, Math.min(14, 900 / dias));
+  const LAB = 170, LH = 22, TOP = 24;
+  const W = LAB + Math.round(dias * px) + 20;
+  const H = TOP + comData.length * LH + 6;
+  const X = d => LAB + Math.round(diasEntreDatas(ini, d) * px);
+  let svg = `<div style="overflow-x:auto"><svg width="${W}" height="${H}" style="font-family:inherit;font-size:10px">`;
+  // marcas mensais
+  let m = ini.slice(0, 7) + '-01';
+  while (m <= fim) {
+    const x = m < ini ? LAB : X(m);
+    svg += `<line x1="${x}" y1="${TOP - 4}" x2="${x}" y2="${H}" stroke="var(--linha)" stroke-width="1"/>`;
+    svg += `<text x="${x + 3}" y="${TOP - 8}" fill="var(--fg2)">${m.slice(5, 7)}/${m.slice(2, 4)}</text>`;
+    const [a, mes] = m.split('-').map(Number);
+    m = mes === 12 ? `${a + 1}-01-01` : `${a}-${String(mes + 1).padStart(2, '0')}-01`;
+  }
+  const corSt = { atrasado: 'var(--vermelho)', pendente: 'var(--amarelo)', adiantado: 'var(--verde)', 'no-prazo': 'var(--verde)' };
+  comData.forEach((r, i) => {
+    const y = TOP + i * LH;
+    const e = ext(r);
+    svg += `<text x="4" y="${y + 14}" fill="var(--fg)">${esc(cap(r.frente))} · ${esc(r.parte)}</text>`;
+    if (e.pi) {
+      const x1 = X(e.pi), w = Math.max(3, X(e.pf) - x1 + px);
+      svg += `<rect x="${x1}" y="${y + 3}" width="${w}" height="7" rx="2" fill="var(--acento)" opacity="0.35"><title>Planejado: ${fdA(e.pi)} a ${fdA(e.pf)}</title></rect>`;
+    }
+    if (e.ri) {
+      const x1 = X(e.ri), w = Math.max(3, X(e.rf) - x1 + px);
+      svg += `<rect x="${x1}" y="${y + 11}" width="${w}" height="7" rx="2" fill="${corSt[r.status] || 'var(--verde)'}"><title>Real: ${fdA(e.ri)} a ${fdA(e.rf)}</title></rect>`;
+    }
+  });
+  if (hojeD >= ini && hojeD <= fim) {
+    const x = X(hojeD);
+    svg += `<line x1="${x}" y1="${TOP - 4}" x2="${x}" y2="${H}" stroke="var(--vermelho)" stroke-width="1.5"/>`;
+  }
+  svg += '</svg></div>';
+  const ocultos = linhas.length - comData.length;
+  el.innerHTML = svg + (ocultos ? `<p class="nota">${ocultos} setor(es) sem datas não aparecem no Gantt.</p>` : '');
+}
+
+function planRegistrarEdicao(tr) {
+  const chave = tr.dataset.planChave;
+  planEdits[chave] = {
+    ini: tr.querySelector('.plan-ini')?.value || '',
+    fim: tr.querySelector('.plan-fim')?.value || '',
+    obs: tr.querySelector('.plan-obs')?.value || ''
+  };
+  const n = Object.keys(planEdits).length;
+  $('#planPendentes').textContent = `● ${n} setor(es) com alteração não salva`;
+}
+
+function planAplicarLote() {
+  const ini = $('#planLoteIni').value;
+  const dur = Math.max(1, parseInt($('#planLoteDur').value, 10) || 1);
+  const gap = Math.max(0, parseInt($('#planLoteGap').value, 10) || 0);
+  const soVazios = $('#planLoteVazios').checked;
+  if (!ini) { toast('Informe o início do 1º setor.', true); return; }
+  let cur = ini, n = 0;
+  planUltimo.forEach(r => {
+    if (soVazios && (r.planInicio || r.planFim)) return;
+    const fim = add(cur, dur - 1);
+    planEdits[r.chave] = { ini: cur, fim, obs: r.obs || '' };
+    cur = add(fim, gap + 1);
+    n++;
+  });
+  if (!n) { toast('Nenhum setor visível para preencher.', true); return; }
+  toast(`${n} setor(es) preenchidos. Revise e clique em Salvar planejamento.`);
+  renderPlanejamento();
+}
+
+function planLimparVisiveis() {
+  planUltimo.forEach(r => { planEdits[r.chave] = { ini: '', fim: '', obs: r.obs || '' }; });
+  renderPlanejamento();
+}
+
+function planExportarCsv() {
+  const campo = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const iso = d => d || '';
+  const linhas = [['Frente', 'Setor', 'Início planejado', 'Fim planejado', 'Início real', 'Fim real', 'Desvio início (dias)', 'Chegada material', 'Material antes do plano (dias)', 'Status', 'Obs.']];
+  planUltimo.forEach(r => linhas.push([
+    cap(r.frente), r.parte, iso(r.planInicio), iso(r.planFim), iso(r.realInicio), iso(r.real?.fim),
+    r.deltaPlanReal ?? '', iso(r.chegada), r.deltaMaterial ?? '', r.status, r.obs || ''
+  ]));
+  const csv = '﻿' + linhas.map(l => l.map(campo).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `planejamento-${hoje()}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function renderPlanTimeline(ep) {
@@ -2032,7 +2158,9 @@ function renderPlanTimeline(ep) {
 }
 
 // Estado do planejamento
-let planEst = { frente: '' };
+let planEst = { frente: '', status: '' };
+let planEdits = {};   // alterações ainda não salvas: chave → {ini, fim, obs}
+let planUltimo = [];  // linhas visíveis na última renderização
 
 function renderAvanco() {
   const linhas = contratoLinhas(); // já filtrado por faseFiltro via contratoLinhas()
@@ -5631,22 +5759,34 @@ function ligarEventos() {
   // Planejamento de montagem
   $('#segPlanFrente').addEventListener('click', ev => {
     const b = ev.target.closest('[data-plan-frente]');
-    if (b) { planEst.frente = b.dataset.planFrente; planDados = null; renderPlanejamento(); }
+    if (b) { planEst.frente = b.dataset.planFrente; renderPlanejamento(); }
   });
+  $('#segPlanStatus').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-plan-status]');
+    if (b) { planEst.status = b.dataset.planStatus; renderPlanejamento(); }
+  });
+  $('#tabPlan').addEventListener('input', ev => {
+    const tr = ev.target.closest('tr[data-plan-chave]');
+    if (tr) planRegistrarEdicao(tr);
+  });
+  $('#tabPlan').addEventListener('change', ev => {
+    if (ev.target.classList.contains('plan-dt')) renderPlanejamento();
+  });
+  $('#btnPlanLote').addEventListener('click', planAplicarLote);
+  $('#btnPlanLimparVis').addEventListener('click', planLimparVisiveis);
+  $('#btnPlanCsv').addEventListener('click', planExportarCsv);
   $('#btnSalvarPlan').addEventListener('click', async () => {
-    const rows = document.querySelectorAll('#tabPlan tbody tr[data-plan-chave]');
     const setores = [];
-    rows.forEach(tr => {
-      const chave = tr.dataset.planChave;
-      const ini = tr.querySelector('.plan-ini')?.value || null;
-      const fim = tr.querySelector('.plan-fim')?.value || null;
-      const obs = tr.querySelector('.plan-obs')?.value || '';
-      setores.push({ chave, data_plan_inicio: ini || null, data_plan_fim: fim || null, obs });
-    });
+    for (const [chave, e] of Object.entries(planEdits)) {
+      if (e.ini && e.fim && e.fim < e.ini) { toast(`Setor ${chave.split('|')[1]}: o fim planejado é anterior ao início.`, true); return; }
+      setores.push({ chave, data_plan_inicio: e.ini || null, data_plan_fim: e.fim || null, obs: e.obs || '' });
+    }
+    if (!setores.length) { toast('Nenhuma alteração para salvar.'); return; }
     try {
       const r = await postarBruto(API + 'planejamento', { setores });
       if (r.ok) {
         planDados = null;
+        planEdits = {};
         toast(`${setores.length} setor(es) salvos!`);
         renderPlanejamento();
       } else {

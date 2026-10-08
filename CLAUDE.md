@@ -136,6 +136,9 @@ Obra ativa: **OBRA 198** (id=1)
 
 ## Histórico de sessões
 
+### 2026-10-08
+**Planejamento (aba Planejamento):** filtro por status, edições não salvas preservadas ao trocar filtros, preenchimento de datas em lote em sequência, Gantt planejado × real, exportação CSV e indicador de alterações pendentes.
+
 ### 2026-10-07
 **Corrigido:**
 - HTTP 500 em `admin.php` — `$cfg` era usado antes de ser definido (TypeError PHP 8)

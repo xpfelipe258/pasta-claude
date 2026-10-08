@@ -226,7 +226,23 @@
     <div class="tiles" id="planTiles"></div>
     <div class="barra-acoes">
       <div class="seg" id="segPlanFrente"></div>
+      <div class="seg" id="segPlanStatus"></div>
+      <span id="planPendentes" class="nota"></span>
+      <button class="btn" id="btnPlanCsv">Exportar CSV</button>
       <button class="btn primario" id="btnSalvarPlan">Salvar planejamento</button>
+    </div>
+    <div class="barra-filtros" id="planLote">
+      <b>Preencher em lote (setores visíveis)</b>
+      <label>Início do 1º setor<input type="date" id="planLoteIni"></label>
+      <label>Duração por setor (dias)<input type="number" id="planLoteDur" min="1" value="3" style="width:70px"></label>
+      <label>Intervalo entre setores (dias)<input type="number" id="planLoteGap" min="0" value="0" style="width:70px"></label>
+      <label><input type="checkbox" id="planLoteVazios" checked> Só setores sem data</label>
+      <button type="button" class="btn" id="btnPlanLote">Aplicar</button>
+      <button type="button" class="btn" id="btnPlanLimparVis">Limpar datas visíveis</button>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Gantt: planejado × realizado</h2><span class="nota">Barra clara = planejado, barra cheia = real (primeiro ao último apontamento). Linha vermelha = hoje.</span></div>
+      <div id="planGantt"></div>
     </div>
     <div class="bloco">
       <div class="bloco-cab">

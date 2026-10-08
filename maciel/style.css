@@ -296,7 +296,7 @@ tr.plano-total td { border-bottom: none; }
 .barra-acoes { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
 .barra-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 10px 14px; margin: 0 0 12px; background: var(--card); border: 1px solid var(--linha); border-radius: var(--r); }
 .barra-filtros label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--fg2); font-weight: 600; }
-.barra-filtros select, .barra-filtros input[type="search"] { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: .85rem; min-width: 140px; }
+.barra-filtros select, .barra-filtros input[type="search"], .barra-filtros input[type="date"], .barra-filtros input[type="number"] { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: .85rem; min-width: 140px; }
 .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .edit-corte-inline { display: inline-flex; align-items: center; gap: 5px; font-size: .82rem; color: var(--fg2); }
 .edit-corte-inline input[type=date] { font: inherit; font-size: .82rem; border: 1px solid var(--linha-forte); border-radius: 4px; padding: 4px 6px; background: var(--card); color: var(--fg); cursor: pointer; }
@@ -741,3 +741,6 @@ td.col-nova { padding: 3px 6px; }
 #aba-estrem.rem-hide-produto #tabEstRem td:nth-child(3) { display: none; }
 #aba-estrem.rem-hide-etapa #tabEstRem th:nth-child(4),
 #aba-estrem.rem-hide-etapa #tabEstRem td:nth-child(4) { display: none; }
+
+#planLote label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; gap: 6px; }
+#planPendentes { color: var(--amarelo); font-weight: 700; }
