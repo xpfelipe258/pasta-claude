@@ -145,6 +145,7 @@ Obra ativa: **OBRA 198** (id=1)
 - Dados pessoais e de saúde: acesso só para admin ou usuário liberado em SESMT GERAL → Acessos; CPF mascarado nas listas e no CSV
 - Testes: `python ferramentas/teste_sesmt.py` (PHP + SQLite em pasta temporária, 36 testes)
 **Cronograma (Gantt):** previsto do Telhar em m². A meta cadastrada (7 telhas/dia) era aplicada sobre a quantidade do catálogo do BM (m²). Em `clienteComContratoAtual()` (`maciel/app.js`), quando a quantidade vem do catálogo em m² e a meta não fecha com ela no prazo, a meta passa a ser m² ÷ dias úteis entre início planejado e prazo; o tooltip do Gantt mostra a unidade m².
+**Cronograma (Gantt) — Telhar F1 e Eclusa:** datas padrão do Telhar F1 = 01/10 a 27/11/2026 (`GAN_AJUSTES_DATAS_PADRAO`, busca sem diferenciar maiúsculas/acentos). Eclusa deixou de ter o avanço suprimido: Vigas e Joists (BM 3.3.1, ponderado por peso), Calhas (3.4.10) e Telhas (3.4.1) usam as atividades do BM da própria Eclusa, em % (`ganBmAtividadesEspecificas`, `ganBmPercentual`). Fechamento ACM e Rufos seguem sem avanço.
 
 ### 2026-10-08
 **Planejamento (aba Planejamento):** filtro por status, edições não salvas preservadas ao trocar filtros, preenchimento de datas em lote em sequência, Gantt planejado × real, exportação CSV e indicador de alterações pendentes.

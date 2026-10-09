@@ -1313,6 +1313,7 @@ const GAN_CRONOGRAMA_CLIENTE = [
 ];
 
 const GAN_AJUSTES_DATAS_PADRAO = {
+  'GALPÃO F1 – COBERTURA|TELHAR|1': { inicio_plan: '2026-10-01', prazo: '2026-11-27' },
   'ECLUSA|Eclusa - Vigas e Joists|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
   'ECLUSA|Eclusa - Calhas|1': { inicio_plan: '2026-10-22', prazo: '2026-10-28' },
   'ECLUSA|Eclusa - Telhas|1': { inicio_plan: '2026-10-29', prazo: '2026-11-13' },
@@ -1342,7 +1343,9 @@ function ganDataKey(it) { return `${it.frente || 'SEM FRENTE'}|${it.servico}|${g
 function ganDataOverrides() { try { return JSON.parse(localStorage.getItem('obra198_gantt_datas') || '{}') || {}; } catch { return {}; } }
 function ganSalvarDataOverride(k, v) { const o = ganDataOverrides(); o[k] = v; localStorage.setItem('obra198_gantt_datas', JSON.stringify(o)); }
 function ganAplicarDatas(it) {
-  const k = ganDataKey(it), aj = { ...(GAN_AJUSTES_DATAS_PADRAO[k] || {}), ...(ganDataOverrides()[k] || {}) };
+  const k = ganDataKey(it), kn = ganNorm(k);
+  const padrao = Object.entries(GAN_AJUSTES_DATAS_PADRAO).find(([kk]) => ganNorm(kk) === kn);
+  const aj = { ...(padrao ? padrao[1] : {}), ...(ganDataOverrides()[k] || {}) };
   if (aj.inicio_plan) it.inicio_plan = aj.inicio_plan;
   if (aj.prazo) it.prazo = aj.prazo;
   return it;
@@ -1350,6 +1353,7 @@ function ganAplicarDatas(it) {
 
 
 function ganSuprimirAvancoVisual(it) {
+  if (ganBmAtividadesEspecificas(it).length) return false;
   const fr = ganNorm(it.frente), sv = ganNorm(it.servico);
   return fr === 'ECLUSA'
     || fr === 'PORTARIA'
@@ -1440,13 +1444,14 @@ function ganItensCliente() {
       alvo.prazo = cr.prazo;
       alvo.fontes = [...new Set([...(alvo.fontes || []), ...(cr.fontes || []), cr.servico])];
     } else {
-      const qtd = ganQtdRef(cr);
-      base.push({ ...cr, qtd, peso: qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true });
+      const porBm = ganBmAtividadesEspecificas(cr).length > 0;
+      const qtd = porBm ? 100 : ganQtdRef(cr);
+      base.push({ ...cr, qtd, peso: porBm ? 1 : qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true, bm_percentual: porBm });
     }
   });
   return base.map(it => {
     ganAplicarDatas(it);
-    if (it.meta_derivada) it.meta_dia = metaDiaPorPrazo(it) || it.meta_dia;
+    if (it.meta_derivada || it.bm_percentual) it.meta_dia = metaDiaPorPrazo(it) || it.meta_dia;
     return it;
   });
 }
@@ -1580,6 +1585,41 @@ function ganBmResumo(it, ate) {
   const porEmp = [...empresas.entries()].map(([nome, lista]) => ({ nome, ds: lista.sort((a, b) => a[0].localeCompare(b[0])) }));
   return { real, pct, ds: ds.sort((a, b) => a[0].localeCompare(b[0])), porEmp };
 }
+// Linhas das frentes anexas cujo avanço vem das atividades do BM da própria frente (e não das colunas gerais do galpão).
+// Eclusa: Vigas e Joists = item 3.3.1 (instalação das vigas, pré-montagem e instalação de joists, contraventamento);
+// Calhas = suportes e calhas da Eclusa (3.4.10); Telhas = instalação de telhas da Eclusa (3.4.1).
+function ganBmAtividadesEspecificas(it) {
+  if (ganNorm(it.frente) !== 'ECLUSA') return [];
+  const sv = ganNorm(it.servico);
+  let filtro = null;
+  if (sv.includes('VIGAS E JOISTS')) filtro = a => ganNorm(a.item_desc).includes('COBERTURA DA ECLUSA');
+  else if (sv.includes('CALHAS')) filtro = a => ganNorm(a.item_desc).includes('CALHAS') && ganNorm(a.atividade).includes('ECLUSA');
+  else if (sv.includes('TELHAS')) filtro = a => ganNorm(a.atividade).includes('ECLUSA') && ganNorm(a.atividade).includes('TELHA') && ganNorm(a.item_desc).includes('COBERTURA DOS ANEXOS');
+  return filtro ? bmTab('bm_atividades').filter(filtro) : [];
+}
+
+// Avanço em % (base 100) das atividades do BM: cada atividade pesa pelo seu peso e conta realizado ÷ quantidade do BM.
+function ganBmPercentual(it, ate) {
+  const ats = ganBmAtividadesEspecificas(it);
+  const somaPesos = soma0(ats, a => a.peso || 0);
+  if (!ats.length || !somaPesos) return null;
+  let pct = 0;
+  const ds = [], porEmpresa = new Map();
+  ats.forEach(a => {
+    const w = (a.peso || 0) / somaPesos;
+    const real = bmRealizado(a, ate);
+    pct += w * (a.qtd ? Math.min(1, Math.max(0, real / a.qtd)) : 0);
+    const bruto = ganBmDatasAtividade(a, ate), totalBruto = soma0(bruto, ([, v]) => v);
+    const fator = totalBruto > 0 && a.qtd ? real / totalBruto : 0;
+    const lista = bruto.map(([d, v]) => [d, w * (v * fator / a.qtd) * 100]).filter(([, v]) => v > 0);
+    ds.push(...lista);
+    if (lista.length) porEmpresa.set(a.empresa, [...(porEmpresa.get(a.empresa) || []), ...lista]);
+  });
+  if (!ds.length && pct <= 0) return null;
+  return { real: pct * 100, pct, ds: ds.sort((x, y) => x[0].localeCompare(y[0])),
+    porEmp: [...porEmpresa.entries()].map(([nome, lista]) => ({ nome, ds: lista.sort((x, y) => x[0].localeCompare(y[0])) })) };
+}
+
 function ganApontResumo(it, ate) {
   const serv = ganNorm(it.servico);
   if (!it.qtd || !(serv === 'FECHAMENTO' || serv.includes('FECH LATERAL ESTRUTURA') || serv.includes('FECHAMENTO LATERAL ESTRUTURA'))) return null;
@@ -1626,9 +1666,9 @@ function ganAjustarFechamentoLateral(ls) {
 function ganLinhas(c) {
   const proj = Object.fromEntries(contratoLinhas(c).map(x => [x.servico, x]));
   const linhas = ganItensCliente().map(it => {
-    const suprimirAvanco = ganSuprimirAvancoVisual(it);
-    const dsProd = suprimirAvanco ? [] : ganProducaoFase(it).filter(([d]) => d <= c);
-    const bm = suprimirAvanco ? null : ganBmResumo(it, c), ap = suprimirAvanco ? null : ganApontResumo(it, c);
+    const suprimirAvanco = ganSuprimirAvancoVisual(it), porBm = !!it.bm_percentual;
+    const dsProd = suprimirAvanco || porBm ? [] : ganProducaoFase(it).filter(([d]) => d <= c);
+    const bm = porBm ? ganBmPercentual(it, c) : suprimirAvanco ? null : ganBmResumo(it, c), ap = suprimirAvanco || porBm ? null : ganApontResumo(it, c);
     const dsBm = suprimirAvanco ? [] : ganSerieFase(it, bm?.ds || []).filter(([d]) => d <= c);
     const dsAp = suprimirAvanco ? [] : ganSerieFase(it, ap?.ds || []).filter(([d]) => d <= c);
     const ds = [...dsProd, ...dsBm, ...dsAp].sort((a, b) => a[0].localeCompare(b[0]));
@@ -1639,7 +1679,7 @@ function ganLinhas(c) {
     if (!concluiu && (bm?.pct >= 1 || ap?.pct >= 1) && ds.length) concluiu = ds[ds.length - 1][0];
     const p = proj[it.servico] || {};
     const status = realAc >= it.qtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
-    const porEmpProd = suprimirAvanco ? [] : M.empresas.map(e => ({ nome: e.nome, ds: ganProducaoFase(it, e.nome).filter(([d]) => d <= c) })).filter(x => x.ds.length);
+    const porEmpProd = suprimirAvanco || porBm ? [] : M.empresas.map(e => ({ nome: e.nome, ds: ganProducaoFase(it, e.nome).filter(([d]) => d <= c) })).filter(x => x.ds.length);
     const mapaEmp = new Map(porEmpProd.map(x => [x.nome, [...x.ds]]));
     if (!suprimirAvanco) [...(bm?.porEmp || []), ...(ap?.porEmp || [])].forEach(x => {
       const dsFase = ganSerieFase(it, x.ds || []).filter(([d]) => d <= c);
@@ -1750,8 +1790,10 @@ function renderGantt() {
   const porFrente = {};
   ls.forEach(l => (porFrente[l.it.frente || 'SEM FRENTE'] ||= []).push(l));
   Object.entries(porFrente).forEach(([fr, xs]) => {
-    const pesoT = soma0(xs, l => l.it.peso) || 1;
-    const fp = soma0(xs, l => l.it.peso * l.pctPrev) / pesoT * 100, fr_ = soma0(xs, l => l.it.peso * l.pctReal) / pesoT * 100;
+    // frentes com avanço em % do BM (Eclusa): quantidades de unidades diferentes, então cada linha pesa igual
+    const pesoL = xs.some(l => l.it.bm_percentual) ? () => 1 : l => l.it.peso;
+    const pesoT = soma0(xs, pesoL) || 1;
+    const fp = soma0(xs, l => pesoL(l) * l.pctPrev) / pesoT * 100, fr_ = soma0(xs, l => pesoL(l) * l.pctReal) / pesoT * 100;
     corpo += `<div class="g-linha g-frente"><div class="g-rot" style="width:${GAN_ESQ}px"><b>${esc(fr)}</b> <span class="nota">real ${nf(fr_, 0)}% · prev. ${nf(fp, 0)}%</span></div><div class="g-trilha" style="width:${W}px"></div></div>`;
     xs.forEach(l => {
       const iniciouAtrasado = !!(l.ri && l.ini && l.ri > l.ini);
@@ -1761,7 +1803,7 @@ function renderGantt() {
       const realIniVis = l.ri || null;
       const realFimVis = l.rf || (l.ri ? c : null);
       const realPctVis = l.ri && l.rf ? l.pctReal : l.ri ? Math.max(l.pctReal, .03) : 0;
-      const un = servicoUsaCatalogoM2(l.it.servico) ? ' m²' : '';
+      const un = l.it.bm_percentual ? ' %' : servicoUsaCatalogoM2(l.it.servico) && !l.it.virtual_gantt ? ' m²' : '';
       const rotStatus = semInicioAtrasado ? 'INÍCIO ATRASADO' : iniciouAtrasado ? 'INICIOU ATRASADO' : l.status;
       const tit = `${cap(l.it.servico)}\nStatus: ${rotStatus}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)}${un} de ${nf(l.it.qtd)}${un} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)}${un} (${nf(l.pctPrev * 100, 1)}%)${semInicioAtrasado ? '\nAlerta: atividade já deveria ter iniciado.' : ''}${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}`;
       corpo += `<div class="g-linha ${semInicioAtrasado ? 'g-alerta-atraso' : ''}"><div class="g-rot" style="width:${GAN_ESQ}px" title="${esc(tit)}"><span class="g-nome">${esc(cap(l.it.servico))}</span>
