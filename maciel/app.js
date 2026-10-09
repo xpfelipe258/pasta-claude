@@ -1214,7 +1214,8 @@ function clienteComFontes(c0) {
   const base = clienteComContratoAtual(c0);
   let item = { ...base, ...clienteDatasCronograma(c0) };
   const fonte = clienteFonte(c0);
-  if (fonte && faseItem(c0.frente) === '1') {
+  if (fonte && faseItem(c0.frente) !== '1') return { ...item, qtd: 0, peso: 0 };
+  if (fonte) {
     const qtd = fonte.percentual ? 100 : catalogoQtd(fonte.atividades);
     if (qtd > 0) item = { ...item, qtd, peso: Number(c0.peso) || 1, servico_exib: fonte.nome, fonte_catalogo: true, fonte_pct: !!fonte.percentual, contrato_total: true };
   }
@@ -1390,6 +1391,8 @@ const GAN_CRONOGRAMA_CLIENTE = [
 
 const GAN_AJUSTES_DATAS_PADRAO = {
   'GALPÃO F1 – COBERTURA|TELHAR|1': { inicio_plan: '2026-10-01', prazo: '2026-11-27' },
+  'GALPÃO F1 – FECHAMENTO LATERAL|Fech. Lateral – Estrutura|1': { inicio_plan: '2026-10-01' },
+  'GALPÃO F1 – FECHAMENTO LATERAL|Fechamento|1': { inicio_plan: '2026-10-01' },
   'ECLUSA|Eclusa - Vigas e Joists|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
   'ECLUSA|Eclusa - Calhas|1': { inicio_plan: '2026-10-22', prazo: '2026-10-28' },
   'ECLUSA|Eclusa - Telhas|1': { inicio_plan: '2026-10-29', prazo: '2026-11-13' },
@@ -2412,13 +2415,14 @@ function renderCliente() {
     const totInicioMax = fases.map(f => f.inicio_plan).filter(Boolean).sort().pop() || null;
     const totMetaDia = fases.length === 1 ? fases[0].meta_dia : soma0(fases, f => f.meta_dia || 0) / fases.length;
 
-    // PREVISTO PERÍODO: meta_cliente/dia × dias úteis do período (ini até c)
-    const prevPer = totMetaDia * contarDiasUteis(ini, c);
+    // PREVISTO PERÍODO: previsto acumulado no fim do período − previsto acumulado na véspera do início
+    // (respeita início, prazo e contrato de cada item; nunca passa do contrato)
+    const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
+    const prevPer = Math.max(0, prevAc - soma0(fases, f => prevCliente(f, antes) || 0));
     // REALIZADO PERÍODO: soma realizado de cada empresa (chamar prodServico UMA VEZ por serviço, não por fase)
     const ref = fases.find(f => f.fonte_catalogo) || null;
     const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? (ref ? realizadoPeriodoItem(ref, n, ini, c) : prodServicoMax(servNome, n, ini, c)) : 0]));
     const realPer = ref?.fonte_pct ? (c >= ini ? realizadoPeriodoItem(ref, null, ini, c) : 0) : soma0(Object.values(porEmp), v => v);
-    const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
     const realAc = soma0(fases, f => realizadoItem(f, c) || 0);
     const saldo = Math.max(totQtd - realAc, 0);
 
@@ -2513,13 +2517,13 @@ function clienteConsolidacao() {
   M.cliente.forEach(c0 => {
     const r = clienteComFontes(c0);
     if (!r.qtd) return;
+    // O contrato NÃO é gravado: a rota de registro copia cliente.qtd para servicos.escopo (grade por empresa, em outra unidade).
     const novo = {
-      qtd: r.fonte_pct ? c0.qtd : r.qtd,
       meta_dia: r.fonte_pct ? c0.meta_dia : Math.round(r.meta_dia * 10000) / 10000,
       inicio_plan: r.inicio_plan || null, prazo: r.prazo || null,
     };
     const igual = (a, b) => (a ?? null) === (b ?? null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.0001);
-    const campos = ['qtd', 'meta_dia', 'inicio_plan', 'prazo'].filter(k => !igual(novo[k], c0[k])).map(k => ({ k, de: c0[k] ?? null, para: novo[k] ?? null }));
+    const campos = ['meta_dia', 'inicio_plan', 'prazo'].filter(k => !igual(novo[k], c0[k])).map(k => ({ k, de: c0[k] ?? null, para: novo[k] ?? null }));
     if (campos.length) out.push({ linha: c0.linha, servico: r.servico_exib || cap(c0.servico), campos });
   });
   return out;
@@ -2530,7 +2534,7 @@ function abrirConsolidacaoCliente() {
   const fmt = (k, v) => v == null ? '—' : (k === 'inicio_plan' || k === 'prazo') ? fdA(v) : nf(v, k === 'meta_dia' ? 2 : 1);
   box.hidden = false;
   if (!dif.length) { box.innerHTML = '<div class="faixa">O cadastro já está igual às fontes. Nada a consolidar.</div>'; return; }
-  box.innerHTML = `<div class="faixa" style="margin:0 0 10px">Estes valores digitados no cadastro serão substituídos pelos das fontes escolhidas. Confira antes de gravar.</div>
+  box.innerHTML = `<div class="faixa" style="margin:0 0 10px">Estes valores digitados no cadastro serão substituídos pelos das fontes escolhidas. O contrato continua vindo do catálogo do BM e não é gravado (para não alterar o escopo por empresa). Confira antes de gravar.</div>
     <div class="tabela-rolagem"><table><thead><tr><th>Serviço</th><th>Campo</th><th class="n">No cadastro hoje</th><th class="n">Passa a ser</th></tr></thead><tbody>` +
     dif.flatMap(d => d.campos.map((c, i) => `<tr><td>${i === 0 ? '<b>' + esc(d.servico) + '</b>' : ''}</td><td>${rot[c.k]}</td><td class="n">${fmt(c.k, c.de)}</td><td class="n"><b>${fmt(c.k, c.para)}</b></td></tr>`)).join('') +
     `</tbody></table></div><div class="barra-acoes" style="margin-top:10px"><button class="btn primario" id="btnConfirmarConsCli">Gravar ${dif.length} serviço(s) no cadastro</button><button class="btn" id="btnCancelarConsCli">Cancelar</button></div>`;
