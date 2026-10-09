@@ -354,7 +354,7 @@ a.btn.primario{color:#fff}
 </header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
-  <div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><?= sv_botao('Painel SESMT', sv_url(), $v === 'painel' && $reg === '') ?></div></div>
+  <div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><?= sv_botao('← Voltar ao sistema', 'index.php', false) ?><?= sv_botao('Painel SESMT', sv_url(), $v === 'painel' && $reg === '') ?></div></div>
 <?php foreach ($grupos as $nomeGrupo => $itens): ?>
   <div class="sidebar-grupo"><div class="sidebar-titulo aberto"><?= h($nomeGrupo) ?><span class="seta-grupo">&#8249;</span></div>
     <div class="sidebar-itens aberto"><?php foreach ($itens as $k => $rot) { echo sv_botao($rot, sv_url(['reg' => $k]), $reg === $k); } ?></div></div>
