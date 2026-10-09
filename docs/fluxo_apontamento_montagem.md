@@ -58,8 +58,11 @@ sobre as 43 previstas.
   (`pilaretes` de cada trecho). **Ao apontar a viga baixam também FG022 x8 e FG024 x4 por pilarete que ela cobre.** A H-G2 e a A2-A
   cobrem 2 pilaretes cada, a D2-D1 (central) nenhum, as outras 18 um. Conferência: 21 vigas apontadas baixam 176 porcas e 88
   arruelas Ø3/4" e 84 parafusos, porcas e arruelas Ø1/2", igual ao IFC. Chumbadores dos pilaretes não entram.
-- No sistema online o apontamento mostra a baixa prevista e grava o local da viga; o consumo virtual do estoque só soma eventos
-  de `estoque_eventos` (o `consumo_evento` do servidor já entende `VIGA_OITAO_MONTADA`).
+- **Apontamento baixa o estoque (sistema online):** ao montar o modelo, o servidor converte cada joist apontada em um evento
+  `JOIST_ICADA` e cada viga no evento do tipo da letra (`eventos_de_apontamentos` em `modelo.php`, a mesma regra do programa
+  local), somados aos eventos lançados à mão em `estoque_eventos`. Não há linha duplicada para apagar: excluir o apontamento
+  devolve a baixa. O consumo virtual (Materiais, Inventário, Baixa automática) já subtrai as joists apontadas do consumo
+  genérico por produção e soma o kit exato do apontamento. Não lance à mão em `estoque_eventos` o que já foi apontado.
 
 ## Histórico e conciliação
 

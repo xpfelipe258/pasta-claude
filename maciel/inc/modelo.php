@@ -134,8 +134,10 @@ function montar_modelo()
     }
     $inv_ifc = carregar_inventario_ifc();
     $regras = carregar_regras_baixa();
+    // O apontamento de montagem baixa o estoque: cada joist e cada viga apontada vira um evento de baixa,
+    // somado aos eventos lançados à mão (tabela estoque_eventos).
     $resumo = ($regras) ? resumir_estoque_ifc(
-        $tabelas['estoque_eventos'] ?? [],
+        array_merge($tabelas['estoque_eventos'] ?? [], eventos_de_apontamentos($tabelas['apontamentos'] ?? [], $regras)),
         $tabelas['estoque_remessas'] ?? [],
         $tabelas['estoque_inventario'] ?? [],
         $regras, $inv_ifc) : null;
@@ -206,13 +208,35 @@ function carregar_regras_baixa()
     return is_array($d) ? $d : null;
 }
 
+// Converte as linhas do apontamento de montagem nos eventos que o motor de baixa entende
+// (mesma regra do programa local): joist -> JOIST_ICADA; viga -> o evento do tipo da letra (apoio, intermediária, VC01, oitão).
+function eventos_de_apontamentos(array $aps, array $regras)
+{
+    $crit = $regras['criterio_por_letra'] ?? [];
+    $out = [];
+    foreach ($aps as $a) {
+        $tipo = strtoupper((string)($a['tipo'] ?? ''));
+        $base = ['data' => $a['data'] ?? null, 'empresa' => $a['empresa'] ?? null, 'letra' => $a['letra'] ?? null];
+        if ($tipo === 'JOIST') {
+            $out[] = $base + ['tipo' => 'JOIST_ICADA', 'rua' => $a['rua'] ?? null, 'faixa' => $a['faixa'] ?? null,
+                'n_joists' => $a['qtd'] ?? 0];
+        } elseif ($tipo === 'VIGA') {
+            $ev = $crit[strtoupper((string)($a['letra'] ?? ''))]['evento_viga'] ?? null;
+            if ($ev) {
+                $out[] = $base + ['tipo' => $ev, 'eixo' => $a['eixo'] ?? null, 'viga_id' => $a['viga_id'] ?? null];
+            }
+        }
+    }
+    return $out;
+}
+
 function consumo_evento(array $ev, array $regras)
 {
     $tipo = strtoupper((string)($ev['tipo'] ?? ''));
     $letra = strtoupper((string)($ev['letra'] ?? ''));
     $faixa = strtoupper((string)($ev['faixa'] ?? ''));
     $out = [];
-    if ($tipo === 'VIGA_APOIO_MONTADA' || $tipo === 'VIGA_INTERM_MONTADA' || $tipo === 'VIGA_OITAO_MONTADA') {
+    if (strpos($tipo, 'VIGA_') === 0 && substr($tipo, -8) === '_MONTADA') {
         foreach ($regras['eventos'] as $e) {
             if ($e['codigo'] === $tipo) {
                 foreach ($e['baixa'] ?? [] as $b) {
