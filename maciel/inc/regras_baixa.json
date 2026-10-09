@@ -135,7 +135,7 @@
       "evento_viga": "VIGA_INTERM_MONTADA",
       "oitao": true,
       "faixa": "AB",
-      "posicao_estacao": 1.0
+      "posicao_estacao": 0
     },
     "B-A1": {
       "viga": "VC09",
@@ -335,7 +335,7 @@
       "evento_viga": "VIGA_INTERM_MONTADA",
       "oitao": true,
       "faixa": "GH",
-      "posicao_estacao": 22.0
+      "posicao_estacao": 23
     }
   },
   "letra_para_faixa_do_par": {
