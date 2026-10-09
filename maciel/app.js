@@ -3502,7 +3502,7 @@ const apFrenteAtual = () => {
   const f = window._frentes && window._frentes.frentes;
   return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento' }[apEst.modo]] : null;
 };
-const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01' };
+const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01', VIGA_OITAO_MONTADA: 'Oitão' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
 const APM_PASSO = { compacto: 10, normal: 14, grande: 19 };
 const APM = { mEsq: 70, mTop: 44, pad: 6 };
@@ -3542,7 +3542,7 @@ function apContexto(regras) {
     return { n, faltam, liberado: !faltam.length };
   };
   const lim = regras.limites_ifc || {};
-  return { cfg, crit, pos, layout, joists, vigas, vigaMontada, porPos, totalRua, slotRow, vigaId, ruas, quadrante, letras: letrasBase, letrasEixo, ehOitao,
+  return { cfg, crit, pos, layout, joists, vigas, vigaMontada, porPos, totalRua, slotRow, vigaId, ruas, quadrante, letras: letrasBase, letrasEixo, ehOitao, pilareteBaixa: oit.pilarete_baixa || [],
     limRua: lim.joists_por_rua_maximo || 43, limGalpao: lim.joists_no_galpao_maximo || 817,
     evento: cod => (regras.eventos || []).find(e => e.codigo === cod) || {} };
 }
@@ -3592,6 +3592,9 @@ function apSelecao(ctx) {
   vigas.forEach(v => {
     grupo(v.emp, ctx.cfg.servico_viga).delta += 1;
     (ctx.evento(ctx.crit[v.letra].evento_viga).baixa || []).forEach(b => soma(b.codigo, b.quantidade));
+    // oitão: a viga que cobre o pilarete baixa as porcas e arruelas Ø3/4" dele (posição lida do IFC)
+    const npil = (ctx.crit[v.letra].pilaretes || []).length;
+    if (npil) (ctx.pilareteBaixa || []).forEach(b => soma(b.codigo, b.quantidade * npil));
   });
   const fs = (window._frentes || {}).frentes || {};
   const regras = window._regras_baixa || {};
@@ -3768,10 +3771,10 @@ function apMapaSvg(ctx) {
     const yv = c.oitao ? yOitao(c.posicao_estacao) : yEst(l);
     const estMontado = m?.empresa || null;
     const est = m ? 'feita' : emp ? 'sel' : 'pend';
-    const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 9 : 13;
-    const info = `${id} · ${c.oitao ? `oitão eixo ${e}, trecho ${l} · ` : ''}${AP_TIPO[c.evento_viga]} · ` + (m ? `montada${m.empresa ? ' (' + m.empresa + ')' : ''}${m.data ? ' em ' + fdA(m.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
+    const peq = c.oitao || c.evento_viga === 'VIGA_INTERM_MONTADA', tam = peq ? 9 : 13;
+    const info = `${id} · ${c.oitao ? `oitão eixo ${e}, trecho ${l}${c.pilaretes?.length ? ' (cobre pilarete ' + c.pilaretes.join(', ') + ')' : ''} · ` : ''}${AP_TIPO[c.evento_viga]} · ` + (m ? `montada${m.empresa ? ' (' + m.empresa + ')' : ''}${m.data ? ' em ' + fdA(m.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
     const estilo = est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : est === 'feita' && estMontado ? `style="--sel:${corSelEmp(estMontado)}"` : '';
-    s.push(`<g class="apm-viga ${est} ${c.evento_viga === 'VIGA_INTERM_MONTADA' ? 'interm' : ''}" ${estilo} data-ap-viga="${e}|${l}" data-ap-info="${esc(info)}">` +
+    s.push(`<g class="apm-viga ${est} ${peq ? 'interm' : ''}" ${estilo} data-ap-viga="${e}|${l}" data-ap-info="${esc(info)}">` +
       `<rect x="${xEixo(e) - tam / 2 - 3}" y="${yv - tam / 2 - 3}" width="${tam + 6}" height="${tam + 6}" class="hit"/><rect class="q" x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="2"/></g>`);
   }));
   return s.join('') + '</svg>';
@@ -5269,7 +5272,7 @@ const FORMS = {
     ['obs', 'Observação', 'text', 0, 'largo']] },
   estoque_eventos: { tit: 'evento de produção (baixa por IFC)', campos: [
     ['data', 'Data', 'date', 1],
-    ['tipo', 'Tipo', 'select:VIGA_APOIO_MONTADA,VIGA_INTERM_MONTADA,JOIST_ICADA', 1],
+    ['tipo', 'Tipo', 'select:VIGA_APOIO_MONTADA,VIGA_INTERM_MONTADA,VIGA_OITAO_MONTADA,JOIST_ICADA', 1],
     ['empresa', 'Empresa', 'empresa'],
     ['eixo', 'Eixo (para viga) — ex.: 11', 'text'],
     ['letra', 'Letra (A, B, BC, C, CD, D, DE, E, F, FG, G, H)', 'text'],

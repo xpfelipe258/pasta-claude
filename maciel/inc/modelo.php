@@ -212,13 +212,20 @@ function consumo_evento(array $ev, array $regras)
     $letra = strtoupper((string)($ev['letra'] ?? ''));
     $faixa = strtoupper((string)($ev['faixa'] ?? ''));
     $out = [];
-    if ($tipo === 'VIGA_APOIO_MONTADA' || $tipo === 'VIGA_INTERM_MONTADA') {
+    if ($tipo === 'VIGA_APOIO_MONTADA' || $tipo === 'VIGA_INTERM_MONTADA' || $tipo === 'VIGA_OITAO_MONTADA') {
         foreach ($regras['eventos'] as $e) {
             if ($e['codigo'] === $tipo) {
                 foreach ($e['baixa'] ?? [] as $b) {
                     $out[$b['codigo']] = ($out[$b['codigo']] ?? 0) + $b['quantidade'];
                 }
                 break;
+            }
+        }
+        // oitão: a viga que cobre o pilarete baixa as porcas e arruelas Ø3/4" dele
+        if ($tipo === 'VIGA_OITAO_MONTADA') {
+            $npil = count($regras['criterio_por_letra'][$letra]['pilaretes'] ?? []);
+            foreach (($regras['vigas_oitao']['pilarete_baixa'] ?? []) as $b) {
+                $out[$b['codigo']] = ($out[$b['codigo']] ?? 0) + $b['quantidade'] * $npil;
             }
         }
         return $out;

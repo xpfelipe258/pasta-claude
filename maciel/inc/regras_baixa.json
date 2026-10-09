@@ -132,210 +132,273 @@
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "AB",
-      "posicao_estacao": 0
+      "posicao_estacao": 0,
+      "pilaretes": [
+        "A1",
+        "A"
+      ]
     },
     "B-A1": {
       "viga": "VC09",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "AB",
-      "posicao_estacao": 2.5
+      "posicao_estacao": 2.5,
+      "pilaretes": [
+        "A3"
+      ]
     },
     "B1-A3": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "AB",
-      "posicao_estacao": 4.0
+      "posicao_estacao": 4.0,
+      "pilaretes": [
+        "B"
+      ]
     },
     "B2-B": {
       "viga": "VC11",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "BC",
-      "posicao_estacao": 5.0
+      "posicao_estacao": 5.0,
+      "pilaretes": [
+        "B1"
+      ]
     },
     "C-B1": {
       "viga": "VC12",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "BC",
-      "posicao_estacao": 6.0
+      "posicao_estacao": 6.0,
+      "pilaretes": [
+        "B2"
+      ]
     },
     "C1-B2": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "BC",
-      "posicao_estacao": 7.0
+      "posicao_estacao": 7.0,
+      "pilaretes": [
+        "C"
+      ]
     },
     "C2-C": {
       "viga": "VC13",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "CD",
-      "posicao_estacao": 8.0
+      "posicao_estacao": 8.0,
+      "pilaretes": [
+        "C1"
+      ]
     },
     "D-C1": {
       "viga": "VC14",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "CD",
-      "posicao_estacao": 9.0
+      "posicao_estacao": 9.0,
+      "pilaretes": [
+        "C2"
+      ]
     },
     "D1-C2": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "CD",
-      "posicao_estacao": 10.0
+      "posicao_estacao": 10.0,
+      "pilaretes": [
+        "D"
+      ]
     },
     "D2-D": {
       "viga": "VC15",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "DE",
-      "posicao_estacao": 11.0
+      "posicao_estacao": 11.0,
+      "pilaretes": [
+        "D1"
+      ]
     },
     "D2-D1": {
       "viga": "VC16",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "DE",
-      "posicao_estacao": 11.5
+      "posicao_estacao": 11.5,
+      "pilaretes": []
     },
     "E-D1": {
       "viga": "VC15",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "DE",
-      "posicao_estacao": 12.0
+      "posicao_estacao": 12.0,
+      "pilaretes": [
+        "D2"
+      ]
     },
     "E1-D2": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "DE",
-      "posicao_estacao": 13.0
+      "posicao_estacao": 13.0,
+      "pilaretes": [
+        "E"
+      ]
     },
     "E2-E": {
       "viga": "VC14",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "EF",
-      "posicao_estacao": 14.0
+      "posicao_estacao": 14.0,
+      "pilaretes": [
+        "E1"
+      ]
     },
     "F-E1": {
       "viga": "VC13",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "EF",
-      "posicao_estacao": 15.0
+      "posicao_estacao": 15.0,
+      "pilaretes": [
+        "E2"
+      ]
     },
     "F1-E2": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "EF",
-      "posicao_estacao": 16.0
+      "posicao_estacao": 16.0,
+      "pilaretes": [
+        "F"
+      ]
     },
     "F2-F": {
       "viga": "VC12",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "FG",
-      "posicao_estacao": 17.0
+      "posicao_estacao": 17.0,
+      "pilaretes": [
+        "F1"
+      ]
     },
     "G-F1": {
       "viga": "VC11",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "FG",
-      "posicao_estacao": 18.0
+      "posicao_estacao": 18.0,
+      "pilaretes": [
+        "F2"
+      ]
     },
     "G1-F2": {
       "viga": "VC10",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "FG",
-      "posicao_estacao": 19.0
+      "posicao_estacao": 19.0,
+      "pilaretes": [
+        "G"
+      ]
     },
     "G3-G": {
       "viga": "VC09",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "GH",
-      "posicao_estacao": 20.5
+      "posicao_estacao": 20.5,
+      "pilaretes": [
+        "G1"
+      ]
     },
     "H-G2": {
       "viga": "VC08",
       "tipo": "INTERMEDIARIA",
       "parafuso": null,
       "por_ponta": 4,
-      "evento_viga": "VIGA_INTERM_MONTADA",
+      "evento_viga": "VIGA_OITAO_MONTADA",
       "oitao": true,
       "faixa": "GH",
-      "posicao_estacao": 23
+      "posicao_estacao": 23,
+      "pilaretes": [
+        "G3",
+        "H"
+      ]
     }
   },
   "letra_para_faixa_do_par": {
@@ -563,6 +626,34 @@
           "descricao": "ARRUELA Ø7/8\" LISA",
           "quantidade": 4,
           "base": "por viga montada"
+        }
+      ]
+    },
+    {
+      "codigo": "VIGA_OITAO_MONTADA",
+      "origem": "IFC (porcas/arruelas Ø1/2\" dos eixos 01 e 20: 84 por oitão em 14 emendas de 6 parafusos, desenho OF.198-MET-DM-001 'EMENDA VIGAS EIXOS 01 & 20') ÷ 21 vigas = 4 por viga",
+      "chave": [
+        "viga_id"
+      ],
+      "gatilho": "aponte de montagem de viga do oitão (eixos 01 e 20). Além do kit abaixo, cada pilarete sob a viga baixa o kit de 'pilarete_baixa' em vigas_oitao",
+      "baixa": [
+        {
+          "codigo": "FG007",
+          "descricao": "PARAF. Ø1/2\" x 2\" A307",
+          "quantidade": 4,
+          "base": "por viga do oitão (1 parafuso por porca/arruela do IFC)"
+        },
+        {
+          "codigo": "FG015",
+          "descricao": "PORCA Ø1/2\" A307",
+          "quantidade": 4,
+          "base": "por viga do oitão (IFC: 84 por oitão ÷ 21)"
+        },
+        {
+          "codigo": "FG018",
+          "descricao": "ARRUELA Ø1/2\" LISA",
+          "quantidade": 4,
+          "base": "por viga do oitão (IFC: 84 por oitão ÷ 21)"
         }
       ]
     },
@@ -1401,6 +1492,85 @@
       "H-G2"
     ],
     "fonte": "IFC LSF-MET-EX-200-200-BIM-R0D: família VIGA COBERTURA nos eixos 01 e 20 (21 peças em cada oitão; marcas VC08 a VC16). Os demais eixos têm 13 vigas (letras A a H).",
-    "nota": "No oitão a viga é identificada pelo trecho entre as estações de letra do projeto (ex.: B-A1). O kit de fixadores usado é o da viga intermediária (8 parafusos/porcas/arruelas Ø7/8\") até o projeto definir outro: ajuste 'evento_viga' de cada trecho em criterio_por_letra. 18 eixos x 13 + 2 oitões x 21 = 276 vigas, o contrato do BM."
+    "nota": "No oitão a viga é identificada pelo trecho entre as estações de letra do projeto (ex.: B-A1). Kit da viga (IFC + desenho OF.198-MET-DM-001): 4 parafusos Ø1/2\"x2\", 4 porcas e 4 arruelas Ø1/2\" (emenda dos eixos 01 e 20: 84 porcas por oitão ÷ 21 vigas). Cada pilarete (22 por oitão, nas estações do projeto) pertence à viga que o cobre na posição do IFC (campo 'pilaretes' de cada trecho): ao apontar a viga baixam 8 porcas e 4 arruelas Ø3/4\" por pilarete. A viga H-G2 e a A2-A cobrem 2 pilaretes cada; a D2-D1 (central) nenhum. 18 eixos x 13 + 2 oitões x 21 = 276 vigas, o contrato do BM.",
+    "pilarete_baixa": [
+      {
+        "codigo": "FG022",
+        "descricao": "PORCA Ø3/4\" A194-2H",
+        "quantidade": 8,
+        "base": "por pilarete (IFC: 8 porcas Ø3/4\" em cada uma das 22 estações do oitão)"
+      },
+      {
+        "codigo": "FG024",
+        "descricao": "ARRUELA Ø3/4\" F-436",
+        "quantidade": 4,
+        "base": "por pilarete (IFC: 4 arruelas Ø3/4\" em cada estação)"
+      }
+    ],
+    "pilaretes_por_viga": {
+      "E-D1": [
+        "D2"
+      ],
+      "E1-D2": [
+        "E"
+      ],
+      "E2-E": [
+        "E1"
+      ],
+      "F-E1": [
+        "E2"
+      ],
+      "F1-E2": [
+        "F"
+      ],
+      "F2-F": [
+        "F1"
+      ],
+      "D2-D1": [],
+      "G-F1": [
+        "F2"
+      ],
+      "G1-F2": [
+        "G"
+      ],
+      "G3-G": [
+        "G1"
+      ],
+      "H-G2": [
+        "G3",
+        "H"
+      ],
+      "D2-D": [
+        "D1"
+      ],
+      "D1-C2": [
+        "D"
+      ],
+      "D-C1": [
+        "C2"
+      ],
+      "C2-C": [
+        "C1"
+      ],
+      "C1-B2": [
+        "C"
+      ],
+      "C-B1": [
+        "B2"
+      ],
+      "B2-B": [
+        "B1"
+      ],
+      "B1-A3": [
+        "B"
+      ],
+      "B-A1": [
+        "A3"
+      ],
+      "A2-A": [
+        "A1",
+        "A"
+      ]
+    }
   }
 }

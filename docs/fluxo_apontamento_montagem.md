@@ -50,7 +50,16 @@ sobre as 43 previstas.
   Conta fecha com o contrato do BM: 18 eixos x 13 + 2 oitões x 21 = 276 vigas. No mapa, o eixo 20 mostra os 21 quadrados
   entre as estações; em "Digitar vigas" o eixo 20 lista os 21 chips; o servidor recusa letra comum no oitão e trecho de
   oitão nos demais eixos. O quadrante da rua 19-20 (e 01-02) só libera quando as vigas do oitão da faixa (3, 3, 3, 4, 3, 3, 2
-  de AB a GH) estão montadas. Kit de fixadores do oitão: o da viga intermediária (assumido; ajuste `evento_viga` de cada trecho).
+  de AB a GH) estão montadas.
+- **Kit de fixadores da viga do oitão** (evento `VIGA_OITAO_MONTADA`, lido do IFC e do desenho OF.198-MET-DM-001): o IFC não traz
+  parafusos, só porcas e arruelas. No oitão há 84 porcas e 84 arruelas Ø1/2" (14 emendas de 6 parafusos Ø1/2"x2"), ou 4 por viga:
+  **4 parafusos FG007 + 4 porcas FG015 + 4 arruelas FG018 por viga**. Os 22 pilaretes de cada oitão (8 porcas e 4 arruelas Ø3/4"
+  cada, 176 e 88 no total) foram localizados no IFC pela posição ao longo do oitão: cada pilarete pertence à viga que o cobre
+  (`pilaretes` de cada trecho). **Ao apontar a viga baixam também FG022 x8 e FG024 x4 por pilarete que ela cobre.** A H-G2 e a A2-A
+  cobrem 2 pilaretes cada, a D2-D1 (central) nenhum, as outras 18 um. Conferência: 21 vigas apontadas baixam 176 porcas e 88
+  arruelas Ø3/4" e 84 parafusos, porcas e arruelas Ø1/2", igual ao IFC. Chumbadores dos pilaretes não entram.
+- No sistema online o apontamento mostra a baixa prevista e grava o local da viga; o consumo virtual do estoque só soma eventos
+  de `estoque_eventos` (o `consumo_evento` do servidor já entende `VIGA_OITAO_MONTADA`).
 
 ## Histórico e conciliação
 
