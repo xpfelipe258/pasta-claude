@@ -131,10 +131,19 @@ Obra ativa: **OBRA 198** (id=1)
 - [x] Contraventamento em vista elevada
 - [x] Admin com sync GitHub automático
 - [x] Dashboard administrativo multi-obra
+- [x] SESMT GERAL — cadastros de SST (24 tabelas `sesmt_*`), painel, listas editáveis e acesso por usuário
 
 ---
 
 ## Histórico de sessões
+
+### 2026-10-09
+**SESMT GERAL** (planilha "Gestão SST - Rótula" convertida para PHP):
+- Arquivos novos: `maciel/sesmt.php`, `maciel/inc/sesmt_modelo.php`, `maciel/inc/sesmt_registros.php`, `ferramentas/teste_sesmt.py`
+- Alterações em arquivos existentes (só acréscimos): módulo `sesmt` em `modulos_sistema()` (`inc/nucleo.php`) e grupo "SESMT GERAL" no menu (`inc/painel.html`)
+- Colaboradores NÃO foram importados da planilha: são cadastrados no sistema, com coluna Empresa; as listas das caixas de seleção (fontes de dados) estão em `sesmt_listas`
+- Dados pessoais e de saúde: acesso só para admin ou usuário liberado em SESMT GERAL → Acessos; CPF mascarado nas listas e no CSV
+- Testes: `python ferramentas/teste_sesmt.py` (PHP + SQLite em pasta temporária, 36 testes)
 
 ### 2026-10-08
 **Planejamento (aba Planejamento):** filtro por status, edições não salvas preservadas ao trocar filtros, preenchimento de datas em lote em sequência, Gantt planejado × real, exportação CSV e indicador de alterações pendentes.

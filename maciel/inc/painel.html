@@ -99,6 +99,21 @@
         <button data-aba="dp">Pessoal</button>
       </div>
     </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="sesmt" id="sesmtTitulo">
+        <span class="sidebar-icone">&#10010;</span>SESMT GERAL<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-sesmt">
+        <button type="button" onclick="window.location.href='sesmt.php'">Painel SESMT</button>
+        <button type="button" onclick="window.location.href='sesmt.php?reg=colaboradores'">Colaboradores</button>
+        <button type="button" onclick="window.location.href='sesmt.php?reg=aso'">ASO</button>
+        <button type="button" onclick="window.location.href='sesmt.php?reg=treinamentos'">Treinamentos</button>
+        <button type="button" onclick="window.location.href='sesmt.php?reg=acidentes'">Acidentes</button>
+        <button type="button" onclick="window.location.href='sesmt.php?reg=epi'">EPI</button>
+        <button type="button" onclick="window.location.href='sesmt.php?v=listas'">Fontes de dados</button>
+      </div>
+    </div>
+    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
   </nav>
 </aside>
 
