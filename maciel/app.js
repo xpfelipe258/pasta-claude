@@ -1148,7 +1148,7 @@ function realizadoFase(servico, fase, ate) {
       return globoCobertura;
     }).forEach(s => t += producaoServicoValor(e, s, '0000', ate));
   });
-  return t + prodServicoBm(servico, null, '0000', ate);
+  return Math.max(t, prodServicoBm(servico, null, '0000', ate));
 }
 
 function faseItem(frente) {
@@ -1188,14 +1188,90 @@ function clienteComContratoAtual(c) {
   return { ...c, qtd, meta_dia, peso, meta_derivada };
 }
 
+// ------------------------------------------------------------ FONTES DO DASHBOARD CLIENTE
+// Contrato = soma das atividades do catálogo do BM (EJ + CMM; Globo Aços); nome = nome do catálogo;
+// datas = cronograma do cliente (as mesmas do Gantt); meta/dia = contrato ÷ dias úteis entre início e prazo;
+// realizado = maior entre Lançamentos e BM. O catálogo de EJ/CMM cobre o galpão inteiro (Fase 1 + Fase 2) e fica na linha da Fase 1.
+const CLIENTE_FONTES = [
+  { chave: 'PREMONTAGEM', nome: 'Pré-montagem de joist', atividades: ['EJ-3.1.1-02', 'CMM-3.1.1-02'] },
+  { chave: 'ICAMENTO JOIST', nome: 'Instalação de joist', atividades: ['EJ-3.1.1-03', 'CMM-3.1.1-03'] },
+  { chave: 'VIGAS', nome: 'Instalação de estrutura principal vigas senoidais e laminadas', atividades: ['EJ-3.1.1-01', 'CMM-3.1.1-01'] },
+  { chave: 'PERFILACAO', nome: 'Perfilagem de telhas', atividades: ['GLO-3.2.1-01'] },
+  { chave: 'TELHAR', nome: 'Instalação de telhas', atividades: ['GLO-3.2.1-02'] },
+  { chave: 'FECHAMENTO', nome: 'Instalação das telhas (fechamento lateral)', atividades: ['GLO-3.2.2-01'] },
+  { chave: 'FECH LATERAL ESTRUTURA', nome: 'Fechamento lateral (estrutura) · % de avanço', percentual: true },
+];
+function clienteFonte(c) { const k = ganNorm(c?.servico); return CLIENTE_FONTES.find(f => f.chave === k) || null; }
+function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
+
+function clienteDatasCronograma(c) {
+  const cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
+  const it = ganAplicarDatas({ ...c, inicio_plan: cr?.inicio_plan || c.inicio_plan, prazo: cr?.prazo || c.prazo });
+  return { inicio_plan: it.inicio_plan || null, prazo: it.prazo || null };
+}
+
+function clienteComFontes(c0) {
+  const base = clienteComContratoAtual(c0);
+  let item = { ...base, ...clienteDatasCronograma(c0) };
+  const fonte = clienteFonte(c0);
+  if (fonte && faseItem(c0.frente) === '1') {
+    const qtd = fonte.percentual ? 100 : catalogoQtd(fonte.atividades);
+    if (qtd > 0) item = { ...item, qtd, peso: Number(c0.peso) || 1, servico_exib: fonte.nome, fonte_catalogo: true, fonte_pct: !!fonte.percentual, contrato_total: true };
+  }
+  const porPrazo = metaDiaPorPrazo(item);
+  if (porPrazo) item.meta_dia = porPrazo;
+  return item;
+}
+
+function prodServicoGrade(servico, empresaNome, ini, fim) {
+  let t = 0;
+  M.empresas.forEach(e => {
+    if (empresaNome && e.nome !== empresaNome) return;
+    e.servicos.filter(s => servicoCompat(s.nome, servico)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
+  });
+  return t;
+}
+function prodServicoMax(servico, empresaNome, ini, fim) {
+  return Math.max(prodServicoGrade(servico, empresaNome, ini, fim), prodServicoBm(servico, empresaNome, ini, fim));
+}
+function bmPorCodigos(codigos, servico, empresaNome, ini, fim) {
+  const ats = new Map(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo) && (!empresaNome || normEmp(a.empresa) === normEmp(empresaNome))).map(a => [a.codigo, a]));
+  let t = 0;
+  bmTab('bm_apontamentos').forEach(x => {
+    const a = ats.get(x.codigo);
+    if (a && x.data && x.data >= ini && x.data <= fim) t += bmApontamentoServicoValor(a, x.quantidade, servico);
+  });
+  return t;
+}
+// Fechamento lateral (estrutura): % de avanço de cada empresa (média das atividades pelo peso) e média das duas empresas
+function pctFechLat(ate, empresaNome = null) {
+  const porEmp = ['EJ', 'CMM'].map(nome => {
+    const ats = bmTab('bm_atividades').filter(a => normEmp(a.empresa) === nome && ganNorm(a.item_desc) === 'FECHAMENTO LATERAL');
+    const sp = soma0(ats, a => a.peso || 0);
+    return { nome, pct: sp ? soma0(ats, a => (a.peso || 0) * (a.qtd ? Math.min(1, Math.max(0, bmRealizado(a, ate) / a.qtd)) : 0)) / sp : 0 };
+  });
+  const sel = empresaNome ? porEmp.filter(x => x.nome === normEmp(empresaNome)) : porEmp;
+  return sel.length ? soma0(sel, x => x.pct) / sel.length : 0;
+}
+function realizadoItem(c, ate) {
+  if (c.fonte_pct) return pctFechLat(ate) * 100;
+  if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, null, '0000', ate), bmPorCodigos(clienteFonte(c).atividades, c.servico, null, '0000', ate));
+  return realizadoFase(c.servico, faseItem(c.frente), ate);
+}
+function realizadoPeriodoItem(c, empresaNome, ini, fim) {
+  if (c.fonte_pct) return (pctFechLat(fim, empresaNome) - pctFechLat(add(ini, -1), empresaNome)) * 100;
+  if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, empresaNome, ini, fim), bmPorCodigos(clienteFonte(c).atividades, c.servico, empresaNome, ini, fim));
+  return prodServicoMax(c.servico, empresaNome, ini, fim);
+}
+
 function contratoLinhas(ate = ref) {
   const ini = add(ate, -14);
   let du = 0; for (let d = ini; d <= ate; d = add(d, 1)) if (diaUtil(d)) du++;
   return M.cliente.filter(c => !faseFiltro || faseItem(c.frente) === faseFiltro).map(c0 => {
-    const c = clienteComContratoAtual(c0);
+    const c = clienteComFontes(c0);
     const fase = faseItem(c.frente);
-    const real = realizadoFase(c.servico, fase, ate);
-    const ritmo = (real - realizadoFase(c.servico, fase, add(ini, -1))) / Math.max(du, 1);
+    const real = realizadoItem(c, ate);
+    const ritmo = (real - realizadoItem(c, add(ini, -1))) / Math.max(du, 1);
     const saldo = c.qtd ? Math.max(c.qtd - real, 0) : null;
     let projecao = null, status;
     if (!c.qtd) {
@@ -2254,21 +2330,21 @@ function renderAvanco() {
     const totStatus = fases.map(f => f.status).sort((a, b) => statusPrioridadeContrato.indexOf(a) - statusPrioridadeContrato.indexOf(b))[0];
     const totNecessario = soma0(fases, f => f.necessario || 0) || null;
     const totRitmo = soma0(fases, f => f.ritmo || 0);
-    const ed1 = fases.length === 1;
+    const ed1 = fases.length === 1 && !fases[0].fonte_catalogo;
     tBodyContrato += `<tr>
-      <td><b>${esc(cap(serv))}</b></td>
+      <td><b>${esc(fases.find(f => f.servico_exib)?.servico_exib || cap(serv))}</b></td>
       <td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${fases[0].linha}" data-edit-val="${fases[0].qtd ?? ''}"` : ''}><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
       <td><b>${nf(totReal, 1)}</b><div style="margin-top:4px">${barra(totPct, totReal)}</div></td>
       <td class="n">${totSaldo != null ? nf(totSaldo, 1) : '—'}</td>
       <td class="n">${nf(totRitmo, 2)}</td>
       <td class="n" style="color:${totNecessario && totRitmo < totNecessario ? 'var(--vermelho)' : 'inherit'}">${totNecessario ? nf(totNecessario, 2) : '—'}</td>
-      <td${ed1 ? ` class="editavel" data-edit-campo="prazo" data-edit-id="${fases[0].linha}" data-edit-val="${fases[0].prazo ?? ''}"` : ''}>${fdA(prazoMax)}</td>
+      <td>${fdA(prazoMax)}</td>
       <td><b>${fdA(totProjecao)}</b></td>
       <td><span class="farol f-${COR_STATUS[totStatus] || 'pendente'}">${totStatus}</span></td>
       <td>${ed1 ? `<button class="btn-icone" data-editar-reg="cliente" data-linha="${fases[0].linha}" title="Editar / excluir serviço">✎</button>` : ''}</td></tr>`;
   });
 
-  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th class="n">Realizado</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Clique para editar">Prazo ✎</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
+  $('#tabContrato').innerHTML = `<thead><tr><th>Serviço</th><th class="n" title="Soma das atividades do catálogo do BM. Serviços sem catálogo mapeado: clique para editar.">Contrato</th><th class="n">Realizado</th><th class="n">Saldo</th><th class="n">Ritmo/dia</th><th class="n">Necessário/dia</th><th title="Cronograma do cliente (mesmas datas do Gantt)">Prazo</th><th>Projeção</th><th>Situação</th><th></th></tr></thead><tbody>` +
     (tBodyContrato || '<tr><td colspan="10" class="vazio">Nenhum serviço para este filtro.</td></tr>') + '</tbody>';
 
   // avanço por empresa — filtrar serviços pela fase selecionada (global)
@@ -2295,13 +2371,13 @@ function prevCliente(c, ate) {
   return Math.min(c.qtd, c.meta_dia * contarDiasUteis(add(c.inicio_plan, -1), ate));
 }
 function itensCliente() {
-  return M.cliente.map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
+  return M.cliente.map(clienteComFontes).filter(c => c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
 }
 function avancoPonderado(ate, previsto, itensList) {
   const itens = itensList ?? itensCliente();
   const pesoTot = soma0(itens, c => c.peso);
   if (!pesoTot) return 0;
-  return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoFase(c.servico, faseItem(c.frente), ate)) / c.qtd)) / pesoTot * 100;
+  return soma0(itens, c => c.peso * Math.min(1, (previsto ? prevCliente(c, ate) : realizadoItem(c, ate)) / c.qtd)) / pesoTot * 100;
 }
 
 // No Total (faseFiltro=''), F2 items start only after F1's last prazo (sequential)
@@ -2339,22 +2415,23 @@ function renderCliente() {
     // PREVISTO PERÍODO: meta_cliente/dia × dias úteis do período (ini até c)
     const prevPer = totMetaDia * contarDiasUteis(ini, c);
     // REALIZADO PERÍODO: soma realizado de cada empresa (chamar prodServico UMA VEZ por serviço, não por fase)
-    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? prodServico(servNome, n, ini, c) : 0]));
-    const realPer = soma0(Object.values(porEmp), v => v);
+    const ref = fases.find(f => f.fonte_catalogo) || null;
+    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? (ref ? realizadoPeriodoItem(ref, n, ini, c) : prodServicoMax(servNome, n, ini, c)) : 0]));
+    const realPer = ref?.fonte_pct ? (c >= ini ? realizadoPeriodoItem(ref, null, ini, c) : 0) : soma0(Object.values(porEmp), v => v);
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
-    const realAc = soma0(fases, f => realizadoFase(f.servico, faseItem(f.frente), c) || 0);
+    const realAc = soma0(fases, f => realizadoItem(f, c) || 0);
     const saldo = Math.max(totQtd - realAc, 0);
 
-    // Status baseado no período com margens: GAP >= +6 (ADIANTADO), GAP <= -7 (ATRASADO), entre -6 e +5 (NO LIMITE)
-    const gapStatus = realPer - prevPer;
-    const status = realPer >= totQtd ? 'CONCLUÍDO' : prevPer === 0 && realPer === 0 ? 'NÃO INICIADO' : gapStatus >= 6 ? 'ADIANTADO' : gapStatus <= -7 ? 'ATRASADO' : 'NO LIMITE';
+    // Situação pelo % do previsto no período: >= 100% adiantado, 95% a 100% no limite, abaixo de 95% atrasado
+    const pctPrev = prevPer > 0 ? realPer / prevPer : null;
+    const status = realAc >= totQtd ? 'CONCLUÍDO' : prevPer === 0 && realPer === 0 ? 'NÃO INICIADO' : pctPrev === null || pctPrev >= 1 ? 'ADIANTADO' : pctPrev >= .95 ? 'NO LIMITE' : 'ATRASADO';
 
     // Projeção agregada
     const projFases = fases.map(f => proj[f.servico]).filter(Boolean);
     const p = projFases.length > 0 ? projFases[0] : {};
     const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
 
-    const it = { servico: servNome, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
+    const it = { servico: servNome, servico_exib: fases.find(f => f.servico_exib)?.servico_exib || '', fonte_catalogo: !!ref, fonte_pct: !!ref?.fonte_pct, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
     return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
   });
 
@@ -2374,20 +2451,21 @@ function renderCliente() {
     tile('Término projetado', projFinal ? fdA(projFinal) : 'Indefinido', projFinal ? `Prazo contratual: ${fdA(prazoFinal)}` : `Sem ritmo de produção: ${semRitmo.map(x => cap(x.servico)).join(', ')} · prazo ${fdA(prazoFinal)}`, projFinal && prazoFinal ? `<span class="farol f-${projFinal <= prazoFinal ? 'verde' : 'vermelho'}">${projFinal <= prazoFinal ? 'NO PRAZO' : 'ATRASO'}</span>` : '') +
     tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
 
-  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · previsto = meta do cliente/dia × dias úteis desde o início planejado (F1+F2 consolidado)`;
-  let h = `<thead><tr><th>Serviço</th><th class="n" title="Clique para editar">Contrato ✎</th><th>Início cliente</th><th class="n">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th title="Clique para editar">Prazo ✎</th><th>Situação</th></tr></thead><tbody>`;
+  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · contrato = catálogo do BM · datas = cronograma do cliente (igual ao Gantt) · meta/dia = contrato ÷ dias úteis · realizado = maior entre Lançamentos e BM`;
+  let h = `<thead><tr><th>Serviço</th><th class="n" title="Soma das atividades do catálogo do BM (EJ + CMM; Globo Aços). Serviços sem catálogo mapeado: clique para editar.">Contrato</th><th title="Cronograma do cliente (mesmas datas do Gantt; ajuste em Gantt > Alterar datas)">Início cliente</th><th class="n" title="Contrato ÷ dias úteis entre início e prazo">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th title="Cronograma do cliente (mesmas datas do Gantt)">Prazo</th><th title="% do previsto no período: 100% ou mais adiantado, 95% a 100% no limite, abaixo de 95% atrasado">Situação</th></tr></thead><tbody>`;
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
     // Busca a linha do cliente para obter o ID de edição
     const clienteItem = M.cliente.find(c => c.servico?.trim() === l.it.servico?.trim() && c.qtd && (!faseFiltro || faseItem(c.frente) === faseFiltro));
     const idEdit = clienteItem?.linha ?? 0;
-    const ed1 = l.fases.length === 1 && idEdit;
-    h += `<tr><td><b>${esc(cap(l.it.servico))}</b></td><td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${idEdit}" data-edit-val="${l.it.qtd ?? ''}"` : ''}><b>${nf(l.it.qtd)}</b></td><td class="editavel" data-edit-campo="inicio_plan" data-edit-id="${idEdit}" data-edit-val="${l.it.inicio_plan ?? ''}">${fdA(l.it.inicio_plan)}</td><td class="n editavel" data-edit-campo="meta_dia" data-edit-id="${idEdit}" data-edit-val="${l.it.meta_dia ?? ''}">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
+    const ed1 = l.fases.length === 1 && idEdit && !l.it.fonte_catalogo;
+    const nomeExib = l.it.servico_exib || cap(l.it.servico);
+    h += `<tr><td><b>${esc(nomeExib)}</b></td><td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${idEdit}" data-edit-val="${l.it.qtd ?? ''}"` : ''}><b>${nf(l.it.qtd)}${l.it.fonte_pct ? '%' : ''}</b></td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
       <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
-      <td>${fdA(l.p.projecao)}</td><td${ed1 ? ` class="editavel" data-edit-campo="prazo" data-edit-id="${idEdit}" data-edit-val="${l.it.prazo ?? ''}"` : ''}>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
+      <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
   $('#tabCliente').innerHTML = h + '</tbody>';
 
@@ -2410,9 +2488,9 @@ function renderCliente() {
   ins.push([gap >= 0 ? 'verde' : 'vermelho', `Avanço físico ponderado de <b>${nf(avReal, 1)}%</b> contra <b>${nf(avPrev, 1)}%</b> previstos pelo cliente em ${fdA(c)} (${gap >= 0 ? '+' : ''}${nf(gap, 1)} p.p.).`]);
   if (semRitmo.length) ins.push(['vermelho', `Término do contrato indefinido: ${semRitmo.map(x => '<b>' + esc(cap(x.servico)) + '</b>').join(', ')} sem produção nas últimas duas semanas.`]);
   if (projFinal && prazoFinal) ins.push([projFinal <= prazoFinal ? 'verde' : 'vermelho', `No ritmo das últimas duas semanas, o escopo contratado termina em <b>${fdA(projFinal)}</b>; o prazo é <b>${fdA(prazoFinal)}</b>.`]);
-  atrasados.forEach(l => ins.push(['vermelho', `<b>${esc(cap(l.it.servico))}</b>: ${nf(l.realAc, 1)} de ${nf(l.prevAc, 1)} previstos (faltam ${nf(l.prevAc - l.realAc, 1)} para alcançar o cliente).${l.p.necessario ? ` Para cumprir o prazo são necessários ${nf(l.p.necessario, 2)}/dia; ritmo atual ${nf(l.p.ritmo, 2)}/dia.` : ''}`]));
-  linhas.filter(l => l.status === 'NO LIMITE').forEach(l => ins.push(['amarelo', `<b>${esc(cap(l.it.servico))}</b> no limite do previsto (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
-  linhas.filter(l => l.status === 'ADIANTADO' && l.realAc > 0).forEach(l => ins.push(['verde', `<b>${esc(cap(l.it.servico))}</b> à frente do previsto do cliente (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
+  atrasados.forEach(l => ins.push(['vermelho', `<b>${esc(l.it.servico_exib || cap(l.it.servico))}</b>: ${nf(l.realAc, 1)} de ${nf(l.prevAc, 1)} previstos (faltam ${nf(l.prevAc - l.realAc, 1)} para alcançar o cliente).${l.p.necessario ? ` Para cumprir o prazo são necessários ${nf(l.p.necessario, 2)}/dia; ritmo atual ${nf(l.p.ritmo, 2)}/dia.` : ''}`]));
+  linhas.filter(l => l.status === 'NO LIMITE').forEach(l => ins.push(['amarelo', `<b>${esc(l.it.servico_exib || cap(l.it.servico))}</b> no limite do previsto (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
+  linhas.filter(l => l.status === 'ADIANTADO' && l.realAc > 0).forEach(l => ins.push(['verde', `<b>${esc(l.it.servico_exib || cap(l.it.servico))}</b> à frente do previsto do cliente (${nf(l.realAc, 1)} × ${nf(l.prevAc, 1)}).`]));
   const abertos = impactosComAutomaticos().filter(i => !i.solucionado);
   if (abertos.length) ins.push(['amarelo', `<b>${abertos.length} impacto(s) em aberto</b> afetando a produção: ${[...new Set(abertos.map(i => cap(i.motivo).trim()))].slice(0, 4).map(esc).join('; ')}.`]);
   alertasEstoqueExterno().filter(x => x[0] === 'vermelho').forEach(x => ins.push(['vermelho', x[1].replace(/<button[^>]*>.*?<\/button>/g, '')]));
@@ -2422,9 +2500,54 @@ function renderCliente() {
   $('#cliResumo').hidden = true;
   $('#cliResumo').value = ['OBRA 198 — Posição em ' + fdA(c), ...ins.map(([, t]) => '• ' + t.replace(/<[^>]+>/g, '')),
     '', 'Por serviço (realizado acumulado / previsto cliente / contrato):',
-    ...linhas.map(l => `• ${cap(l.it.servico)}: ${nf(l.realAc, 1)} / ${nf(l.prevAc, 1)} / ${nf(l.it.qtd)} — ${l.status}`)].join('\n');
+    ...linhas.map(l => `• ${l.it.servico_exib || cap(l.it.servico)}: ${nf(l.realAc, 1)} / ${nf(l.prevAc, 1)} / ${nf(l.it.qtd)} — ${l.status}`)].join('\n');
 
+  $('#btnConsolidarCli').hidden = D?.usuario?.perfil !== 'admin';
   graficoCurvaS(c);
+}
+
+// Consolidação: grava em METAS CLIENTE os valores resolvidos pelas fontes (catálogo do BM, cronograma, meta calculada),
+// para o banco ficar com um único valor por campo. Mostra o antes e o depois e só grava após a confirmação.
+function clienteConsolidacao() {
+  const out = [];
+  M.cliente.forEach(c0 => {
+    const r = clienteComFontes(c0);
+    if (!r.qtd) return;
+    const novo = {
+      qtd: r.fonte_pct ? c0.qtd : r.qtd,
+      meta_dia: r.fonte_pct ? c0.meta_dia : Math.round(r.meta_dia * 10000) / 10000,
+      inicio_plan: r.inicio_plan || null, prazo: r.prazo || null,
+    };
+    const igual = (a, b) => (a ?? null) === (b ?? null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.0001);
+    const campos = ['qtd', 'meta_dia', 'inicio_plan', 'prazo'].filter(k => !igual(novo[k], c0[k])).map(k => ({ k, de: c0[k] ?? null, para: novo[k] ?? null }));
+    if (campos.length) out.push({ linha: c0.linha, servico: r.servico_exib || cap(c0.servico), campos });
+  });
+  return out;
+}
+function abrirConsolidacaoCliente() {
+  const dif = clienteConsolidacao(), box = $('#cliConsolidar');
+  const rot = { qtd: 'Contrato', meta_dia: 'Meta/dia', inicio_plan: 'Início', prazo: 'Prazo' };
+  const fmt = (k, v) => v == null ? '—' : (k === 'inicio_plan' || k === 'prazo') ? fdA(v) : nf(v, k === 'meta_dia' ? 2 : 1);
+  box.hidden = false;
+  if (!dif.length) { box.innerHTML = '<div class="faixa">O cadastro já está igual às fontes. Nada a consolidar.</div>'; return; }
+  box.innerHTML = `<div class="faixa" style="margin:0 0 10px">Estes valores digitados no cadastro serão substituídos pelos das fontes escolhidas. Confira antes de gravar.</div>
+    <div class="tabela-rolagem"><table><thead><tr><th>Serviço</th><th>Campo</th><th class="n">No cadastro hoje</th><th class="n">Passa a ser</th></tr></thead><tbody>` +
+    dif.flatMap(d => d.campos.map((c, i) => `<tr><td>${i === 0 ? '<b>' + esc(d.servico) + '</b>' : ''}</td><td>${rot[c.k]}</td><td class="n">${fmt(c.k, c.de)}</td><td class="n"><b>${fmt(c.k, c.para)}</b></td></tr>`)).join('') +
+    `</tbody></table></div><div class="barra-acoes" style="margin-top:10px"><button class="btn primario" id="btnConfirmarConsCli">Gravar ${dif.length} serviço(s) no cadastro</button><button class="btn" id="btnCancelarConsCli">Cancelar</button></div>`;
+}
+async function confirmarConsolidacaoCliente() {
+  const dif = clienteConsolidacao(), btn = $('#btnConfirmarConsCli');
+  btn.disabled = true;
+  try {
+    for (const d of dif) {
+      const campos = Object.fromEntries(d.campos.map(c => [c.k, c.para]));
+      await postar(API + 'registro', { tabela: 'cliente', linha: d.linha, campos });
+      Object.assign(M.cliente.find(c => c.linha === d.linha), campos);
+    }
+    toast(`${dif.length} serviço(s) consolidados no cadastro.`);
+    $('#cliConsolidar').hidden = true;
+    renderCliente();
+  } catch (e) { btn.disabled = false; toast(e.message || 'Erro ao gravar.', true); }
 }
 
 function graficoCurvaS(c) {
@@ -5815,6 +5938,13 @@ function ligarEventos() {
   $('#chkGanEmp').addEventListener('change', ev => { ganEst.porEmp = ev.target.checked; renderGantt(); });
   const btnGanDatas = document.getElementById('btnGanDatas');
   if (btnGanDatas) btnGanDatas.addEventListener('click', ganAbrirPopupDatas);
+
+  // Dashboard cliente: consolidar cadastro com as fontes
+  $('#btnConsolidarCli').addEventListener('click', abrirConsolidacaoCliente);
+  $('#cliConsolidar').addEventListener('click', ev => {
+    if (ev.target.id === 'btnConfirmarConsCli') confirmarConsolidacaoCliente();
+    if (ev.target.id === 'btnCancelarConsCli') $('#cliConsolidar').hidden = true;
+  });
 
   // Planejamento de montagem
   $('#segPlanFrente').addEventListener('click', ev => {
