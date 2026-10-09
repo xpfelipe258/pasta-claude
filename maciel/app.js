@@ -2705,7 +2705,7 @@ function renderEstoqueIfc() {
     t('Perda apurada', perdaPos, 'materiais com físico < saldo teórico', perdaPos ? 'var(--amarelo)' : 'var(--fg)') +
     t('Acurácia média', acuMed == null ? '—' : nf(acuMed, 1) + '%', 'inventário × teórico', 'var(--fg)');
   nota.textContent = `Fonte: ${inv.fonte} · ${inv.totais.conjuntos} conjuntos, ${totProj} joists previstas (${limRua} por rua).`;
-  resumo.textContent = `Malha: ${inv.malha.eixos.length} eixos (${inv.malha.eixos[0]}..${inv.malha.eixos.at(-1)}) · ${inv.malha.ruas.length} ruas · 7 faixas (AB–GH). Regras: ${reg.eventos.length} eventos, ${Object.keys(reg.criterio_por_letra).length} letras.`;
+  resumo.textContent = `Malha: ${inv.malha.eixos.length} eixos (${inv.malha.eixos[0]}..${inv.malha.eixos.at(-1)}) · ${inv.malha.ruas.length} ruas · 7 faixas (AB–GH). Regras: ${reg.eventos.length} eventos, ${Object.values(reg.criterio_por_letra).filter(c => !c.oitao).length} letras (mais ${Object.values(reg.criterio_por_letra).filter(c => c.oitao).length} trechos de viga nos oitões).`;
 
   // materiais
   const codDesc = {}; (reg.eventos || []).forEach(e => (e.baixa || []).concat(e.baixa_por_joist || []).forEach(b => { if (b.codigo && b.descricao) codDesc[b.codigo] = b.descricao; }));
@@ -3529,14 +3529,20 @@ function apContexto(regras) {
   });
   const vigaId = (eixo, letra) => `E${eixo}-${letra}-${crit[letra].viga}`;
   const ruas = cfg.eixos.slice(0, -1).map((e, i) => `${e}-${cfg.eixos[i + 1]}`);
+  // eixos comuns: 13 vigas (letras A a H); oitões (eixos 01 e 20): 21 vigas, uma por trecho do IFC (regras.vigas_oitao)
+  const oit = regras.vigas_oitao || { eixos: [], letras: [] };
+  const ehOitao = eixo => oit.eixos.includes(eixo);
+  const letrasBase = regras.letras_ordem || Object.keys(crit).filter(k => !crit[k].oitao);
+  const letrasEixo = eixo => ehOitao(eixo) ? oit.letras : letrasBase;
+  const letrasFaixa = (eixo, faixa) => ehOitao(eixo) ? oit.letras.filter(l => crit[l].faixa === faixa) : pos[faixa];
   const quadrante = (rua, faixa) => {
     const [a, b] = rua.split('-');
     const n = pos[faixa].reduce((s, l) => s + (porPos.get(`${rua}/${faixa}/${l}`) || 0), 0);
-    const faltam = [a, b].flatMap(e => pos[faixa].filter(l => !vigaMontada.has(vigaId(e, l))).map(l => vigaId(e, l)));
+    const faltam = [a, b].flatMap(e => letrasFaixa(e, faixa).filter(l => !vigaMontada.has(vigaId(e, l))).map(l => vigaId(e, l)));
     return { n, faltam, liberado: !faltam.length };
   };
   const lim = regras.limites_ifc || {};
-  return { cfg, crit, pos, layout, joists, vigas, vigaMontada, porPos, totalRua, slotRow, vigaId, ruas, quadrante, letras: Object.keys(crit),
+  return { cfg, crit, pos, layout, joists, vigas, vigaMontada, porPos, totalRua, slotRow, vigaId, ruas, quadrante, letras: letrasBase, letrasEixo, ehOitao,
     limRua: lim.joists_por_rua_maximo || 43, limGalpao: lim.joists_no_galpao_maximo || 817,
     evento: cod => (regras.eventos || []).find(e => e.codigo === cod) || {} };
 }
@@ -3686,7 +3692,7 @@ function apFormHtml(regras, ctx) {
     h += `<div class="ap-linha">${data}
       <label class="rot-sel">Eixo <select id="apEixo">${ctx.cfg.eixos.map(x => `<option ${x === s.eixo ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
       <p class="nota">Marque as vigas montadas neste eixo (a empresa é a da barra do topo). Cada viga só pode ser apontada uma vez; o kit de fixadores vem do tipo.</p>
-      <div class="ap-chips">${ctx.letras.map(l => {
+      <div class="ap-chips">${ctx.letrasEixo(s.eixo).map(l => {
         const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(s.eixo, l));
         return `<button type="button" class="ap-chip ${s.sel.has(l) ? 'sel' : ''} ${m ? 'feita' : ''}" data-ap-letra="${l}" ${m ? 'disabled' : ''}
           title="${m ? `Montada em ${fdA(m.data)} (${esc(m.empresa || '')})` : ''}"><b>${l}</b><small>${c.viga} · ${AP_TIPO[c.evento_viga]}</small>${m ? '<small>✓ ' + fd(m.data) + '</small>' : ''}</button>`;
@@ -3712,6 +3718,13 @@ function apMapaSvg(ctx) {
     acum += qtd;
   });
   const yEst = l => mTop + posL[l] * passo;
+  // oitão: a viga fica no meio do trecho entre as estações do projeto (A, A1, A2, A3, B, B1 ... G3, H),
+  // interpolado entre as estações de letra (A=0, B=4, C=7, D=10, E=13, F=16, G=19, H=23)
+  const ANC = [['A', 0], ['B', 4], ['C', 7], ['D', 10], ['E', 13], ['F', 16], ['G', 19], ['H', 23]];
+  const yOitao = m => {
+    for (let i = 1; i < ANC.length; i++) if (m <= ANC[i][1]) { const [l0, i0] = ANC[i - 1], [l1, i1] = ANC[i]; return yEst(l0) + (yEst(l1) - yEst(l0)) * (m - i0) / (i1 - i0); }
+    return yEst('H');
+  };
   const xEixo = e => mEsq + eixos.indexOf(e) * colW;
   const larg = mEsq + (eixos.length - 1) * colW + 36, alt = mTop + altRua + 40;
   const ruas = eixos.slice(0, -1).map((e, i) => `${e}-${eixos[i + 1]}`);
@@ -3728,7 +3741,7 @@ function apMapaSvg(ctx) {
   eixos.forEach(e => {
     const x = xEixo(e);
     s.push(`<line class="apm-eixo" x1="${x}" x2="${x}" y1="${mTop}" y2="${yFim}"/>`);
-    s.push(`<g class="apm-eixo-rot" data-ap-eixosel="${e}"><title>Eixo ${e}: clique para marcar todas as vigas pendentes</title><circle cx="${x}" cy="${mTop - 22}" r="12"/><text x="${x}" y="${mTop - 18}" text-anchor="middle">${e}</text></g>`);
+    s.push(`<g class="apm-eixo-rot" data-ap-eixosel="${e}"><title>Eixo ${e}${ctx.ehOitao(e) ? ` (oitão, ${ctx.letrasEixo(e).length} vigas)` : ''}: clique para marcar todas as vigas pendentes</title><circle cx="${x}" cy="${mTop - 22}" r="12"/><text x="${x}" y="${mTop - 18}" text-anchor="middle">${e}</text></g>`);
   });
   ctx.letras.forEach(l => s.push(`<text class="apm-est-rot" x="${mEsq - 10}" y="${yEst(l) + 3}" text-anchor="end">${l}</text>`));
 
@@ -3750,15 +3763,16 @@ function apMapaSvg(ctx) {
   });
   s.push(`<text class="apm-est-rot" x="${mEsq - 10}" y="${yFim + 30}" text-anchor="end">joists/rua</text>`);
 
-  eixos.forEach(e => ctx.letras.forEach(l => {
+  eixos.forEach(e => ctx.letrasEixo(e).forEach(l => {
     const id = ctx.vigaId(e, l), m = ctx.vigaMontada.get(id), c = ctx.crit[l], emp = apEst.mapaV.get(`${e}|${l}`);
+    const yv = c.oitao ? yOitao(c.posicao_estacao) : yEst(l);
     const estMontado = m?.empresa || null;
     const est = m ? 'feita' : emp ? 'sel' : 'pend';
     const tam = c.evento_viga === 'VIGA_INTERM_MONTADA' ? 9 : 13;
-    const info = `${id} · ${AP_TIPO[c.evento_viga]} · ` + (m ? `montada${m.empresa ? ' (' + m.empresa + ')' : ''}${m.data ? ' em ' + fdA(m.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
+    const info = `${id} · ${c.oitao ? `oitão eixo ${e}, trecho ${l} · ` : ''}${AP_TIPO[c.evento_viga]} · ` + (m ? `montada${m.empresa ? ' (' + m.empresa + ')' : ''}${m.data ? ' em ' + fdA(m.data) : ''}` : emp ? `selecionada (${emp})` : 'pendente');
     const estilo = est === 'sel' ? `style="--sel:${corSelEmp(emp)}"` : est === 'feita' && estMontado ? `style="--sel:${corSelEmp(estMontado)}"` : '';
     s.push(`<g class="apm-viga ${est} ${c.evento_viga === 'VIGA_INTERM_MONTADA' ? 'interm' : ''}" ${estilo} data-ap-viga="${e}|${l}" data-ap-info="${esc(info)}">` +
-      `<rect x="${xEixo(e) - tam / 2 - 3}" y="${yEst(l) - tam / 2 - 3}" width="${tam + 6}" height="${tam + 6}" class="hit"/><rect class="q" x="${xEixo(e) - tam / 2}" y="${yEst(l) - tam / 2}" width="${tam}" height="${tam}" rx="2"/></g>`);
+      `<rect x="${xEixo(e) - tam / 2 - 3}" y="${yv - tam / 2 - 3}" width="${tam + 6}" height="${tam + 6}" class="hit"/><rect class="q" x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="2"/></g>`);
   }));
   return s.join('') + '</svg>';
 }
@@ -3924,16 +3938,20 @@ function apMapaHtml(ctx) {
       </div>
       <p class="nota">Cada retângulo é uma joist: são ${ctx.layout.length} por rua, da estação A (topo) à H (base); a posição do retângulo define a viga de apoio e o tipo de parafuso. Quadrados nos eixos: vigas (maior = apoio/VC01, menor = intermediária). Embaixo de cada rua: joists apontadas/${ctx.limRua}. Clique no número do eixo para marcar todas as vigas pendentes dele.</p>`;
   }
-  return `<div class="tabela-rolagem"><table class="ap-mapa"><thead><tr><th>Eixo</th>${ctx.letras.map(l => `<th class="n" title="${ctx.crit[l].viga} · ${AP_TIPO[ctx.crit[l].evento_viga]}">${l}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
-    ctx.cfg.eixos.map(x => {
+  const tabela = (eixos, letras) => `<div class="tabela-rolagem"><table class="ap-mapa"><thead><tr><th>Eixo</th>${letras.map(l => `<th class="n" title="${ctx.crit[l].viga} · ${AP_TIPO[ctx.crit[l].evento_viga]}">${l}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>` +
+    eixos.map(x => {
       let n = 0;
-      const tds = ctx.letras.map(l => {
+      const tds = letras.map(l => {
         const m = ctx.vigaMontada.get(ctx.vigaId(x, l));
         if (m) n++;
         return `<td class="n"><button type="button" class="ap-cel ${m ? 'ap-ok' : 'ap-blq'}" data-ap-eixo="${x}" title="${ctx.vigaId(x, l)}${m ? ' · montada em ' + fdA(m.data) + ' (' + (m.empresa || '?') + ')' : ''}">${m ? '✓' : '·'}</button></td>`;
       }).join('');
-      return `<tr><td><b>${x}</b></td>${tds}<td class="n">${n}/${ctx.letras.length}</td></tr>`;
+      return `<tr><td><b>${x}</b></td>${tds}<td class="n">${n}/${letras.length}</td></tr>`;
     }).join('') + '</tbody></table></div>';
+  const comuns = ctx.cfg.eixos.filter(x => !ctx.ehOitao(x)), oitoes = ctx.cfg.eixos.filter(ctx.ehOitao);
+  const totalVigas = soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length);
+  return tabela(comuns, ctx.letras) +
+    (oitoes.length ? `<p class="nota"><b>Oitões (eixos ${oitoes.join(' e ')}):</b> ${ctx.letrasEixo(oitoes[0]).length} vigas em cada, uma por trecho do projeto (IFC). Previsto no galpão: ${nf(comuns.length)} × ${ctx.letras.length} + ${nf(oitoes.length)} × ${ctx.letrasEixo(oitoes[0]).length} = ${nf(totalVigas)} vigas.</p>` + tabela(oitoes, ctx.letrasEixo(oitoes[0])) : '');
 }
 const AP_INFO_PADRAO = 'Passe o mouse sobre uma joist ou viga para ver a posição e o tipo.';
 
@@ -4004,7 +4022,7 @@ function apDefLinhas(ctx) {
   const nomes = apEmpresas(ctx).map(e => e.nome);
   const i0 = ctx.letras.indexOf(apDef.l0), i1 = ctx.letras.indexOf(apDef.l1);
   return (T.apontamentos || []).filter(a => !nomes.includes(a.empresa) && (a.lanca_producao || '').toUpperCase() !== 'SIM' && (a.tipo || '').toUpperCase() === apDef.tipo).filter(a => {
-    const eixo = apDef.tipo === 'VIGA' ? a.eixo : (a.rua || '').split('-')[0], i = ctx.letras.indexOf(a.letra);
+    const eixo = apDef.tipo === 'VIGA' ? a.eixo : (a.rua || '').split('-')[0], i = ctx.letras.indexOf(ctx.crit[a.letra]?.oitao ? ctx.crit[a.letra].faixa[0] : a.letra);
     return eixo >= apDef.e0 && eixo <= apDef.e1 && i >= Math.min(i0, i1) && i <= Math.max(i0, i1);
   });
 }
@@ -4238,7 +4256,7 @@ function ligarApontamento() {
     if (eixoSel && regras()) {
       if (!apExigirEmpresa()) return;
       const ctx = apContexto(regras()), e = eixoSel.dataset.apEixosel;
-      const pend = ctx.letras.filter(l => !ctx.vigaMontada.has(ctx.vigaId(e, l)));
+      const pend = ctx.letrasEixo(e).filter(l => !ctx.vigaMontada.has(ctx.vigaId(e, l)));
       const todas = pend.every(l => apEst.mapaV.get(`${e}|${l}`) === apEst.empresa);
       pend.forEach(l => todas ? apEst.mapaV.delete(`${e}|${l}`) : apEst.mapaV.set(`${e}|${l}`, apEst.empresa));
       return apAtualizarSelecao(true);

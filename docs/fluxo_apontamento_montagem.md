@@ -44,6 +44,14 @@ sobre as 43 previstas.
   FG012/FG017/FG020 x4.
 - Posições de cada faixa: AB = A,B; BC = B,BC,C; CD = C,CD,D; DE = D,DE,E; EF = E,EF,F; FG = F,FG,G; GH = G,H.
 
+- **Oitões (eixos 01 e 20): 21 vigas, não 13.** Os demais eixos têm as 13 letras (A a H); nos oitões o IFC traz 21 peças
+  da família VIGA COBERTURA (marcas VC08 a VC16), e o apontamento passa a identificar cada uma pelo trecho entre as
+  estações do projeto (`A2-A`, `B-A1`, `B1-A3` ... `H-G2`, em `vigas_oitao` e `criterio_por_letra` do `regras_baixa.json`).
+  Conta fecha com o contrato do BM: 18 eixos x 13 + 2 oitões x 21 = 276 vigas. No mapa, o eixo 20 mostra os 21 quadrados
+  entre as estações; em "Digitar vigas" o eixo 20 lista os 21 chips; o servidor recusa letra comum no oitão e trecho de
+  oitão nos demais eixos. O quadrante da rua 19-20 (e 01-02) só libera quando as vigas do oitão da faixa (3, 3, 3, 4, 3, 3, 2
+  de AB a GH) estão montadas. Kit de fixadores do oitão: o da viga intermediária (assumido; ajuste `evento_viga` de cada trecho).
+
 ## Histórico e conciliação
 
 - O estado de 30/09/2026 foi carregado a partir do desenho (`docs/conciliacao_desenho_2026-09-30.md`) como

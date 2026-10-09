@@ -1144,9 +1144,17 @@ function acao_apontamento(array $corpo, array $usuario)
             foreach (($item['letras'] ?? []) as $l) {
                 $letras[mb_strtoupper((string)$l)] = true;
             }
+            // Eixos comuns: 13 vigas (letras A a H). Oitões (eixos 01 e 20): 21 vigas, uma por trecho do IFC.
+            $ehOitao = in_array($eixo, $regras['vigas_oitao']['eixos'] ?? [], true);
             foreach (array_keys($letras) as $letra) {
                 if (!isset($crit[$letra])) {
                     throw new ErroValidacao("Letra de viga inválida: $letra.");
+                }
+                if ($ehOitao && empty($crit[$letra]['oitao'])) {
+                    throw new ErroValidacao("No oitão (eixo $eixo) as vigas são os trechos do projeto, ex.: B-A1; a letra $letra vale só nos demais eixos.");
+                }
+                if (!$ehOitao && !empty($crit[$letra]['oitao'])) {
+                    throw new ErroValidacao("A viga $letra só existe nos oitões (eixos 01 e 20).");
                 }
                 $vid = "E$eixo-$letra-" . $crit[$letra]['viga'];
                 if (isset($vigasJa[$vid])) {
