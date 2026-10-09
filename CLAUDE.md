@@ -144,6 +144,7 @@ Obra ativa: **OBRA 198** (id=1)
 - Colaboradores NÃO foram importados da planilha: são cadastrados no sistema, com coluna Empresa; as listas das caixas de seleção (fontes de dados) estão em `sesmt_listas`
 - Dados pessoais e de saúde: acesso só para admin ou usuário liberado em SESMT GERAL → Acessos; CPF mascarado nas listas e no CSV
 - Testes: `python ferramentas/teste_sesmt.py` (PHP + SQLite em pasta temporária, 36 testes)
+**Cronograma (Gantt):** previsto do Telhar em m². A meta cadastrada (7 telhas/dia) era aplicada sobre a quantidade do catálogo do BM (m²). Em `clienteComContratoAtual()` (`maciel/app.js`), quando a quantidade vem do catálogo em m² e a meta não fecha com ela no prazo, a meta passa a ser m² ÷ dias úteis entre início planejado e prazo; o tooltip do Gantt mostra a unidade m².
 
 ### 2026-10-08
 **Planejamento (aba Planejamento):** filtro por status, edições não salvas preservadas ao trocar filtros, preenchimento de datas em lote em sequência, Gantt planejado × real, exportação CSV e indicador de alterações pendentes.

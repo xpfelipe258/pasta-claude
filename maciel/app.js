@@ -1168,11 +1168,24 @@ function clienteQtdContrato(c) {
   }
   return 0;
 }
+// Meta por dia útil que cumpre a quantidade entre o início planejado e o prazo (mesma unidade da quantidade).
+function metaDiaPorPrazo(c) {
+  const dias = c?.inicio_plan && c?.prazo ? contarDiasUteis(add(c.inicio_plan, -1), c.prazo) : 0;
+  return dias > 0 && c.qtd > 0 ? c.qtd / dias : 0;
+}
 function clienteComContratoAtual(c) {
   const qtd = clienteQtdContrato(c);
-  const meta_dia = c?.qtd ? (Number(c.meta_dia) || 0) * (qtd / (Number(c.qtd) || qtd || 1)) : (Number(c?.meta_dia) || 0);
+  let meta_dia = c?.qtd ? (Number(c.meta_dia) || 0) * (qtd / (Number(c.qtd) || qtd || 1)) : (Number(c?.meta_dia) || 0);
   const peso = c?.qtd ? (Number(c.peso) || Number(c.qtd) || qtd) * (qtd / (Number(c.qtd) || qtd || 1)) : (Number(c?.peso) || qtd);
-  return { ...c, qtd, meta_dia, peso };
+  // Serviços medidos em m² (quantidade do catálogo do BM): a meta cadastrada pode estar em outra unidade (ex.: telhas/dia).
+  // Se ela não fecha com a quantidade no prazo, a meta passa a ser m² ÷ dias úteis entre início planejado e prazo.
+  let meta_derivada = false;
+  if (!(Number(c?.qtd) > 0) && qtd > 0 && servicoUsaCatalogoM2(c?.servico)) {
+    const porPrazo = metaDiaPorPrazo({ ...c, qtd });
+    const dias = porPrazo ? qtd / porPrazo : 0;
+    if (porPrazo && !(meta_dia > 0 && meta_dia * dias >= qtd * .5 && meta_dia * dias <= qtd * 2)) { meta_dia = porPrazo; meta_derivada = true; }
+  }
+  return { ...c, qtd, meta_dia, peso, meta_derivada };
 }
 
 function contratoLinhas(ate = ref) {
@@ -1431,7 +1444,11 @@ function ganItensCliente() {
       base.push({ ...cr, qtd, peso: qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true });
     }
   });
-  return base.map(ganAplicarDatas);
+  return base.map(it => {
+    ganAplicarDatas(it);
+    if (it.meta_derivada) it.meta_dia = metaDiaPorPrazo(it) || it.meta_dia;
+    return it;
+  });
 }
 
 function ganLimiteFaseAnterior(it) {
@@ -1744,8 +1761,9 @@ function renderGantt() {
       const realIniVis = l.ri || null;
       const realFimVis = l.rf || (l.ri ? c : null);
       const realPctVis = l.ri && l.rf ? l.pctReal : l.ri ? Math.max(l.pctReal, .03) : 0;
+      const un = servicoUsaCatalogoM2(l.it.servico) ? ' m²' : '';
       const rotStatus = semInicioAtrasado ? 'INÍCIO ATRASADO' : iniciouAtrasado ? 'INICIOU ATRASADO' : l.status;
-      const tit = `${cap(l.it.servico)}\nStatus: ${rotStatus}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)} de ${nf(l.it.qtd)} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)} (${nf(l.pctPrev * 100, 1)}%)${semInicioAtrasado ? '\nAlerta: atividade já deveria ter iniciado.' : ''}${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}`;
+      const tit = `${cap(l.it.servico)}\nStatus: ${rotStatus}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)}${un} de ${nf(l.it.qtd)}${un} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)}${un} (${nf(l.pctPrev * 100, 1)}%)${semInicioAtrasado ? '\nAlerta: atividade já deveria ter iniciado.' : ''}${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}`;
       corpo += `<div class="g-linha ${semInicioAtrasado ? 'g-alerta-atraso' : ''}"><div class="g-rot" style="width:${GAN_ESQ}px" title="${esc(tit)}"><span class="g-nome">${esc(cap(l.it.servico))}</span>
         <span class="g-num"><b class="${ganStatusAtrasado(l.status) ? 'valor-neg' : ''}">${nf(l.pctReal * 100, 0)}%</b> / ${nf(l.pctPrev * 100, 0)}%</span></div>
         <div class="g-trilha" style="width:${W}px">
