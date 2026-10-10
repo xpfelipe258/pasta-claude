@@ -340,48 +340,98 @@ function material_eh_fixador(array $m)
     return false;
 }
 
-function estoque_incluir_fixador(array $m)
+// Todo material cadastrado vai para as Remessas (e para a lista de materiais da planilha); o fixador vai também para
+// o Consumo físico e o Inventário, com a mesma TAG. Idempotente: não duplica TAG que já existe.
+function estoque_incluir_cadastro(array $m)
 {
     $tag = mb_strtoupper(trim((string)($m['codigo'] ?? '')));
-    if ($tag === '' || !material_eh_fixador($m)) {
+    if ($tag === '') {
         return false;
     }
     $dados = estoque_planilha_ler();
     if ($dados === null) {
         return false;
     }
+    $fix = material_eh_fixador($m);
     $produto = (string)(($m['material'] ?? '') !== '' ? $m['material'] : $tag);
+    $etapa = (string)(($m['etapa'] ?? '') !== '' ? $m['etapa'] : (($m['servico'] ?? '') !== '' ? $m['servico'] : ($fix ? 'FIXADORES' : 'CADASTRO MANUAL')));
+    $planejado = numero($m['saldo_inicial'] ?? null) ?: 0;
+    $tem = function ($lista) use ($tag) {
+        foreach ($lista as $it) {
+            if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+                return true;
+            }
+        }
+        return false;
+    };
     $mudou = false;
-    $achou = false;
-    foreach (($dados['consumo_fisico']['itens'] ?? []) as $it) {
-        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
-            $achou = true;
-            break;
-        }
-    }
-    if (!$achou) {
-        $dados['consumo_fisico']['itens'][] = ['produto' => $produto, 'tag' => $tag, 'consumo_semanas' => new stdClass(),
-            'total_consumo' => 0, 'inventarios_fisicos' => new stdClass(), 'origem_cadastro' => 'manual'];
+    if (!$tem($dados['remessas']['itens'] ?? [])) {
+        $dados['remessas']['itens'][] = ['tag' => $tag, 'material' => $produto, 'produto' => $produto, 'etapa' => $etapa,
+            'qtd_por_remessa' => new stdClass(), 'total_recebido' => 0, 'origem_cadastro' => 'manual'];
         $mudou = true;
     }
-    $achou = false;
-    foreach (($dados['inventario'] ?? []) as $it) {
-        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
-            $achou = true;
-            break;
-        }
-    }
-    if (!$achou) {
-        $dados['inventario'][] = ['material' => $produto, 'produto' => $produto, 'tag' => $tag,
-            'planejado' => numero($m['saldo_inicial'] ?? null) ?: 0, 'estoque_virtual_base' => 0, 'estoque_fisico' => 0,
-            'consumo_virtual' => 0, 'consumo_fisico' => 0, 'estoque_virtual_atual' => 0, 'dif_estoque' => 0, 'perda_real' => 0,
-            'taxa_perda' => 0, 'acuracidade' => 1, 'status' => 'CONFORME', 'acao' => 'OK', 'obs' => '', 'origem_cadastro' => 'manual'];
+    if (!$tem($dados['materiais'] ?? [])) {
+        $dados['materiais'][] = ['tag' => $tag, 'material' => $produto, 'produto' => $produto,
+            'local' => (string)(($m['local'] ?? '') !== '' ? $m['local'] : ($fix ? 'FIXADORES' : 'SUPRIMENTOS')), 'etapa' => $etapa,
+            'tipo_material' => $fix ? 'FIXADOR' : (($m['tipo_material'] ?? '') !== '' ? $m['tipo_material'] : 'ESTRUTURA'),
+            'planejado' => $planejado, 'chegou' => 0, 'consumido' => 0, 'estoque_pos_baixa' => 0,
+            'atendimento' => $planejado ? 0 : null, 'status_logistico' => $planejado ? 'Crítico' : 'Cadastrado',
+            'prioridade' => $fix ? 'FIXADOR' : '', 'origem_cadastro' => 'manual'];
         $mudou = true;
+    }
+    if ($fix) {
+        if (!$tem($dados['consumo_fisico']['itens'] ?? [])) {
+            $dados['consumo_fisico']['itens'][] = ['produto' => $produto, 'tag' => $tag, 'consumo_semanas' => new stdClass(),
+                'total_consumo' => 0, 'inventarios_fisicos' => new stdClass(), 'origem_cadastro' => 'manual'];
+            $mudou = true;
+        }
+        if (!$tem($dados['inventario'] ?? [])) {
+            $dados['inventario'][] = ['material' => $produto, 'produto' => $produto, 'tag' => $tag,
+                'planejado' => $planejado, 'estoque_virtual_base' => 0, 'estoque_fisico' => 0,
+                'consumo_virtual' => 0, 'consumo_fisico' => 0, 'estoque_virtual_atual' => 0, 'dif_estoque' => 0, 'perda_real' => 0,
+                'taxa_perda' => 0, 'acuracidade' => 1, 'status' => 'CONFORME', 'acao' => 'OK', 'obs' => '', 'origem_cadastro' => 'manual'];
+            $mudou = true;
+        }
     }
     if ($mudou) {
         estoque_planilha_gravar($dados);
     }
     return $mudou;
+}
+
+// Próxima TAG livre de fixador novo: FG### (fixador geral) ou FJ### (fixador de joist), contando o cadastro e a planilha.
+function proximo_codigo_fixador($prefixo)
+{
+    $cods = q('SELECT codigo FROM materiais')->fetchAll(PDO::FETCH_COLUMN);
+    $dados = estoque_planilha_ler();
+    if ($dados) {
+        foreach ([$dados['materiais'] ?? [], $dados['remessas']['itens'] ?? [], $dados['consumo_fisico']['itens'] ?? [], $dados['inventario'] ?? []] as $lista) {
+            foreach ($lista as $it) {
+                $cods[] = $it['tag'] ?? '';
+            }
+        }
+    }
+    $max = 0;
+    foreach ($cods as $c) {
+        if (preg_match('/^' . $prefixo . '(\d+)$/', mb_strtoupper(trim((string)$c)), $r)) {
+            $max = max($max, (int)$r[1]);
+        }
+    }
+    return sprintf('%s%03d', $prefixo, $max + 1);
+}
+
+function tag_existe($tag)
+{
+    if (q('SELECT id FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch()) {
+        return true;
+    }
+    $dados = estoque_planilha_ler();
+    foreach (($dados['materiais'] ?? []) as $it) {
+        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Ao excluir o cadastro, sai o que foi criado por ele (se ninguém lançou consumo nesse fixador).
@@ -392,14 +442,20 @@ function estoque_remover_fixador_cadastrado($codigo)
     if ($dados === null) {
         return;
     }
-    $n0 = count($dados['consumo_fisico']['itens'] ?? []) + count($dados['inventario'] ?? []);
+    $n0 = count($dados['consumo_fisico']['itens'] ?? []) + count($dados['inventario'] ?? []) + count($dados['remessas']['itens'] ?? []) + count($dados['materiais'] ?? []);
     $dados['consumo_fisico']['itens'] = array_values(array_filter($dados['consumo_fisico']['itens'] ?? [], function ($it) use ($tag) {
         return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_consumo'] ?? 0) == 0);
     }));
     $dados['inventario'] = array_values(array_filter($dados['inventario'] ?? [], function ($it) use ($tag) {
         return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual');
     }));
-    if (count($dados['consumo_fisico']['itens']) + count($dados['inventario']) !== $n0) {
+    $dados['remessas']['itens'] = array_values(array_filter($dados['remessas']['itens'] ?? [], function ($it) use ($tag) {
+        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_recebido'] ?? 0) == 0);
+    }));
+    $dados['materiais'] = array_values(array_filter($dados['materiais'] ?? [], function ($it) use ($tag) {
+        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['chegou'] ?? 0) == 0);
+    }));
+    if (count($dados['consumo_fisico']['itens']) + count($dados['inventario']) + count($dados['remessas']['itens']) + count($dados['materiais']) !== $n0) {
         estoque_planilha_gravar($dados);
     }
 }
@@ -438,6 +494,23 @@ function acao_registro(array $corpo)
         if ($l && $p && empty($campos['custo_combustivel'])) {
             $campos['custo_combustivel'] = round($l * $p, 2);
         }
+    }
+    if ($tabela === 'materiais' && $id === null && material_eh_fixador($campos)) {
+        // Fixador novo: TAG padronizada FG### (geral) ou FJ### (joist), gerada quando vazia e conferida quando digitada.
+        $campos['tipo_material'] = 'FIXADOR';
+        $cod = mb_strtoupper(trim((string)($campos['codigo'] ?? '')));
+        if ($cod === '') {
+            $txt = mb_strtoupper(($campos['material'] ?? '') . ' ' . ($campos['etapa'] ?? '') . ' ' . ($campos['servico'] ?? '') . ' ' . ($campos['local'] ?? '') . ' ' . ($campos['obs'] ?? ''));
+            $cod = proximo_codigo_fixador(mb_strpos($txt, 'JOIST') !== false ? 'FJ' : 'FG');
+        } elseif (preg_match('/^(FG|FJ)[\s-]*0*(\d{1,3})$/', $cod, $r) && (int)$r[2] > 0) {
+            $cod = sprintf('%s%03d', $r[1], (int)$r[2]);
+        } else {
+            throw new ErroValidacao('A TAG de fixador novo deve ser FG### (fixador geral) ou FJ### (fixador de joist), ex.: FG030. Deixe o campo vazio para gerar a próxima automaticamente.');
+        }
+        if (tag_existe($cod)) {
+            throw new ErroValidacao("Já existe um material com a TAG $cod.");
+        }
+        $campos['codigo'] = $cod;
     }
     if ($tabela === 'materiais') {
         if (empty($campos['codigo']) && $id === null) {
@@ -524,10 +597,10 @@ function acao_registro(array $corpo)
     }
     if ($tabela === 'materiais') {
         $mat = $id !== null
-            ? q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE id = ?', [$id])->fetch()
-            : q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE codigo = ? ORDER BY id DESC LIMIT 1', [$vals['codigo'] ?? ''])->fetch();
+            ? q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE id = ?', [$id])->fetch()
+            : q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE codigo = ? ORDER BY id DESC LIMIT 1', [$vals['codigo'] ?? ''])->fetch();
         if ($mat) {
-            estoque_incluir_fixador($mat);
+            estoque_incluir_cadastro($mat);
         }
     }
     // Propagação bidirecional: alteração de cliente.qtd (escopo do contrato) replica em servicos.escopo
@@ -928,9 +1001,9 @@ function acao_estoque_consumo(array $corpo)
             throw new ErroValidacao("Item $n: escolha a TAG do material.");
         }
         if (!isset($porTag[$tag])) {
-            $matCad = q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
+            $matCad = q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
             if ($matCad && material_eh_fixador($matCad)) {
-                estoque_incluir_fixador($matCad);
+                estoque_incluir_cadastro($matCad);
                 $dados = estoque_planilha_ler();
                 $porTag = [];
                 foreach ($dados['consumo_fisico']['itens'] as $i => $it0) {

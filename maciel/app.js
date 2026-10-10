@@ -5279,7 +5279,7 @@ function renderLancServico(e) {
 // ------------------------------------------------------------ FORMULÁRIO GENÉRICO (cadastros)
 const FORMS = {
   materiais: { tit: 'material', campos: [
-    ['codigo', 'TAG / Código (automático se vazio)', 'text'], ['material', 'Nome do material', 'text', 1], ['unidade', 'Unidade (pç, kg, m², m)', 'text', 1],
+    ['codigo', 'TAG / Código (automático se vazio; fixador novo: FG### ou FJ###)', 'text'], ['material', 'Nome do material', 'text', 1], ['unidade', 'Unidade (pç, kg, m², m)', 'text', 1],
     ['tipo_material', 'Tipo de material', 'select:ESTRUTURA,FIXADOR,CONSUMO,OUTROS'], ['local', 'Local / grupo', 'text'], ['etapa', 'Etapa / aplicação', 'text'],
     ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
     ['saldo_inicial', 'Quantidade planejada', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
