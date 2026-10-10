@@ -102,7 +102,7 @@ try {
     }
     $moduloRota = [
         'producao'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','referencia'=>'producao',
-        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos',
+        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
@@ -118,7 +118,7 @@ try {
         'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
-        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula',
         'planejamento' => 'acao_salvar_planejamento',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
@@ -1044,6 +1044,77 @@ function acao_estoque_consumo(array $corpo)
     }
     estoque_planilha_gravar($dados);
     return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos)];
+}
+
+// Edição direta de uma célula do Consumo físico (TAG x semana x empresa): grava o valor informado no lugar do anterior.
+// Quantidade vazia ou zero limpa a célula. Recalcula o total da semana, o total do item e o consumido do material.
+function acao_estoque_consumo_celula(array $corpo)
+{
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $tag = mb_strtoupper(trim((string)($corpo['tag'] ?? '')));
+    $semana = trim((string)($corpo['semana'] ?? ''));
+    $empresa = mb_strtoupper(trim((string)($corpo['empresa'] ?? '')));
+    if ($tag === '' || $semana === '') {
+        throw new ErroValidacao('Informe a TAG e a semana.');
+    }
+    if (!in_array($empresa, ['EJ', 'CMM'], true)) {
+        throw new ErroValidacao('Empresa deve ser EJ ou CMM.');
+    }
+    $q = ($corpo['quantidade'] ?? null) === null || $corpo['quantidade'] === '' ? 0 : numero($corpo['quantidade']);
+    if ($q === null || $q < 0) {
+        throw new ErroValidacao('Quantidade inválida: use um número maior ou igual a zero.');
+    }
+    if (!in_array($semana, $dados['consumo_fisico']['semanas'] ?? [], true)) {
+        throw new ErroValidacao("Semana '$semana' não existe no consumo. Use + Registrar consumo para criar uma semana nova.");
+    }
+    $idx = null;
+    foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
+        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+            $idx = $i;
+            break;
+        }
+    }
+    if ($idx === null) {
+        $matCad = q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
+        if ($matCad && material_eh_fixador($matCad)) {
+            estoque_incluir_cadastro($matCad);
+            $dados = estoque_planilha_ler();
+            foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
+                if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+                    $idx = $i;
+                    break;
+                }
+            }
+        }
+    }
+    if ($idx === null) {
+        throw new ErroValidacao("TAG $tag não existe no consumo.");
+    }
+    $item = &$dados['consumo_fisico']['itens'][$idx];
+    if (!isset($item['consumo_semanas']) || !is_array($item['consumo_semanas'])) {
+        $item['consumo_semanas'] = [];
+    }
+    $e = $item['consumo_semanas'][$semana] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+    $e[$empresa] = $q;
+    $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+    if ($e['total'] > 0) {
+        $item['consumo_semanas'][$semana] = $e;
+    } else {
+        unset($item['consumo_semanas'][$semana]);
+    }
+    $item['total_consumo'] = array_sum(array_column($item['consumo_semanas'], 'total'));
+    $consumo = $item['total_consumo'];
+    unset($item);
+    $i = estoque_material($dados, $tag);
+    if ($i !== null) {
+        $dados['materiais'][$i]['consumido'] = $consumo;
+        $dados['materiais'][$i]['estoque_pos_baixa'] = ($dados['materiais'][$i]['chegou'] ?? 0) - $consumo;
+    }
+    estoque_planilha_gravar($dados);
+    return ['celulas' => 1, 'salvos' => 1, 'total_consumo' => $consumo];
 }
 
 // ------------------------------------------------- apontamento de montagem (joists e vigas)

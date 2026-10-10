@@ -3185,6 +3185,8 @@ function ligarEdicaoEstoque() {
     if (prox) { prox.focus(); prox.select(); }
   });
   sec.addEventListener('click', ev => {
+    const cc = ev.target.closest('td[data-cons-tag]');
+    if (cc) { ev.preventDefault(); return editarConsumoInline(cc); }
     const er = ev.target.closest('[data-rem-editar]');
     if (er) { ev.preventDefault(); return edAbrirRemessaExistente(er.dataset.remEditar); }
     const c = ev.target.closest('[data-ed-cancelar]'), s = ev.target.closest('[data-ed-salvar]');
@@ -3194,6 +3196,44 @@ function ligarEdicaoEstoque() {
       if (edItens(k).itens.length && !c.dataset.confirmar) { c.dataset.confirmar = '1'; c.textContent = 'Descartar o que digitei?'; return; }
       edFechar(k);
     }
+  });
+}
+
+// Célula do consumo físico (TAG x semana x empresa) editável direto na tabela: clique, digite e Enter.
+function celulaConsumo(m, s, emp) {
+  const d = m.consumo_semanas[s], v = d ? Number(d[emp]) || 0 : 0;
+  return `<td class="n editavel" data-cons-tag="${esc(m.tag)}" data-cons-sem="${esc(s)}" data-cons-emp="${emp}" data-cons-val="${v || ''}" title="Clique para editar ${esc(m.tag)} · ${esc(s)} · ${emp}">${d ? nf(d[emp]) : ''}</td>`;
+}
+function editarConsumoInline(td) {
+  if (td.querySelector('input')) return;
+  const dados = { tag: td.dataset.consTag, semana: td.dataset.consSem, empresa: td.dataset.consEmp };
+  const antes = td.dataset.consVal;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.inputMode = 'decimal'; inp.value = antes ? String(antes).replace('.', ',') : '';
+  inp.setAttribute('aria-label', `${dados.tag} ${dados.semana} ${dados.empresa}`);
+  inp.style.cssText = 'width:100%;min-width:56px;border:0;background:var(--acento-suave);padding:3px 5px;border-radius:3px;font:inherit;text-align:right;outline:1px solid var(--acento);';
+  td.textContent = '';
+  td.appendChild(inp);
+  inp.focus(); inp.select();
+  let feito = false;
+  const sair = () => { feito = true; renderEstConsumo(); };
+  async function salvar() {
+    if (feito) return; feito = true;
+    const txt = inp.value.trim(), q = txt === '' ? 0 : edNum(txt);
+    if (!(q >= 0)) { toast('Quantidade inválida: use um número maior ou igual a zero.', true); renderEstConsumo(); return; }
+    if (q === (Number(antes) || 0)) { renderEstConsumo(); return; }
+    try {
+      await postar(API + 'estoque-planilha/consumo-celula', { ...dados, quantidade: q });
+      const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+      if (j) EP = j;
+      renderEstoquePlanilha();
+      toast(`${dados.tag} · ${dados.semana} · ${dados.empresa}: ${nf(q)} ${ONDE}`);
+    } catch (err) { toast(err.message || 'Erro ao salvar.', true); renderEstConsumo(); }
+  }
+  inp.addEventListener('blur', salvar);
+  inp.addEventListener('keydown', ke => {
+    if (ke.key === 'Enter') { ke.preventDefault(); inp.blur(); }
+    else if (ke.key === 'Escape') { ke.preventDefault(); sair(); }
   });
 }
 
@@ -3224,7 +3264,7 @@ function renderEstConsumo() {
     (ed ? `<th class="n col-nova" style="color:var(--ej)">EJ</th><th class="n col-nova" style="color:var(--cmm)">CMM</th>` : '') +
     `<th></th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
-      sems.map(s => { const d = m.consumo_semanas[s]; return `<td class="n">${d ? nf(d.EJ) : ''}</td><td class="n">${d ? nf(d.CMM) : ''}</td>`; }).join('') +
+      sems.map(s => celulaConsumo(m, s, 'EJ') + celulaConsumo(m, s, 'CMM')).join('') +
       (ed ? inp(m, 'EJ') + inp(m, 'CMM') : '') +
       `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
     : `<tr><td colspan="${2 + sems.length * 2 + (ed ? 2 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
