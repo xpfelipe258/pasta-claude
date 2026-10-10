@@ -2903,6 +2903,37 @@ function estRemessasComCadastros() {
   return out;
 }
 
+// Fixadores cadastrados em Materiais (T.materiais) entram também no Consumo físico e no Inventário, com a mesma TAG,
+// mesmo que a planilha importada não os tenha (o servidor também cria essas linhas ao cadastrar o fixador).
+function fixadoresCadastrados() {
+  return (T?.materiais || []).filter(m => String(m.codigo || '').trim() && ehFixadorCadastro(m));
+}
+function estConsumoComCadastros() {
+  const cf = EP?.consumo_fisico || { semanas: [], empresas: [], itens: [], inventarios_datas: [] };
+  const itens = [...(cf.itens || [])];
+  const vistos = new Set(itens.map(i => ganNorm(i.tag)));
+  fixadoresCadastrados().forEach(m => {
+    const tag = String(m.codigo).trim();
+    if (vistos.has(ganNorm(tag))) return;
+    itens.push({ tag, produto: matCadastroProduto(m), consumo_semanas: {}, total_consumo: 0, inventarios_fisicos: {}, origem_cadastro: 'manual' });
+    vistos.add(ganNorm(tag));
+  });
+  return { ...cf, itens };
+}
+function estInventarioComCadastros() {
+  const inv = [...(EP?.inventario || [])];
+  const vistos = new Set(inv.map(i => ganNorm(i.tag)));
+  fixadoresCadastrados().forEach(m => {
+    const tag = String(m.codigo).trim();
+    if (vistos.has(ganNorm(tag))) return;
+    inv.push({ tag, material: m.material || tag, produto: matCadastroProduto(m), planejado: Number(m.saldo_inicial || 0) || 0,
+      estoque_virtual_base: 0, estoque_fisico: 0, consumo_virtual: 0, consumo_fisico: 0, estoque_virtual_atual: 0, dif_estoque: 0,
+      perda_real: 0, taxa_perda: 0, acuracidade: 1, status: 'CONFORME', acao: 'OK', obs: '', origem_cadastro: 'manual' });
+    vistos.add(ganNorm(tag));
+  });
+  return inv;
+}
+
 function renderEstMateriais() {
   if (!EP || !M) return;
   const regras = regrasBaixa(renderEstMateriais);
@@ -3168,7 +3199,7 @@ function ligarEdicaoEstoque() {
 
 function renderEstConsumo() {
   if (!EP) return;
-  const cf = EP.consumo_fisico;
+  const cf = estConsumoComCadastros();
   const sems = cf.semanas;
   const f = ($('#estConsFiltro')?.value || '').toUpperCase();
   const vis = cf.itens.filter(m => {
@@ -3305,8 +3336,8 @@ function inventarioCalculado(regras) {
   const mapa = consumoVirtualPorTag(regras);
   const notas = regras.inventario_notas || {};
   const recebido = new Map(estRemessasComCadastros().itens.map(r => [r.tag, r.total_recebido]));
-  const retirado = new Map(EP.consumo_fisico.itens.map(c => [c.tag, c.total_consumo]));
-  return EP.inventario.map(m => {
+  const retirado = new Map(estConsumoComCadastros().itens.map(c => [c.tag, c.total_consumo]));
+  return estInventarioComCadastros().map(m => {
     if (!m.status) return { ...m, origem: null, delta: 0 };
     const base = recebido.has(m.tag) ? recebido.get(m.tag) : m.estoque_virtual_base;
     const cf = retirado.has(m.tag) ? retirado.get(m.tag) : m.consumo_fisico;

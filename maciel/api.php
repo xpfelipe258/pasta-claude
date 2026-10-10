@@ -327,6 +327,83 @@ function gravar_linha($tabela, $id, array $vals)
     return count($vals);
 }
 
+// Fixador cadastrado em Materiais entra também no consumo físico e no inventário da planilha de estoque
+// (mesma TAG), para poder receber consumo e ser conferido sem precisar importar a planilha de novo.
+function material_eh_fixador(array $m)
+{
+    $txt = mb_strtoupper(($m['tipo_material'] ?? '') . ' ' . ($m['codigo'] ?? '') . ' ' . ($m['material'] ?? '') . ' ' . ($m['obs'] ?? ''));
+    foreach (['FIXADOR', 'PARAFUS', 'CHUMBADOR', 'ARRUELA', 'PORCA'] as $k) {
+        if (mb_strpos($txt, $k) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function estoque_incluir_fixador(array $m)
+{
+    $tag = mb_strtoupper(trim((string)($m['codigo'] ?? '')));
+    if ($tag === '' || !material_eh_fixador($m)) {
+        return false;
+    }
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        return false;
+    }
+    $produto = (string)(($m['material'] ?? '') !== '' ? $m['material'] : $tag);
+    $mudou = false;
+    $achou = false;
+    foreach (($dados['consumo_fisico']['itens'] ?? []) as $it) {
+        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+            $achou = true;
+            break;
+        }
+    }
+    if (!$achou) {
+        $dados['consumo_fisico']['itens'][] = ['produto' => $produto, 'tag' => $tag, 'consumo_semanas' => new stdClass(),
+            'total_consumo' => 0, 'inventarios_fisicos' => new stdClass(), 'origem_cadastro' => 'manual'];
+        $mudou = true;
+    }
+    $achou = false;
+    foreach (($dados['inventario'] ?? []) as $it) {
+        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+            $achou = true;
+            break;
+        }
+    }
+    if (!$achou) {
+        $dados['inventario'][] = ['material' => $produto, 'produto' => $produto, 'tag' => $tag,
+            'planejado' => numero($m['saldo_inicial'] ?? null) ?: 0, 'estoque_virtual_base' => 0, 'estoque_fisico' => 0,
+            'consumo_virtual' => 0, 'consumo_fisico' => 0, 'estoque_virtual_atual' => 0, 'dif_estoque' => 0, 'perda_real' => 0,
+            'taxa_perda' => 0, 'acuracidade' => 1, 'status' => 'CONFORME', 'acao' => 'OK', 'obs' => '', 'origem_cadastro' => 'manual'];
+        $mudou = true;
+    }
+    if ($mudou) {
+        estoque_planilha_gravar($dados);
+    }
+    return $mudou;
+}
+
+// Ao excluir o cadastro, sai o que foi criado por ele (se ninguém lançou consumo nesse fixador).
+function estoque_remover_fixador_cadastrado($codigo)
+{
+    $tag = mb_strtoupper(trim((string)$codigo));
+    $dados = $tag === '' ? null : estoque_planilha_ler();
+    if ($dados === null) {
+        return;
+    }
+    $n0 = count($dados['consumo_fisico']['itens'] ?? []) + count($dados['inventario'] ?? []);
+    $dados['consumo_fisico']['itens'] = array_values(array_filter($dados['consumo_fisico']['itens'] ?? [], function ($it) use ($tag) {
+        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_consumo'] ?? 0) == 0);
+    }));
+    $dados['inventario'] = array_values(array_filter($dados['inventario'] ?? [], function ($it) use ($tag) {
+        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual');
+    }));
+    if (count($dados['consumo_fisico']['itens']) + count($dados['inventario']) !== $n0) {
+        estoque_planilha_gravar($dados);
+    }
+}
+
 function acao_registro(array $corpo)
 {
     $specs = tabelas_spec();
@@ -347,6 +424,7 @@ function acao_registro(array $corpo)
             q("DELETE FROM $tabela WHERE id = ?", [$id]);
             if ($matExcluir && !empty($matExcluir['codigo'])) {
                 q('DELETE FROM estoque_remessas WHERE codigo = ? AND documento = ? AND (quantidade IS NULL OR quantidade = 0)', [$matExcluir['codigo'], 'CADASTRO AUTOMÁTICO']);
+                estoque_remover_fixador_cadastrado($matExcluir['codigo']);
             }
             return 1;
         }
@@ -442,6 +520,14 @@ function acao_registro(array $corpo)
                 'fornecedor' => $vals['fornecedor'] ?? null,
                 'obs' => 'Criado automaticamente ao cadastrar o material. Lance a quantidade quando a remessa chegar.'
             ]);
+        }
+    }
+    if ($tabela === 'materiais') {
+        $mat = $id !== null
+            ? q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE id = ?', [$id])->fetch()
+            : q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE codigo = ? ORDER BY id DESC LIMIT 1', [$vals['codigo'] ?? ''])->fetch();
+        if ($mat) {
+            estoque_incluir_fixador($mat);
         }
     }
     // Propagação bidirecional: alteração de cliente.qtd (escopo do contrato) replica em servicos.escopo
@@ -840,6 +926,17 @@ function acao_estoque_consumo(array $corpo)
         $empresa = mb_strtoupper(trim((string)($it['empresa'] ?? $corpo['empresa'] ?? '')));
         if ($tag === '') {
             throw new ErroValidacao("Item $n: escolha a TAG do material.");
+        }
+        if (!isset($porTag[$tag])) {
+            $matCad = q('SELECT codigo, material, tipo_material, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
+            if ($matCad && material_eh_fixador($matCad)) {
+                estoque_incluir_fixador($matCad);
+                $dados = estoque_planilha_ler();
+                $porTag = [];
+                foreach ($dados['consumo_fisico']['itens'] as $i => $it0) {
+                    $porTag[mb_strtoupper((string)$it0['tag'])] = $i;
+                }
+            }
         }
         if (!isset($porTag[$tag])) {
             throw new ErroValidacao("Item $n: TAG $tag não existe no consumo. Escolha uma da lista.");
