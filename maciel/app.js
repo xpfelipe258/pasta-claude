@@ -84,6 +84,7 @@ function patchDatas() {
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
 function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
+function rs2(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function cap(s) { return String(s || '').toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
 function cor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function corEmp(nome) { return `var(${COR_EMP[nome] || '--fg3'})`; }
@@ -4724,6 +4725,12 @@ function bmFmtQtdFinanceira(a, valor, undValor = null) {
   const und = undValor == null ? null : Number(undValor) || 0;
   return `${nf(valor, 1)}${un ? ' ' + esc(un) : ''}${a.controle && undValor != null ? ` <span class="nota">(${nf(und, 1)} und)</span>` : ''}`;
 }
+// Preço da atividade: valor do item no contrato (RÓTULA) × peso da atividade no item (normalizado);
+// unitário = valor total da atividade ÷ quantidade contratada (na unidade do catálogo).
+function bmPrecoAtividade(it, a, R = 'RÓTULA') {
+  const total = (it.valor[R] || 0) * ((a.peso || 0) / (it.somaPesos || 1));
+  return { total, unit: Number(a.qtd) > 0 ? total / Number(a.qtd) : 0 };
+}
 function bmLegendaUnidade(a) {
   if (!a.controle) return esc(a.unidade || '');
   if (bmAtividadeUsaBaseFinanceira(a)) return `${esc(a.unidade || '')} <span class="nota" title="Cobertura/telhas e fechamento lateral usam a própria quantidade e unidade financeira do catálogo de atividades.">catálogo</span>`;
@@ -4908,11 +4915,14 @@ function bmImprimir(r, emp, p) {
   r.itens.forEach(it => {
     linhasItens += `<tr style="background:#f0f4f8"><td colspan="4" style="padding:5px 8px;font-weight:bold">${esc(it.item)} — ${esc(cap(it.desc))}</td>
       <td style="text-align:right;padding:5px 8px">${pc(it.pctAnt)}</td><td style="text-align:right;padding:5px 8px">${pc(it.pctPer)}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${pc(it.pct)}</td>
-      <td style="text-align:right;padding:5px 8px">${rs(it.pctAnt * it.valor[R])}</td><td style="text-align:right;padding:5px 8px">${rs(it.pctPer * it.valor[R])}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${rs(it.pct * it.valor[R])}</td></tr>`;
+      <td style="text-align:right;padding:5px 8px">${rs(it.pctAnt * it.valor[R])}</td><td style="text-align:right;padding:5px 8px">${rs(it.pctPer * it.valor[R])}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${rs(it.pct * it.valor[R])}</td>
+      <td style="text-align:right;padding:5px 8px;font-weight:bold">${rs2(it.valor[R])}</td><td></td></tr>`;
     it.ats.forEach(x => {
+      const pr = bmPrecoAtividade(it, x.a, R);
       linhasItens += `<tr><td style="padding:4px 8px 4px 22px;color:#555">${esc(x.a.atividade)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
         <td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real - x.realAnt, 2)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real, 2)}</td>
-        <td colspan="3" style="text-align:right;padding:4px 8px;color:#555">${pc(x.pct)}</td><td colspan="3"></td></tr>`;
+        <td colspan="3" style="text-align:right;padding:4px 8px;color:#555">${pc(x.pct)}</td><td colspan="3"></td>
+        <td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.total)}</td><td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.unit)}</td></tr>`;
     });
   });
 
@@ -4980,10 +4990,12 @@ function bmImprimir(r, emp, p) {
       <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
       <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
       <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
+      <th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th>
     </tr></thead><tbody>${linhasItens}</tbody>
     <tfoot><tr><td colspan="4"><b>Total do contrato</b></td>
       <td style="text-align:right">${pc(tot.ant / (tot.contrato || 1))}</td><td style="text-align:right">${pc(tot.pctPer)}</td><td style="text-align:right">${pc(tot.pctAcum)}</td>
       <td style="text-align:right">${rs(tot.ant)}</td><td style="text-align:right">${rs(tot.per)}</td><td style="text-align:right">${rs(tot.acum)}</td>
+      <td style="text-align:right">${rs2(tot.contrato)}</td><td></td>
     </tr></tfoot></table>
     <h2>Descontos e valor a faturar</h2>
     <table><thead><tr><th>Descrição</th><th class="n" style="width:160px">Valor (R$)</th></tr></thead>
@@ -5069,20 +5081,22 @@ function renderBMBoletim(box) {
 
   const colBms = bmsAteMeusInclusos.map(pm => `<th class="n">BM${pm.n}</th>`).join('');
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
-    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th>
+    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th>
     <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th>${colBms}</tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
+      <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
       <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
+      const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
     });
   });
-  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
+  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
     <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
@@ -5142,11 +5156,12 @@ function renderBMCatalogo(box) {
   const its = bmItens(bmEmp, ref);
   let h = `<div class="bloco"><div class="bloco-cab"><h2>Catálogo de atividades — ${esc(bmEmp)}</h2><div class="acoes"><button class="btn primario" data-novo="bm_atividades">+ Atividade</button></div></div>
     <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na grade de produção em und e podem ser convertidas para a unidade financeira do BM. Para forçar um fator, use na observação: m2_por_und=2,45.</p>
-    <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
+    <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">RÓTULA ${rs(it.valor['RÓTULA'])}</td>
+    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">valor do item (RÓTULA)</td><td class="n"><b>${rs2(it.valor['RÓTULA'])}</b></td><td></td>
       <td colspan="3">${it.pesosAjustados ? `<span class="farol f-amarelo">pesos somam ${nf(it.somaPesos * 100, 1)}%</span>` : ''}</td></tr>`;
     it.ats.forEach(x => h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${bmLegendaUnidade(x.a)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
+      <td class="n">${rs2(bmPrecoAtividade(it, x.a).total)}</td><td class="n">${rs2(bmPrecoAtividade(it, x.a).unit)}</td>
       <td>${esc(x.a.controle || '')}</td><td>${x.a.controle ? (bmAtividadeUsaBaseFinanceira(x.a) ? `produção = catálogo (${esc(bmUnFinanceira(x.a) || '')})` : `1 ${esc(bmUnProducao(x.a))} = ${nf(bmFatorControle(x.a), 2)} ${esc(bmUnFinanceira(x.a) || '')}`) : '—'}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`);
   });
   box.innerHTML = h + '</tbody></table></div></div>';

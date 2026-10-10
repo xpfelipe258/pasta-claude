@@ -134,7 +134,7 @@ function tabelas_spec()
     ];
 }
 
-const ESQUEMA_VERSAO = 12;
+const ESQUEMA_VERSAO = 13;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
@@ -149,8 +149,30 @@ function garantir_esquema(PDO $pdo, array $c)
     }
     criar_esquema($pdo, $c['driver']);
     garantir_multiobra($pdo, $c['driver']);
+    if ((int)$v < 13) {
+        corrigir_dados_v13($pdo);
+    }
     $pdo->prepare("DELETE FROM sistema WHERE chave = 'esquema'")->execute();
     $pdo->prepare("INSERT INTO sistema (chave, valor) VALUES ('esquema', ?)")->execute([(string)ESQUEMA_VERSAO]);
+}
+
+// Esquema 13: Eclusa (item 3.3.1 do BM, estrutura metálica para cobertura da eclusa) passa a ter 18 joists, não 11,
+// na pré-montagem (EJ-3.3.1-02) e na instalação (EJ-3.3.1-03). A correção roda uma vez e só mexe no que ainda vale 11:
+// catálogo do BM e, se existirem com 11, o escopo da grade de produção e o cadastro de metas do cliente.
+// BMs já fechados guardam a quantidade congelada (bm_fech_atividades) e não mudam.
+function corrigir_dados_v13(PDO $pdo)
+{
+    try {
+        $pdo->exec("UPDATE bm_atividades SET qtd = 18 WHERE empresa = 'EJ' AND item = '3.3.1' AND qtd = 11
+            AND codigo IN ('EJ-3.3.1-02', 'EJ-3.3.1-03')");
+        $pdo->exec("UPDATE servicos SET escopo = 18 WHERE escopo = 11 AND frente = 'ECLUSA'
+            AND (nome LIKE '%JOIST%' OR nome LIKE '%PREMONT%' OR nome LIKE '%PRÉ-MONT%')
+            AND empresa_id IN (SELECT id FROM empresas WHERE nome = 'EJ')");
+        $pdo->exec("UPDATE cliente SET qtd = 18 WHERE qtd = 11 AND frente = 'ECLUSA'
+            AND (servico LIKE '%JOIST%' OR servico LIKE '%PREMONT%' OR servico LIKE '%PRÉ-MONT%')");
+    } catch (Exception $e) {
+        // tabela ainda inexistente em instalação muito antiga: nada a corrigir
+    }
 }
 
 function criar_esquema(PDO $pdo, $driver)
