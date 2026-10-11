@@ -346,7 +346,7 @@ function sesmt_alterar_acesso($usuarioId, $liberar)
     $tem = (int)q_global('SELECT COUNT(*) FROM usuarios_modulos WHERE usuario_id = ?', [(int)$usuarioId])->fetchColumn();
     if ($tem === 0) {
         foreach (modulos_sistema() as $m) {
-            if ($m !== 'sesmt') {
+            if (!in_array($m, ['sesmt', 'financas'], true)) {
                 q_global('INSERT INTO usuarios_modulos (usuario_id, modulo, permitido) VALUES (?, ?, 1)', [(int)$usuarioId, $m]);
             }
         }

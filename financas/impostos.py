@@ -6,6 +6,7 @@ basta ajustar aqui. São ESTIMATIVAS para planejamento — confirme com seu cont
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 
 # ---------------------------------------------------------------- parâmetros
 SALARIO_MINIMO = 1621.00
@@ -58,6 +59,11 @@ FATOR_R_MINIMO = 0.28
 
 
 # ------------------------------------------------------------------- INSS/IRRF
+def arredondar(valor: float) -> float:
+    """Centavos com arredondamento 'meio para cima' (round() do Python faz 121,575 -> 121,57 por erro de float)."""
+    return float(Decimal(repr(round(float(valor), 9))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def calcular_inss(base: float) -> float:
     """INSS progressivo, limitado ao teto."""
     base = min(max(base, 0.0), TETO_INSS)
@@ -66,7 +72,7 @@ def calcular_inss(base: float) -> float:
         if base > anterior:
             total += (min(base, teto) - anterior) * aliquota
         anterior = teto
-    return round(total, 2)
+    return arredondar(total)
 
 
 def calcular_irrf(bruto: float, inss: float, dependentes: int = 0) -> float:
@@ -84,7 +90,7 @@ def calcular_irrf(bruto: float, inss: float, dependentes: int = 0) -> float:
         return 0.0
     if bruto <= IRRF_LIMITE_REDUTOR:
         imposto -= max(IRRF_REDUTOR_A - IRRF_REDUTOR_B * bruto, 0.0)
-    return round(max(imposto, 0.0), 2)
+    return arredondar(max(imposto, 0.0))
 
 
 @dataclass
@@ -192,7 +198,7 @@ def me_simples(receita_mensal: float, pro_labore: float, despesas_empresa: float
     tabela = ANEXO_III if anexo == "III" else ANEXO_V
     efetiva, nominal, _ = aliquota_efetiva_simples(rbt12, tabela)
     das = receita_mensal * efetiva
-    inss_pl = round(min(pro_labore, TETO_INSS) * 0.11, 2)
+    inss_pl = arredondar(min(pro_labore, TETO_INSS) * 0.11)
     irrf_pl = calcular_irrf(pro_labore, inss_pl, dependentes)
     lucro = receita_mensal - das - despesas_empresa - pro_labore
     liquido = pro_labore - inss_pl - irrf_pl + max(lucro, 0.0)
