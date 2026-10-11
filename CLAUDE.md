@@ -132,17 +132,17 @@ Obra ativa: **OBRA 198** (id=1)
 - [x] Admin com sync GitHub automático
 - [x] Dashboard administrativo multi-obra
 - [x] SESMT GERAL — cadastros de SST (24 tabelas `sesmt_*`), painel, listas editáveis e acesso por usuário
-- [x] FINANÇAS (pessoal/PJ) — painel, lançamentos, impostos CLT/MEI/ME e investimentos (tabelas `fin_*`, dados por usuário)
+- [x] Finanças (pessoal/PJ) — painel, lançamentos, impostos CLT/MEI/ME e investimentos (tabelas `fin_*`, dados por usuário)
 
 ---
 
 ## Histórico de sessões
 
 ### 2026-10-11
-**FINANÇAS** (programa Python `financas/` portado para PHP, aba isolada no sistema):
+**Finanças** (programa Python `financas/` portado para PHP, aba isolada no sistema):
 - Arquivos novos: `maciel/financas.php`, `maciel/inc/financas_modelo.php` (tabelas `fin_lancamentos`/`fin_config`, CRUD, painel), `maciel/inc/financas_calculos.php` (INSS/IRRF 2026, MEI, Simples Anexo III/V com Fator R, CDB/LCI/LCA/Tesouro/poupança — funções puras), `ferramentas/teste_financas_php.py` (26 testes, inclui paridade PHP × Python)
-- Alterações em arquivos existentes (só acréscimos): módulo `financas` em `modulos_sistema()` (`inc/nucleo.php`), grupo "FINANÇAS" no menu (`inc/painel.html`), rótulo "Finanças (pessoal)" e padrão desmarcado para `financas` em `admin.php`, e `sesmt_alterar_acesso()` não concede `financas` junto com o SESMT
-- Privacidade: dados financeiros são POR USUÁRIO (`usuario_id`); nem o admin vê os de outra pessoa. Acesso só para admin ou usuário marcado em Administração → Usuários → "Finanças (pessoal)" (liberação explícita, como o SESMT)
+- Alterações em arquivos existentes (só acréscimos): módulo `financas` em `modulos_sistema()` (`inc/nucleo.php`), grupo "Finanças" no menu (`inc/painel.html`), rótulo "Finanças" e padrão desmarcado para `financas` em `admin.php`, e `sesmt_alterar_acesso()` não concede `financas` junto com o SESMT
+- Privacidade: dados financeiros são POR USUÁRIO (`usuario_id`); nem o admin vê os de outra pessoa. Acesso só para admin ou usuário marcado em Administração → Usuários → "Finanças" (liberação explícita, como o SESMT)
 - Parâmetros fiscais de 2026 ficam no topo de `financas_calculos.php` (e `financas/impostos.py`); são estimativas — validar com o contador. Selic/CDI/IPCA iniciais são valores de referência: botão "Buscar taxas no Banco Central" atualiza
 - Arredondamento de centavos "meio para cima" (Python `round()` dava 121,57 em vez de 121,58 no INSS; corrigido em `financas/impostos.py`)
 - Testes: `python ferramentas/teste_financas_php.py` (PHP + SQLite em pasta temporária)

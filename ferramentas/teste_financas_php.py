@@ -155,7 +155,7 @@ class T01_Acesso(unittest.TestCase):
         self.assertIn("financas.php?v=imp", html)
 
     def test_admin_lista_o_modulo_com_rotulo_proprio(self):
-        self.assertIn("Finanças (pessoal)", ADMIN.s.get(AMB.base + "/admin.php").text)
+        self.assertIn("Finanças", ADMIN.s.get(AMB.base + "/admin.php").text)
 
     def test_csrf_obrigatorio(self):
         s = requests.Session()

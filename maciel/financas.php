@@ -1,5 +1,5 @@
 <?php
-// FINANÇAS: controle financeiro pessoal/PJ (painel, lançamentos, impostos CLT/MEI/ME e investimentos).
+// Finanças: controle financeiro pessoal/PJ (painel, lançamentos, impostos CLT/MEI/ME e investimentos).
 // Página própria e isolada: tabelas fin_*, dados por usuário, sem relação com as obras.
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/financas_modelo.php';
@@ -10,8 +10,8 @@ if (isset($_GET['acesso'])) {
 }
 if (!fin_pode_ver($eu)) {
     http_response_code(403);
-    pagina_inicio('FINANÇAS');
-    echo '<main class="admin"><section class="bloco"><div class="bloco-cab"><h2>FINANÇAS</h2></div>'
+    pagina_inicio('Finanças');
+    echo '<main class="admin"><section class="bloco"><div class="bloco-cab"><h2>Finanças</h2></div>'
         . '<div class="faixa">Este módulo guarda dados financeiros pessoais e exige liberação. '
         . 'Peça ao administrador para marcar “Finanças” nos acessos do seu usuário (Administração → Usuários).</div>'
         . '<p><a class="btn" href="index.php">Voltar ao sistema</a></p></section></main></body></html>';
@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $msg = $e instanceof InvalidArgumentException ? $e->getMessage() : 'Não foi possível gravar agora. Tente novamente.';
         if (!($e instanceof InvalidArgumentException)) {
-            error_log('FINANÇAS: ' . $e->getMessage());
+            error_log('Finanças: ' . $e->getMessage());
         }
         if ($valoresForm === null) {
             fv_flash('erro', $msg);
@@ -198,7 +198,7 @@ if ($v === 'lanc' && ($_GET['export'] ?? '') === 'csv') {
 }
 
 $titulos = ['painel' => 'Painel', 'lanc' => 'Lançamentos', 'imp' => 'Impostos', 'inv' => 'Investimentos'];
-pagina_inicio($titulos[$v] . ' · FINANÇAS');
+pagina_inicio($titulos[$v] . ' · Finanças');
 $scripts = '';   // gráficos Chart.js montados por cada tela
 ?>
 <style>
@@ -230,7 +230,7 @@ a.btn.primario{color:#fff}
 .fv-rodape{font-size:.78rem;color:var(--fg3);margin-top:10px;max-width:90ch}
 </style>
 <header class="topo">
-  <div class="marca"><span class="marca-sigla">R$</span><div><h1>FINANÇAS</h1>
+  <div class="marca"><span class="marca-sigla">R$</span><div><h1>Finanças</h1>
     <div class="arquivo"><span class="ponto ok"></span>controle financeiro pessoal e da empresa · dados só seus</div>
     <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
