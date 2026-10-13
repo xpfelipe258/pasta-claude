@@ -29,7 +29,25 @@ function plDistribuir(qtd, n, inteiro) { // divide qtd em n dias; em unidades in
   }
   return r;
 }
+// divide qtd em dias consecutivos à razão de `taxa` por dia útil (a meta ou o ritmo); sem taxa válida, divide por igual
+function plDistribuirTaxa(qtd, n, taxa, inteiro) {
+  if (!(taxa > 0)) return plDistribuir(qtd, n, inteiro);
+  const r = [];
+  let ant = 0;
+  for (let i = 1; i <= n; i++) {
+    const alvo = Math.min(qtd, taxa * i), v = inteiro ? Math.round(alvo) - Math.round(ant) : alvo - ant;
+    r.push(Math.max(0, v));
+    ant = alvo;
+  }
+  return r;
+}
+// meta/dia em vigor: a digitada no plano; em branco, a meta atual do cadastro (cronograma); sem nenhuma, quantidade ÷ dias do período
+function plMeta(it, ativ, nDias) {
+  const m = Number(it.meta_dia) > 0 ? Number(it.meta_dia) : Number(ativ?.it?.meta_dia) > 0 ? Number(ativ.it.meta_dia) : 0;
+  return m > 0 ? m : it.qtd / Math.max(1, nDias);
+}
 const plInteiro = un => ['un', 'und', 'pç', 'pc'].includes(String(un || '').toLowerCase());
+const plFmtTaxa = v => nf(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);   // taxas por dia: sempre com casas, mesmo em unidades inteiras
 const plFmt = (v, un) => nf(v, plInteiro(un) ? 0 : 1);
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
 function plSegunda(d) { return add(d, -dow(d)); }
@@ -91,9 +109,11 @@ function plSerieReal(a) {
 // ---------------------------------------------------------------- cálculo do plano
 function plCalcItem(pl, it, base) {
   const dias = plDias(it.inicio, it.fim), inteiro = plInteiro(it.unidade);
-  const plan = plDistribuir(it.qtd, dias.length, inteiro);
-  const mapaPlan = new Map(dias.map((d, i) => [d, plan[i]]));
   const ativ = plAtivPorChave(it.chave);
+  const meta = plMeta(it, ativ, dias.length);
+  const plan = plDistribuirTaxa(it.qtd, dias.length, meta, inteiro);
+  const mapaPlan = new Map(dias.map((d, i) => [d, plan[i]]));
+  const cabeNoPeriodo = meta * dias.length >= it.qtd - 1e-9;   // false: a meta atual não fecha a quantidade no período
   const real = new Map();
   (ativ ? plSerieReal(ativ) : []).forEach(([d, v]) => {
     if (d >= pl.inicio && d <= pl.fim && d <= base) real.set(d, (real.get(d) || 0) + v);
@@ -117,11 +137,15 @@ function plCalcItem(pl, it, base) {
   const datasReais = [...real.keys()].sort();
   let acum = 0, concluiu = null;
   datasReais.forEach(d => { acum += real.get(d); if (!concluiu && acum >= it.qtd - 1e-9) concluiu = d; });
-  // saldo redistribuído nos dias úteis que restam
-  const futuros = plDias(add(base, 1), maxD(it.fim, add(base, 1))).filter(d => d > base && d <= it.fim);
+  // projeção do saldo a partir da data de referência, no ritmo atual (sem lançamentos recentes, na meta)
+  const taxaProj = ritmoAtual > 0 ? ritmoAtual : meta;
+  const futuros = plDias(add(base, 1), maxD(pl.fim, add(base, 1))).filter(d => d > base && d <= pl.fim);
   const redistrib = new Map();
-  if (falta > 0 && futuros.length) plDistribuir(falta, futuros.length, inteiro).forEach((v, i) => redistrib.set(futuros[i], v));
-  return { it, ativ, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status,
+  if (falta > 0 && futuros.length) plDistribuirTaxa(falta, futuros.length, taxaProj, inteiro).forEach((v, i) => redistrib.set(futuros[i], v));
+  const termina = (qtd, taxa, de) => (taxa > 0 && qtd > 0 && Math.ceil(qtd / taxa) <= 400 ? somarDiasUteis(de, Math.ceil(qtd / taxa)) : null);
+  const terminaMeta = termina(it.qtd, meta, add(it.inicio, -1));           // pela meta, a partir do início planejado
+  const terminaRitmo = falta <= 1e-9 ? (concluiu || base) : termina(falta, taxaProj, maxD(base, add(it.inicio, -1)));   // pelo ritmo (ou meta), a partir de agora
+  return { it, ativ, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
     pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0,
     primeiro: datasReais[0] || null, ultimo: datasReais[datasReais.length - 1] || null, concluiu, redistrib };
 }
@@ -247,13 +271,14 @@ function plResumo(pl, c, box) {
   let h = `<div class="bloco"><div class="bloco-cab"><h2>Curva S — planejado × realizado</h2>
     <label class="rot-sel">Atividade <select id="plAtv"><option value="">Todo o plano (ponderado)</option>${opts}</select></label></div>
     <div class="grafico pl-grafico"><canvas id="gPlanoCurva"></canvas></div>
-    <p class="nota">Linha cheia = realizado; tracejada longa = planejado (divisão automática por dia útil); pontilhada = projeção no ritmo atual; cinza = ritmo necessário para fechar no prazo.</p></div>`;
-  h += `<div class="bloco"><div class="bloco-cab"><h2>O que falta executar</h2><span class="nota">Ritmo necessário = falta ÷ dias úteis que restam até o fim de cada atividade.</span></div>
+    <p class="nota">Linha cheia = realizado; tracejada longa = planejado (divisão por dia na meta/dia de cada atividade); pontilhada = projeção no ritmo atual; cinza = ritmo necessário para fechar no prazo.</p></div>`;
+  h += `<div class="bloco"><div class="bloco-cab"><h2>O que falta executar</h2><span class="nota">Necessário/dia = falta ÷ dias úteis até o fim da atividade. “Fecha em” usa a meta atual desde o início planejado e o ritmo atual (média dos últimos 5 dias úteis; sem lançamentos, a meta) a partir de hoje. Vermelho = passa do prazo.</span></div>
     <div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Atividade</th><th>Frente</th><th class="n">Plano</th><th class="n">Realizado</th><th class="n">Falta</th><th class="n">Dias úteis</th>
-      <th class="n">Necessário/dia</th><th class="n">Ritmo atual/dia</th><th class="pl-prog">Avanço</th><th>Situação</th></tr></thead><tbody>` +
+      <th class="n">Meta/dia</th><th class="n">Necessário/dia</th><th class="n">Ritmo atual/dia</th><th class="n">Fecha em (meta)</th><th class="n">Fecha em (ritmo)</th><th class="pl-prog">Avanço</th><th>Situação</th></tr></thead><tbody>` +
     c.itens.map(x => `<tr data-pl-linha="${esc(x.it.chave)}"><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}</div></td><td>${esc(cap(x.it.frente))}</td>
       <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${plFmt(x.realAc, x.it.unidade)}</td><td class="n"><b>${plFmt(x.falta, x.it.unidade)}</b></td>
-      <td class="n">${x.diasRest}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec == null ? '—' : plFmt(x.ritmoNec, x.it.unidade)}</td><td class="n">${plFmt(x.ritmoAtual, x.it.unidade)}</td>
+      <td class="n">${x.diasRest}</td><td class="n ${x.cabeNoPeriodo ? '' : 'valor-neg'}" title="${x.cabeNoPeriodo ? '' : 'A meta atual não fecha a quantidade do plano no período'}">${plFmtTaxa(x.meta)}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec == null ? '—' : plFmtTaxa(x.ritmoNec)}</td><td class="n">${plFmtTaxa(x.ritmoAtual)}</td>
+      <td class="n ${x.terminaMeta && x.terminaMeta > x.it.fim ? 'valor-neg' : ''}">${x.terminaMeta ? fdA(x.terminaMeta) : '—'}</td><td class="n ${x.terminaRitmo && x.terminaRitmo > x.it.fim ? 'valor-neg' : ''}">${x.terminaRitmo ? fdA(x.terminaRitmo) : '—'}</td>
       <td class="pl-prog"><div class="pl-barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real f-${PL_COR_STATUS[x.status] || 'pendente'}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
         <div class="nota">${nf(x.pctReal * 100, 0)}% de ${nf(x.pctPlan * 100, 0)}% previsto</div></td><td>${plFarol(x.status)}</td></tr>`).join('') +
     '</tbody></table></div></div>';
@@ -273,7 +298,7 @@ function plDesenharCurva(pl, c) {
         ra.push(d <= c.base ? Math.min(100, rAc / x.it.qtd * 100) : null);
       });
       planPct = pa; realPct = ra;
-      const iB = c.diasPlano.filter(d => d <= c.base).length - 1, rit = iB >= 0 ? (x.ritmoAtual / x.it.qtd) * 100 : 0;
+      const iB = c.diasPlano.filter(d => d <= c.base).length - 1, rit = iB >= 0 ? (x.taxaProj / x.it.qtd) * 100 : 0;
       proj = c.diasPlano.map((d, i) => (i <= iB || iB < 0 ? null : Math.min(100, realPct[iB] + rit * (i - iB))));
       nec = c.diasPlano.map((d, i) => (i < iB ? null : i === iB ? realPct[iB] : Math.min(100, realPct[iB] + (100 - realPct[iB]) * (i - iB) / Math.max(1, c.diasPlano.length - 1 - iB))));
     }
@@ -309,12 +334,12 @@ function plDiaADia(pl, c, box) {
     const cls = passado ? (r >= p - 1e-9 ? 'ok' : (p > 0 ? 'baixo' : '')) : '';
     return `<td class="n pl-cel ${cls} ${hoje ? 'hoje' : ''}">${p ? `<span class="plan">${plFmt(p, x.it.unidade)}</span>` : ''}${passado || r ? `<span class="real">${r ? plFmt(r, x.it.unidade) : (p ? '0' : '')}</span>` : ''}</td>`;
   };
-  let h = `<div class="bloco"><div class="bloco-cab"><h2>Divisão automática por ${vista === 'semana' ? 'semana' : 'dia útil'}</h2>
-    <div class="acoes"><div class="seg" id="plDiaModo"><button data-pl-diamodo="original" class="${!replan ? 'ativa' : ''}">Plano original</button><button data-pl-diamodo="replan" class="${replan ? 'ativa' : ''}">Replanejado (saldo ÷ dias que restam)</button></div>
+  let h = `<div class="bloco"><div class="bloco-cab"><h2>Divisão por ${vista === 'semana' ? 'semana' : 'dia útil'} — ${replan ? 'ritmo atual' : 'meta atual'}</h2>
+    <div class="acoes"><div class="seg" id="plDiaModo"><button data-pl-diamodo="original" class="${!replan ? 'ativa' : ''}">Pela meta atual</button><button data-pl-diamodo="replan" class="${replan ? 'ativa' : ''}">Pelo ritmo atual (a partir de hoje)</button></div>
     <div class="seg" id="plDiaVista"><button data-pl-diavista="dia" class="${vista === 'dia' ? 'ativa' : ''}">Por dia</button><button data-pl-diavista="semana" class="${vista === 'semana' ? 'ativa' : ''}">Por semana</button></div></div></div>
-    <p class="nota">Em cada célula: <span class="pl-leg plan">planejado</span> e <span class="pl-leg real">realizado</span>. Verde = meta do dia cumprida, vermelho = abaixo da meta. ${replan ? 'Os dias futuros mostram o saldo ainda não executado dividido igualmente nos dias úteis que restam.' : 'Cada atividade divide a quantidade do plano igualmente nos dias úteis do seu período (unidades inteiras são arredondadas sem perder a soma).'}</p>
+    <p class="nota">Em cada célula: <span class="pl-leg plan">planejado</span> e <span class="pl-leg real">realizado</span>. Verde = meta do dia cumprida, vermelho = abaixo da meta. ${replan ? 'Até a data de referência vale a meta; dos dias seguintes em diante aparece o saldo ainda não executado, distribuído no ritmo atual de cada atividade (média dos últimos 5 dias úteis; sem lançamentos, na meta).' : 'Cada atividade recebe, a cada dia útil a partir do início, a sua meta/dia atual (cadastro do cronograma ou a digitada no 5W2H) até completar a quantidade do plano; o último dia leva só o que falta.'} A quantidade que passar do fim do período fica fora das colunas — veja “Fecha em” no Resumo.</p>
     <div class="tabela-rolagem"><table class="pl-tab pl-dias"><thead><tr><th class="fixa">Atividade</th>${colunas.map(col => `<th class="n ${col.dias.includes(c.base) ? 'hoje' : ''}">${col.rot}</th>`).join('')}<th class="n">Total</th><th class="n">Falta</th></tr></thead><tbody>` +
-    c.itens.map(x => `<tr><td class="fixa"><b>${esc(x.it.atividade)}</b><div class="nota">${esc(x.it.unidade)} · ${fd(x.it.inicio)} a ${fd(x.it.fim)}</div></td>${colunas.map(col => cel(x, col)).join('')}
+    c.itens.map(x => `<tr><td class="fixa"><b>${esc(x.it.atividade)}</b><div class="nota">${esc(x.it.unidade)} · ${fd(x.it.inicio)} a ${fd(x.it.fim)}</div><div class="nota ${x.cabeNoPeriodo ? '' : 'valor-neg'}">meta ${plFmtTaxa(x.meta)}/dia · ritmo ${plFmtTaxa(x.ritmoAtual)}/dia${x.cabeNoPeriodo ? '' : ' · meta não fecha no período'}</div></td>${colunas.map(col => cel(x, col)).join('')}
       <td class="n"><span class="plan">${plFmt(x.it.qtd, x.it.unidade)}</span><span class="real">${plFmt(x.realAc, x.it.unidade)}</span></td><td class="n"><b>${plFmt(x.falta, x.it.unidade)}</b></td></tr>`).join('') +
     `</tbody><tfoot><tr><td class="fixa"><b>Avanço do plano (ponderado)</b></td>${colunas.map(col => {
       const d = col.dias[col.dias.length - 1], i = dias.indexOf(d);
@@ -413,6 +438,7 @@ function plItemPadrao(a, w) {
   q = plInteiro(a.unidade) ? Math.max(1, Math.round(q)) : +Math.max(.1, q).toFixed(1);
   const quem = a.empresas.join(' / ');
   return { chave: a.chave, atividade: a.nome, frente: a.frente, empresa: quem, unidade: a.unidade, qtd_contrato: a.qtd, qtd: q, peso: dias, inicio: ini, fim,
+    meta_dia: meta * dias >= q - 1e-9 ? null : +(q / dias).toFixed(3),   // em branco = acompanha a meta atual do cronograma
     o_que: `Executar ${a.nome}`, por_que: '', onde: cap(a.frente), quem, como: '', custo: null, obs: '' };
 }
 function plWizRender() {
@@ -444,7 +470,7 @@ function plWizRender() {
       '</tbody></table></div><p class="nota">Linhas esmaecidas não coincidem com o período escolhido ou já estão concluídas; dá para marcá-las mesmo assim.</p>';
   } else {
     const itens = [...w.sel.values()];
-    corpo = `<p class="nota">Preencha o 5W2H de cada atividade. O quê, onde, quem e a quantidade já vêm sugeridos do cronograma. A divisão por dia é automática.</p>
+    corpo = `<p class="nota">Preencha o 5W2H de cada atividade. O quê, onde, quem e a quantidade já vêm sugeridos do cronograma. A divisão por dia usa a meta/dia atual de cada atividade (ou a que você digitar) e, no painel, também o ritmo real.</p>
       <div class="barra-acoes"><button class="btn" data-pl-aplicar-periodo>Aplicar o período do plano a todas</button><span class="nota">${itens.length} atividade(s)</span></div><div class="pl-cartoes5">` +
       itens.map(it => { const a = plAtivPorChave(it.chave), k = esc(it.chave); const campo = (nome, rot, tipo = 'text', extra = '') => `<label>${rot}<input ${tipo === 'num' ? 'type="number" step="any" min="0"' : tipo === 'date' ? 'type="date"' : 'type="text" maxlength="500"'} data-pl-i="${nome}" data-k="${k}" value="${esc(it[nome] ?? '')}" ${extra}></label>`;
         return `<div class="pl-w5card" data-k="${k}"><div class="pl-w5cab"><b>${esc(it.atividade)}</b><span class="nota">${esc(cap(it.frente))}${a ? ` · contrato ${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)} · realizado ${plFmt(a.realAc, a.unidade)} · saldo ${plFmt(Math.max(0, a.qtd - a.realAc), a.unidade)}` : ' · atividade não está mais no cronograma'}</span>
@@ -453,7 +479,7 @@ function plWizRender() {
             <div class="pl-quando"><label><span><b>When</b> — Início</span><input type="date" data-pl-i="inicio" data-k="${k}" value="${it.inicio}"></label><label><span>Fim</span><input type="date" data-pl-i="fim" data-k="${k}" value="${it.fim}"></label></div>
             ${campo('quem', '<span><b>Who</b> — Quem</span>')}${campo('como', '<span><b>How</b> — Como</span>')}
             <div class="pl-quanto"><label><span><b>How much</b> — Quantidade (${esc(it.unidade)})</span><input type="number" step="any" min="0" data-pl-i="qtd" data-k="${k}" value="${it.qtd}"></label>
-              <label><span>Custo estimado (R$)</span><input type="number" step="any" min="0" data-pl-i="custo" data-k="${k}" value="${it.custo ?? ''}"></label><label><span>Peso na curva S</span><input type="number" step="any" min="0.1" data-pl-i="peso" data-k="${k}" value="${it.peso ?? 1}"></label></div></div>
+              <label><span>Custo estimado (R$)</span><input type="number" step="any" min="0" data-pl-i="custo" data-k="${k}" value="${it.custo ?? ''}"></label><label><span>Meta/dia (${esc(it.unidade)}) <span class="nota">em branco = meta atual${a?.it?.meta_dia ? ': ' + plFmtTaxa(a.it.meta_dia) : ''}</span></span><input type="number" step="any" min="0" data-pl-i="meta_dia" data-k="${k}" value="${it.meta_dia ?? ''}"></label><label><span>Peso na curva S</span><input type="number" step="any" min="0.1" data-pl-i="peso" data-k="${k}" value="${it.peso ?? 1}"></label></div></div>
           <div class="pl-prev nota" data-pl-prev="${k}">${plPrevTexto(it)}</div></div>`; }).join('') + '</div>';
   }
   m.innerHTML = `<div class="pl-modal" role="dialog" aria-modal="true" aria-label="${titulo}"><div class="pl-modal-cab"><h2>${titulo}</h2><button class="btn" data-pl-fechar>Fechar</button></div>
@@ -466,7 +492,11 @@ function plWizRender() {
 }
 function plPrevTexto(it) {
   const n = it.inicio && it.fim && it.fim >= it.inicio ? plDias(it.inicio, it.fim).length : 0;
-  return n && it.qtd > 0 ? `Divisão automática: <b>${plFmt(it.qtd / n, it.unidade)} ${esc(it.unidade)} por dia útil</b> durante ${n} dia(s) útil(eis) (${fd(it.inicio)} a ${fd(it.fim)}).` : 'Informe datas e quantidade válidas.';
+  if (!(n && it.qtd > 0)) return 'Informe datas e quantidade válidas.';
+  const meta = plMeta(it, plAtivPorChave(it.chave), n), dias = Math.ceil(it.qtd / meta - 1e-9), un = esc(it.unidade);
+  const fecha = meta * n >= it.qtd - 1e-9;
+  return `Divisão por dia: <b>${plFmtTaxa(meta)} ${un} por dia útil</b> (${Number(it.meta_dia) > 0 ? 'meta digitada' : 'meta atual do cronograma'}) → ${plFmt(it.qtd, it.unidade)} ${un} em <b>${dias} dia(s) útil(eis)</b>; período tem ${n}. `
+    + (fecha ? 'Cabe no período.' : `<span class="pl-erro">Não fecha: faltam ${plFmt(it.qtd - meta * n, it.unidade)} ${un}; precisa de ${plFmt(it.qtd / n, it.unidade)} ${un}/dia.</span>`);
 }
 function plWizMsg(t, erro) { const el = document.getElementById('plWizMsg'); if (el) { el.textContent = t || ''; el.className = 'nota' + (erro ? ' pl-erro' : ''); } }
 function plWizFechar() { document.getElementById('plModal')?.remove(); PL.wiz = null; }
@@ -490,7 +520,7 @@ async function plWizSalvar() {
   const w = PL.wiz, erro = plWizValidar(3);
   if (erro) return plWizMsg(erro, true);
   const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status: w.status,
-    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd), peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo) })) };
+    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd), peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null })) };
   try {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);

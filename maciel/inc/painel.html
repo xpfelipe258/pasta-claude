@@ -114,18 +114,6 @@
       </div>
     </div>
     <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
-    <div class="sidebar-grupo">
-      <div class="sidebar-titulo aberto" data-grupo="financas" id="financasTitulo">
-        <span class="sidebar-icone">&#164;</span>Finanças<span class="seta-grupo">&#8249;</span>
-      </div>
-      <div class="sidebar-itens aberto" id="grp-financas">
-        <button type="button" onclick="window.location.href='financas.php'">Painel financeiro</button>
-        <button type="button" onclick="window.location.href='financas.php?v=lanc'">Lançamentos</button>
-        <button type="button" onclick="window.location.href='financas.php?v=imp'">Impostos (CLT · MEI · ME)</button>
-        <button type="button" onclick="window.location.href='financas.php?v=inv'">Investimentos</button>
-      </div>
-    </div>
-    <script>(function(){var t=document.getElementById('financasTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('financas.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
   </nav>
 </aside>
 

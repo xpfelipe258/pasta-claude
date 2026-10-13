@@ -1643,7 +1643,7 @@ function acao_planos(array $corpo, array $usuario)
             'inicio' => $iIni, 'fim' => $iFim,
             'o_que' => plano_texto($it['o_que'] ?? ''), 'por_que' => plano_texto($it['por_que'] ?? ''), 'onde' => plano_texto($it['onde'] ?? ''),
             'quem' => plano_texto($it['quem'] ?? ''), 'como' => plano_texto($it['como'] ?? ''),
-            'custo' => numero($it['custo'] ?? null), 'obs' => plano_texto($it['obs'] ?? ''),
+            'custo' => numero($it['custo'] ?? null), 'meta_dia' => (($m = numero($it['meta_dia'] ?? null)) !== null && $m > 0) ? $m : null, 'obs' => plano_texto($it['obs'] ?? ''),
         ];
         if (count($itens) > 300) {
             throw new ErroValidacao('Máximo de 300 atividades por plano.');

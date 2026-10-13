@@ -1,0 +1,71 @@
+diff --git a/maciel/admin.php b/maciel/admin.php
+index 3eb7d84..338f439 100644
+--- a/maciel/admin.php
++++ b/maciel/admin.php
+@@ -206,7 +206,7 @@ pagina_inicio('Administração');
+       <?php foreach ($usuarios as $u): ?>
+         <tr>
+           <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?= h(ucfirst($u['perfil'])) ?></td><td><?= h($u['empresa'] ?: 'Todas') ?></td>
+-          <td><?php if ($u['perfil']==='admin'): ?><span class="farol f-verde">TODOS OS MÓDULOS</span><?php else: ?><details class="acesso-editar"><summary>Ver / editar acessos</summary><form method="post" class="access-checks access-checks-col"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar_modulos"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><?php $sel=$modsPorUsuario[(int)$u['id']]??modulos_sistema(); foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m,$sel,true)?'checked':'' ?>><?= h(ucfirst($m==='kpi'?'KPI / Insights':$m)) ?></label><?php endforeach; ?><button class="btn">Salvar acessos</button></form></details><?php endif; ?></td>
++          <td><?php if ($u['perfil']==='admin'): ?><span class="farol f-verde">TODOS OS MÓDULOS</span><?php else: ?><details class="acesso-editar"><summary>Ver / editar acessos</summary><form method="post" class="access-checks access-checks-col"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar_modulos"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><?php $sel=$modsPorUsuario[(int)$u['id']]??array_values(array_diff(modulos_sistema(),['financas'])); foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m,$sel,true)?'checked':'' ?>><?= h(($m==='financas'?'Finanças':ucfirst($m==='kpi'?'KPI / Insights':$m))) ?></label><?php endforeach; ?><button class="btn">Salvar acessos</button></form></details><?php endif; ?></td>
+           <td><span class="farol f-<?= $u['ativo'] ? 'verde' : 'pendente' ?>"><?= $u['ativo'] ? 'ATIVO' : 'INATIVO' ?></span></td>
+           <td><div class="acoes-usuario"><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="senha_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><input type="password" name="senha" placeholder="nova senha" minlength="8" required><button class="btn">Salvar</button></form><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="enviar_reset_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn" <?= $u['email'] ? '' : 'disabled title="Cadastre e-mail antes"' ?>>Enviar link</button></form></div></td>
+           <td><div class="acoes-usuario"><button type="button" class="btn" data-editar-usuario data-id="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>" data-login="<?= h($u['login']) ?>" data-email="<?= h($u['email'] ?? '') ?>" data-perfil="<?= h($u['perfil']) ?>" data-empresa="<?= h($u['empresa'] ?? '') ?>">Editar</button><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="alternar_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn"><?= $u['ativo'] ? 'Desativar' : 'Ativar' ?></button></form></div></td>
+@@ -223,7 +223,7 @@ pagina_inicio('Administração');
+       <form method="post" class="form-novo-usuario">
+         <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_usuario"><input type="hidden" name="id" value="">
+         <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Perfil<select name="perfil" id="novoPerfil"><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="admin">Admin</option></select></label><label>Empresa<select name="empresa"><option value="">Todas</option><?php foreach ($empresas as $e): ?><option><?= h($e) ?></option><?php endforeach; ?></select></label></div>
+-        <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" checked><span><?= h(ucfirst($m==='kpi'?'KPI / Insights':$m)) ?></span></label><?php endforeach; ?></div><small>Administradores sempre têm acesso total.</small></fieldset>
++        <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= $m==='financas'?'':'checked' ?>><span><?= h(($m==='financas'?'Finanças':ucfirst($m==='kpi'?'KPI / Insights':$m))) ?></span></label><?php endforeach; ?></div><small>Administradores sempre têm acesso total.</small></fieldset>
+         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-modal>Cancelar</button><button class="btn primario" id="btnSalvarUsuarioModal">Criar usuário</button></div>
+       </form>
+     </div>
+diff --git a/maciel/inc/nucleo.php b/maciel/inc/nucleo.php
+index 0bca9b1..3f89b38 100644
+--- a/maciel/inc/nucleo.php
++++ b/maciel/inc/nucleo.php
+@@ -565,7 +565,7 @@ function autenticar_machine_token()
+ 
+ function modulos_sistema()
+ {
+-    return ['producao','suprimentos','consumo','financeiro','kpi','gestao','sesmt'];
++    return ['producao','suprimentos','consumo','financeiro','kpi','gestao','sesmt','financas'];
+ }
+ 
+ function modulos_usuario(array $u)
+diff --git a/maciel/inc/painel.html b/maciel/inc/painel.html
+index a7426af..4724990 100644
+--- a/maciel/inc/painel.html
++++ b/maciel/inc/painel.html
+@@ -114,6 +114,18 @@
+       </div>
+     </div>
+     <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
++    <div class="sidebar-grupo">
++      <div class="sidebar-titulo aberto" data-grupo="financas" id="financasTitulo">
++        <span class="sidebar-icone">&#164;</span>Finanças<span class="seta-grupo">&#8249;</span>
++      </div>
++      <div class="sidebar-itens aberto" id="grp-financas">
++        <button type="button" onclick="window.location.href='financas.php'">Painel financeiro</button>
++        <button type="button" onclick="window.location.href='financas.php?v=lanc'">Lançamentos</button>
++        <button type="button" onclick="window.location.href='financas.php?v=imp'">Impostos (CLT · MEI · ME)</button>
++        <button type="button" onclick="window.location.href='financas.php?v=inv'">Investimentos</button>
++      </div>
++    </div>
++    <script>(function(){var t=document.getElementById('financasTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('financas.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
+   </nav>
+ </aside>
+ 
+diff --git a/maciel/inc/sesmt_modelo.php b/maciel/inc/sesmt_modelo.php
+index 16974e6..9c545bb 100644
+--- a/maciel/inc/sesmt_modelo.php
++++ b/maciel/inc/sesmt_modelo.php
+@@ -346,7 +346,7 @@ function sesmt_alterar_acesso($usuarioId, $liberar)
+     $tem = (int)q_global('SELECT COUNT(*) FROM usuarios_modulos WHERE usuario_id = ?', [(int)$usuarioId])->fetchColumn();
+     if ($tem === 0) {
+         foreach (modulos_sistema() as $m) {
+-            if ($m !== 'sesmt') {
++            if (!in_array($m, ['sesmt', 'financas'], true)) {
+                 q_global('INSERT INTO usuarios_modulos (usuario_id, modulo, permitido) VALUES (?, ?, 1)', [(int)$usuarioId, $m]);
+             }
+         }
