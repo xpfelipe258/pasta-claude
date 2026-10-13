@@ -587,6 +587,7 @@
       <div class="campos">
         <label>Data<input type="date" name="data" required></label>
         <label>Serviço<input name="servico" list="listaServicos" required></label>
+        <label>Setor responsável<input name="setor" list="listaSetores" placeholder="quem causou o impacto"></label>
         <label class="largo">Empresas impactadas<select name="empresasSel" multiple size="4"></select><span class="nota">Use Ctrl para marcar mais de uma empresa.</span></label>
         <label class="largo">Motivo<textarea name="motivo" rows="2" required></textarea></label>
         <label>Tempo perdido<input name="tempo" placeholder="ex.: 8H, 2 DIAS"></label>
@@ -732,6 +733,7 @@
 </dialog>
 
 <datalist id="listaServicos"></datalist>
+<datalist id="listaSetores"></datalist>
 <datalist id="listaEmpresas"></datalist>
 <datalist id="listaEquip"></datalist>
 

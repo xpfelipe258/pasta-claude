@@ -198,7 +198,7 @@ function criar_esquema(PDO $pdo, $driver)
             meta_dia DOUBLE NULL, du_semana DOUBLE NULL, responsavel VARCHAR(100) NULL, obs VARCHAR(255) NULL,
             prazo DATE NULL, peso DOUBLE NULL, frente VARCHAR(150) NULL)$fim",
         "CREATE TABLE IF NOT EXISTS impactos (id $pk, data VARCHAR(20) NULL, servico VARCHAR(150) NULL, empresas VARCHAR(255) NULL, motivo TEXT NULL,
-            solucionado VARCHAR(20) NULL, tempo VARCHAR(50) NULL, quando VARCHAR(100) NULL, paralisacao TEXT NULL)$fim",
+            solucionado VARCHAR(20) NULL, tempo VARCHAR(50) NULL, quando VARCHAR(100) NULL, paralisacao TEXT NULL, setor VARCHAR(100) NULL)$fim",
         "CREATE TABLE IF NOT EXISTS historico (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
         "CREATE TABLE IF NOT EXISTS obras (id $pk, nome VARCHAR(150) NOT NULL, codigo VARCHAR(50) NULL,
@@ -230,6 +230,9 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_autenticacao_estendida($pdo, $driver);
     if (!in_array('empresas', colunas_tabela($pdo, $driver, 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN empresas VARCHAR(255) NULL");
+    }
+    if (!in_array('setor', colunas_tabela($pdo, $driver, 'impactos'), true)) {   // setor responsável pelo impacto (ranking do relatório)
+        $pdo->exec("ALTER TABLE impactos ADD COLUMN setor VARCHAR(100) NULL");
     }
     // instalações antigas: acrescenta as colunas que as tabelas ganharam depois
     foreach (tabelas_spec() as $nome => $campos) {

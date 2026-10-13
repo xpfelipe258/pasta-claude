@@ -303,7 +303,7 @@ function acao_impacto(array $corpo)
         q('DELETE FROM impactos WHERE id = ?', [$id]);
         return 1;
     }
-    $campos = ['data', 'servico', 'empresas', 'motivo', 'solucionado', 'tempo', 'quando', 'paralisacao'];
+    $campos = ['data', 'servico', 'empresas', 'motivo', 'solucionado', 'tempo', 'quando', 'paralisacao', 'setor'];
     $vals = [];
     foreach ($campos as $c) {
         if (array_key_exists($c, $corpo)) {

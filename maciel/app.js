@@ -448,6 +448,7 @@ function preencherListas() {
   M.impactos.forEach(i => i.servico && serv.add(String(i.servico).toUpperCase()));
   T.usos.forEach(u => u.empresa && emps.add(u.empresa));
   $('#listaServicos').innerHTML = [...serv].sort().map(n => `<option value="${esc(n)}">`).join('');
+  $('#listaSetores').innerHTML = [...new Set([...SETORES_IMPACTO, ...M.impactos.map(i => String(i.setor || '').trim()).filter(Boolean)])].map(n => `<option value="${esc(n)}">`).join('');
   $('#listaEmpresas').innerHTML = [...emps].sort().map(n => `<option value="${esc(n)}">`).join('');
   $('#listaEquip').innerHTML = T.equipamentos.map(e => `<option value="${esc(e.equipamento)}">`).join('');
 }
@@ -5596,9 +5597,80 @@ function remessasAtrasadas() {
     return { nome, prevista, chegada, dias, horas, qtdTotal, itens };
   }).filter(Boolean).sort((a,b)=>String(b.chegada).localeCompare(String(a.chegada)) || String(a.nome).localeCompare(String(b.nome)));
 }
+// ------------------------------------------------------------ SETOR RESPONSÁVEL E RANKING DE IMPACTOS
+// Setor que causou o impacto (campo da aba Impactos) → o relatório soma nº de impactos e horas perdidas por setor
+// e ordena quem mais impactou e quais empresas foram mais afetadas. 1 dia = 8 h (HORAS_POR_DIA).
+const SETORES_IMPACTO = ['Suprimentos', 'Planejamento', 'Engenharia / Projeto', 'Produção / Montagem', 'Qualidade', 'SESMT', 'Equipamentos', 'Cliente', 'Fornecedor', 'Clima / Externo', 'Outro'];
+const HORAS_POR_DIA = 8;
+const normSetor = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const _setorCanon = new Map(SETORES_IMPACTO.map(s => [normSetor(s), s]));   // 'suprimentos' e 'Suprimentos' viram o mesmo setor
+function impactoSetor(i) {
+  const t = String(i.setor || '').trim();
+  if (!t) return 'Não informado';
+  const k = normSetor(t);
+  if (!_setorCanon.has(k)) _setorCanon.set(k, t);
+  return _setorCanon.get(k);
+}
+// "8H", "2 DIAS", "1 DIA 4H", "30 min", "1 semana" → horas (null quando o texto não traz tempo)
+function horasDoTempo(txt) {
+  const bruto = String(txt || '').toLowerCase().replace(/,/g, '.'), semParenteses = bruto.replace(/\(.*?\)/g, ' ');
+  const t = /\d/.test(semParenteses) ? semParenteses : bruto;   // "96h (4 dia(s))": vale o que está fora dos parênteses, sem somar duas vezes
+  let achou = false, h = 0;
+  const soma = (re, fator) => { for (const m of t.matchAll(re)) { achou = true; h += parseFloat(m[1]) * fator; } };
+  soma(/(\d+(?:\.\d+)?)\s*(?:semanas?|sem)\b/g, 5 * HORAS_POR_DIA);
+  soma(/(\d+(?:\.\d+)?)\s*(?:dias?|d)\b/g, HORAS_POR_DIA);
+  soma(/(\d+(?:\.\d+)?)\s*(?:horas?|hrs?|h)\b/g, 1);
+  soma(/(\d+(?:\.\d+)?)\s*(?:minutos?|min)\b/g, 1 / 60);
+  return achou ? h : null;
+}
+const horasDoImpacto = i => (i.horasPerdidas != null ? i.horasPerdidas : horasDoTempo(i.tempo));
+const SEM_EMPRESA = 'Todas / não informada';
+// ranking dos setores responsáveis e das empresas mais afetadas (horas perdidas, depois nº de impactos)
+function rankingImpactos(imp, empFiltro = []) {
+  const setores = new Map(), empresas = new Map();
+  imp.forEach(i => {
+    const h0 = horasDoImpacto(i), h = h0 ?? 0, s = impactoSetor(i);
+    const a = setores.get(s) || { nome: s, n: 0, horas: 0, abertos: 0, semTempo: 0 };
+    a.n++; a.horas += h; if (!i.solucionado) a.abertos++; if (h0 == null) a.semTempo++;
+    setores.set(s, a);
+    const xs = impactoEmpresas(i);
+    (xs.length ? xs : [SEM_EMPRESA]).filter(e => e === SEM_EMPRESA || !empFiltro.length || empFiltro.includes(e)).forEach(e => {
+      const b = empresas.get(e) || { nome: e, n: 0, horas: 0, causas: new Map() };
+      b.n++; b.horas += h;
+      const c = b.causas.get(s) || { horas: 0, n: 0 };
+      c.horas += h; c.n++; b.causas.set(s, c);
+      empresas.set(e, b);
+    });
+  });
+  const ordem = (x, y) => y.horas - x.horas || y.n - x.n || x.nome.localeCompare(y.nome);
+  const lstSet = [...setores.values()].sort(ordem), lstEmp = [...empresas.values()].sort(ordem);
+  lstEmp.forEach(b => { const [nome, c] = [...b.causas.entries()].sort((p, q) => q[1].horas - p[1].horas || q[1].n - p[1].n)[0]; b.causador = nome; b.causadorHoras = c.horas; b.causadorN = c.n; });
+  return { setores: lstSet, empresas: lstEmp, horas: soma0(lstSet, x => x.horas), n: soma0(lstSet, x => x.n), semTempo: soma0(lstSet, x => x.semTempo) };
+}
+const fmtH = h => `${nf(h, h % 1 ? 1 : 0)} h`;
+function htmlRankingImpactos(imp, empFiltro = []) {
+  if (!imp.length) return '<h2>Impacto por setor responsável</h2><p>Sem impactos no período.</p>';
+  const r = rankingImpactos(imp, empFiltro), topS = r.setores[0], topE = r.empresas.find(x => x.nome !== SEM_EMPRESA) || r.empresas[0];
+  const pct = h => (r.horas ? h / r.horas * 100 : 0);
+  const posic = k => `<span class="pos${k ? ' o' : ''}">${k + 1}</span>`;
+  const barra = p => `<div class="bg"><div class="bar" style="width:${nf(Math.min(100, p), 0)}%"></div></div>`;
+  const linhasS = r.setores.map((x, k) => `<tr><td>${posic(k)}</td><td><b>${esc(x.nome)}</b></td><td class="n">${nf(x.n, 0)}</td><td class="n">${fmtH(x.horas)}</td><td class="n">${nf(x.abertos, 0)}</td><td>${barra(pct(x.horas))} ${nf(pct(x.horas), 0)}%</td></tr>`).join('');
+  const linhasE = r.empresas.map((x, k) => `<tr><td>${posic(k)}</td><td><b>${esc(x.nome)}</b></td><td class="n">${nf(x.n, 0)}</td><td class="n">${fmtH(x.horas)}</td><td>${esc(x.causador)} (${x.causadorHoras ? fmtH(x.causadorHoras) : nf(x.causadorN, 0) + ' impacto(s)'})</td></tr>`).join('');
+  return `<h2>Impacto por setor responsável — ranking</h2>
+    <div class="cards"><div class="card"><div>Setor que mais impactou</div><div class="val">${esc(topS.nome)}</div><div>${nf(topS.n, 0)} impacto(s) · ${fmtH(topS.horas)}${r.horas ? ' · ' + nf(pct(topS.horas), 0) + '% das horas' : ''}</div></div>
+      <div class="card"><div>Empresa mais afetada</div><div class="val">${esc(topE.nome)}</div><div>${nf(topE.n, 0)} impacto(s) · ${fmtH(topE.horas)}</div></div>
+      <div class="card"><div>Total no período</div><div class="val">${nf(r.n, 0)}</div><div>${fmtH(r.horas)} perdidas</div></div></div>
+    <h3>Ranking dos setores responsáveis</h3>
+    <table><thead><tr><th>#</th><th>Setor responsável</th><th class="n">Impactos</th><th class="n">Horas perdidas</th><th class="n">Em aberto</th><th>% das horas</th></tr></thead><tbody>${linhasS}</tbody>
+      <tfoot><tr><th colspan="2">Total</th><th class="n">${nf(r.n, 0)}</th><th class="n">${fmtH(r.horas)}</th><th class="n">${nf(soma0(r.setores, x => x.abertos), 0)}</th><th></th></tr></tfoot></table>
+    <h3>Ranking de quem foi mais afetado (empresas impactadas)</h3>
+    <table><thead><tr><th>#</th><th>Empresa</th><th class="n">Impactos sofridos</th><th class="n">Horas perdidas</th><th>Principal setor causador</th></tr></thead><tbody>${linhasE}</tbody></table>
+    <p class="nota-rel">Critério: ordem por horas perdidas e, em empate, por nº de impactos. Tempo lido do campo “Tempo perdido” (1 dia = ${HORAS_POR_DIA} h; remessa atrasada = dias × ${HORAS_POR_DIA} h). ${r.semTempo ? `${nf(r.semTempo, 0)} impacto(s) sem tempo informado entram na contagem, mas não nas horas. ` : ''}Impacto com mais de uma empresa conta integralmente para cada empresa afetada; “${SEM_EMPRESA}” reúne impactos sem empresa definida.</p>`;
+}
+
 function impactoDeRemessa(r) {
   const materiais = r.itens.slice(0, 5).map(i => `${i.tag} ${nf(i.qtd)}`).join(', ');
-  return { _autoRemessa: true, linha: `REM-${r.nome}`, data: r.prevista, servico: 'SUPRIMENTOS', empresas: '', motivo: `Remessa ${r.nome} chegou ${r.dias} dia(s) após a data prevista`, tempo: `${r.horas}h (${r.dias} dia(s))`, quando: r.chegada, paralisacao: materiais ? `Materiais: ${materiais}${r.itens.length > 5 ? '...' : ''}` : 'Remessa com chegada real posterior à prevista', solucionado: r.chegada, _remessa: r };
+  return { _autoRemessa: true, linha: `REM-${r.nome}`, data: r.prevista, servico: 'SUPRIMENTOS', setor: 'Suprimentos', horasPerdidas: r.dias * HORAS_POR_DIA, empresas: '', motivo: `Remessa ${r.nome} chegou ${r.dias} dia(s) após a data prevista`, tempo: `${r.horas}h (${r.dias} dia(s))`, quando: r.chegada, paralisacao: materiais ? `Materiais: ${materiais}${r.itens.length > 5 ? '...' : ''}` : 'Remessa com chegada real posterior à prevista', solucionado: r.chegada, _remessa: r };
 }
 function impactosComAutomaticos() {
   return [...(M.impactos || []), ...remessasAtrasadas().map(impactoDeRemessa)];
@@ -5691,12 +5763,12 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   }));
   const usos = ratear((tabelas.usos || []).filter(u => u.data && u.data >= ini && u.data <= fim)).filter(r => empsRel.includes(r.empAjust));
   const dp = (tabelas.dp_efetivo || []).filter(d => d.data && d.data >= ini && d.data <= fim && empsRel.includes(normEmp(d.empresa)));
-  const css = `<style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.sub{color:#555}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.val{font-size:18px;font-weight:700}.no-print{margin-bottom:12px}@media print{.no-print{display:none}body{margin:12mm}}</style>`;
+  const css = `<style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.sub{color:#555}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.val{font-size:18px;font-weight:700}.no-print{margin-bottom:12px}h3{font-size:13px;margin:16px 0 4px}.card .val{margin:2px 0}.bg{display:inline-block;vertical-align:middle;background:#e5e9f0;border-radius:5px;width:120px;height:10px}.bar{height:10px;border-radius:5px;background:#b91c1c}.pos{display:inline-block;width:22px;height:22px;border-radius:50%;background:#b91c1c;color:#fff;text-align:center;line-height:22px;font-weight:700;font-size:11px}.pos.o{background:#64748b}.nota-rel{color:#555;font-size:11px}tfoot th{background:#e9edf3}@media print{.no-print{display:none}body{margin:12mm}.bar,.pos,.bg{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>`;
   const totalEquip = soma0(usos, u => (u.custoR || 0) + (u.combR || 0));
   const totalPessoasDia = soma0(dp, d => d.quantidade || 0);
   const remAtr = remessasAtrasadas().filter(r => r.chegada >= ini && r.chegada <= fim);
   const totalHorasRem = soma0(remAtr, r => r.horas);
-  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${esc(i.motivo)}</td><td>${esc(i.tempo || '')}</td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="8">Sem impactos no período.</td></tr>';
+  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${esc(impactoSetor(i))}</td><td>${esc(i.motivo)}</td><td>${esc(i.tempo || '')}</td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="9">Sem impactos no período.</td></tr>';
   const rowsRemAtr = remAtr.map(r => `<tr><td>${esc(r.nome)}</td><td>${fdA(r.prevista)}</td><td>${fdA(r.chegada)}</td><td class="n">${nf(r.dias,0)}</td><td class="n">${nf(r.horas,0)}h</td><td class="n">${nf(r.qtdTotal,1)}</td><td>${esc(r.itens.slice(0,8).map(i => i.tag + ' (' + nf(i.qtd,1) + ')').join(', '))}${r.itens.length > 8 ? '...' : ''}</td></tr>`).join('') || '<tr><td colspan="7">Sem remessas em atraso no período.</td></tr>';
   const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}</td><td class="n">${nf(r.real,1)}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
   const empsEquip = [...new Set(usos.map(u => normEmp(u.empAjust)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -5716,7 +5788,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const footEqTot = empsEquip.length ? `<tfoot><tr><th>Total por empresa</th>${empsEquip.map(e => `<th class="n">${rs(soma0([...porEq.values()], o => o.porEmp[e] || 0))}</th>`).join('')}<th class="n">${rs(soma0([...porEq.values()], o => o.total))}</th></tr></tfoot>` : '';
   const porDpDiaEmp = new Map(); dp.forEach(d => { const emp = normEmp(d.empresa); const k = `${d.data}|${emp}`; const o = porDpDiaEmp.get(k) || { data:d.data, empresa:emp, total:0 }; o.total += d.quantidade || 0; porDpDiaEmp.set(k, o); });
   const rowsDP = [...porDpDiaEmp.values()].sort((a,b)=>String(a.data).localeCompare(String(b.data)) || String(a.empresa).localeCompare(String(b.empresa))).map(d => `<tr><td>${fdA(d.data)}</td><td>${esc(d.empresa)}</td><td class="n">${nf(d.total,0)}</td></tr>`).join('') || '<tr><td colspan="3">Sem pessoal lançado no período.</td></tr>';
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div><h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Efetivo no dia</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias</th><th class="n">Horas</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(totalHorasRem,0)}h</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table><h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead><tr><th>Data</th><th>Empresa</th><th class="n">Efetivo total</th></tr></thead><tbody>${rowsDP}</tbody></table></body></html>`;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro)}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th>Tempo</th><th>Efetivo no dia</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias</th><th class="n">Horas</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(totalHorasRem,0)}h</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table><h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead><tr><th>Data</th><th>Empresa</th><th class="n">Efetivo total</th></tr></thead><tbody>${rowsDP}</tbody></table></body></html>`;
   baixarHtml(`relatorio_impactos_${ini}_${fim}.html`, html);
 }
 function dpEmpresas() {
@@ -5931,15 +6003,15 @@ function renderImpactos() {
   const lista = (filtroImp === 'todos' ? todosImpactos : todosImpactos.filter(i => !i.solucionado))
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
   const vazioMsg = filtroImp === 'todos' ? 'Nenhum impacto registrado.' : 'Nenhum impacto em aberto.';
-  $('#tabImp').innerHTML = `<thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Motivo</th><th>Tempo</th><th>Quando</th><th>Paralisação / efeito</th><th>Situação</th><th></th></tr></thead><tbody>` +
+  $('#tabImp').innerHTML = `<thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th>Tempo</th><th>Quando</th><th>Paralisação / efeito</th><th>Situação</th><th></th></tr></thead><tbody>` +
     (lista.length ? lista.map(i => {
       const dias = ehISO(i.data) ? diasEntre(i.data, i.solucionado && ehISO(i.solucionado) ? i.solucionado : ref) : null;
       const acao = i._autoRemessa ? '<span class="nota">automático</span>' : `${i.solucionado ? '' : `<button class="link" data-resolver="${i.linha}">Solucionar hoje</button> · `}<button class="link" data-editar="${i.linha}">Editar</button>`;
-      return `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td class="motivo">${esc(i.motivo)}</td><td>${esc(i.tempo)}</td><td>${ehISO(i.quando) ? fdA(i.quando) : esc(i.quando)}</td>
+      return `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${i.setor ? `<b>${esc(i.setor)}</b>` : '<span class="nota">Não informado</span>'}</td><td class="motivo">${esc(i.motivo)}</td><td>${esc(i.tempo)}</td><td>${ehISO(i.quando) ? fdA(i.quando) : esc(i.quando)}</td>
         <td class="motivo">${esc(i.paralisacao)}</td>
         <td>${i.solucionado ? `<span class="farol f-verde">SOLUCIONADO ${fd(i.solucionado)}</span>` : `<span class="farol f-vermelho">ABERTO${dias != null ? ` · ${dias}d` : ''}</span>`}</td>
         <td style="white-space:nowrap">${acao}</td></tr>`;
-    }).join('') : `<tr><td colspan="9" class="vazio">${vazioMsg}</td></tr>`) + '</tbody>';
+    }).join('') : `<tr><td colspan="10" class="vazio">${vazioMsg}</td></tr>`) + '</tbody>';
 }
 
 function abrirFormImp(linha) {
@@ -5954,7 +6026,7 @@ function abrirFormImp(linha) {
   if (selEmpImp) selEmpImp.innerHTML = M.empresas.map(e => `<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
   if (linha) {
     const i = M.impactos.find(x => x.linha === linha);
-    for (const k of ['data', 'servico', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) {
+    for (const k of ['data', 'servico', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) {
       const v = i[k];
       if (f.elements[k].type === 'date') f.elements[k].value = ehISO(v) ? v : '';
       else f.elements[k].value = v ?? '';
@@ -6453,7 +6525,7 @@ function ligarEventos() {
   $('#formImp').addEventListener('submit', async ev => {
     ev.preventDefault();
     const f = ev.target, corpo = {};
-    for (const k of ['data', 'servico', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) corpo[k] = f.elements[k].value.trim() || null;
+    for (const k of ['data', 'servico', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) corpo[k] = f.elements[k].value.trim() || null;
     corpo.empresas = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value).join(' / ') || null;
     if (corpo.servico) corpo.servico = corpo.servico.toUpperCase();
     if (f.dataset.linha) corpo.linha = +f.dataset.linha;

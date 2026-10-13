@@ -126,6 +126,7 @@ function montar_modelo()
         $impactos[] = [
             'linha' => (int)$i['id'], 'data' => $i['data'], 'servico' => nome_servico_padrao($i['servico']), 'empresas' => $i['empresas'] ?? '', 'motivo' => nome_servico_padrao($i['motivo']),
             'solucionado' => $i['solucionado'], 'tempo' => $i['tempo'], 'quando' => nome_servico_padrao($i['quando']), 'paralisacao' => nome_servico_padrao($i['paralisacao']),
+            'setor' => $i['setor'] ?? '',
         ];
     }
     $tabelas = [];
@@ -448,11 +449,11 @@ function importar_pacote(array $pacote)
                 numero($x['du_semana'] ?? null), texto_ou_nulo($x['responsavel'] ?? null), texto_ou_nulo($x['obs'] ?? null),
                 data_ou_nulo($x['prazo'] ?? null), numero($x['peso'] ?? 1), texto_ou_nulo($x['frente'] ?? null)]);
         }
-        $ins = $pdo->prepare('INSERT INTO impactos (obra_id, data, servico, empresas, motivo, solucionado, tempo, quando, paralisacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO impactos (obra_id, data, servico, empresas, motivo, solucionado, tempo, quando, paralisacao, setor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($m['impactos'] as $x) {
             $ins->execute([$obraId, texto_ou_nulo($x['data'] ?? null), texto_ou_nulo($x['servico'] ?? null), texto_ou_nulo($x['empresas'] ?? null), texto_ou_nulo($x['motivo'] ?? null),
                 texto_ou_nulo($x['solucionado'] ?? null), texto_ou_nulo($x['tempo'] ?? null), texto_ou_nulo($x['quando'] ?? null),
-                texto_ou_nulo($x['paralisacao'] ?? null)]);
+                texto_ou_nulo($x['paralisacao'] ?? null), texto_ou_nulo($x['setor'] ?? null)]);
         }
         foreach (tabelas_spec() as $nome => $campos) {
             $cols = array_keys($campos);
