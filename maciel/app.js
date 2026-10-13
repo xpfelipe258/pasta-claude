@@ -1255,12 +1255,38 @@ function pctFechLat(ate, empresaNome = null) {
   const sel = empresaNome ? porEmp.filter(x => x.nome === normEmp(empresaNome)) : porEmp;
   return sel.length ? soma0(sel, x => x.pct) / sel.length : 0;
 }
+// Frentes anexas (Eclusa, Portaria, Refeitório, Vestiário, Passarelas, Marquise...): o realizado vem só das colunas da própria
+// frente (e, na Eclusa, das atividades do BM dela). Antes entrava qualquer serviço de nome parecido (ex.: VIGAS do galpão) e o
+// realizado ficava muito acima do que foi lançado.
+const ehFrenteAnexa = f => { const n = ganNorm(f); return !!n && (!n.startsWith('GALPAO') || n.includes('MARQUISE')); };
+function servicosDaFrente(e, c) {
+  const fr = ganNorm(c.frente), sv = ganNorm(c.servico);
+  const daFrente = (e.servicos || []).filter(s => ganNorm(s.frente) === fr);
+  const exato = daFrente.filter(s => ganNorm(s.nome) === sv);
+  return exato.length ? exato : daFrente.filter(s => servicoCompat(s.nome, c.servico));
+}
+function realizadoAnexo(c, empresaNome, ini, fim) {
+  let t = 0;
+  M.empresas.forEach(e => {
+    if (empresaNome && e.nome !== empresaNome) return;
+    servicosDaFrente(e, c).forEach(s => t += producaoServicoValor(e, s, ini, fim));
+  });
+  return t;
+}
+// Quantidade equivalente ao avanço (%) das atividades do BM da frente (Eclusa), no período
+function realizadoAnexoBm(c, ini, fim) {
+  if (!(Number(c.qtd) > 0) || !ganBmAtividadesEspecificas(c).length) return 0;
+  const a = ganBmPercentual(c, fim), b = ini && ini > '0000-01-01' ? ganBmPercentual(c, add(ini, -1)) : null;
+  return Math.max(0, ((a ? a.pct : 0) - (b ? b.pct : 0)) * Number(c.qtd));
+}
 function realizadoItem(c, ate) {
   if (c.fonte_pct) return pctFechLat(ate) * 100;
+  if (!c.fonte_catalogo && ehFrenteAnexa(c.frente)) return Math.max(realizadoAnexo(c, null, '0000', ate), realizadoAnexoBm(c, '0000', ate));
   if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, null, '0000', ate), bmPorCodigos(clienteFonte(c).atividades, c.servico, null, '0000', ate));
   return realizadoFase(c.servico, faseItem(c.frente), ate);
 }
 function realizadoPeriodoItem(c, empresaNome, ini, fim) {
+  if (!c.fonte_catalogo && !c.fonte_pct && ehFrenteAnexa(c.frente)) return realizadoAnexo(c, empresaNome, ini, fim);
   if (c.fonte_pct) return (pctFechLat(fim, empresaNome) - pctFechLat(add(ini, -1), empresaNome)) * 100;
   if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, empresaNome, ini, fim), bmPorCodigos(clienteFonte(c).atividades, c.servico, empresaNome, ini, fim));
   return prodServicoMax(c.servico, empresaNome, ini, fim);
@@ -1768,7 +1794,8 @@ function ganLinhas(c) {
     const porEmp = [...mapaEmp.entries()].map(([nome, lista]) => ({ nome, ds: lista }));
     return { it, ini: it.inicio_plan || null, fimPrev: fimMeta || it.prazo || null, prazo: it.prazo || null, ri: ds.length ? ds[0][0] : null,
       rf: concluiu || (ds.length ? c : null), ultimo: ds.length ? ds[ds.length - 1][0] : null, realAc, prevAc, pctReal: Math.min(1, realAc / it.qtd), pctPrev: Math.min(1, prevAc / it.qtd),
-      projecao: p.projecao || null, status, porEmp };
+      projecao: p.projecao || null, status, porEmp,
+      dsReal: [dsProd, dsBm, dsAp].sort((x, y) => soma0(y, ([, v]) => v) - soma0(x, ([, v]) => v))[0] || [] };
   });
   return ganAjustarFechamentoLateral(linhas);
 }
@@ -1978,9 +2005,9 @@ function diasEntreDatas(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000);
 }
 
-async function renderPlanejamento() {
+async function renderPlanejamentoLegado() {
   // Carregamento lazy das frentes (mapas IFC)
-  const frObj = frentesMontagem(renderPlanejamento);
+  const frObj = frentesMontagem(renderPlanejamentoLegado);
   if (!frObj) return; // aguarda callback
 
   const dados = await carregarPlanejamento();
@@ -2214,12 +2241,12 @@ function planAplicarLote() {
   });
   if (!n) { toast('Nenhum setor visível para preencher.', true); return; }
   toast(`${n} setor(es) preenchidos. Revise e clique em Salvar planejamento.`);
-  renderPlanejamento();
+  renderPlanejamentoLegado();
 }
 
 function planLimparVisiveis() {
   planUltimo.forEach(r => { planEdits[r.chave] = { ini: '', fim: '', obs: r.obs || '' }; });
-  renderPlanejamento();
+  renderPlanejamentoLegado();
 }
 
 function planExportarCsv() {
@@ -2422,8 +2449,9 @@ function renderCliente() {
     const prevPer = Math.max(0, prevAc - soma0(fases, f => prevCliente(f, antes) || 0));
     // REALIZADO PERÍODO: soma realizado de cada empresa (chamar prodServico UMA VEZ por serviço, não por fase)
     const ref = fases.find(f => f.fonte_catalogo) || null;
-    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? (ref ? realizadoPeriodoItem(ref, n, ini, c) : prodServicoMax(servNome, n, ini, c)) : 0]));
-    const realPer = ref?.fonte_pct ? (c >= ini ? realizadoPeriodoItem(ref, null, ini, c) : 0) : soma0(Object.values(porEmp), v => v);
+    const refAnexo = ref ? null : fases.find(f => ehFrenteAnexa(f.frente)) || null;
+    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? (ref ? realizadoPeriodoItem(ref, n, ini, c) : refAnexo ? realizadoPeriodoItem(refAnexo, n, ini, c) : prodServicoMax(servNome, n, ini, c)) : 0]));
+    const realPer = ref?.fonte_pct ? (c >= ini ? realizadoPeriodoItem(ref, null, ini, c) : 0) : refAnexo && c >= ini ? Math.max(soma0(Object.values(porEmp), v => v), realizadoAnexoBm(refAnexo, ini, c)) : soma0(Object.values(porEmp), v => v);
     const realAc = soma0(fases, f => realizadoItem(f, c) || 0);
     const saldo = Math.max(totQtd - realAc, 0);
 
@@ -6060,18 +6088,18 @@ function ligarEventos() {
   // Planejamento de montagem
   $('#segPlanFrente').addEventListener('click', ev => {
     const b = ev.target.closest('[data-plan-frente]');
-    if (b) { planEst.frente = b.dataset.planFrente; renderPlanejamento(); }
+    if (b) { planEst.frente = b.dataset.planFrente; renderPlanejamentoLegado(); }
   });
   $('#segPlanStatus').addEventListener('click', ev => {
     const b = ev.target.closest('[data-plan-status]');
-    if (b) { planEst.status = b.dataset.planStatus; renderPlanejamento(); }
+    if (b) { planEst.status = b.dataset.planStatus; renderPlanejamentoLegado(); }
   });
   $('#tabPlan').addEventListener('input', ev => {
     const tr = ev.target.closest('tr[data-plan-chave]');
     if (tr) planRegistrarEdicao(tr);
   });
   $('#tabPlan').addEventListener('change', ev => {
-    if (ev.target.classList.contains('plan-dt')) renderPlanejamento();
+    if (ev.target.classList.contains('plan-dt')) renderPlanejamentoLegado();
   });
   $('#btnPlanLote').addEventListener('click', planAplicarLote);
   $('#btnPlanLimparVis').addEventListener('click', planLimparVisiveis);
@@ -6089,7 +6117,7 @@ function ligarEventos() {
         planDados = null;
         planEdits = {};
         toast(`${setores.length} setor(es) salvos!`);
-        renderPlanejamento();
+        renderPlanejamentoLegado();
       } else {
         const err = await r.json().catch(() => ({}));
         toast(err.erro || 'Erro ao salvar planejamento.', true);

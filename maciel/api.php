@@ -66,6 +66,9 @@ try {
             }
             responder_json(200, $d);
         }
+        if ($rota === 'planos') {
+            responder_json(200, planos_ler());
+        }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
             responder_json(200, is_array($d) ? $d : ['setores' => []]);
@@ -101,7 +104,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','referencia'=>'producao',
+        'producao'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -119,7 +122,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula',
-        'planejamento' => 'acao_salvar_planejamento',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1553,6 +1556,129 @@ function acao_salvar_planejamento(array $corpo, array $usuario)
     }
     sistema_gravar('planejamento', json_encode(['setores' => array_values($existente)], JSON_UNESCAPED_UNICODE));
     return ['salvos' => count($setores)];
+}
+
+// --------------------------------------------------------- planos 5W2H (aba Planejamento)
+function planos_ler()
+{
+    $d = json_decode((string)sistema_ler('planos_5w2h', '{"planos":[]}'), true);
+    return is_array($d) && isset($d['planos']) && is_array($d['planos']) ? $d : ['planos' => []];
+}
+
+function plano_texto($v, $max = 500)
+{
+    return mb_substr(trim((string)($v ?? '')), 0, $max);
+}
+
+function plano_data($v, $rotulo, $obrigatoria = false)
+{
+    $v = trim((string)($v ?? ''));
+    if ($v === '') {
+        if ($obrigatoria) {
+            throw new ErroValidacao("Informe $rotulo.");
+        }
+        return null;
+    }
+    if (!data_valida($v)) {
+        throw new ErroValidacao("Data inválida em $rotulo.");
+    }
+    return $v;
+}
+
+// Cria, altera ou exclui um plano 5W2H. O plano guarda o período, as atividades e o 5W2H de cada uma; o realizado,
+// a curva S, o que falta e a divisão por dia são calculados na tela a partir da produção lançada.
+function acao_planos(array $corpo, array $usuario)
+{
+    $doc = planos_ler();
+    if (!empty($corpo['excluir'])) {
+        $id = (string)$corpo['excluir'];
+        $antes = count($doc['planos']);
+        $doc['planos'] = array_values(array_filter($doc['planos'], function ($p) use ($id) {
+            return (string)($p['id'] ?? '') !== $id;
+        }));
+        if (count($doc['planos']) === $antes) {
+            throw new ErroValidacao('Plano não encontrado. Recarregue a tela.');
+        }
+        sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+        registrar_alteracao('plano_excluido', ['id' => $id]);
+        return ['salvos' => 1];
+    }
+    $p = $corpo['plano'] ?? null;
+    if (!is_array($p)) {
+        throw new ErroValidacao('Plano inválido.');
+    }
+    $nome = plano_texto($p['nome'] ?? '', 120);
+    if ($nome === '') {
+        throw new ErroValidacao('Dê um nome ao planejamento.');
+    }
+    $ini = plano_data($p['inicio'] ?? '', 'o início do período', true);
+    $fim = plano_data($p['fim'] ?? '', 'o fim do período', true);
+    if ($fim < $ini) {
+        throw new ErroValidacao('O fim do período não pode ser antes do início.');
+    }
+    $itens = [];
+    foreach (($p['itens'] ?? []) as $k => $it) {
+        if (!is_array($it)) {
+            continue;
+        }
+        $n = $k + 1;
+        $chave = plano_texto($it['chave'] ?? '', 200);
+        if ($chave === '') {
+            throw new ErroValidacao("Atividade $n sem identificação.");
+        }
+        $qtd = numero($it['qtd'] ?? null);
+        $peso = numero($it['peso'] ?? null);
+        if ($qtd === null || $qtd <= 0) {
+            throw new ErroValidacao('Atividade ' . plano_texto($it['atividade'] ?? $chave, 80) . ': informe a quantidade a executar no período (maior que zero).');
+        }
+        $iIni = plano_data($it['inicio'] ?? '', 'o início da atividade ' . $n, true);
+        $iFim = plano_data($it['fim'] ?? '', 'o fim da atividade ' . $n, true);
+        if ($iFim < $iIni) {
+            throw new ErroValidacao('Atividade ' . plano_texto($it['atividade'] ?? $chave, 80) . ': o fim não pode ser antes do início.');
+        }
+        $itens[] = [
+            'chave' => $chave, 'atividade' => plano_texto($it['atividade'] ?? $chave, 200), 'frente' => plano_texto($it['frente'] ?? '', 150),
+            'empresa' => plano_texto($it['empresa'] ?? '', 150), 'unidade' => plano_texto($it['unidade'] ?? '', 12),
+            'qtd_contrato' => numero($it['qtd_contrato'] ?? null), 'qtd' => $qtd, 'peso' => ($peso !== null && $peso > 0) ? $peso : 1,
+            'inicio' => $iIni, 'fim' => $iFim,
+            'o_que' => plano_texto($it['o_que'] ?? ''), 'por_que' => plano_texto($it['por_que'] ?? ''), 'onde' => plano_texto($it['onde'] ?? ''),
+            'quem' => plano_texto($it['quem'] ?? ''), 'como' => plano_texto($it['como'] ?? ''),
+            'custo' => numero($it['custo'] ?? null), 'obs' => plano_texto($it['obs'] ?? ''),
+        ];
+        if (count($itens) > 300) {
+            throw new ErroValidacao('Máximo de 300 atividades por plano.');
+        }
+    }
+    if (!$itens) {
+        throw new ErroValidacao('Escolha ao menos uma atividade para o planejamento.');
+    }
+    $id = plano_texto($p['id'] ?? '', 40);
+    $agora = date('c');
+    $quem = (string)($usuario['nome'] ?? $usuario['login'] ?? '');
+    $novo = ['id' => $id, 'nome' => $nome, 'inicio' => $ini, 'fim' => $fim, 'responsavel' => plano_texto($p['responsavel'] ?? '', 120),
+        'objetivo' => plano_texto($p['objetivo'] ?? '', 800), 'status' => in_array(($p['status'] ?? ''), ['ativo', 'concluido', 'arquivado'], true) ? $p['status'] : 'ativo',
+        'itens' => $itens, 'atualizado_em' => $agora, 'atualizado_por' => $quem];
+    $achou = false;
+    if ($id !== '') {
+        foreach ($doc['planos'] as $i => $ex) {
+            if ((string)($ex['id'] ?? '') === $id) {
+                $novo['criado_em'] = $ex['criado_em'] ?? $agora;
+                $novo['criado_por'] = $ex['criado_por'] ?? $quem;
+                $doc['planos'][$i] = $novo;
+                $achou = true;
+                break;
+            }
+        }
+    }
+    if (!$achou) {
+        $novo['id'] = 'pl' . date('ymdHis') . bin2hex(random_bytes(2));
+        $novo['criado_em'] = $agora;
+        $novo['criado_por'] = $quem;
+        $doc['planos'][] = $novo;
+    }
+    sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('plano_salvo', ['id' => $novo['id'], 'nome' => $nome, 'atividades' => count($itens)]);
+    return ['salvos' => 1, 'id' => $novo['id']];
 }
 
 // --------------------------------------------------------- snapshot de produção
