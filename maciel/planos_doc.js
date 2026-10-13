@@ -233,22 +233,6 @@ function pldBloqueioDias(x, est, baseRef) {
   if (est.prev) return est.prev > ini ? contarDiasUteis(ini, est.prev) : 0;
   return ini < baseRef ? contarDiasUteis(ini, baseRef) : 0;
 }
-function pldTextoBloqueio(x, est, c) {
-  const it = x.it, d = pldBloqueioDias(x, est, c.baseRef);
-  let t = `${est.g.nao}. A atividade não pode iniciar (nem continuar) até a resposta virar “sim”.`;
-  if (est.prev) t += d ? ` Previsão informada: ${fdA(est.prev)} — ${d} dia(s) útil(eis) depois do início previsto (${fdA(it.inicio)}); sem recuperar produtividade, o fim previsto vai de ${fdA(it.fim)} para ${fdA(somarDiasUteis(it.fim, d))}.` : ` Previsão informada: ${fdA(est.prev)} — ainda dentro do início previsto (${fdA(it.inicio)}).`;
-  else t += it.inicio <= c.baseRef ? ` O início previsto (${fdA(it.inicio)}) já chegou e não há previsão informada: cada dia parado é atraso direto.` : ` Não há previsão informada; início previsto em ${fdA(it.inicio)}.`;
-  return t;
-}
-// linha “✓ material → ✓ descarregado → ✗ checklist” de uma atividade
-function pldLinhaPortoes(x) {
-  const m = pldEtapasDe(x);
-  return pldPortoesDe(x).map(g => {
-    const r = pldPortaoR(x, g.k), rg = x.it.portoes?.[g.k];
-    return `<span class="pt ${r === 'sim' ? 'ok' : r === 'nao' ? 'ruim' : 'pend'}">${r === 'sim' ? '✓' : r === 'nao' ? '✗' : '?'} ${esc(g.rot)}${rg?.em ? ` <small>${esc(fdA(rg.em.slice(0, 10)))}</small>` : ''}</span>`;
-  }).join('<i class="seta">›</i>');
-}
-
 // ---------------------------------------------------------------- situação por etapa (pior caso entre as atividades)
 const PLD_PESO_ST = { 'ATRASADO': 4, 'NO LIMITE': 3, 'A INICIAR': 2, 'NO PRAZO': 1, 'ADIANTADO': 1, 'CONCLUÍDO': 0 };
 function pldStatusEtapa(itens) {
@@ -281,35 +265,6 @@ function pldSucessoras(c, x) {
     .filter(({ y, e: ey }) => ey.fluxo === e.fluxo && ey.ids.length && Math.min(...ey.ids.map(id => ordem.indexOf(id))) > pos && (e.fluxo === 'galpao' || y.it.frente === x.it.frente))
     .sort((a, b) => Math.min(...a.e.ids.map(id => ordem.indexOf(id))) - Math.min(...b.e.ids.map(id => ordem.indexOf(id))));
 }
-function pldTextoSituacao(x, c) {
-  const it = x.it, un = it.unidade, a = pldAtraso(x, c.base);
-  if (x.status === 'CONCLUÍDO') return { cls: 'ok', txt: `Concluída${x.concluiu ? ' em ' + fdA(x.concluiu) : ''}: ${plFmt(x.realAc, un)} de ${plFmt(it.qtd, un)} ${esc(un)}. O risco de atraso desta atividade sobre as seguintes deixou de existir.` };
-  if (x.status === 'A INICIAR') return { cls: 'pend', txt: `Ainda não iniciou (início previsto em ${fdA(it.inicio)}). Para cumprir o objetivo precisa produzir ${plFmtTaxa(x.meta)} ${esc(un)}/dia útil durante ${plDias(it.inicio, it.fim).length} dias úteis.` };
-  let t = `Realizado ${nf(x.pctReal * 100, 0)}% contra ${nf(x.pctPlan * 100, 0)}% previsto até ${fdA(c.baseRef)}; faltam ${plFmt(x.falta, un)} ${esc(un)}.`;
-  if (x.ritmoNec != null && x.ritmoNec > 0) {
-    const mais = x.ritmoAtual > 0 ? ` (ritmo atual ${plFmtTaxa(x.ritmoAtual)} ${esc(un)}/dia — ${x.ritmoNec > x.ritmoAtual ? 'precisa subir cerca de ' + nf((x.ritmoNec / x.ritmoAtual - 1) * 100, 0) + '%' : 'suficiente para fechar'})` : ' (sem lançamentos recentes)';
-    t += ` Para fechar no prazo precisa de ${plFmtTaxa(x.ritmoNec)} ${esc(un)}/dia útil${mais}.`;
-  }
-  if (a.dias > 0 && a.proj) t += ` No ritmo atual termina em ${fdA(a.proj)}, ${a.dias} dia(s) útil(eis) após o fim planejado (${fdA(it.fim)}).`;
-  else if (a.vencida) t += ` O prazo (${fdA(it.fim)}) já passou e a atividade ainda não foi concluída.`;
-  else if (a.proj) t += ` Projeção de término: ${fdA(a.proj)} — dentro do prazo (${fdA(it.fim)}).`;
-  return { cls: a.dias > 0 || a.vencida ? 'ruim' : x.status === 'NO LIMITE' ? 'alerta' : 'ok', txt: t };
-}
-function pldTextoCascata(x, c) {
-  const a = pldAtraso(x, c.base);
-  if (x.status === 'CONCLUÍDO') return '';
-  const suc = pldSucessoras(c, x);
-  if (!suc.length) return a.dias > 0 ? `Atraso projetado de ${a.dias} dia(s) útil(eis) nesta atividade; não há atividade seguinte no plano atual, mas o prazo final do plano acompanha o atraso.` : '';
-  const proximas = suc.filter(s => Math.min(...s.e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id))) === Math.min(...suc[0].e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id))));
-  const nomes = proximas.map(({ y }) => `<b>${esc(y.it.atividade)}</b>`).join(', ');
-  const resto = suc.length - proximas.length;
-  if (a.dias > 0) {
-    const novo = proximas.map(({ y }) => `${esc(y.it.atividade)} (início previsto ${fdA(y.it.inicio)}, poderia ir para ${fdA(somarDiasUteis(y.it.inicio, a.dias))})`).join('; ');
-    return `Se o atraso se mantiver, a próxima etapa do fluxo é empurrada em até ${a.dias} dia(s) útil(eis): ${novo}.${resto > 0 ? ` Outras ${resto} atividade(s) a jusante sofrem o mesmo deslocamento em cascata.` : ''}`;
-  }
-  return `Risco monitorado: se esta atividade escorregar, a próxima etapa do fluxo — ${nomes} — perde a data de início${resto > 0 ? `, e outras ${resto} atividade(s) a jusante acompanham` : ''}.`;
-}
-
 // ---------------------------------------------------------------- curva S em SVG (planejado × realizado × projeção)
 function pldCurvaSvg(c) {
   const W = 760, H = 250, ml = 38, mr = 14, mt = 12, mb = 34, n = c.diasPlano.length;
@@ -330,60 +285,117 @@ function pldCurvaSvg(c) {
 }
 
 // ---------------------------------------------------------------- montagem do documento
+// ---------------------------------------------------------------- fluxogramas (caixas e setas em HTML/CSS — imprime e abre em qualquer navegador)
+const pldNo = (cls, titulo, txt) => `<div class="fc-no ${cls}">${titulo ? `<b>${titulo}</b>` : ''}${txt ? `<span>${txt}</span>` : ''}</div>`;
+const pldSeta = (rot, cls) => `<div class="fc-seta ${cls || ''}">${rot ? `<small>${rot}</small>` : ''}<i>▶</i></div>`;
+const pldSetaV = (rot, cls) => `<div class="fc-setav ${cls || ''}"><i>▼</i>${rot ? `<small>${rot}</small>` : ''}</div>`;
+const pldDec = txt => `<div class="fc-dec"><svg viewBox="0 0 150 92" aria-hidden="true"><polygon points="75,2 148,46 75,90 2,46" fill="#fff7ed" stroke="#b45309" stroke-width="2"/></svg><span>${txt}</span></div>`;
+const PLD_CAT = [[/^Prazo/i, '⏱'], [/^Custo/i, '💲'], [/^Qualidade|^Seguran/i, '✔'], [/^Contrato|^BM/i, '📄'], [/^Cascata/i, '🔗']];
+// impactos da base de dados ("<b>Prazo:</b> texto") → uma caixa vermelha curta por categoria
+function pldImpactoCaixas(lista) {
+  return lista.map(i => {
+    const m = i.match(/^<b>([^<]*?):?<\/b>\s*(.*)$/), rot = m ? m[1] : 'Impacto', txt = m ? m[2] : i, cat = PLD_CAT.find(([re]) => re.test(rot));
+    return pldNo('vm', `${cat ? cat[1] : '•'} ${esc(rot.toUpperCase())}`, txt);
+  }).join('');
+}
+// fluxograma de uma etapa: anterior ▶ etapa ▶ decisão ─SIM▶ libera a próxima | ─NÃO▼ impactos ▼ recuperação ↩ volta à decisão
+function pldFluxogramaEtapa(e, plano, i, o) {
+  const ant = plano[i - 1], prox = plano[i + 1];
+  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : 'Concluído: entrega e aceite');
+  return `<div class="fc">
+    <div class="fc-linha">
+      ${pldNo('cz', ant ? esc(ant.nome) : 'Início do plano', ant ? 'etapa anterior' : '')}${pldSeta()}
+      ${pldNo('az fc-principal', `${i + 1} · ${esc(e.nome.toUpperCase())}`, e.oque)}${pldSeta()}
+      ${pldDec(o.pergunta || 'Objetivo cumprido no prazo?')}${pldSeta('SIM', 'ok')}
+      ${pldNo('vd', sim, o.simDet || '')}
+    </div>
+    ${pldSetaV(o.nao || 'NÃO', 'ruim')}
+    <div class="fc-rot">IMPACTOS</div><div class="fc-linha fc-wrap">${pldImpactoCaixas(e.impacto)}</div>
+    ${pldSetaV('ação')}
+    <div class="fc-rot">COMO RECUPERAR</div><div class="fc-linha fc-wrap">${e.recupera.map(r => pldNo('am', '↻ AÇÃO', r)).join('')}${pldNo('cz', '↩ VOLTA À DECISÃO', 'reavaliar no apontamento diário')}</div>
+  </div>`;
+}
+// resumo curto do bloqueio (previsão de chegada e dias úteis parados)
+function pldBloqueioCurto(x, est, c) {
+  const d = pldBloqueioDias(x, est, c.baseRef);
+  if (est.prev) return `previsão ${fdA(est.prev)}${d ? ` · ${d} d.u. depois do início previsto` : ' · dentro do início previsto'}`;
+  return x.it.inicio <= c.baseRef ? `início previsto (${fdA(x.it.inicio)}) já passou · sem previsão de chegada` : `sem previsão de chegada · início previsto ${fdA(x.it.inicio)}`;
+}
+// fluxograma de uma atividade do plano: liberação (material › descarga › checklist) ▶ atividade ▶ decisão ─SIM▶ libera | ─NÃO▼ atraso › empurra › precisa
+function pldFluxoAtividade(x, c) {
+  const it = x.it, un = esc(it.unidade), est = pldPortaoEstado(x), a = pldAtraso(x, c.base), suc = pldSucessoras(c, x);
+  const stCls = PL_COR_STATUS[x.status] || 'pendente';
+  const principal = pldNo('az fc-principal', esc(it.atividade), `${nf(x.pctReal * 100, 0)}% real / ${nf(x.pctPlan * 100, 0)}% previsto · falta ${plFmt(x.falta, it.unidade)} ${un}`);
+  const gates = pldPortoesDe(x).map(g => {
+    const r = pldPortaoR(x, g.k), rg = it.portoes?.[g.k];
+    return pldNo(r === 'sim' ? 'vd' : r === 'nao' ? 'vm' : 'cz', `${r === 'sim' ? '✓' : r === 'nao' ? '✗' : '?'} ${esc(g.rot)}`, rg?.em ? esc(fdA(rg.em.slice(0, 10)) + ' ' + rg.em.slice(11)) : '');
+  }).join(pldSeta());
+  let corpo;
+  if (est.estado === 'retorna') {
+    corpo = `${pldNo('vm', '↩ RETORNA · ' + esc(est.etapa.nome.toUpperCase()), esc(pldBloqueioCurto(x, est, c)))}`;
+    const d = pldBloqueioDias(x, est, c.baseRef);
+    const prox = suc.length ? suc.filter(s => Math.min(...s.e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id))) === Math.min(...suc[0].e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id)))) : [];
+    return `<div class="fc fc-atv"><div class="fc-linha fc-wrap">${gates}${pldSeta('', 'ruim')}${corpo}</div>
+      <div class="fc-linha fc-wrap fc-baixo">${pldNo('cz', 'ATIVIDADE BLOQUEADA', `${esc(it.atividade)} · ${nf(x.pctReal * 100, 0)}% real`)}${d ? pldSeta('', 'ruim') + pldNo('vm', '⏱ ATRASO', `+${d} d.u. · fim ${fdA(it.fim)} → ${fdA(somarDiasUteis(it.fim, d))}`) : ''}
+      ${d && prox.length ? pldSeta('', 'ruim') + pldNo('am', '🔗 EMPURRA', prox.map(({ y }) => `${esc(y.it.atividade)}: ${fdA(y.it.inicio)} → ${fdA(somarDiasUteis(y.it.inicio, d))}`).join('<br>')) : ''}</div></div>`;
+  }
+  if (est.estado === 'pendente') {
+    return `<div class="fc fc-atv"><div class="fc-linha fc-wrap">${gates}${pldSeta()}${principal}${pldSeta()}${pldNo('cz', '? PERGUNTA A CONFIRMAR', esc(est.g.pergunta))}</div></div>`;
+  }
+  if (x.status === 'CONCLUÍDO') {
+    return `<div class="fc fc-atv"><div class="fc-linha fc-wrap">${gates ? gates + pldSeta() : ''}${principal}${pldSeta('', 'ok')}${pldNo('vd', '✓ CONCLUÍDA', x.concluiu ? 'em ' + fdA(x.concluiu) : `${plFmt(x.realAc, it.unidade)} ${un} lançados`)}</div></div>`;
+  }
+  const fecha = a.dias === 0 && x.status !== 'ATRASADO';
+  const prox = suc.length ? suc.filter(s => Math.min(...s.e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id))) === Math.min(...suc[0].e.ids.map(id => PLD_ORDEM[s.e.fluxo].indexOf(id)))) : [];
+  const simNo = pldNo('vd', prox.length ? 'Libera: ' + esc(prox.map(({ y }) => y.it.atividade).join(', ')) : 'Fim do fluxo desta frente', a.proj ? 'término projetado ' + fdA(a.proj) + ' (fim previsto ' + fdA(it.fim) + ')' : '');
+  const need = x.ritmoNec != null && x.ritmoNec > 0 ? pldNo('am', '↻ PRECISA', `${plFmtTaxa(x.ritmoNec)} ${un}/dia (hoje ${plFmtTaxa(x.ritmoAtual)})`) : '';
+  const nao = fecha ? '' : `<div class="fc-linha fc-wrap fc-baixo">${pldSetaV('NÃO', 'ruim')}${pldNo('vm', '⏱ ATRASO', a.dias ? `+${a.dias} d.u. · termina ${fdA(a.proj)} (fim previsto ${fdA(it.fim)})` : `${nf(x.pctReal * 100, 0)}% real contra ${nf(x.pctPlan * 100, 0)}% previsto`)}
+      ${a.dias && prox.length ? pldSeta('', 'ruim') + pldNo('am', '🔗 EMPURRA', prox.map(({ y }) => `${esc(y.it.atividade)}: ${fdA(y.it.inicio)} → ${fdA(somarDiasUteis(y.it.inicio, a.dias))}`).join('<br>')) : ''}${need ? pldSeta('', 'ruim') + need : ''}</div>`;
+  return `<div class="fc fc-atv"><div class="fc-linha fc-wrap">${gates ? gates + pldSeta() : ''}${principal}${pldSeta()}${pldDec('Fecha no prazo?')}${pldSeta(fecha ? 'SIM' : 'sim', fecha ? 'ok' : 'apagada')}${simNo}</div>${nao}</div>`;
+}
 function pldCartaoAtividade(x, c, etapas) {
-  const it = x.it, un = it.unidade, sit = pldTextoSituacao(x, c), casc = pldTextoCascata(x, c), est = pldPortaoEstado(x);
-  const mult = etapas.length > 1 ? `<p class="mini">Esta atividade do cronograma cobre as etapas: ${etapas.map(e => esc(e.nome)).join(' + ')}.</p>` : '';
+  const it = x.it, un = it.unidade, stCls = PL_COR_STATUS[x.status] || 'pendente';
   return `<div class="atv">
     <div class="atv-cab"><div><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))} · ${fdA(it.inicio)} a ${fdA(it.fim)} · ${plFmt(it.qtd, un)} ${esc(un)} · meta ${plFmtTaxa(x.meta)} ${esc(un)}/dia${it.quem || it.empresa ? ' · ' + esc(it.quem || it.empresa) : ''}</div></div>
-      <span class="sel st-${esc(PL_COR_STATUS[x.status] || 'pendente')}">${esc(x.status)}</span></div>
-    <div class="barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real st-${esc(PL_COR_STATUS[x.status] || 'pendente')}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
-    <div class="mini">realizado ${nf(x.pctReal * 100, 0)}% · previsto até a referência ${nf(x.pctPlan * 100, 0)}%</div>
-    ${mult}
+      <span class="sel st-${esc(stCls)}">${esc(x.status)}</span></div>
+    <div class="barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real st-${esc(stCls)}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
     ${it.o_que || it.por_que || it.como ? `<table class="w5"><tr>${it.o_que ? `<th>O quê</th><td>${esc(it.o_que)}</td>` : ''}${it.por_que ? `<th>Por quê</th><td>${esc(it.por_que)}</td>` : ''}</tr>
       <tr>${it.onde ? `<th>Onde</th><td>${esc(it.onde)}</td>` : ''}${it.como ? `<th>Como</th><td>${esc(it.como)}</td>` : ''}</tr></table>` : ''}
-    ${pldPortoesDe(x).length ? `<div class="lib"><b>Liberação do fluxo:</b> ${pldLinhaPortoes(x)}${est.estado === 'retorna' ? `<div class="lib-ruim">${pldTextoBloqueio(x, est, c)}</div>` : est.estado === 'pendente' ? `<div class="mini">Pergunta a confirmar: ${esc(est.g.pergunta)}</div>` : ''}</div>` : ''}
-    <div class="sit ${sit.cls}"><b>Situação hoje:</b> ${sit.txt}</div>
-    ${casc ? `<div class="casc"><b>Efeito em cascata:</b> ${casc}</div>` : ''}
+    ${pldFluxoAtividade(x, c)}
   </div>`;
 }
 
 function pldBlocoPortao(fluxo, e, indice, c) {
   const g = PLD_PORTOES.find(q => q.k === PLD_ETAPA_PORTAO[e.id]), st = pldStatusPortao(fluxo, g.k, c), ordem = PLD_PORTOES.map(q => q.k);
+  const plano = pldFluxoDoPlano(c)[fluxo], i = indice - 1;
   const ls = c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo && pldPortoesDe(x).some(q => q.k === g.k))
     .sort((a, b2) => a.it.inicio.localeCompare(b2.it.inicio) || a.it.atividade.localeCompare(b2.it.atividade));
-  const prox = g.k === 'material' ? 'a pergunta seguinte (“foi descarregado?”)' : g.k === 'descarga' ? (fluxo === 'galpao' ? 'a atividade (e, nas etapas após o checklist, a pergunta do checklist)' : 'a atividade') : 'a atividade da cobertura';
+  const sim = g.k === 'material' ? 'Pergunta seguinte: ' + esc(PLD_PORTOES[1].rot) : g.k === 'descarga' ? 'Libera a atividade' + (fluxo === 'galpao' && plano.some(q => q.id === 'g7') ? ' (após o checklist, pergunta do checklist)' : '') : 'Libera a cobertura';
   const linhas = ls.map(x => {
     const r = pldPortaoR(x, g.k), rg = x.it.portoes?.[g.k], ant = pldPortoesDe(x).filter(q => ordem.indexOf(q.k) < ordem.indexOf(g.k)).every(q => pldPortaoR(x, q.k) === 'sim');
     let res, efeito = '';
     if (x.status === 'CONCLUÍDO') res = '<span class="sel ok">concluída</span>';
     else if (!ant) res = '<span class="sel nd">aguarda etapa anterior</span>';
     else if (r === 'sim') res = '<span class="sel ok">sim — prossegue</span>';
-    else if (r === 'nao') { res = '<span class="sel ruim">não — retorna</span>'; efeito = pldTextoBloqueio(x, pldPortaoEstado(x), c); }
+    else if (r === 'nao') { res = '<span class="sel ruim">não — retorna</span>'; efeito = pldBloqueioCurto(x, pldPortaoEstado(x), c); }
     else res = '<span class="sel pend">a confirmar</span>';
     return `<tr><td><b>${esc(x.it.atividade)}</b><div class="mini">${esc(cap(x.it.frente))}</div></td><td>${fdA(x.it.inicio)}</td><td>${res}</td>
-      <td class="mini">${rg?.em ? esc(fdA(rg.em.slice(0, 10))) + ' ' + esc(rg.em.slice(11)) + (rg.por ? ' · ' + esc(rg.por) : '') : '—'}</td><td class="mini">${efeito ? efeito : '—'}</td></tr>`;
+      <td class="mini">${rg?.em ? esc(fdA(rg.em.slice(0, 10))) + ' ' + esc(rg.em.slice(11)) + (rg.por ? ' · ' + esc(rg.por) : '') : '—'}</td><td class="mini">${efeito ? esc(efeito) : '—'}</td></tr>`;
   }).join('');
   return `<section class="etapa" id="${esc(fluxo + '-' + e.id)}">
     <div class="etapa-cab"><span class="num">${indice}</span><h3>${esc(e.nome)}</h3><span class="sel ${st.cls}">${st.rot}</span></div>
-    <div class="pergunta"><b>Pergunta de controle:</b> ${esc(g.pergunta)}<br><b>Sim</b> → prossegue para ${prox}. <b>Não</b> → <b>retorna</b> a esta etapa: a atividade fica bloqueada até a resposta virar “sim”.</div>
-    <div class="cols">
-      <div><h4>O que é</h4><p>${e.oque}</p><h4>Por que importa</h4><p>${e.importa}</p></div>
-      <div class="impacto"><h4>Se a resposta for “não” (ou não for cumprida)</h4><ul>${e.impacto.map(i => `<li>${i}</li>`).join('')}</ul><h4>Como recuperar</h4><ul>${e.recupera.map(i => `<li>${i}</li>`).join('')}</ul></div>
-    </div>
-    ${ls.length ? `<div class="rolagem"><table class="tab"><thead><tr><th>Atividade</th><th>Início previsto</th><th>Resposta</th><th>Registro</th><th>Efeito</th></tr></thead><tbody>${linhas}</tbody></table></div>` : '<p class="apoio">Nenhuma atividade do plano passa por esta pergunta.</p>'}
+    ${pldFluxogramaEtapa(e, plano, i, { pergunta: esc(g.rot), sim, nao: 'NÃO · retorna' })}
+    ${ls.length ? `<div class="rolagem"><table class="tab"><thead><tr><th>Atividade</th><th>Início previsto</th><th>Resposta</th><th>Registro</th><th>Efeito</th></tr></thead><tbody>${linhas}</tbody></table></div>` : ''}
   </section>`;
 }
 function pldBlocoEtapa(fluxo, e, indice, c, itensEtapa) {
   if (PLD_ETAPA_PORTAO[e.id]) return pldBlocoPortao(fluxo, e, indice, c);
-  const st = pldStatusEtapa(itensEtapa);
-  const casos = itensEtapa.map(x => pldCartaoAtividade(x, c, pldEtapasDe(x).ids.map(id => pldEtapa(fluxo, id))));
+  const st = pldStatusEtapa(itensEtapa), plano = pldFluxoDoPlano(c)[fluxo];
+  const casos = itensEtapa.map(x => pldCartaoAtividade(x, c, []));
   return `<section class="etapa" id="${esc(fluxo + '-' + e.id)}">
     <div class="etapa-cab"><span class="num">${indice}</span><h3>${esc(e.nome)}</h3><span class="sel ${st.cls}">${st.rot}</span></div>
-    <div class="cols">
-      <div><h4>O que é</h4><p>${e.oque}</p><h4>Por que importa</h4><p>${e.importa}</p></div>
-      <div class="impacto"><h4>Se não alcançar o objetivo</h4><ul>${e.impacto.map(i => `<li>${i}</li>`).join('')}</ul><h4>Como recuperar</h4><ul>${e.recupera.map(i => `<li>${i}</li>`).join('')}</ul></div>
-    </div>
-    ${casos.length ? casos.join('') : `<p class="apoio">${esc('Esta etapa não tem atividade no plano selecionado.')}</p>`}
+    ${pldFluxogramaEtapa(e, plano, indice - 1, {})}
+    ${casos.join('')}
   </section>`;
 }
 
@@ -406,13 +418,21 @@ function pldFluxoDoPlano(c) {
 }
 function pldFluxoVisual(c) {
   const plano = pldFluxoDoPlano(c);
+  // atraso (dias úteis) que a etapa passa adiante: o maior entre suas atividades; nas etapas de portão, o bloqueio das atividades que retornam a ela
+  const atrasoEtapa = (fluxo, e) => {
+    const k = PLD_ETAPA_PORTAO[e.id];
+    const ls = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && (k ? pldPortaoEstado(x).estado === 'retorna' && pldPortaoEstado(x).g.k === k : m.ids.includes(e.id)); });
+    return Math.max(0, ...ls.map(x => pldAtraso(x, c.base).dias || 0));
+  };
   const bloco = fluxo => {
     const et = plano[fluxo];
     if (!et) return '';
-    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="chips">` + et.map((e, i) => {
+    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="fc-linha fc-cascata">` + et.map((e, i) => {
       const itens = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.includes(e.id); });
-      const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens);
-      return `<a href="#${esc(fluxo + '-' + e.id)}" class="chip ${st.cls}"><span>${i + 1}</span>${esc(e.nome)}<small>${st.rot}</small></a>${i < et.length - 1 ? '<i class="seta">›</i>' : ''}`;
+      const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens), d = atrasoEtapa(fluxo, e), prox = et[i + 1];
+      const cls = { ok: 'vd', alerta: 'am', ruim: 'vm', pend: 'cz', nd: 'cz' }[st.cls] || 'cz';
+      return `<div class="fc-col"><a href="#${esc(fluxo + '-' + e.id)}" class="fc-no ${cls} fc-link"><b>${i + 1} · ${esc(e.nome)}</b><span>${st.rot}</span></a>
+        ${d > 0 ? `${pldSetaV('', 'ruim')}${pldNo('vm fc-peq', `+${d} d.u.`, prox ? 'empurra ' + esc(prox.nome) : 'atrasa a entrega')}` : ''}</div>${i < et.length - 1 ? pldSeta() : ''}`;
     }).join('') + '</div></div>';
   };
   return bloco('galpao') + bloco('anexo');
@@ -482,15 +502,16 @@ function plDocHtml(pl) {
 <section><h2>3. Quadro das atividades</h2><div class="rolagem"><table class="tab"><thead><tr><th>Etapa do fluxo</th><th>Atividade</th><th>Período</th><th class="n">Quantidade</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Término projetado</th><th>Situação</th></tr></thead><tbody>${linhasTab}</tbody></table></div></section>
 
 <section><h2>4. Se o plano não for cumprido</h2>
-  <ul class="geral">
-    <li><b>Prazo e contrato:</b> o atraso das etapas a montante é repassado integralmente às seguintes (o fluxo é sequencial). Marcos de cobertura e de fechamento podem gerar multa contratual e pressão do cliente.</li>
-    <li><b>Medição (BM) e caixa:</b> atividade não concluída ou sem evidência (checklist, apontamento, fotos) não é medida; o faturamento é adiado.</li>
-    <li><b>Custo:</b> equipes, guindastes, andaimes e supervisão ficam mobilizados por mais tempo; trabalho ocioso é custo sem produção.</li>
-    <li><b>Qualidade e segurança:</b> recuperar prazo com pressa aumenta retrabalho, trabalho em altura sem planejamento e risco de acidente — a recuperação deve ser por mais recurso e melhor sequência, não por pular conferências.</li>
-    <li><b>Clima:</b> cobertura aberta por mais tempo aumenta a exposição à chuva e ao vento, com danos a materiais e ao interior.</li>
-  </ul>${atrasoPlano ? `<p class="alerta-box">No ritmo atual o plano passa ${atrasoPlano} dia(s) útil(eis) do prazo. Priorize as etapas atrasadas mais a montante do fluxo (gargalo acima).</p>` : ''}</section>
+  <div class="fc"><div class="fc-linha fc-wrap">${pldNo('vm fc-principal', 'PLANO NÃO CUMPRIDO', atrasoPlano ? `+${atrasoPlano} d.u. no ritmo atual (termina ${fdA(c.terminaEm)})` : 'atraso das etapas a montante')}${pldSeta('', 'ruim')}
+    ${pldNo('vm', '⏱ PRAZO E CONTRATO', 'atraso repassado às etapas seguintes; multa e pressão do cliente nos marcos de cobertura e fechamento')}
+    ${pldNo('vm', '📄 MEDIÇÃO (BM) E CAIXA', 'sem conclusão e evidência (checklist, apontamento, fotos) não há medição; faturamento adiado')}
+    ${pldNo('vm', '💲 CUSTO', 'equipes, guindastes, andaimes e supervisão mobilizados por mais tempo')}
+    ${pldNo('vm', '✔ QUALIDADE E SEGURANÇA', 'pressa gera retrabalho e trabalho em altura sem planejamento')}
+    ${pldNo('vm', '🌧 CLIMA', 'cobertura aberta por mais tempo: chuva e vento sobre material e interior')}</div>
+    ${pldSetaV('ação')}
+    <div class="fc-linha fc-wrap">${pldNo('am', '↻ RECUPERAR', 'mais recurso e melhor sequência — nunca pular conferências')}${pldSeta()}${pldNo('az', 'PRIORIZAR', 'etapas atrasadas mais a montante do fluxo (gargalo acima)')}</div></div></section>
 
-<h2 class="grande">5. Etapas do plano explicadas, com o impacto de não alcançar o objetivo</h2>
+<h2 class="grande">5. Fluxograma de cada etapa do plano: decisão, impactos e recuperação</h2>
 ${secao('galpao')}
 ${secao('anexo')}
 ${semEtapa.length ? `<section class="etapa"><div class="etapa-cab"><span class="num">+</span><h3>Outras atividades do plano (fora do fluxo padrão)</h3></div><p class="nota">Não foram associadas a uma etapa do fluxo; o impacto vale o do fluxo geral descrito na seção 4.</p>${semEtapa.map(x => pldCartaoAtividade(x, c, [])).join('')}</section>` : ''}
@@ -521,6 +542,19 @@ p{margin:4px 0}.mini{font-size:12px;color:var(--fg2)}.nota{color:var(--fg2);font
 .barra{position:relative;height:10px;background:#e5e9f0;border-radius:6px;margin:8px 0 2px;overflow:hidden}.barra span{position:absolute;left:0;top:0;height:100%}.barra .plan{background:#bfdbfe}.barra .real{height:50%;top:25%;border-radius:6px}.barra .real.st-verde{background:var(--ok)}.barra .real.st-amarelo{background:var(--al)}.barra .real.st-vermelho{background:var(--ru)}.barra .real.st-pendente{background:var(--pe)}
 .w5{width:100%;border-collapse:collapse;margin:6px 0;font-size:12.5px}.w5 th{text-align:left;color:var(--fg2);width:70px;vertical-align:top;padding:2px 6px 2px 0}.w5 td{padding:2px 12px 2px 0;vertical-align:top}
 .sit,.casc{border-radius:6px;padding:7px 10px;margin-top:6px}.sit.ok{background:#f0fdf4}.sit.alerta{background:#fffbeb}.sit.ruim{background:#fef2f2}.sit.pend{background:#f1f5f9}.casc{background:#eff6ff}
+.fc{margin:8px 0;padding:10px;background:#fbfcfe;border:1px solid var(--bd);border-radius:10px;break-inside:avoid}
+.fc-linha{display:flex;align-items:center;gap:4px}.fc-wrap{flex-wrap:wrap;align-items:stretch}.fc-baixo{margin-top:8px;padding-left:24px}
+.fc-no{border-radius:10px;padding:7px 10px;border:2px solid;background:#fff;font-size:12px;line-height:1.3;min-width:120px;max-width:260px}.fc-no b{display:block;font-size:12px}.fc-no span{display:block;color:var(--fg2);font-size:11.5px}
+.fc-principal{max-width:300px}.fc-peq{font-size:11px;min-width:110px;max-width:150px}.fc-link{text-decoration:none;color:inherit;display:block}
+.fc-no.az{border-color:#1d4ed8;background:#eff6ff}.fc-no.vd{border-color:#15803d;background:#f0fdf4}.fc-no.vm{border-color:#b91c1c;background:#fef2f2}.fc-no.am{border-color:#b45309;background:#fffbeb}.fc-no.cz{border-color:#94a3b8;background:#f1f5f9}
+.fc-dec{width:150px;height:92px;flex:none;position:relative;font-weight:700;font-size:12px;text-align:center}.fc-dec svg{position:absolute;inset:0;width:100%;height:100%}
+.fc-dec span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 30px}
+.fc-seta,.fc-setav{color:#64748b;text-align:center;line-height:1;flex:none}.fc-seta i{font-style:normal;font-size:18px}.fc-seta small,.fc-setav small{display:block;font-size:10px;font-weight:700}
+.fc-seta.ok small{color:var(--ok)}.fc-seta.ruim,.fc-setav.ruim{color:var(--ru)}.fc-seta.apagada{opacity:.35}
+.fc-setav{margin:4px 0 4px 20px;text-align:left}.fc-setav i{font-style:normal;font-size:18px}.fc-setav small{display:inline;margin-left:6px}
+.fc-rot{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--fg2);margin:4px 0 3px 4px}
+.fc-cascata{align-items:flex-start;flex-wrap:wrap;row-gap:10px}.fc-col{display:flex;flex-direction:column;align-items:flex-start}.fc-col .fc-setav{margin-left:40px}
+.fc-atv{background:#fff}
 .pergunta{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin:6px 0 8px}.lib{margin-top:6px;padding:6px 10px;border:1px dashed var(--bd);border-radius:6px;background:#fff}.lib-ruim{color:var(--ru);margin-top:4px}
 .pt{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600}.pt.ok{background:#dcfce7;color:#166534}.pt.ruim{background:#fee2e2;color:#991b1b}.pt.pend{background:#e2e8f0;color:#475569}.pt small{font-weight:400}
 .alerta-box ul{margin:4px 0}
