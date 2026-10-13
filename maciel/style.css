@@ -865,3 +865,10 @@ td.col-nova { padding: 3px 6px; }
 .pl-sug tr.pl-grp td { background: var(--pend-bg); padding: 8px; border-top: 2px solid var(--linha-forte); }
 #plSugTiles { margin-bottom: 14px; }
 .pl-sug + .nota, .bloco > .nota { margin: 0 0 8px; }
+
+/* Planejamento — aba Liberação do fluxo (material · descarga · checklist) */
+.pl-lib td{vertical-align:top}.pl-lib-na{color:var(--fg3);font-size:.85em}
+.pl-lib-cel{white-space:nowrap}.pl-lib-cel .nota{white-space:normal}
+.pl-lib-bt{padding:3px 12px;margin-right:4px}
+.pl-lib-bt.sim{background:var(--verde);border-color:var(--verde);color:#fff}
+.pl-lib-bt.nao{background:var(--vermelho);border-color:var(--vermelho);color:#fff}

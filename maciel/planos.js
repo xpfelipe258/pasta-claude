@@ -8,7 +8,7 @@
 // ganBmAtividadesEspecificas, diaUtil, add, contarDiasUteis, trocarGrafico, eixos, cor, nf, fd, fdA, esc, cap, toast, postar.
 // ------------------------------------------------------------------------------------------------
 const PL = { dados: null, carregando: false, sub: 'sug', sug: { preset: 'semana', ini: null, fim: null, grupo: 'atividade', concl: false, sel: null }, sel: null, vista: 'resumo', atv: '', dia: 'original', wiz: null, _atv: null };
-const PL_ABAS = [['resumo', 'Resumo'], ['dia', 'Dia a dia'], ['gantt', 'Gantt'], ['linha', 'Linha do tempo'], ['w5', '5W2H']];
+const PL_ABAS = [['resumo', 'Resumo'], ['dia', 'Dia a dia'], ['gantt', 'Gantt'], ['linha', 'Linha do tempo'], ['w5', '5W2H'], ['lib', 'Liberação do fluxo']];
 const PL_COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'NO LIMITE': 'amarelo', 'ATRASADO': 'vermelho', 'A INICIAR': 'pendente' };
 const PL_HEX = { verde: '--verde', amarelo: '--amarelo', vermelho: '--vermelho', pendente: '--fg3' };
 
@@ -387,7 +387,7 @@ function plRenderPainel() {
 function plRenderCorpo(pl, c) {
   const box = $('#plCorpo');
   if (!box) return;
-  ({ resumo: plResumo, dia: plDiaADia, gantt: plGantt, linha: plLinha, w5: plW5 })[PL.vista](pl, c, box);
+  ({ resumo: plResumo, dia: plDiaADia, gantt: plGantt, linha: plLinha, w5: plW5, lib: plLiberacao })[PL.vista](pl, c, box);
   requestAnimationFrame(syncScrollTopo);
 }
 

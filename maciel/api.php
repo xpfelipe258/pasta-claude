@@ -1587,6 +1587,33 @@ function plano_data($v, $rotulo, $obrigatoria = false)
 
 // Cria, altera ou exclui um plano 5W2H. O plano guarda o período, as atividades e o 5W2H de cada uma; o realizado,
 // a curva S, o que falta e a divisão por dia são calculados na tela a partir da produção lançada.
+// Portões do fluxo (material chegou? descarregado? checklist?): 'sim' prossegue, 'nao' retorna.
+// Data/hora e autor são carimbados aqui (horário de Brasília) quando a resposta muda.
+function plano_portoes($novo, $antigo, $agora, $quem)
+{
+    $saida = [];
+    if (!is_array($novo)) {
+        return $saida;
+    }
+    foreach (['material', 'descarga', 'checklist'] as $g) {
+        $n = is_array($novo[$g] ?? null) ? $novo[$g] : [];
+        $r = (string)($n['r'] ?? '');
+        if ($r !== 'sim' && $r !== 'nao') {
+            continue;
+        }
+        $a = is_array($antigo[$g] ?? null) ? $antigo[$g] : [];
+        $mudou = (string)($a['r'] ?? '') !== $r || empty($a['em']);
+        $saida[$g] = [
+            'r' => $r,
+            'em' => $mudou ? $agora : (string)$a['em'],
+            'por' => $mudou ? $quem : (string)($a['por'] ?? $quem),
+            'prev' => $r === 'nao' ? plano_data($n['prev'] ?? '', 'a previsão de chegada', false) : null,
+            'obs' => plano_texto($n['obs'] ?? '', 200),
+        ];
+    }
+    return $saida;
+}
+
 function acao_planos(array $corpo, array $usuario)
 {
     $doc = planos_ler();
@@ -1616,6 +1643,16 @@ function acao_planos(array $corpo, array $usuario)
     if ($fim < $ini) {
         throw new ErroValidacao('O fim do período não pode ser antes do início.');
     }
+    $agoraBrt = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i');
+    $quemPortao = (string)($usuario['nome'] ?? $usuario['login'] ?? '');
+    $itensAntigos = [];
+    foreach ($doc['planos'] as $ex) {
+        if ((string)($ex['id'] ?? '') === (string)($p['id'] ?? '') && ($p['id'] ?? '') !== '') {
+            foreach (($ex['itens'] ?? []) as $ei) {
+                $itensAntigos[(string)($ei['chave'] ?? '')] = $ei['portoes'] ?? [];
+            }
+        }
+    }
     $itens = [];
     foreach (($p['itens'] ?? []) as $k => $it) {
         if (!is_array($it)) {
@@ -1644,6 +1681,7 @@ function acao_planos(array $corpo, array $usuario)
             'o_que' => plano_texto($it['o_que'] ?? ''), 'por_que' => plano_texto($it['por_que'] ?? ''), 'onde' => plano_texto($it['onde'] ?? ''),
             'quem' => plano_texto($it['quem'] ?? ''), 'como' => plano_texto($it['como'] ?? ''),
             'custo' => numero($it['custo'] ?? null), 'meta_dia' => (($m = numero($it['meta_dia'] ?? null)) !== null && $m > 0) ? $m : null, 'obs' => plano_texto($it['obs'] ?? ''),
+            'portoes' => plano_portoes($it['portoes'] ?? [], $itensAntigos[$chave] ?? [], $agoraBrt, $quemPortao),
         ];
         if (count($itens) > 300) {
             throw new ErroValidacao('Máximo de 300 atividades por plano.');

@@ -68,46 +68,47 @@ const PLD_FLUXOS = {
         impacto: ['<b>Prazo/contrato:</b> marco contratual da cobertura; atraso gera multa, pressão do cliente e atrasa as disciplinas internas.',
           '<b>Qualidade:</b> obra exposta à chuva danifica pisos e equipamentos e gera infiltração.', '<b>Cascata:</b> calhas, rufos e acabamentos dependem das telhas.'],
         recupera: ['Aumentar equipes e frentes de telhamento, mantendo a perfilação adiantada.', 'Trabalhar por água completa para entregar trechos já estanques.', 'Planejar janelas de clima e plano de contingência contra chuva.'] },
-      { id: 'g10', nome: 'Instalação de suporte do fechamento lateral',
-        oque: 'Fixação na estrutura dos suportes (consoles/mãos-francesas) que sustentam as terças do fechamento lateral.',
-        importa: 'O alinhamento dos suportes define o prumo do fechamento inteiro; erro aqui aparece nas telhas laterais.',
-        impacto: ['<b>Prazo:</b> as terças do fechamento não têm onde ser fixadas.', '<b>Qualidade:</b> suportes fora de prumo geram fachada ondulada e retrabalho nas telhas.',
-          '<b>Custo:</b> refazer suporte já com terça montada é caro e lento.'],
-        recupera: ['Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa, conferindo prumo a cada trecho.'] },
-      { id: 'g11', nome: 'Terças do fechamento lateral',
-        oque: 'Montagem das terças horizontais do fechamento lateral sobre os suportes, que recebem as telhas das fachadas.',
-        importa: 'É a estrutura secundária da fachada: sem ela as telhas laterais não têm fixação.',
-        impacto: ['<b>Prazo:</b> bloqueia as telhas do fechamento lateral e a vedação das fachadas.', '<b>Qualidade:</b> terças desalinhadas comprometem estanqueidade e aparência.',
-          '<b>Cascata:</b> fachada aberta expõe o interior ao vento e à chuva.'],
-        recupera: ['Montar na sequência dos suportes, por trecho de fachada.', 'Reforçar a equipe de fechamento lateral se o telhamento da cobertura liberar pessoal.'] },
-      { id: 'g12', nome: 'Vigas das marquises',
+      { id: 'g10', nome: 'Suporte e terças do fechamento lateral',
+        oque: 'Instalação dos suportes (consoles/mãos-francesas) na estrutura e montagem das terças horizontais do fechamento lateral sobre eles; as duas etapas andam juntas e formam a estrutura que recebe as telhas das fachadas.',
+        importa: 'O alinhamento dos suportes define o prumo de todo o fechamento, e as terças são a fixação das telhas laterais: erro aqui aparece na fachada inteira.',
+        impacto: ['<b>Prazo:</b> bloqueia as telhas do fechamento lateral e a vedação das fachadas.',
+          '<b>Qualidade:</b> suportes fora de prumo e terças desalinhadas geram fachada ondulada, retrabalho nas telhas e infiltração.',
+          '<b>Custo:</b> refazer suporte já com terça montada é caro e lento; fachada aberta expõe o interior ao vento e à chuva.'],
+        recupera: ['Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa, conferindo prumo a cada trecho, com suporte e terça na mesma sequência.', 'Reforçar a equipe de fechamento lateral se o telhamento da cobertura liberar pessoal.'] },
+      { id: 'g11', nome: 'Vigas das marquises',
         oque: 'Montagem das vigas principais das marquises (em balanço), que recebem as terças e as telhas da marquise.',
         importa: 'É o apoio de toda a marquise; estrutura em balanço exige travamento e fixação corretos.',
         impacto: ['<b>Prazo:</b> terças e telhas da marquise não podem começar.', '<b>Segurança/qualidade:</b> viga em balanço sem os travamentos completos é instável.',
           '<b>Contrato:</b> a marquise costuma ser marco de fachada/entrada visto pelo cliente.'],
         recupera: ['Programar o equipamento de içamento específico para as marquises.', 'Concluir travamento e torque logo após o posicionamento.'] },
-      { id: 'g13', nome: 'Telhas do fechamento lateral',
+      { id: 'g12', nome: 'Telhas do fechamento lateral',
         oque: 'Instalação das telhas das fachadas laterais, em m².',
         importa: 'Fecha o galpão lateralmente, dá estanqueidade e define a imagem final da fachada.',
         impacto: ['<b>Prazo/contrato:</b> marco de fechamento; atraso mantém a obra aberta e libera tarde as disciplinas internas.', '<b>Qualidade:</b> exposição ao tempo e ao vento antes do fechamento.',
           '<b>Custo:</b> permanência prolongada de andaimes/plataformas e equipes.'],
         recupera: ['Concentrar equipes por fachada completa.', 'Manter perfilação e entrega de telhas laterais adiantadas.'] },
-      { id: 'g14', nome: 'Calha da cobertura',
-        oque: 'Instalação das calhas da cobertura (e da marquise), conectadas às descidas de água pluvial.',
+      { id: 'g13', nome: 'Calha da cobertura',
+        oque: 'Instalação das calhas da cobertura principal, conectadas às descidas de água pluvial.',
         importa: 'Garante o escoamento da água e a estanqueidade da cobertura; é condição para entregar a obra sem pendências.',
         impacto: ['<b>Qualidade:</b> água sem destino correto causa infiltração, manchas e corrosão.', '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega do trecho coberto.',
           '<b>Cascata:</b> rufos e arremates dependem das calhas posicionadas.'],
         recupera: ['Instalar as calhas logo após cada trecho de telhas.', 'Confirmar material (calha, suporte, vedação) no Estoque antes de iniciar.'] },
-      { id: 'g15', nome: 'Montagem de terças da marquise',
+      { id: 'g14', nome: 'Montagem de terças da marquise',
         oque: 'Pré-montagem e montagem das terças da marquise sobre as vigas, que recebem as telhas.',
         importa: 'Estrutura secundária da marquise; define alinhamento e caimento da cobertura da marquise.',
-        impacto: ['<b>Prazo:</b> impede a montagem das telhas da marquise.', '<b>Qualidade:</b> terças fora de nível comprometem o caimento e a drenagem.', '<b>Cascata:</b> calhas e testeira da marquise também ficam travadas.'],
+        impacto: ['<b>Prazo:</b> impede a montagem das telhas da marquise.', '<b>Qualidade:</b> terças fora de nível comprometem o caimento e a drenagem.', '<b>Cascata:</b> telhas, calha e testeira da marquise também ficam travadas.'],
         recupera: ['Pré-montar as terças em solo enquanto as vigas são instaladas.', 'Liberar a marquise por trechos completos.'] },
-      { id: 'g16', nome: 'Montagem de telhas da marquise',
+      { id: 'g15', nome: 'Montagem de telhas da marquise',
         oque: 'Instalação das telhas da marquise, em m².',
         importa: 'Conclui a cobertura da marquise, protegendo entradas e acessos.',
-        impacto: ['<b>Prazo/contrato:</b> acesso e fachada principais ficam sem proteção e sem fechamento.', '<b>Qualidade:</b> infiltração nas interfaces com a fachada.', '<b>Cascata:</b> impede calhas, testeira e rufos da marquise.'],
+        impacto: ['<b>Prazo/contrato:</b> acesso e fachada principais ficam sem proteção e sem fechamento.', '<b>Qualidade:</b> infiltração nas interfaces com a fachada.', '<b>Cascata:</b> impede a calha, a testeira e os rufos da marquise.'],
         recupera: ['Antecipar perfilação das telhas da marquise.', 'Usar a equipe de telhas da cobertura assim que liberada.'] },
+      { id: 'g16', nome: 'Calha da marquise',
+        oque: 'Instalação da calha da marquise e da descida de água pluvial correspondente, depois de montadas as telhas da marquise.',
+        importa: 'Dá destino à água da marquise, que cobre acessos e circulação de pessoas; sem calha a água cai sobre a entrada.',
+        impacto: ['<b>Qualidade:</b> água descendo sem controle na entrada/fachada, manchas, corrosão e infiltração na interface com a parede.', '<b>Segurança:</b> piso molhado e escorregadio em área de circulação.',
+          '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega da marquise; testeira e rufos dependem da calha posicionada.'],
+        recupera: ['Instalar a calha logo após cada trecho de telhas da marquise.', 'Conferir antes o material (calha, suportes, descida) e a declividade.', 'Alinhar com o acabamento da fachada para fechar a interface de uma vez.'] },
       { id: 'g17', nome: 'Rufos e acabamentos',
         oque: 'Instalação de rufos, arremates, testeiras e calafetação — o acabamento que fecha todas as interfaces e garante a estanqueidade final.',
         importa: 'É a última etapa e a que segura o aceite: reúne as pendências finais e a vedação das interfaces.',
@@ -167,12 +168,12 @@ const PLD_ORDEM = { galpao: PLD_FLUXOS.galpao.etapas.map(e => e.id), anexo: PLD_
 // Regras de enquadramento: o nome da atividade do cronograma → etapa(s) do fluxo. A primeira regra que combinar vale.
 const PLD_REGRAS = {
   galpao: [
-    [/MARQUISE.*VIGAS/, ['g12']], [/MARQUISE.*TERCAS/, ['g15']], [/MARQUISE.*TELHAS/, ['g16']], [/MARQUISE.*CALHAS/, ['g14']],
+    [/MARQUISE.*VIGAS/, ['g11']], [/MARQUISE.*TERCAS/, ['g14']], [/MARQUISE.*TELHAS/, ['g15']], [/MARQUISE.*CALHAS/, ['g16']],
     [/MARQUISE.*(TESTEIRA|RUFO|ARREMATE)/, ['g17']],
-    [/FECH.*LATERAL.*ESTRUTURA/, ['g10', 'g11']], [/FECH.*LATERAL.*TERCAS/, ['g11']], [/FECH.*LATERAL.*SUPORTE/, ['g10']], [/^FECHAMENTO|FECH.*LATERAL/, ['g13']],
+    [/FECH.*LATERAL.*(ESTRUTURA|TERCAS|SUPORTE)/, ['g10']], [/^FECHAMENTO|FECH.*LATERAL/, ['g12']],
     [/CONTRAVENT/, ['g6']], [/CHECKLIST|CHECK LIST/, ['g7']],
     [/PREMONT|PRE MONT/, ['g3']], [/VIGAS/, ['g4']], [/ICAMENTO|JOIST/, ['g5']],
-    [/PERFILACAO/, ['g8']], [/TELHAR|TELHAS/, ['g9']], [/CALHAS/, ['g14']], [/ARREMATES|RUFOS/, ['g17']],
+    [/PERFILACAO/, ['g8']], [/TELHAR|TELHAS/, ['g9']], [/CALHAS/, ['g13']], [/ARREMATES|RUFOS/, ['g17']],
   ],
   anexo: [
     [/PLATIBANDA.*TELHAS|FECHAMENTO ACM/, ['a6']], [/PLATIBANDA/, ['a5']],
@@ -189,6 +190,65 @@ function pldEtapasDe(x) {
 }
 const pldEtapa = (fluxo, id) => PLD_FLUXOS[fluxo].etapas.find(e => e.id === id);
 
+// ---------------------------------------------------------------- portões do fluxo (perguntas de liberação)
+// Chegada de material, descarregamento e checklist não têm linha no cronograma: viram perguntas feitas a cada atividade.
+// Sim = prossegue para a próxima pergunta/etapa; Não = RETORNA para aquela etapa e a atividade fica bloqueada até virar Sim.
+// Resposta gravada por atividade em it.portoes[k] = { r: 'sim'|'nao', em, por, prev (previsão, quando "não"), obs }.
+const PLD_PORTOES = [
+  { k: 'material', etapa: { galpao: 'g1', anexo: 'a1' }, rot: 'Material chegou?', pergunta: 'O material desta atividade chegou à obra?', nao: 'Retorna para “Chegada de material”: aguardando o material' },
+  { k: 'descarga', etapa: { galpao: 'g2', anexo: 'a2' }, rot: 'Foi descarregado?', pergunta: 'O material foi descarregado e conferido?', nao: 'Retorna para “Descarregamento”: aguardando a descarga e a conferência' },
+  { k: 'checklist', etapa: { galpao: 'g7' }, rot: 'Checklist aprovado?', pergunta: 'O checklist da estrutura foi realizado e aprovado?', nao: 'Retorna para “Checklist”: aguardando a verificação e a aprovação' },
+];
+const PLD_ETAPA_PORTAO = { g1: 'material', a1: 'material', g2: 'descarga', a2: 'descarga', g7: 'checklist' };
+const pldPortaoR = (x, k) => x.it.portoes?.[k]?.r || '';
+// perguntas que valem para a atividade: material e descarga para todas; checklist só para o que vem depois dele no fluxo do galpão
+function pldPortoesDe(x) {
+  const m = pldEtapasDe(x), ordem = PLD_ORDEM[m.fluxo], pos = m.ids.length ? ordem.indexOf(m.ids[0]) : -1;
+  return PLD_PORTOES.filter(g => g.etapa[m.fluxo] && (g.k !== 'checklist' || (m.fluxo === 'galpao' && pos > ordem.indexOf('g7'))));
+}
+function pldPortaoEstado(x) {
+  if (x.status === 'CONCLUÍDO') return { estado: 'concluida', rot: 'concluída', cls: 'ok' };
+  const m = pldEtapasDe(x);
+  for (const g of pldPortoesDe(x)) {
+    const r = pldPortaoR(x, g.k), etapa = pldEtapa(m.fluxo, g.etapa[m.fluxo]);
+    if (r === 'nao') return { estado: 'retorna', g, etapa, rot: 'retorna', cls: 'ruim', prev: x.it.portoes[g.k].prev || null };
+    if (r !== 'sim') return { estado: 'pendente', g, etapa, rot: 'a confirmar', cls: 'pend' };
+  }
+  return { estado: 'liberada', rot: 'liberada', cls: 'ok' };
+}
+// situação de uma etapa de portão (Chegada de material / Descarregamento / Checklist) somando as respostas das atividades
+function pldStatusPortao(fluxo, k, c) {
+  const ls = c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo && x.status !== 'CONCLUÍDO' && pldPortoesDe(x).some(g => g.k === k));
+  if (!ls.length) return { rot: 'sem atividades', cls: 'nd' };
+  const ordem = PLD_PORTOES.map(g => g.k), considera = x => pldPortoesDe(x).filter(g => ordem.indexOf(g.k) < ordem.indexOf(k)).every(g => pldPortaoR(x, g.k) === 'sim');
+  const nao = ls.filter(x => pldPortaoR(x, k) === 'nao').length;
+  if (nao) return { rot: `retorna (${nao})`, cls: 'ruim' };
+  const aptas = ls.filter(considera);
+  if (!aptas.length) return { rot: 'aguarda etapa anterior', cls: 'pend' };
+  return aptas.length === ls.length && aptas.every(x => pldPortaoR(x, k) === 'sim') ? { rot: 'liberado', cls: 'ok' } : { rot: 'a confirmar', cls: 'pend' };
+}
+// dias úteis de bloqueio sobre o início previsto (previsão informada na resposta "não"; sem previsão, do início previsto até a referência)
+function pldBloqueioDias(x, est, baseRef) {
+  const ini = x.it.inicio;
+  if (est.prev) return est.prev > ini ? contarDiasUteis(ini, est.prev) : 0;
+  return ini < baseRef ? contarDiasUteis(ini, baseRef) : 0;
+}
+function pldTextoBloqueio(x, est, c) {
+  const it = x.it, d = pldBloqueioDias(x, est, c.baseRef);
+  let t = `${est.g.nao}. A atividade não pode iniciar (nem continuar) até a resposta virar “sim”.`;
+  if (est.prev) t += d ? ` Previsão informada: ${fdA(est.prev)} — ${d} dia(s) útil(eis) depois do início previsto (${fdA(it.inicio)}); sem recuperar produtividade, o fim previsto vai de ${fdA(it.fim)} para ${fdA(somarDiasUteis(it.fim, d))}.` : ` Previsão informada: ${fdA(est.prev)} — ainda dentro do início previsto (${fdA(it.inicio)}).`;
+  else t += it.inicio <= c.baseRef ? ` O início previsto (${fdA(it.inicio)}) já chegou e não há previsão informada: cada dia parado é atraso direto.` : ` Não há previsão informada; início previsto em ${fdA(it.inicio)}.`;
+  return t;
+}
+// linha “✓ material → ✓ descarregado → ✗ checklist” de uma atividade
+function pldLinhaPortoes(x) {
+  const m = pldEtapasDe(x);
+  return pldPortoesDe(x).map(g => {
+    const r = pldPortaoR(x, g.k), rg = x.it.portoes?.[g.k];
+    return `<span class="pt ${r === 'sim' ? 'ok' : r === 'nao' ? 'ruim' : 'pend'}">${r === 'sim' ? '✓' : r === 'nao' ? '✗' : '?'} ${esc(g.rot)}${rg?.em ? ` <small>${esc(fdA(rg.em.slice(0, 10)))}</small>` : ''}</span>`;
+  }).join('<i class="seta">›</i>');
+}
+
 // ---------------------------------------------------------------- situação por etapa (pior caso entre as atividades)
 const PLD_PESO_ST = { 'ATRASADO': 4, 'NO LIMITE': 3, 'A INICIAR': 2, 'NO PRAZO': 1, 'ADIANTADO': 1, 'CONCLUÍDO': 0 };
 function pldStatusEtapa(itens) {
@@ -202,6 +262,11 @@ function pldStatusEtapa(itens) {
 function pldAtraso(x, base) {
   const it = x.it;
   if (x.status === 'CONCLUÍDO') return { dias: 0, proj: x.concluiu || null };
+  const est = pldPortaoEstado(x);
+  if (est.estado === 'retorna') {            // bloqueada por material/descarga/checklist: o fim desloca o que o bloqueio já custou
+    const d = pldBloqueioDias(x, est, base);
+    if (d > 0) return { dias: d, proj: somarDiasUteis(it.fim, d), bloqueada: true };
+  }
   const proj = x.terminaRitmo;
   if (proj && proj > it.fim) return { dias: contarDiasUteis(it.fim, proj), proj };
   if (!proj && base > it.fim && x.falta > 0) return { dias: contarDiasUteis(it.fim, base), proj: null, vencida: true };
@@ -266,7 +331,7 @@ function pldCurvaSvg(c) {
 
 // ---------------------------------------------------------------- montagem do documento
 function pldCartaoAtividade(x, c, etapas) {
-  const it = x.it, un = it.unidade, sit = pldTextoSituacao(x, c), casc = pldTextoCascata(x, c);
+  const it = x.it, un = it.unidade, sit = pldTextoSituacao(x, c), casc = pldTextoCascata(x, c), est = pldPortaoEstado(x);
   const mult = etapas.length > 1 ? `<p class="mini">Esta atividade do cronograma cobre as etapas: ${etapas.map(e => esc(e.nome)).join(' + ')}.</p>` : '';
   return `<div class="atv">
     <div class="atv-cab"><div><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))} · ${fdA(it.inicio)} a ${fdA(it.fim)} · ${plFmt(it.qtd, un)} ${esc(un)} · meta ${plFmtTaxa(x.meta)} ${esc(un)}/dia${it.quem || it.empresa ? ' · ' + esc(it.quem || it.empresa) : ''}</div></div>
@@ -276,22 +341,49 @@ function pldCartaoAtividade(x, c, etapas) {
     ${mult}
     ${it.o_que || it.por_que || it.como ? `<table class="w5"><tr>${it.o_que ? `<th>O quê</th><td>${esc(it.o_que)}</td>` : ''}${it.por_que ? `<th>Por quê</th><td>${esc(it.por_que)}</td>` : ''}</tr>
       <tr>${it.onde ? `<th>Onde</th><td>${esc(it.onde)}</td>` : ''}${it.como ? `<th>Como</th><td>${esc(it.como)}</td>` : ''}</tr></table>` : ''}
+    ${pldPortoesDe(x).length ? `<div class="lib"><b>Liberação do fluxo:</b> ${pldLinhaPortoes(x)}${est.estado === 'retorna' ? `<div class="lib-ruim">${pldTextoBloqueio(x, est, c)}</div>` : est.estado === 'pendente' ? `<div class="mini">Pergunta a confirmar: ${esc(est.g.pergunta)}</div>` : ''}</div>` : ''}
     <div class="sit ${sit.cls}"><b>Situação hoje:</b> ${sit.txt}</div>
     ${casc ? `<div class="casc"><b>Efeito em cascata:</b> ${casc}</div>` : ''}
   </div>`;
 }
 
+function pldBlocoPortao(fluxo, e, indice, c) {
+  const g = PLD_PORTOES.find(q => q.k === PLD_ETAPA_PORTAO[e.id]), st = pldStatusPortao(fluxo, g.k, c), ordem = PLD_PORTOES.map(q => q.k);
+  const ls = c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo && pldPortoesDe(x).some(q => q.k === g.k))
+    .sort((a, b2) => a.it.inicio.localeCompare(b2.it.inicio) || a.it.atividade.localeCompare(b2.it.atividade));
+  const prox = g.k === 'material' ? 'a pergunta seguinte (“foi descarregado?”)' : g.k === 'descarga' ? (fluxo === 'galpao' ? 'a atividade (e, nas etapas após o checklist, a pergunta do checklist)' : 'a atividade') : 'a atividade da cobertura';
+  const linhas = ls.map(x => {
+    const r = pldPortaoR(x, g.k), rg = x.it.portoes?.[g.k], ant = pldPortoesDe(x).filter(q => ordem.indexOf(q.k) < ordem.indexOf(g.k)).every(q => pldPortaoR(x, q.k) === 'sim');
+    let res, efeito = '';
+    if (x.status === 'CONCLUÍDO') res = '<span class="sel ok">concluída</span>';
+    else if (!ant) res = '<span class="sel nd">aguarda etapa anterior</span>';
+    else if (r === 'sim') res = '<span class="sel ok">sim — prossegue</span>';
+    else if (r === 'nao') { res = '<span class="sel ruim">não — retorna</span>'; efeito = pldTextoBloqueio(x, pldPortaoEstado(x), c); }
+    else res = '<span class="sel pend">a confirmar</span>';
+    return `<tr><td><b>${esc(x.it.atividade)}</b><div class="mini">${esc(cap(x.it.frente))}</div></td><td>${fdA(x.it.inicio)}</td><td>${res}</td>
+      <td class="mini">${rg?.em ? esc(fdA(rg.em.slice(0, 10))) + ' ' + esc(rg.em.slice(11)) + (rg.por ? ' · ' + esc(rg.por) : '') : '—'}</td><td class="mini">${efeito ? efeito : '—'}</td></tr>`;
+  }).join('');
+  return `<section class="etapa" id="${esc(fluxo + '-' + e.id)}">
+    <div class="etapa-cab"><span class="num">${indice}</span><h3>${esc(e.nome)}</h3><span class="sel ${st.cls}">${st.rot}</span></div>
+    <div class="pergunta"><b>Pergunta de controle:</b> ${esc(g.pergunta)}<br><b>Sim</b> → prossegue para ${prox}. <b>Não</b> → <b>retorna</b> a esta etapa: a atividade fica bloqueada até a resposta virar “sim”.</div>
+    <div class="cols">
+      <div><h4>O que é</h4><p>${e.oque}</p><h4>Por que importa</h4><p>${e.importa}</p></div>
+      <div class="impacto"><h4>Se a resposta for “não” (ou não for cumprida)</h4><ul>${e.impacto.map(i => `<li>${i}</li>`).join('')}</ul><h4>Como recuperar</h4><ul>${e.recupera.map(i => `<li>${i}</li>`).join('')}</ul></div>
+    </div>
+    ${ls.length ? `<div class="rolagem"><table class="tab"><thead><tr><th>Atividade</th><th>Início previsto</th><th>Resposta</th><th>Registro</th><th>Efeito</th></tr></thead><tbody>${linhas}</tbody></table></div>` : '<p class="apoio">Nenhuma atividade do plano passa por esta pergunta.</p>'}
+  </section>`;
+}
 function pldBlocoEtapa(fluxo, e, indice, c, itensEtapa) {
+  if (PLD_ETAPA_PORTAO[e.id]) return pldBlocoPortao(fluxo, e, indice, c);
   const st = pldStatusEtapa(itensEtapa);
   const casos = itensEtapa.map(x => pldCartaoAtividade(x, c, pldEtapasDe(x).ids.map(id => pldEtapa(fluxo, id))));
-  const compartilhada = !itensEtapa.length && PLD_REGRAS[fluxo] && c.itens.some(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.length > 1 && m.ids.includes(e.id); });
   return `<section class="etapa" id="${esc(fluxo + '-' + e.id)}">
     <div class="etapa-cab"><span class="num">${indice}</span><h3>${esc(e.nome)}</h3><span class="sel ${st.cls}">${st.rot}</span></div>
     <div class="cols">
       <div><h4>O que é</h4><p>${e.oque}</p><h4>Por que importa</h4><p>${e.importa}</p></div>
       <div class="impacto"><h4>Se não alcançar o objetivo</h4><ul>${e.impacto.map(i => `<li>${i}</li>`).join('')}</ul><h4>Como recuperar</h4><ul>${e.recupera.map(i => `<li>${i}</li>`).join('')}</ul></div>
     </div>
-    ${casos.length ? casos.join('') : `<p class="apoio">${compartilhada ? 'Executada junto com a etapa anterior (mesma atividade no cronograma — veja o cartão acima).' : (e.apoio || 'Esta etapa não tem atividade no plano selecionado.')}</p>`}
+    ${casos.length ? casos.join('') : `<p class="apoio">${esc('Esta etapa não tem atividade no plano selecionado.')}</p>`}
   </section>`;
 }
 
@@ -300,13 +392,19 @@ function pldFluxoVisual(c) {
     const et = PLD_FLUXOS[fluxo].etapas;
     return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)}</h4><div class="chips">` + et.map((e, i) => {
       const itens = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.includes(e.id); });
-      const st = pldStatusEtapa(itens);
+      const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens);
       return `<a href="#${esc(fluxo + '-' + e.id)}" class="chip ${st.cls}"><span>${i + 1}</span>${esc(e.nome)}<small>${st.rot}</small></a>${i < et.length - 1 ? '<i class="seta">›</i>' : ''}`;
     }).join('') + '</div></div>';
   };
   return bloco('galpao') + bloco('anexo');
 }
 
+function pldBloqueios(c) {
+  // causa-raiz: atividades que RETORNAM a Chegada de material / Descarregamento / Checklist (etapas mais a montante do fluxo)
+  const l = c.itens.map(x => ({ x, est: pldPortaoEstado(x) })).filter(o => o.est.estado === 'retorna');
+  if (!l.length) return '';
+  return `<div class="alerta-box"><b>Atividades bloqueadas (retornam no fluxo):</b><ul>${l.map(({ x, est }) => { const d = pldBloqueioDias(x, est, c.baseRef); return `<li><b>${esc(x.it.atividade)}</b> — ${esc(est.g.nao.replace(/^Retorna para /, 'retorna para '))}${d ? ` (${d} dia(s) útil(eis) de bloqueio sobre o início previsto)` : ''}</li>`; }).join('')}</ul>Resolver primeiro: o que está nestas etapas segura todas as seguintes.</div>`;
+}
 function pldGargalo(c) {
   // causa-raiz: em cada fluxo, a atividade atrasada mais a montante (as etapas seguintes só se recuperam depois dela)
   return ['galpao', 'anexo'].map(fluxo => {
@@ -350,11 +448,11 @@ function plDocHtml(pl) {
     <div><span>Atividades atrasadas</span><b class="${c.atrasadas ? 'ruim-t' : ''}">${c.atrasadas}/${pl.itens.length}</b></div>
     <div><span>Término no ritmo atual</span><b>${c.terminaEm ? fdA(c.terminaEm) : c.pctReal >= 100 ? 'concluído' : '—'}</b></div>
   </div>
-  <p class="parecer">${parecer}</p>${pldGargalo(c)}
+  <p class="parecer">${parecer}</p>${pldBloqueios(c)}${pldGargalo(c)}
 </header>
 
 <section><h2>1. Fluxo de execução e situação de cada etapa</h2>
-  <p class="nota">Cada etapa só começa de verdade quando a anterior entrega. A cor mostra a situação da etapa no plano (pior caso entre suas atividades); clique para ir à explicação. Cinza = etapa sem atividade própria no cronograma.</p>
+  <p class="nota">Cada etapa só começa de verdade quando a anterior entrega. A cor mostra a situação da etapa no plano (pior caso entre suas atividades); clique para ir à explicação. Chegada de material, descarregamento e checklist são perguntas de liberação (sim = prossegue; não = retorna). Cinza = sem atividades.</p>
   ${pldFluxoVisual(c)}
   <div class="legenda"><span class="chip ok"></span>no prazo / concluída <span class="chip alerta"></span>no limite <span class="chip ruim"></span>atrasada <span class="chip pend"></span>a iniciar <span class="chip nd"></span>sem lançamento</div></section>
 
@@ -403,11 +501,67 @@ p{margin:4px 0}.mini{font-size:12px;color:var(--fg2)}.nota{color:var(--fg2);font
 .barra{position:relative;height:10px;background:#e5e9f0;border-radius:6px;margin:8px 0 2px;overflow:hidden}.barra span{position:absolute;left:0;top:0;height:100%}.barra .plan{background:#bfdbfe}.barra .real{height:50%;top:25%;border-radius:6px}.barra .real.st-verde{background:var(--ok)}.barra .real.st-amarelo{background:var(--al)}.barra .real.st-vermelho{background:var(--ru)}.barra .real.st-pendente{background:var(--pe)}
 .w5{width:100%;border-collapse:collapse;margin:6px 0;font-size:12.5px}.w5 th{text-align:left;color:var(--fg2);width:70px;vertical-align:top;padding:2px 6px 2px 0}.w5 td{padding:2px 12px 2px 0;vertical-align:top}
 .sit,.casc{border-radius:6px;padding:7px 10px;margin-top:6px}.sit.ok{background:#f0fdf4}.sit.alerta{background:#fffbeb}.sit.ruim{background:#fef2f2}.sit.pend{background:#f1f5f9}.casc{background:#eff6ff}
+.pergunta{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin:6px 0 8px}.lib{margin-top:6px;padding:6px 10px;border:1px dashed var(--bd);border-radius:6px;background:#fff}.lib-ruim{color:var(--ru);margin-top:4px}
+.pt{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600}.pt.ok{background:#dcfce7;color:#166534}.pt.ruim{background:#fee2e2;color:#991b1b}.pt.pend{background:#e2e8f0;color:#475569}.pt small{font-weight:400}
+.alerta-box ul{margin:4px 0}
 .apoio{background:#f1f5f9;border-radius:6px;padding:8px 10px;color:var(--fg2);margin-top:8px}.geral li{margin:5px 0}.fluxo-titulo{margin-top:26px;color:var(--ac)}
 footer{margin:28px 0 8px;font-size:12px;color:var(--fg2)}
 @media(max-width:760px){body{padding:12px}.cols{grid-template-columns:1fr}}
 @media print{body{background:#fff;padding:0;max-width:none}.topo-acoes{display:none}.etapa,.atv{break-inside:avoid}.capa,.etapa{border-color:#bbb}a{color:inherit}.chip{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sel,.barra span,.num,.impacto,.sit,.casc,.alerta-box{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 `;
+
+// ---------------------------------------------------------------- aba "Liberação do fluxo" (perguntas sim/não por atividade)
+function plLiberacao(pl, c, box) {
+  const m = x => pldEtapasDe(x), ord = x => (m(x).fluxo === 'galpao' ? 0 : 1000) + (m(x).ids.length ? PLD_ORDEM[m(x).fluxo].indexOf(m(x).ids[0]) : 99);
+  const linhas = c.itens.slice().sort((a, b2) => ord(a) - ord(b2) || a.it.inicio.localeCompare(b2.it.inicio)).map(x => {
+    const est = pldPortaoEstado(x), lista = pldPortoesDe(x), e0 = m(x).ids.length ? pldEtapa(m(x).fluxo, m(x).ids[0]).nome : '—';
+    const cel = g => {
+      if (!lista.some(q => q.k === g.k)) return '<td class="pl-lib-na">—</td>';
+      const r = pldPortaoR(x, g.k), rg = x.it.portoes?.[g.k], libera = x.status === 'CONCLUÍDO' || lista.filter(q => PLD_PORTOES.indexOf(q) < PLD_PORTOES.indexOf(g)).every(q => pldPortaoR(x, q.k) === 'sim');
+      if (x.status === 'CONCLUÍDO') return '<td class="pl-lib-na">concluída</td>';
+      if (!libera) return '<td class="pl-lib-na">aguarda a pergunta anterior</td>';
+      const bt = (v, rot) => `<button class="btn pl-lib-bt ${r === v ? (v === 'sim' ? 'sim' : 'nao') : ''}" data-pl-lib="${esc(x.it.chave)}" data-g="${g.k}" data-r="${v}" title="${r === v ? 'Clique para limpar a resposta' : ''}">${rot}</button>`;
+      return `<td class="pl-lib-cel">${bt('sim', 'Sim')}${bt('nao', 'Não')}${r === 'nao' ? `<label class="nota">chega em <input type="date" data-pl-lib-prev="${esc(x.it.chave)}" data-g="${g.k}" value="${esc(rg?.prev || '')}"></label>` : ''}
+        ${rg?.em ? `<div class="nota">${esc(fdA(rg.em.slice(0, 10)))} ${esc(rg.em.slice(11))}${rg.por ? ' · ' + esc(rg.por) : ''}</div>` : ''}</td>`;
+    };
+    return `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${esc(cap(x.it.frente))} · início previsto ${fdA(x.it.inicio)}</div></td><td>${esc(e0)}</td>${PLD_PORTOES.map(cel).join('')}
+      <td><span class="farol f-${est.cls === 'ok' ? 'verde' : est.cls === 'ruim' ? 'vermelho' : 'pendente'}">${esc(est.rot)}</span>${est.estado === 'retorna' ? `<div class="nota valor-neg">${esc(est.etapa.nome)}</div>` : ''}</td></tr>`;
+  }).join('');
+  const n = { retorna: 0, pendente: 0, liberada: 0 };
+  c.itens.forEach(x => { const s = pldPortaoEstado(x).estado; if (n[s] != null) n[s]++; });
+  box.innerHTML = `<div class="bloco"><div class="bloco-cab"><h2>Liberação do fluxo — material · descarregamento · checklist</h2></div>
+    <p class="nota">Antes de cada atividade, responda em ordem: <b>o material chegou?</b> → <b>foi descarregado?</b> → <b>checklist aprovado?</b> (esta última só para o que vem depois do checklist no galpão). <b>Sim</b> = prossegue; <b>Não</b> = <b>retorna</b> àquela etapa e a atividade fica bloqueada (informe a previsão de chegada para o plano calcular o atraso). A resposta fica gravada com data, hora e quem respondeu, e entra no documento “Baixar planejamento”.</p>
+    <p class="nota"><b>${n.liberada}</b> liberada(s) · <b>${n.pendente}</b> a confirmar · <b class="${n.retorna ? 'valor-neg' : ''}">${n.retorna}</b> retornando</p>
+    <div class="tabela-rolagem"><table class="pl-tab pl-lib"><thead><tr><th>Atividade</th><th>Etapa do fluxo</th>${PLD_PORTOES.map(g => `<th>${g.rot}</th>`).join('')}<th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+}
+async function plLibGravar(chave, mut) {
+  const pl = plPlano(PL.sel);
+  if (!pl) return;
+  const itens = pl.itens.map(i => (i.chave === chave ? { ...i, portoes: mut(JSON.parse(JSON.stringify(i.portoes || {}))) } : i));
+  try {
+    await postar(API + 'planos', { plano: { ...pl, itens } });
+    await plCarregar(true);
+    plRenderPainel();
+  } catch (e) { toast(e.message || 'Não foi possível gravar a resposta.', true); }
+}
+document.addEventListener('click', ev => {
+  const bt = ev.target.closest && ev.target.closest('[data-pl-lib]');
+  if (!bt) return;
+  const k = bt.dataset.g, r = bt.dataset.r, ordem = PLD_PORTOES.map(g => g.k);
+  plLibGravar(bt.dataset.plLib, pt => {
+    if (pt[k] && pt[k].r === r) delete pt[k];             // clicar de novo limpa a resposta
+    else pt[k] = { ...(pt[k] || {}), r };
+    if (r === 'sim' || !pt[k]) { /* sim ou limpar: respostas seguintes continuam valendo */ }
+    if (!pt[k] || pt[k].r !== 'sim') ordem.slice(ordem.indexOf(k) + 1).forEach(q => delete pt[q]);   // não/limpar: o fluxo retorna, as perguntas seguintes recomeçam
+    return pt;
+  });
+});
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (!t.dataset || t.dataset.plLibPrev === undefined) return;
+  const k = t.dataset.g;
+  plLibGravar(t.dataset.plLibPrev, pt => { if (pt[k]) pt[k].prev = t.value || null; return pt; });
+});
 
 function plBaixarDoc(pl) {
   const html = plDocHtml(pl);
