@@ -52,6 +52,22 @@ const plFmt = (v, un) => { if (Math.abs(v) < 0.005) v = 0; return nf(v, plInteir
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
 function plSegunda(d) { return add(d, -dow(d)); }
 
+// ---------------------------------------------------------------- Eclusa – Vigas e Joists: contratado em unidades, realizado = acumulado lançado
+// Contratado = instalação das vigas (EJ-3.3.1-01) + instalação de joists (EJ-3.3.1-03) do catálogo do BM (9 + 18 = 27 un).
+// Realizado = acumulado de tudo que foi lançado (EJ + CMM, desde o início) nas colunas de montagem de vigas e de joist da Eclusa
+// (pré-montagem não entra). No plano o realizado acumulado conta inteiro, mesmo o que saiu antes do início do período.
+const PL_ECLUSA_VJ_COD = ['EJ-3.3.1-01', 'EJ-3.3.1-03'];
+const plEhEclusaVJ = it => !!it.bm_percentual && ganNorm(it.frente).includes('ECLUSA') && /VIGA/.test(ganNorm(it.servico)) && /JOIST/.test(ganNorm(it.servico));
+function plEclusaVJSerie() {
+  const lista = [];
+  M.empresas.forEach(e => (e.servicos || []).forEach(sv => {
+    const n = ganNorm(sv.nome);
+    if (!ganNorm(sv.frente).includes('ECLUSA') || !(/VIGA/.test(n) || /JOIST/.test(n)) || /PREMONT|PRE MONT/.test(n)) return;
+    Object.keys(e.registros || {}).forEach(d => { const v = e.registros[d].v[sv.col]; if (typeof v === 'number' && v > 0) lista.push([d, v]); });
+  }));
+  return lista.sort((x, y) => x[0].localeCompare(y[0]));
+}
+
 // ---------------------------------------------------------------- atividades (todas as do cronograma)
 function plUnidade(it) {
   if (it.bm_percentual || it.fonte_pct) return '%';
@@ -77,11 +93,20 @@ function plAtividades(forcar) {
   faseFiltro = '';
   let ls = [];
   try { ls = ganLinhas(corte()); } finally { faseFiltro = f; }
+  const contratoVJ = catalogoQtd(PL_ECLUSA_VJ_COD);
   PL._atv = ls.map(l => {
-    const it = l.it;
-    return { chave: ganDataKey(it), nome: cap(it.servico_exib || it.servico), frente: it.frente || 'SEM FRENTE', fase: ganFaseNumero(it),
-      unidade: plUnidade(it), qtd: Number(it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
-      realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(it), it, linha: l };
+    let it = l.it, a;
+    const base = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
+      unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
+      realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
+    a = base();
+    if (contratoVJ > 0 && plEhEclusaVJ(it)) {   // em unidades: contratado 27 e realizado = acumulado lançado de vigas + joists
+      const fator = contratoVJ / (Number(it.qtd) || 100), itx = { ...it, qtd: contratoVJ, bm_percentual: false, meta_dia: (Number(it.meta_dia) || 0) * fator };
+      const serie = plEclusaVJSerie(), realAc = soma0(serie, ([, v]) => v), prevAc = prevCliente(itx, corte());
+      const status = realAc >= contratoVJ ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+      Object.assign(a, { it: itx, unidade: 'un', qtd: contratoVJ, realAc, prevAc, status, acumulado: true, linha: { ...l, it: itx, dsReal: serie, realAc, prevAc, status } });
+    }
+    return a;
   }).sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || a.nome.localeCompare(b.nome));
   return PL._atv;
 }
@@ -91,6 +116,7 @@ const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
 // frente e, na Eclusa, o avanço do BM; as demais usam a série do Gantt (produção, BM e apontamentos, a fonte maior).
 function plSerieReal(a) {
   const it = a.it;
+  if (a.acumulado) return a.linha.dsReal || [];   // Eclusa – Vigas e Joists: só o que foi lançado, acumulado
   if (it.bm_percentual) return a.linha.dsReal || [];   // linha em % (Eclusa etc.): só o avanço do BM, nunca unidades da grade
   if (ehFrenteAnexa(it.frente)) {
     const grade = [];
@@ -109,19 +135,23 @@ function plSerieReal(a) {
 }
 
 // ---------------------------------------------------------------- cálculo do plano
-function plCalcItem(pl, it, base) {
+function plCalcItem(pl, it0, base) {
+  const ativ = plAtivPorChave(it0.chave);
+  // Eclusa – Vigas e Joists: quantidade = contratado (un), mesmo em planos salvos antes; o que já foi lançado antes do período (r0) conta como feito
+  const it = ativ?.acumulado ? { ...it0, qtd: ativ.qtd, unidade: 'un' } : it0;
+  const r0 = ativ?.acumulado ? soma0(plSerieReal(ativ).filter(([d]) => d < pl.inicio && d <= base), ([, v]) => v) : 0;
   const dias = plDias(it.inicio, it.fim), inteiro = plInteiro(it.unidade);
-  const ativ = plAtivPorChave(it.chave);
+  const restante = Math.max(0, it.qtd - r0);
   const meta = plMeta(it, ativ, dias.length);
-  const plan = plDistribuirTaxa(it.qtd, dias.length, meta, inteiro);
+  const plan = plDistribuirTaxa(restante, dias.length, meta, inteiro);
   const mapaPlan = new Map(dias.map((d, i) => [d, plan[i]]));
-  const cabeNoPeriodo = meta * dias.length >= it.qtd - 1e-9;   // false: a meta atual não fecha a quantidade no período
+  const cabeNoPeriodo = meta * dias.length >= restante - 1e-9;   // false: a meta atual não fecha a quantidade no período
   const real = new Map();
   (ativ ? plSerieReal(ativ) : []).forEach(([d, v]) => {
     if (d >= pl.inicio && d <= pl.fim && d <= base) real.set(d, (real.get(d) || 0) + v);
   });
-  const realAc = soma0([...real.values()], v => v);
-  let planAc = 0;
+  const realAc = r0 + soma0([...real.values()], v => v);
+  let planAc = r0;
   mapaPlan.forEach((v, d) => { if (d <= base) planAc += v; });
   const falta = Math.max(0, it.qtd - realAc);
   const diasRest = base < it.fim ? contarDiasUteis(maxD(base, add(it.inicio, -1)), it.fim) : 0;
@@ -137,7 +167,7 @@ function plCalcItem(pl, it, base) {
   else status = ratio >= 1.05 ? 'ADIANTADO' : ratio >= 1 ? 'NO PRAZO' : ratio >= .95 ? 'NO LIMITE' : 'ATRASADO';
   if (status === 'NO PRAZO' && base > it.fim && falta > 0) status = 'ATRASADO';
   const datasReais = [...real.keys()].sort();
-  let acum = 0, concluiu = null;
+  let acum = r0, concluiu = null;
   datasReais.forEach(d => { acum += real.get(d); if (!concluiu && acum >= it.qtd - 1e-9) concluiu = d; });
   // projeção do saldo a partir da data de referência, no ritmo atual (sem lançamentos recentes, na meta)
   const taxaProj = ritmoAtual > 0 ? ritmoAtual : meta;
@@ -145,9 +175,9 @@ function plCalcItem(pl, it, base) {
   const redistrib = new Map();
   if (falta > 0 && futuros.length) plDistribuirTaxa(falta, futuros.length, taxaProj, inteiro).forEach((v, i) => redistrib.set(futuros[i], v));
   const termina = (qtd, taxa, de) => (taxa > 0 && qtd > 0 && Math.ceil(qtd / taxa) <= 400 ? somarDiasUteis(de, Math.ceil(qtd / taxa)) : null);
-  const terminaMeta = termina(it.qtd, meta, add(it.inicio, -1));           // pela meta, a partir do início planejado
+  const terminaMeta = termina(restante, meta, add(it.inicio, -1));           // pela meta, a partir do início planejado
   const terminaRitmo = falta <= 1e-9 ? (concluiu || base) : termina(falta, taxaProj, maxD(base, add(it.inicio, -1)));   // pelo ritmo (ou meta), a partir de agora
-  return { it, ativ, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
+  return { it, ativ, r0, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
     pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0,
     primeiro: datasReais[0] || null, ultimo: datasReais[datasReais.length - 1] || null, concluiu, redistrib };
 }
@@ -162,7 +192,7 @@ function plCalc(pl) {
     let p = 0, r = 0;
     itens.forEach(c => {
       const w = (c.it.peso || 1) / pesoTot;
-      let pa = 0, ra = 0;
+      let pa = c.r0 || 0, ra = c.r0 || 0;
       c.mapaPlan.forEach((v, dd) => { if (dd <= d) pa += v; });
       c.real.forEach((v, dd) => { if (dd <= d) ra += v; });
       p += w * Math.min(1, pa / c.it.qtd);
@@ -417,7 +447,7 @@ function plDesenharCurva(pl, c) {
     const x = c.itens.find(i => i.it.chave === PL.atv);
     if (x) {
       const pa = [], ra = [];
-      let pAc = 0, rAc = 0;
+      let pAc = x.r0 || 0, rAc = x.r0 || 0;
       c.diasPlano.forEach(d => {
         pAc += x.mapaPlan.get(d) || 0; rAc += x.real.get(d) || 0;
         pa.push(Math.min(100, pAc / x.it.qtd * 100));
@@ -564,7 +594,7 @@ function plItemPadrao(a, w) {
   const fim = semAtraso && a.prazo && a.prazo >= ini && a.prazo < w.fim ? a.prazo : w.fim;   // atrasada ou sem prazo no período: vai até o fim do período
   const dias = plDias(ini, fim).length, saldo = Math.max(0, a.qtd - a.realAc);
   const meta = Number(a.it.meta_dia) || (a.qtd / Math.max(1, contarDiasUteis(add(a.ini || w.inicio, -1), a.prazo || w.fim)));
-  let q = sg.metaPeriodo > 1e-9 ? sg.metaPeriodo : Math.min(saldo > 0 ? saldo : a.qtd, meta * dias);   // meta do período = previsto + atraso (o que já saiu no período conta)
+  let q = a.acumulado ? a.qtd : sg.metaPeriodo > 1e-9 ? sg.metaPeriodo : Math.min(saldo > 0 ? saldo : a.qtd, meta * dias);   // Eclusa – Vigas e Joists: o plano leva o contratado (27 un) inteiro   // meta do período = previsto + atraso (o que já saiu no período conta)
   q = plInteiro(a.unidade) ? Math.max(1, Math.round(q)) : +Math.max(.1, q).toFixed(1);
   const quem = plQuem(a) === 'Sem empresa definida' ? '' : plQuem(a);
   return { chave: a.chave, atividade: a.nome, frente: a.frente, empresa: quem, unidade: a.unidade, qtd_contrato: a.qtd, qtd: q, peso: dias, inicio: ini, fim,
