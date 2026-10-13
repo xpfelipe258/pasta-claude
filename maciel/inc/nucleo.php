@@ -134,7 +134,8 @@ function tabelas_spec()
     ];
 }
 
-const ESQUEMA_VERSAO = 13;
+// 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
+const ESQUEMA_VERSAO = 14;
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
@@ -261,6 +262,9 @@ function garantir_autenticacao_estendida(PDO $pdo, $driver)
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     if (!in_array('email', colunas_tabela($pdo, $driver, 'usuarios'), true)) {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN email VARCHAR(150) NULL");
+    }
+    if (!in_array('tema', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // tema visual de cada usuário: light | dark | space (vazio = automático)
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN tema VARCHAR(20) NULL");
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS redefinicoes_senha (id $pk, usuario_id INT NOT NULL, token_hash VARCHAR(128) NOT NULL, expira_em VARCHAR(19) NOT NULL, usado_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, ip VARCHAR(64) NULL)$fim");
     $temIndice = false;
@@ -600,7 +604,11 @@ function usuario_atual()
             return $u;
         }
         $_SESSION['ultimo'] = time();
-        $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+        try {
+            $linha = q('SELECT id, nome, login, perfil, empresa, email, tema FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+        } catch (Throwable $e) {   // banco ainda sem a coluna tema (antes da migração)
+            $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+        }
         $u = $linha ?: null;
     }
     return $u;
@@ -648,6 +656,23 @@ function conferir_csrf()
     }
 }
 
+// Tema visual do usuário logado: 'light' (branco), 'dark' (preto) ou 'space' (espacial); vazio = automático (segue o aparelho).
+const TEMAS_VALIDOS = ['light', 'dark', 'space'];
+function tema_do_usuario()
+{
+    if (isset($GLOBALS['tema_override'])) {
+        return in_array($GLOBALS['tema_override'], TEMAS_VALIDOS, true) ? $GLOBALS['tema_override'] : '';
+    }
+    $u = function_exists('usuario_atual') ? usuario_atual() : null;
+    $t = (string)($u['tema'] ?? '');
+    return in_array($t, TEMAS_VALIDOS, true) ? $t : '';
+}
+function tema_attr()
+{
+    $t = tema_do_usuario();
+    return $t !== '' ? ' data-theme="' . $t . '"' : '';
+}
+
 function pagina_inicio($titulo)
 {
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
@@ -655,7 +680,7 @@ function pagina_inicio($titulo)
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
     $logo = config() ? global_ler('logo', '') : '';
-    echo '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<!doctype html><html lang="pt-BR"' . tema_attr() . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
     echo '<link rel="stylesheet" href="style.css?v=20261005auth1"><link rel="stylesheet" href="portal.css?v=20261003v7"><style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';

@@ -153,6 +153,39 @@ input[type=color] { width:44px; height:34px; padding:2px; border:1px solid var(-
   color-scheme: dark;
 }
 
+/* Tema ESPACIAL (nebulosa): azul-noite, brilho roxo/azul, estrelas e cartões de vidro translúcido. Escolhido em Administração → Aparência. */
+:root[data-theme="space"] {
+  --bg: #0b1030; --card: rgba(20,27,72,.84); --campo: #151d52;
+  --fg: #e8ecff; --fg2: #aab4e6; --fg3: #7d88c2;
+  --linha: rgba(255,255,255,.15); --linha-forte: rgba(255,255,255,.28);
+  --acento: #8ea2ff; --acento-suave: rgba(142,162,255,.18);
+  --ej: #34d399; --cmm: #60a5fa; --ga: #fbbf24; --prev: #5d669c;
+  --verde: #4ade80; --verde-bg: rgba(74,222,128,.15);
+  --amarelo: #facc15; --amarelo-bg: rgba(250,204,21,.15);
+  --vermelho: #fb8585; --vermelho-bg: rgba(248,113,113,.17);
+  --pend: #a9b3e3; --pend-bg: rgba(255,255,255,.08);
+  --editado: rgba(250,204,21,.2);
+  --sombra: 0 6px 26px rgba(4,7,28,.55);
+  color-scheme: dark;
+}
+:root[data-theme="space"] body {
+  background:
+    radial-gradient(1.6px 1.6px at 8% 14%, #fff, transparent), radial-gradient(1px 1px at 17% 62%, #cfd8ff, transparent),
+    radial-gradient(1.4px 1.4px at 26% 33%, #fff, transparent), radial-gradient(1px 1px at 34% 88%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 47% 9%, #fff, transparent), radial-gradient(1px 1px at 55% 52%, #cfd8ff, transparent),
+    radial-gradient(1.3px 1.3px at 63% 78%, #fff, transparent), radial-gradient(1px 1px at 72% 24%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 81% 66%, #cfd8ff, transparent), radial-gradient(1px 1px at 90% 12%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 94% 90%, #fff, transparent), radial-gradient(1px 1px at 3% 92%, #fff, transparent),
+    radial-gradient(ellipse 70% 55% at 85% -5%, rgba(139,92,246,.50), transparent 60%),
+    radial-gradient(ellipse 65% 55% at 5% 105%, rgba(37,99,235,.46), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(99,102,241,.10), transparent 70%), #0b1030;
+  background-attachment: fixed;
+}
+:root[data-theme="space"] .bloco, :root[data-theme="space"] .tile, :root[data-theme="space"] .dash-card { backdrop-filter: blur(6px); border-color: var(--linha); }
+:root[data-theme="space"] .topo { background: rgba(11,16,48,.72); backdrop-filter: blur(8px); border-bottom-color: var(--linha); }
+:root[data-theme="space"] .sidebar { background: rgba(11,16,48,.80); backdrop-filter: blur(8px); }
+:root[data-theme="space"] ::selection { background: rgba(142,162,255,.45); }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-variant-numeric: tabular-nums; }

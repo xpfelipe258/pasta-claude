@@ -130,6 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             registrar_alteracao('estoque_importado', ['origem' => $origem, 'materiais' => count($estoque['materiais'])]);
             $msg = sprintf('Estoque atualizado a partir de %s: %d materiais e %d remessas. Produção, apontamentos e medições não foram alterados.',
                 $origem, count($estoque['materiais']), count($estoque['remessas']['itens'] ?? []));
+        } elseif ($acao === 'salvar_tema') {
+            $tema = (string)($_POST['tema'] ?? '');
+            if ($tema !== '' && !in_array($tema, TEMAS_VALIDOS, true)) {
+                throw new InvalidArgumentException('Tema inválido.');
+            }
+            q_global('UPDATE usuarios SET tema=? WHERE id=?', [$tema !== '' ? $tema : null, $eu['id']]);
+            $GLOBALS['tema_override'] = $tema;   // a página já aplica o tema escolhido
+            $msg = 'Tema atualizado: ' . ['' => 'automático (segue o aparelho)', 'light' => 'branco', 'dark' => 'preto', 'space' => 'espacial'][$tema] . '. Vale para o seu usuário em todas as telas.';
         } elseif ($acao === 'obra') {
             if (!data_valida($_POST['data_inicio'] ?? '') || !data_valida($_POST['data_fim'] ?? '') || $_POST['data_fim'] < $_POST['data_inicio']) {
                 throw new InvalidArgumentException('Datas da obra inválidas.');
@@ -194,6 +202,38 @@ pagina_inicio('Administração');
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>
   <?php if ($erro): ?><div class="faixa"><?= h($erro) ?></div><?php endif; ?>
+
+  <section class="bloco tema-bloco">
+    <div class="bloco-cab"><div><h2>Aparência</h2><span class="nota">Escolha o tema para melhorar a visualização. A preferência fica salva no seu usuário e vale no painel, no dashboard e na administração.</span></div></div>
+    <form method="post" class="tema-form">
+      <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar_tema">
+      <?php $temaAtual = tema_do_usuario(); foreach ([['light', 'Branco', 'Claro, fundo branco-gelo'], ['dark', 'Preto', 'Escuro, descansa a vista'], ['space', 'Espacial', 'Nebulosa azul-noite com estrelas e cartões de vidro'], ['', 'Automático', 'Segue o aparelho (claro ou escuro)']] as [$v, $rot, $dica]): ?>
+        <label class="tema-op<?= $temaAtual === $v ? ' sel' : '' ?>">
+          <input type="radio" name="tema" value="<?= h($v) ?>" <?= $temaAtual === $v ? 'checked' : '' ?>>
+          <span class="tema-prev tema-prev-<?= $v === '' ? 'auto' : h($v) ?>"><i></i><i></i><i></i></span>
+          <b><?= h($rot) ?></b><small><?= h($dica) ?></small>
+        </label>
+      <?php endforeach; ?>
+      <button class="btn primario">Salvar tema</button>
+    </form>
+  </section>
+  <style>
+    .tema-form{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch}.tema-op{display:flex;flex-direction:column;gap:4px;width:200px;padding:10px;border:2px solid var(--linha);border-radius:12px;cursor:pointer;background:var(--campo)}
+    .tema-op.sel,.tema-op:has(input:checked){border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}.tema-op input{position:absolute;opacity:0;pointer-events:none}.tema-op small{color:var(--fg2);font-size:.75rem}
+    .tema-prev{display:flex;gap:5px;align-items:flex-end;height:64px;border-radius:8px;padding:8px;border:1px solid rgba(128,128,128,.35)}.tema-prev i{flex:1;border-radius:4px;height:60%}.tema-prev i:nth-child(2){height:85%}.tema-prev i:nth-child(3){height:45%}
+    .tema-prev-light{background:#f4f3ef}.tema-prev-light i{background:#1f4fbf}
+    .tema-prev-dark{background:#131312}.tema-prev-dark i{background:#5b8def}
+    .tema-prev-space{background:radial-gradient(1.5px 1.5px at 15% 25%,#fff,transparent),radial-gradient(1px 1px at 70% 20%,#fff,transparent),radial-gradient(1.2px 1.2px at 85% 70%,#cfd8ff,transparent),radial-gradient(ellipse at 90% 0,rgba(139,92,246,.6),transparent 60%),radial-gradient(ellipse at 0 100%,rgba(37,99,235,.55),transparent 60%),#0b1030}.tema-prev-space i{background:linear-gradient(180deg,#a78bfa,#60a5fa)}
+    .tema-prev-auto{background:linear-gradient(90deg,#f4f3ef 50%,#131312 50%)}.tema-prev-auto i{background:#5b8def}
+    .tema-form .btn{align-self:flex-end}
+  </style>
+  <script>
+    document.querySelectorAll('.tema-form input[name=tema]').forEach(r => r.addEventListener('change', () => {   // prévia imediata, antes de salvar
+      const v = document.querySelector('.tema-form input[name=tema]:checked').value, el = document.documentElement;
+      v ? el.setAttribute('data-theme', v) : el.removeAttribute('data-theme');
+      document.querySelectorAll('.tema-op').forEach(o => o.classList.toggle('sel', o.contains(r) && r.checked));
+    }));
+  </script>
 
   <section class="bloco usuarios-bloco">
     <div class="bloco-cab usuarios-cab">

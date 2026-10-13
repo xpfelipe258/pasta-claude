@@ -1,87 +1,112 @@
 <?php
+// Dashboard geral: apenas o essencial de material — % do material que chegou na obra, consumo de joist e consumo de material.
+// (Os alertas críticos — cronograma, inventário, remessas previstas, impactos e equipamentos — saíram desta tela; seguem nas abas de cada módulo.)
 require __DIR__.'/inc/nucleo.php';
 require __DIR__.'/inc/modelo.php';
 $eu=exigir_login_pagina(); $obra=exigir_obra_pagina();
-$pode=fn($m)=>usuario_pode_modulo($eu,$m); $hoje=date('Y-m-d');
-$M=montar_modelo(); $EP=estoque_planilha_ler() ?: [];
-$impactos=$atrasos=$invCrit=$materialCrit=$faltaSemana=$fixCrit=$consAlert=[];
-$remessasPrevistas=$remessasAtrasadasAuto=[];
-$totalMetas=0; $totalMateriais=count($EP['materiais']??[]); $totalInventario=count($EP['inventario']??[]); $totalFixadores=0; $totalConsumoBase=0; $totalImpactos=0; $totalRemessas=0;
-function dash_add_dias($data,$n){return date('Y-m-d',strtotime($data.' '.($n>=0?'+':'').$n.' day'));}
-function dash_dia_util($data){return (int)date('N',strtotime($data))<=5;}
-function dash_dias_uteis($a,$b){$n=0;for($d=dash_add_dias($a,1);$d<=$b;$d=dash_add_dias($d,1))if(dash_dia_util($d))$n++;return $n;}
-function dash_realizado_servico($M,$servico,$ate){$t=0;foreach(($M['empresas']??[]) as $e)foreach(($e['servicos']??[]) as $s){if(($s['nome']??'')!==$servico)continue;$col=$s['col']??null;if(!$col)continue;foreach(($e['registros']??[]) as $d=>$r){if($d>$ate)continue;$v=$r['v'][$col]??null;if(is_numeric($v)&&$v>0)$t+=(float)$v;}}return $t;}
-function dash_prev_cliente($c,$ate){if(empty($c['qtd'])||empty($c['inicio_plan'])||empty($c['meta_dia'])||$ate<$c['inicio_plan'])return 0;return min((float)$c['qtd'],(float)$c['meta_dia']*dash_dias_uteis(dash_add_dias($c['inicio_plan'],-1),$ate));}
-function dash_cronograma_atrasados($M,$ate){$itens=array_values(array_filter($M['cliente']??[],fn($c)=>!empty($c['qtd'])));$at=[];foreach($itens as $c){$q=(float)($c['qtd']??0);$real=dash_realizado_servico($M,$c['servico']??'',$ate);$prev=dash_prev_cliente($c,$ate);if($q>0&&$real<$q&&!($prev==0&&$real==0)&&$real<$prev*.95)$at[]=$c;}return [$at,count($itens)];}
-function dash_data_iso($v){$t=trim((string)$v);if($t==='')return null;if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$t))return $t;if(preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/',$t,$m))return $m[3].'-'.$m[2].'-'.$m[1];return null;}
-function dash_remessas_previstas($EP,$hoje){$cols=$EP['remessas']['colunas']??[];$datas=$EP['remessas']['datas']??[];$out=[];foreach($cols as $nome){$dt=$datas[$nome]??[];$prev=dash_data_iso($dt['prevista_chegada']??'');if(!$prev)continue;$cheg=dash_data_iso($dt['chegada_obra']??'');if($cheg)continue;$out[]=['nome'=>$nome,'prevista'=>$prev,'nf'=>dash_data_iso($dt['emissao_nota']??'')];}usort($out,fn($a,$b)=>strcmp($a['prevista'],$b['prevista'])?:strcmp($a['nome'],$b['nome']));return $out;}
-function dash_remessas_atrasadas_auto($EP){$cols=$EP['remessas']['colunas']??[];$datas=$EP['remessas']['datas']??[];$out=[];foreach($cols as $nome){$dt=$datas[$nome]??[];$prev=dash_data_iso($dt['prevista_chegada']??'');$cheg=dash_data_iso($dt['chegada_obra']??'');if($prev&&$cheg&&$cheg>$prev)$out[]=['nome'=>$nome,'prevista'=>$prev,'chegada'=>$cheg];}return $out;}
-if($pode('gestao')){$impactos=q("SELECT * FROM impactos WHERE (solucionado IS NULL OR solucionado='') ORDER BY data DESC,id DESC")->fetchAll();$totalImpactos=(int)q("SELECT COUNT(*) FROM impactos")->fetchColumn();}
-if($pode('producao')||$pode('gestao')){[$atrasos,$totalMetas]=dash_cronograma_atrasados($M,$hoje);}
-if($pode('suprimentos')){
- $totalRemessas=count($EP['remessas']['colunas']??[]);
- $remessasPrevistas=dash_remessas_previstas($EP,$hoje);
- $remessasAtrasadasAuto=dash_remessas_atrasadas_auto($EP);
- foreach(($EP['inventario']??[]) as $x){$st=strtoupper((string)($x['status']??''));$ac=(float)($x['acuracidade']??1);$acao=strtoupper(trim((string)($x['acao']??'OK')));if(($st&&$st!=='CONFORME')||$ac<.8||($acao&&$acao!=='OK'))$invCrit[]=$x;}
- foreach(($EP['materiais']??[]) as $x){
-  $saldo=(float)($x['estoque_pos_baixa']??$x['disponivel']??0);
-  $prior=strtoupper(trim((string)($x['prioridade']??'')));
-  $st=strtoupper(trim((string)($x['situacao']??$x['status_logistico']??$x['status']??'')));
-  // Materiais: contador representa somente linhas que a própria página identifica como vermelhas/críticas.
-  if($prior==='P1'||str_contains($st,'FALTA')||str_contains($st,'CRÍT')||str_contains($st,'CRIT')) $materialCrit[]=$x;
-  // Baixa automática: somente itens explicitamente classificados como FALTA NA SEMANA.
-  if(str_contains($st,'FALTA NA SEMANA')) $faltaSemana[]=$x;
- }
- $ext=$M['estoque_externo']??null;
- if(is_array($ext)){$totalFixadores=count($ext['fixadores']??[]);foreach(($ext['fixadores']??[]) as $x){$st=strtoupper((string)($x['status']??''));if($st!=='OK'||(isset($x['saldo'])&&(float)$x['saldo']<0))$fixCrit[]=$x;}}
- // fallback: regras IFC + remessas para os fixadores sem OK
- if(!$fixCrit){$regras=carregar_regras_baixa();$prem=$regras['consumo_por_servico']['PREMONTAGEM']['itens']??[];$totalFixadores=count($prem);foreach($prem as $x){$rem=0;foreach(($EP['remessas']['itens']??[]) as $r)if(($r['tag']??'')===($x['codigo']??'')){$rem=(float)($r['total_recebido']??0);break;}if($rem<=0)$fixCrit[]=$x;}}
+$pode=fn($m)=>usuario_pode_modulo($eu,$m);
+$EP=$pode('suprimentos')?(estoque_planilha_ler() ?: []):[];
+$materiais=array_values(array_filter($EP['materiais']??[],'is_array'));
+
+// Soma planejado / chegou / consumido por quantidade e por peso (peso = peso unitário × quantidade, só para itens com peso cadastrado).
+function dash_agrega(array $itens): array {
+  $r=['nPlan'=>0,'nPeso'=>0,'n'=>0,'qp'=>0.0,'qc'=>0.0,'qk'=>0.0,'qkp'=>0.0,'qcon'=>0.0,'wp'=>0.0,'wc'=>0.0,'wk'=>0.0,'wkp'=>0.0,'wcon'=>0.0,'semPeso'=>0];
+  foreach($itens as $x){
+    $pl=max(0,(float)($x['planejado']??0)); $ch=max(0,(float)($x['chegou']??0)); $co=max(0,(float)($x['consumido']??0)); $pu=(float)($x['peso_unitario']??0);
+    $r['n']++;
+    $r['qp']+=$pl; $r['qc']+=min($ch,$pl); $r['qcon']+=$ch; $r['qk']+=$co; $r['qkp']+=min($co,$pl);
+    if($pl>0){ $r['nPlan']++; if($pu>0) $r['nPeso']++; }
+    if($pu>0){ $r['wp']+=$pu*$pl; $r['wc']+=$pu*min($ch,$pl); $r['wcon']+=$pu*$ch; $r['wk']+=$pu*$co; $r['wkp']+=$pu*min($co,$pl); }
+    elseif($pl>0){ $r['semPeso']++; }
+  }
+  return $r;
 }
-if($pode('consumo')){
- $us=$M['tabelas']['usos']??[]; $iniAtual=date('Y-m-d',strtotime('monday this week')); $fimAtual=date('Y-m-d',strtotime('sunday this week'));
- $por=[]; foreach($us as $u){$d=$u['data']??'';if(!$d)continue;$n=trim((string)($u['equipamento']??'NÃO INFORMADO'));$v=(float)($u['litros']??0);if(!$v)$v=(float)($u['custo_combustivel']??0);if(!$v)continue;$seg=date('Y-m-d',strtotime('monday this week',strtotime($d)));$por[$n][$seg]=($por[$n][$seg]??0)+$v;}
- foreach($por as $n=>$sem){$at=(float)($sem[$iniAtual]??0);$ant=$sem;unset($ant[$iniAtual]);if(!$ant)continue;$totalConsumoBase++;$media=array_sum($ant)/count($ant);if($at>$media && $at>0)$consAlert[]=['nome'=>$n,'atual'=>$at,'media'=>$media,'pct'=>$media>0?(($at/$media)-1)*100:100];}
- usort($consAlert,fn($a,$b)=>$b['pct']<=>$a['pct']);
+// Métricas de um grupo: por peso quando a maioria dos itens (>= 80%) tem peso cadastrado; senão por quantidade (somar peso parcial distorceria o resultado).
+function dash_metricas(array $itens): array {
+  $a=dash_agrega($itens); $peso=$a['wp']>0 && $a['nPlan']>0 && $a['nPeso']/$a['nPlan']>=0.8;
+  $pl=$peso?$a['wp']:$a['qp']; $ch=$peso?$a['wc']:$a['qc']; $chRaw=$peso?$a['wcon']:$a['qcon']; $co=$peso?$a['wk']:$a['qk']; $cop=$peso?$a['wkp']:$a['qkp'];
+  return ['n'=>$a['n'],'base'=>$peso?'peso':'quantidade','semPeso'=>$peso?($a['nPlan']-$a['nPeso']):0,
+    'planejado'=>$pl,'chegou'=>$ch,'chegouTotal'=>$chRaw,'consumido'=>$co,
+    'pctChegou'=>$pl>0?min(100,$ch/$pl*100):0,'consChegou'=>$chRaw>0?min(100,$co/$chRaw*100):0,'consPlan'=>$pl>0?min(100,$cop/$pl*100):0,
+    'saldo'=>max(0,$chRaw-$co),'falta'=>max(0,$pl-$ch)];
 }
-$totalImpactos += count($remessasAtrasadasAuto);
-$impactosAbertos=count($impactos);
-$impactosSolucionados=max(0,$totalImpactos-$impactosAbertos);
+function dash_fmt(float $v,string $base): string { return $base==='peso' ? number_format($v/1000,$v>=1000?0:1,',','.').' t' : number_format($v,0,',','.').' un'; }
+function dash_p(float $v): string { return number_format($v,0,',','.').'%'; }
+function dash_barra(string $rot,float $pct,string $cls=''): string { $p=max(0,min(100,$pct)); return '<div class="dm-lin"><div><span>'.h($rot).'</span><b>'.dash_p($pct).'</b></div><div class="dm-bar"><i class="'.$cls.'" style="width:'.round($p,1).'%"></i></div></div>'; }
+
+$tipos=[]; foreach($materiais as $x){ $t=strtoupper(trim((string)($x['tipo_material']??''))) ?: 'OUTROS'; $tipos[$t][]=$x; }
+$rotuloTipo=['JOIST'=>'Joist','FIXADOR'=>'Fixadores','ESTRUTURAL'=>'Estrutural','OUTROS'=>'Outros'];
+$geral=dash_metricas($materiais);
+$mj=dash_metricas($tipos['JOIST']??[]);
+$porTipo=[]; foreach($tipos as $t=>$its){ $porTipo[$t]=dash_metricas($its); }
+uasort($porTipo,fn($a,$b)=>$b['planejado']<=>$a['planejado']);
+$naoJoist=array_filter($porTipo,fn($k)=>$k!=='JOIST',ARRAY_FILTER_USE_KEY);
+
 $mods=modulos_usuario($eu); $titulo=$eu['perfil']==='admin'?'Dashboard Geral':'Meu Dashboard';
 pagina_inicio($titulo);
-function dbbtn($aba,$txt,$badge=null,$alert=false){$b=$badge!==null?'<span class="contador'.($alert?' alerta':'').'">'.(int)$badge.'</span>':'';return '<button type="button" onclick="location.href=\'index.php?aba='.h($aba).'\'">'.h($txt).' '.$b.'</button>';}
-function dash_pct($valor,$total){$total=(int)$total;return $total>0?max(0,min(100,round(((int)$valor/$total)*100))):0;}
-function dash_total_txt($valor,$total){return number_format((int)$valor,0,',','.').' / '.number_format(max(0,(int)$total),0,',','.');}
-function dash_card($aba,$foco,$rotulo,$valor,$total,$desc,$acao){$pct=dash_pct($valor,$total);$url='index.php?aba='.rawurlencode($aba).($foco!==''?'&foco='.rawurlencode($foco):'');return '<a class="dash-card alerta dash-card-link dash-card-pizza" href="'.h($url).'" style="--pct:'.$pct.'"><span class="dash-rotulo">'.h($rotulo).'</span><div class="dash-card-corpo"><span class="dash-pizza" aria-hidden="true"><span>'.$pct.'%</span></span><span class="dash-metrica"><b>'.(int)$valor.'</b><em>'.h(dash_total_txt($valor,$total)).'</em></span></div><span class="dash-desc">'.h($desc).'</span><small>'.h($acao).' →</small></a>';}
-function dash_card_impactos($abertos,$solucionados,$total){$pct=dash_pct($abertos,$total);$url='index.php?aba=impactos&foco=aberto';return '<a class="dash-card alerta dash-card-link dash-card-pizza dash-card-impactos" href="'.h($url).'" style="--pct:'.$pct.'"><span class="dash-rotulo">IMPACTOS</span><div class="dash-card-corpo"><span class="dash-pizza" aria-hidden="true"><span>'.$pct.'%</span></span><span class="dash-metrica"><b>'.(int)$abertos.'</b><em>'.(int)$abertos.' aberto(s) / '.(int)$total.' total</em><em class="dash-ok">'.(int)$solucionados.' solucionado(s)</em></span></div><span class="dash-desc">impactos abertos x solucionados pelo total</span><small>Ver impactos →</small></a>';}
+function dbbtn($aba,$txt){return '<button type="button" onclick="location.href=\'index.php?aba='.h($aba).'\'">'.h($txt).'</button>';}
 ?>
 <style>
-.dashboard-alertas .dash-contadores-bonitos>a.dash-card-pizza{min-height:158px!important;gap:10px!important}
-.dashboard-alertas .dash-card-corpo{display:flex;align-items:center;gap:14px;width:100%;margin:6px 0 2px}
-.dashboard-alertas .dash-pizza{--p:calc(var(--pct,0)*1%);position:relative;display:grid;place-items:center;flex:0 0 70px;width:70px;height:70px;border-radius:50%;background:conic-gradient(#d62828 0 var(--p),rgba(34,197,94,.85) var(--p) 100%);box-shadow:inset 0 0 0 1px var(--linha)}
-.dashboard-alertas .dash-pizza:after{content:"";position:absolute;inset:10px;border-radius:50%;background:var(--card)}
-.dashboard-alertas .dash-pizza span{position:relative;z-index:1;font-size:.78rem;font-weight:850;color:var(--fg)}
-.dashboard-alertas .dash-metrica{display:flex;flex-direction:column;min-width:0}.dashboard-alertas .dash-metrica b{margin:0!important;font-size:1.9rem!important;line-height:1!important}.dashboard-alertas .dash-metrica em{font-style:normal;font-size:.78rem;font-weight:750;color:var(--fg2);margin-top:4px}.dashboard-alertas .dash-metrica .dash-ok{color:var(--verde)}.dashboard-alertas .dash-desc{min-height:2.2em}.dashboard-alertas .dash-card-pizza small{padding-top:4px!important}
-@media(max-width:640px){.dashboard-alertas .dash-card-corpo{gap:12px}.dashboard-alertas .dash-pizza{flex-basis:62px;width:62px;height:62px}}
+.dm-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;align-items:start}
+@media(max-width:1000px){.dm-grid{grid-template-columns:1fr}}
+.dm-card{background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:16px;box-shadow:var(--sombra)}
+.dm-card h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--fg2);margin:0 0 10px}
+.dm-topo{display:flex;gap:16px;align-items:center;margin-bottom:8px}
+.dm-pizza{--p:calc(var(--pct,0)*1%);position:relative;display:grid;place-items:center;flex:0 0 104px;width:104px;height:104px;border-radius:50%;background:conic-gradient(var(--acento) 0 var(--p),var(--linha) var(--p) 100%)}
+.dm-pizza:after{content:"";position:absolute;inset:14px;border-radius:50%;background:var(--card)}
+.dm-pizza span{position:relative;z-index:1;font-size:1.25rem;font-weight:850}
+.dm-num{font-size:2.1rem;font-weight:850;line-height:1}.dm-nt{color:var(--fg2);font-size:.82rem;margin-top:4px}
+.dm-lin{margin:9px 0}.dm-lin>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:.84rem}.dm-lin small{color:var(--fg3)}
+.dm-bar{height:9px;border-radius:5px;background:var(--linha);margin-top:4px;overflow:hidden}.dm-bar i{display:block;height:100%;background:var(--acento);border-radius:5px}.dm-bar i.v{background:var(--verde)}
+.dm-sub{margin-top:12px;color:var(--fg2);font-size:.8rem}.dm-tipo{padding:10px 0;border-top:1px solid var(--linha)}.dm-tipo:first-of-type{border-top:0;padding-top:0}.dm-tipo b{font-size:.92rem}
+.dm-vazio{background:var(--card);border:1px dashed var(--linha-forte);border-radius:14px;padding:22px;color:var(--fg2)}
 </style>
-<header class="topo"><div class="marca"><span class="marca-sigla">!</span><div><h1><?=h($titulo)?></h1><div class="arquivo"><span class="ponto ok"></span><?=h($obra['nome'])?> · indicadores e alertas da obra</div><div class="usuario"><span><?=h($eu['nome'])?></span><?php if($eu['perfil']==='admin'):?><a href="admin.php">Administração</a><?php endif;?><a href="sair.php">Sair</a></div></div></div></header>
+<header class="topo"><div class="marca"><span class="marca-sigla">!</span><div><h1><?=h($titulo)?></h1><div class="arquivo"><span class="ponto ok"></span><?=h($obra['nome'])?> · material, chegada e consumo</div><div class="usuario"><span><?=h($eu['nome'])?></span><?php if($eu['perfil']==='admin'):?><a href="admin.php">Administração</a><?php endif;?><a href="sair.php">Sair</a></div></div></div></header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
 <div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><button class="ativa"><?=h($titulo)?></button></div></div>
-<?php if($pode('producao')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">☷</span>Produção<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('painel','Painel')?><?=dbbtn('semana','Programação semanal')?><?=dbbtn('lanc','Lançamentos')?><?=dbbtn('apont','Apontar montagem')?><?=dbbtn('plan','Planejamento de montagem')?><?=dbbtn('avanco','Avanço físico')?><?=dbbtn('gantt','Cronograma (Gantt)',count($atrasos),count($atrasos)>0)?><?=dbbtn('cliente','Dashboard cliente')?><?=dbbtn('tendencia','Tendências')?></div></div><?php endif;?>
-<?php if($pode('suprimentos')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">□</span>Suprimentos<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('estmat','Materiais',count($materialCrit),count($materialCrit)>0)?><?=dbbtn('estrem','Remessas')?><?=dbbtn('estcons','Consumo físico')?><?=dbbtn('estinv','Inventário',count($invCrit),count($invCrit)>0)?><?=dbbtn('estcrit','Fixadores críticos',count($fixCrit),count($fixCrit)>0)?><?=dbbtn('estsis','Baixa automática',count($faltaSemana),count($faltaSemana)>0)?></div></div><?php endif;?>
-<?php if($pode('consumo')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">⚙</span>Consumo<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('equip','Equipamentos',count($consAlert),count($consAlert)>0)?></div></div><?php endif;?>
+<?php if($pode('producao')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">☷</span>Produção<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('painel','Painel')?><?=dbbtn('semana','Programação semanal')?><?=dbbtn('lanc','Lançamentos')?><?=dbbtn('apont','Apontar montagem')?><?=dbbtn('plan','Planejamento de montagem')?><?=dbbtn('avanco','Avanço físico')?><?=dbbtn('gantt','Cronograma (Gantt)')?><?=dbbtn('cliente','Dashboard cliente')?><?=dbbtn('tendencia','Tendências')?></div></div><?php endif;?>
+<?php if($pode('suprimentos')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">□</span>Suprimentos<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('estmat','Materiais')?><?=dbbtn('estrem','Remessas')?><?=dbbtn('estcons','Consumo físico')?><?=dbbtn('estinv','Inventário')?><?=dbbtn('estcrit','Fixadores críticos')?><?=dbbtn('estsis','Baixa automática')?></div></div><?php endif;?>
+<?php if($pode('consumo')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">⚙</span>Consumo<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('equip','Equipamentos')?></div></div><?php endif;?>
 <?php if($pode('financeiro')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">$</span>Financeiro<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('bm','Medição (BM)')?></div></div><?php endif;?>
 <?php if($pode('kpi')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">★</span>KPI / Insights<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('kpi','Visão Geral')?></div></div><?php endif;?>
-<?php if($pode('gestao')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">◆</span>Gestão<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('metas','Metas',count($atrasos),count($atrasos)>0)?><?=dbbtn('impactos','Impactos',count($impactos),count($impactos)>0)?></div></div><?php endif;?>
+<?php if($pode('gestao')):?><div class="sidebar-grupo"><div class="sidebar-titulo aberto"><span class="sidebar-icone">◆</span>Gestão<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto"><?=dbbtn('metas','Metas')?><?=dbbtn('impactos','Impactos')?></div></div><?php endif;?>
 </nav></aside>
-<main class="admin"><section class="bloco dashboard-alertas"><div class="bloco-cab"><div><h2>Alertas importantes</h2><span class="nota">Indicadores que exigem atenção. Cada pizza mostra a quantidade afetada sobre o total do módulo.</span></div></div><div class="dash-contadores dash-contadores-bonitos">
-<?php if($pode('producao')||$pode('gestao')):?><?=dash_card('gantt','alerta','CRONOGRAMA / METAS',count($atrasos),$totalMetas,'atraso(s) identificado(s)','Ver cronograma e analisar')?><?php endif;?>
-<?php if($pode('suprimentos')):?><?=dash_card('estmat','critico','MATERIAIS',count($materialCrit),$totalMateriais,'item(ns) em situação crítica','Ver materiais')?><?=dash_card('estrem','','REMESSAS PREVISTAS',count($remessasPrevistas),$totalRemessas,'remessa(s) com previsão de chegada em aberto','Ver remessas')?><?=dash_card('estinv','critico','INVENTÁRIO',count($invCrit),$totalInventario,'item(ns) crítico(s)','Ver inventário')?><?=dash_card('estsis','falta-semana','BAIXA AUTOMÁTICA',count($faltaSemana),$totalMateriais,'item(ns) com FALTA NA SEMANA','Analisar baixa automática')?><?=dash_card('estcrit','critico','FIXADORES CRÍTICOS',count($fixCrit),$totalFixadores,'fixador(es) fora de OK','Ver fixadores críticos')?><?php endif;?>
-<?php if($pode('consumo')):?><?=dash_card('equip','acima-media','CONSUMO',count($consAlert),$totalConsumoBase,'item(ns) acima da média','Ver consumo / equipamentos')?><?php endif;?>
-<?php if($pode('gestao')):?><?=dash_card_impactos($impactosAbertos,$impactosSolucionados,$totalImpactos)?><?php endif;?>
-</div></section>
-<?php if($pode('consumo')):?><section class="bloco"><div class="bloco-cab"><h2>Indicadores de consumo</h2><span class="nota">Compara o consumo da semana atual com a média das semanas anteriores registradas. Valores acima da média geram atenção.</span></div><?php if(!$consAlert):?><div class="faixa" style="margin:0">Nenhum consumo acima da média no período disponível.</div><?php else:?><div class="tabela-rolagem"><table><thead><tr><th>Equipamento / item</th><th>Semana atual</th><th>Média anterior</th><th>Variação</th><th>Situação</th></tr></thead><tbody><?php foreach($consAlert as $x):?><tr><td><b><?=h($x['nome'])?></b></td><td><?=number_format($x['atual'],1,',','.')?></td><td><?=number_format($x['media'],1,',','.')?></td><td class="valor-neg">+<?=number_format($x['pct'],1,',','.')?>%</td><td><a href="index.php?aba=equip&foco=acima-media" class="farol f-vermelho">ACIMA DA MÉDIA · ANALISAR</a></td></tr><?php endforeach;?></tbody></table></div><?php endif;?></section><?php endif;?>
-<?php if($pode('suprimentos')&&$invCrit):?><section class="bloco"><div class="bloco-cab"><h2>Inventário crítico</h2><a href="index.php?aba=estinv&foco=critico">Ver inventário completo →</a></div><div class="tabela-rolagem"><table><thead><tr><th>TAG</th><th>Produto</th><th>Status</th><th>Ação</th></tr></thead><tbody><?php foreach(array_slice($invCrit,0,15) as $x):?><tr><td><b><?=h($x['tag']??'')?></b></td><td><?=h($x['produto']??'')?></td><td><span class="farol f-vermelho"><?=h($x['status']??'CRÍTICO')?></span></td><td><?=h($x['acao']??'ANALISAR')?></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
-<?php if($pode('suprimentos')&&$remessasPrevistas):?><section class="bloco"><div class="bloco-cab"><h2>Remessas previstas</h2><a href="index.php?aba=estrem">Ver remessas →</a></div><div class="tabela-rolagem"><table><thead><tr><th>Previsão</th><th>Remessa</th><th>NF</th><th>Situação</th></tr></thead><tbody><?php foreach(array_slice($remessasPrevistas,0,15) as $x):?><tr><td><?=h(date('d/m/Y',strtotime($x['prevista'])))?></td><td><b><?=h($x['nome'])?></b></td><td><?=h($x['nf']?date('d/m/Y',strtotime($x['nf'])):'—')?></td><td><span class="farol f-amarelo">PREVISTA</span></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
-<?php if($pode('gestao')&&$impactos):?><section class="bloco"><div class="bloco-cab"><h2>Impactos em aberto</h2><a href="index.php?aba=impactos&foco=aberto">Ver todos →</a></div><div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>Serviço</th><th>Motivo</th><th>Tempo</th></tr></thead><tbody><?php foreach(array_slice($impactos,0,15) as $x):?><tr><td><?=h($x['data']??'')?></td><td><?=h($x['servico']??'')?></td><td><?=h($x['motivo']??'')?></td><td><?=h($x['tempo']??'')?></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
+<main class="admin">
+<?php if(!$pode('suprimentos')):?>
+  <div class="dm-vazio">Seu perfil não tem o módulo de Suprimentos liberado, por isso não há indicadores de material para mostrar aqui. Use o menu ao lado para os módulos que você pode acessar.</div>
+<?php elseif(!$materiais):?>
+  <div class="dm-vazio">Nenhum material cadastrado no estoque desta obra ainda. Cadastre ou importe os materiais em <a href="index.php?aba=estmat">Suprimentos → Materiais</a>.</div>
+<?php else:?>
+  <section class="dm-grid">
+    <article class="dm-card">
+      <h2>Material que chegou na obra</h2>
+      <div class="dm-topo"><div class="dm-pizza" style="--pct:<?=round($geral['pctChegou'],1)?>"><span><?=dash_p($geral['pctChegou'])?></span></div>
+        <div><div class="dm-num"><?=dash_p($geral['pctChegou'])?></div><div class="dm-nt">do material planejado já chegou<br>(<?=h(dash_fmt($geral['chegou'],$geral['base']))?> de <?=h(dash_fmt($geral['planejado'],$geral['base']))?>, por <?=h($geral['base'])?>)</div></div></div>
+      <?php foreach($porTipo as $t=>$m):?><?=dash_barra(($rotuloTipo[$t]??ucfirst(strtolower($t))).' ('.$m['n'].' itens)',$m['pctChegou'])?><?php if($m['base']!==$geral['base']):?><div class="dm-nt" style="margin:-4px 0 6px">calculado por <?=h($m['base'])?>: <?=h(dash_fmt($m['chegou'],$m['base']))?> de <?=h(dash_fmt($m['planejado'],$m['base']))?></div><?php endif;?><?php endforeach;?>
+      <?php if($geral['semPeso']>0):?><div class="dm-sub"><?=(int)$geral['semPeso']?> item(ns) sem peso cadastrado ficaram fora do total por peso; cada tipo acima usa a própria base.</div><?php endif;?>
+    </article>
+
+    <article class="dm-card">
+      <h2>Consumo de joist</h2>
+      <?php if(!$mj['n']):?><div class="dm-nt">Não há materiais do tipo JOIST cadastrados.</div><?php else:?>
+        <div class="dm-num"><?=dash_p($mj['consChegou'])?></div><div class="dm-nt">do que chegou já foi consumido</div>
+        <?=dash_barra('Consumido ÷ chegou',$mj['consChegou'])?>
+        <?=dash_barra('Consumido ÷ planejado',$mj['consPlan'],'v')?>
+        <div class="dm-sub">Consumido: <b><?=h(dash_fmt($mj['consumido'],$mj['base']))?></b> · Saldo em obra: <b><?=h(dash_fmt($mj['saldo'],$mj['base']))?></b> · Falta chegar: <b><?=h(dash_fmt($mj['falta'],$mj['base']))?></b><br>Base: <?=h($mj['base'])?>, <?=(int)$mj['n']?> itens de joist.</div>
+      <?php endif;?>
+    </article>
+
+    <article class="dm-card">
+      <h2>Consumo de material</h2>
+      <?php if(!$naoJoist):?><div class="dm-nt">Não há outros materiais cadastrados além do joist.</div><?php endif;?>
+      <?php foreach($naoJoist as $t=>$m):?>
+        <div class="dm-tipo"><b><?=h($rotuloTipo[$t]??ucfirst(strtolower($t)))?></b> <span class="dm-nt">· <?=(int)$m['n']?> itens · por <?=h($m['base'])?></span>
+          <?=dash_barra('Consumido ÷ chegou',$m['consChegou'])?><?=dash_barra('Consumido ÷ planejado',$m['consPlan'],'v')?>
+          <div class="dm-nt">Consumido <?=h(dash_fmt($m['consumido'],$m['base']))?> · saldo em obra <?=h(dash_fmt($m['saldo'],$m['base']))?></div></div>
+      <?php endforeach;?>
+    </article>
+  </section>
+  <p class="nota" style="margin-top:12px">Dados do módulo Suprimentos (Materiais). “Chegou” é limitado ao planejado de cada item; o consumo vem da baixa automática e do consumo físico. Detalhes em <a href="index.php?aba=estmat">Materiais</a> e <a href="index.php?aba=estcons">Consumo físico</a>.</p>
+<?php endif;?>
 </main><script>document.getElementById('sidebarToggle').onclick=()=>document.getElementById('sidebar').classList.toggle('aberta');document.querySelectorAll('.sidebar-titulo').forEach(x=>x.onclick=()=>{x.classList.toggle('aberto');x.nextElementSibling?.classList.toggle('aberto')});</script></body></html>
