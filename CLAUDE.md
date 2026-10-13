@@ -137,6 +137,9 @@ Obra ativa: **OBRA 198** (id=1)
 
 ## Histórico de sessões
 
+### 2026-10-13 (2)
+**Planejamento — botão "Baixar planejamento":** gera um documento HTML único (abre em qualquer navegador; botão interno ou Ctrl+P salva em PDF) com resumo, fluxo executivo colorido por situação, curva S, quadro das atividades e cada etapa do fluxo explicada (o que é, por que importa, **impacto se não alcançar o objetivo**, como recuperar) + cartão de cada atividade do plano (5W2H, situação, atraso projetado e efeito em cascata nas etapas seguintes). Arquivo novo: `maciel/planos_doc.js` (botão `data-pl-doc` em `plRenderPainel`, `planos.js`; script carregado em `inc/painel.html`, versionado por `filemtime` em `index.php`). Fluxos em `PLD_FLUXOS`: galpão principal (17 etapas: chegada de material … rufos e acabamentos) e anexos (8 etapas); o enquadramento da atividade do cronograma na etapa é por nome (`PLD_REGRAS`, só frentes `GALPÃO…` entram no fluxo do galpão; o resto vai para anexos). Chegada de material, descarregamento e checklist não têm linha no cronograma: aparecem como etapas de apoio.
+
 ### 2026-10-13
 **Finanças ARQUIVADO:** módulo removido do sistema (menu, `modulos_sistema()`, Admin, `sesmt_alterar_acesso`) e guardado em `arquivados/financas/` (código PHP, testes, programa Python e `integracao.patch`; ver `arquivados/financas/README.md` para restaurar). Tabelas `fin_*` não foram apagadas.
 

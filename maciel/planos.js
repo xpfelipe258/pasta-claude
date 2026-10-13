@@ -244,7 +244,7 @@ function plRenderPainel() {
   let h = `<div class="bloco pl-cab"><div><h3>${esc(pl.nome)} ${plFarol(st)}</h3>
       <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s)${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado até ${fdA(c.baseRef)}</p>
       ${pl.objetivo ? `<p class="pl-objetivo">${esc(pl.objetivo)}</p>` : ''}</div>
-    <div class="acoes"><button class="btn" data-pl-editar>Editar planejamento</button><button class="btn" data-pl-csv>Exportar CSV</button>
+    <div class="acoes"><button class="btn" data-pl-editar>Editar planejamento</button><button class="btn primario" data-pl-doc>Baixar planejamento</button><button class="btn" data-pl-csv>Exportar CSV</button>
       <button class="btn" data-pl-status="${pl.status === 'concluido' ? 'ativo' : 'concluido'}">${pl.status === 'concluido' ? 'Reabrir' : 'Marcar concluído'}</button>
       <button class="btn perigo" data-pl-excluir>Excluir</button></div></div>`;
   h += '<div class="tiles">' +
