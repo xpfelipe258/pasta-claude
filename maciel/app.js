@@ -5591,6 +5591,7 @@ function remessasAtrasadas() {
     const chegada = dataRemessaIso(dt?.chegada_obra);
     if (!prevista || !chegada || chegada <= prevista) return null;
     const dias = diasEntre(prevista, chegada);
+    if (!Number.isFinite(dias)) return null;   // datas fora do padrão (ex.: duas datas no mesmo campo) não geram impacto automático com 'NaN dias'
     const horas = dias * 24;
     const itens = (rem.itens || []).map(it => ({ tag: it.tag, material: it.material || it.produto || it.tag, qtd: Number((it.qtd_por_remessa || {})[nome] || 0) })).filter(x => x.qtd > 0);
     const qtdTotal = soma0(itens, x => x.qtd);
@@ -5670,7 +5671,7 @@ function htmlRankingImpactos(imp, empFiltro = []) {
 
 function impactoDeRemessa(r) {
   const materiais = r.itens.slice(0, 5).map(i => `${i.tag} ${nf(i.qtd)}`).join(', ');
-  return { _autoRemessa: true, linha: `REM-${r.nome}`, data: r.prevista, servico: 'SUPRIMENTOS', setor: 'Suprimentos', horasPerdidas: r.dias * HORAS_POR_DIA, empresas: '', motivo: `Remessa ${r.nome} chegou ${r.dias} dia(s) após a data prevista`, tempo: `${r.horas}h (${r.dias} dia(s))`, quando: r.chegada, paralisacao: materiais ? `Materiais: ${materiais}${r.itens.length > 5 ? '...' : ''}` : 'Remessa com chegada real posterior à prevista', solucionado: r.chegada, _remessa: r };
+  return { _autoRemessa: true, linha: `REM-${r.nome}`, data: r.prevista, servico: 'SUPRIMENTOS', setor: 'Suprimentos', horasPerdidas: Number.isFinite(r.dias) ? r.dias * HORAS_POR_DIA : null, empresas: '', motivo: `Remessa ${r.nome} chegou ${r.dias} dia(s) após a data prevista`, tempo: `${r.horas}h (${r.dias} dia(s))`, quando: r.chegada, paralisacao: materiais ? `Materiais: ${materiais}${r.itens.length > 5 ? '...' : ''}` : 'Remessa com chegada real posterior à prevista', solucionado: r.chegada, _remessa: r };
 }
 function impactosComAutomaticos() {
   return [...(M.impactos || []), ...remessasAtrasadas().map(impactoDeRemessa)];

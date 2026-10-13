@@ -293,8 +293,25 @@ function acao_criar_meta(array $corpo)
     return ['criadas' => $criadas];
 }
 
+// A coluna impactos.setor nasce na migração do esquema 14; se por qualquer motivo ela ainda não existir, cria na hora
+// (assim salvar o setor responsável nunca falha por banco desatualizado).
+function garantir_coluna_impacto_setor()
+{
+    static $ok = false;
+    if ($ok) {
+        return;
+    }
+    $c = config();
+    $pdo = bd();
+    if (!in_array('setor', colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {
+        $pdo->exec("ALTER TABLE impactos ADD COLUMN setor VARCHAR(100) NULL");
+    }
+    $ok = true;
+}
+
 function acao_impacto(array $corpo)
 {
+    garantir_coluna_impacto_setor();
     $id = isset($corpo['linha']) ? (int)$corpo['linha'] : null;
     if ($id !== null && !q('SELECT id FROM impactos WHERE id = ?', [$id])->fetch()) {
         throw new ErroValidacao('Impacto não encontrado.');
