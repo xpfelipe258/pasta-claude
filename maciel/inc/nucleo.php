@@ -565,7 +565,7 @@ function autenticar_machine_token()
 
 function modulos_sistema()
 {
-    return ['producao','suprimentos','consumo','financeiro','kpi','gestao','sesmt'];
+    return ['producao','suprimentos','consumo','financeiro','kpi','gestao','sesmt','financas'];
 }
 
 function modulos_usuario(array $u)
