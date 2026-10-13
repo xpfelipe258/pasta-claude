@@ -387,10 +387,29 @@ function pldBlocoEtapa(fluxo, e, indice, c, itensEtapa) {
   </section>`;
 }
 
+// O fluxo padrão (PLD_FLUXOS) é só a fonte de dados. O fluxo do plano é montado a partir das atividades escolhidas no 5W2H:
+// entram as etapas que têm atividade no plano (na ordem do fluxo padrão) e as perguntas de liberação que valem para elas.
+// Etapas do fluxo padrão sem atividade no plano não aparecem; fluxo sem nenhuma atividade identificada também não.
+function pldFluxoDoPlano(c) {
+  const r = {};
+  ['galpao', 'anexo'].forEach(fluxo => {
+    const itens = c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo);
+    if (!itens.some(x => pldEtapasDe(x).ids.length)) return;
+    const usadas = new Set();
+    itens.forEach(x => pldEtapasDe(x).ids.forEach(id => usadas.add(id)));
+    r[fluxo] = PLD_FLUXOS[fluxo].etapas.filter(e => {
+      const k = PLD_ETAPA_PORTAO[e.id];
+      return k ? itens.some(x => pldPortoesDe(x).some(g => g.k === k)) : usadas.has(e.id);
+    });
+  });
+  return r;
+}
 function pldFluxoVisual(c) {
+  const plano = pldFluxoDoPlano(c);
   const bloco = fluxo => {
-    const et = PLD_FLUXOS[fluxo].etapas;
-    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)}</h4><div class="chips">` + et.map((e, i) => {
+    const et = plano[fluxo];
+    if (!et) return '';
+    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="chips">` + et.map((e, i) => {
       const itens = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.includes(e.id); });
       const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens);
       return `<a href="#${esc(fluxo + '-' + e.id)}" class="chip ${st.cls}"><span>${i + 1}</span>${esc(e.nome)}<small>${st.rot}</small></a>${i < et.length - 1 ? '<i class="seta">›</i>' : ''}`;
@@ -424,8 +443,9 @@ function plDocHtml(pl) {
   const porEtapa = (fluxo, id) => c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids[0] === id; })
     .sort((a, b) => a.it.frente.localeCompare(b.it.frente) || a.it.inicio.localeCompare(b.it.inicio));
   const semEtapa = c.itens.filter(x => !pldEtapasDe(x).ids.length);
-  const secao = fluxo => `<h2 class="fluxo-titulo">${esc(PLD_FLUXOS[fluxo].nome)}</h2>` +
-    PLD_FLUXOS[fluxo].etapas.map((e, i) => pldBlocoEtapa(fluxo, e, i + 1, c, porEtapa(fluxo, e.id))).join('');
+  const fluxoPlano = pldFluxoDoPlano(c);
+  const secao = fluxo => (fluxoPlano[fluxo] ? `<h2 class="fluxo-titulo">${esc(PLD_FLUXOS[fluxo].nome)}</h2>` +
+    fluxoPlano[fluxo].map((e, i) => pldBlocoEtapa(fluxo, e, i + 1, c, porEtapa(fluxo, e.id))).join('') : '');
   const tabela = c.itens.map(x => { const m = pldEtapasDe(x), a = pldAtraso(x, c.base); return { x, m, a }; })
     .sort((p, q) => (p.m.fluxo === q.m.fluxo ? 0 : p.m.fluxo === 'galpao' ? -1 : 1) || ((p.m.ids.length ? PLD_ORDEM[p.m.fluxo].indexOf(p.m.ids[0]) : 99) - (q.m.ids.length ? PLD_ORDEM[q.m.fluxo].indexOf(q.m.ids[0]) : 99)));
   const linhasTab = tabela.map(({ x, m, a }) => `<tr><td>${m.ids.length ? esc(pldEtapa(m.fluxo, m.ids[0]).nome) : '—'}</td><td><b>${esc(x.it.atividade)}</b><div class="mini">${esc(cap(x.it.frente))}</div></td>
@@ -452,7 +472,7 @@ function plDocHtml(pl) {
 </header>
 
 <section><h2>1. Fluxo de execução e situação de cada etapa</h2>
-  <p class="nota">Cada etapa só começa de verdade quando a anterior entrega. A cor mostra a situação da etapa no plano (pior caso entre suas atividades); clique para ir à explicação. Chegada de material, descarregamento e checklist são perguntas de liberação (sim = prossegue; não = retorna). Cinza = sem atividades.</p>
+  <p class="nota">Fluxo montado a partir das <b>${c.itens.length} atividade(s) deste plano</b>, na ordem do fluxo de execução da obra: só entram as etapas que têm atividade no plano. Cada etapa só começa de verdade quando a anterior entrega. A cor mostra a situação da etapa (pior caso entre suas atividades); clique para ir à explicação. Chegada de material, descarregamento e checklist são perguntas de liberação feitas às atividades do plano (sim = prossegue; não = retorna).</p>
   ${pldFluxoVisual(c)}
   <div class="legenda"><span class="chip ok"></span>no prazo / concluída <span class="chip alerta"></span>no limite <span class="chip ruim"></span>atrasada <span class="chip pend"></span>a iniciar <span class="chip nd"></span>sem lançamento</div></section>
 
@@ -470,7 +490,7 @@ function plDocHtml(pl) {
     <li><b>Clima:</b> cobertura aberta por mais tempo aumenta a exposição à chuva e ao vento, com danos a materiais e ao interior.</li>
   </ul>${atrasoPlano ? `<p class="alerta-box">No ritmo atual o plano passa ${atrasoPlano} dia(s) útil(eis) do prazo. Priorize as etapas atrasadas mais a montante do fluxo (gargalo acima).</p>` : ''}</section>
 
-<h2 class="grande">5. Cada etapa explicada, com o impacto de não alcançar o objetivo</h2>
+<h2 class="grande">5. Etapas do plano explicadas, com o impacto de não alcançar o objetivo</h2>
 ${secao('galpao')}
 ${secao('anexo')}
 ${semEtapa.length ? `<section class="etapa"><div class="etapa-cab"><span class="num">+</span><h3>Outras atividades do plano (fora do fluxo padrão)</h3></div><p class="nota">Não foram associadas a uma etapa do fluxo; o impacto vale o do fluxo geral descrito na seção 4.</p>${semEtapa.map(x => pldCartaoAtividade(x, c, [])).join('')}</section>` : ''}
