@@ -856,3 +856,12 @@ td.col-nova { padding: 3px 6px; }
   .pl-modal-fundo { padding: 0; }
   .pl-modal { max-height: 100vh; border-radius: 0; }
 }
+
+.pl-sug-per { margin: 0 0 12px; }
+.pl-sug-per input[type=date] { padding: 5px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); color: var(--fg); font: inherit; }
+.pl-sug tbody tr.marcada { background: var(--acento-suave); }
+.pl-sug .pl-precisa b { font-size: 1rem; color: var(--acento); }
+.pl-sug .pl-precisa.ok { color: var(--fg3); }
+.pl-sug tr.pl-grp td { background: var(--pend-bg); padding: 8px; border-top: 2px solid var(--linha-forte); }
+#plSugTiles { margin-bottom: 14px; }
+.pl-sug + .nota, .bloco > .nota { margin: 0 0 8px; }

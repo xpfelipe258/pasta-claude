@@ -7,7 +7,7 @@
 // Depende de app.js: M, T, ref, ganLinhas, ganDataKey, ehFrenteAnexa, servicosDaFrente, ganBmPercentual,
 // ganBmAtividadesEspecificas, diaUtil, add, contarDiasUteis, trocarGrafico, eixos, cor, nf, fd, fdA, esc, cap, toast, postar.
 // ------------------------------------------------------------------------------------------------
-const PL = { dados: null, carregando: false, sub: 'planos', sel: null, vista: 'resumo', atv: '', dia: 'original', wiz: null, _atv: null };
+const PL = { dados: null, carregando: false, sub: 'sug', sug: { preset: 'semana', ini: null, fim: null, grupo: 'atividade', concl: false, sel: null }, sel: null, vista: 'resumo', atv: '', dia: 'original', wiz: null, _atv: null };
 const PL_ABAS = [['resumo', 'Resumo'], ['dia', 'Dia a dia'], ['gantt', 'Gantt'], ['linha', 'Linha do tempo'], ['w5', '5W2H']];
 const PL_COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'NO LIMITE': 'amarelo', 'ATRASADO': 'vermelho', 'A INICIAR': 'pendente' };
 const PL_HEX = { verde: '--verde', amarelo: '--amarelo', vermelho: '--vermelho', pendente: '--fg3' };
@@ -48,7 +48,7 @@ function plMeta(it, ativ, nDias) {
 }
 const plInteiro = un => ['un', 'und', 'pç', 'pc'].includes(String(un || '').toLowerCase());
 const plFmtTaxa = v => nf(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);   // taxas por dia: sempre com casas, mesmo em unidades inteiras
-const plFmt = (v, un) => nf(v, plInteiro(un) ? 0 : 1);
+const plFmt = (v, un) => { if (Math.abs(v) < 0.005) v = 0; return nf(v, plInteiro(un) ? (Math.abs(v) < 10 && v % 1 ? 1 : 0) : 1); };   // unidade inteira: casas só nos valores pequenos que não fecham
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
 function plSegunda(d) { return add(d, -dow(d)); }
 
@@ -60,10 +60,12 @@ function plUnidade(it) {
   if (/RUFO|CALHA|LINHA DE VIDA/.test(s)) return 'm';
   return 'un';
 }
+const plChaveNome = n => ganNorm(n).replace(/[^A-Z0-9]/g, '').replace(/PREMONTAGEM|PREMONT/g, 'PM');   // "PRÉ-MONT. TERÇAS" = "PREMONTAGEM TERÇAS"
 function plEmpresasDe(it) {
-  const nomes = [];
+  const nomes = [], fr = ganNorm(it.frente), sv = plChaveNome(it.servico);
   M.empresas.forEach(e => {
-    const ok = ehFrenteAnexa(it.frente) ? servicosDaFrente(e, it).length > 0 : e.servicos.some(s => servicoCompat(s.nome, it.servico));
+    let ok = ehFrenteAnexa(it.frente) ? servicosDaFrente(e, it).length > 0 : e.servicos.some(s => servicoCompat(s.nome, it.servico));
+    if (!ok) ok = e.servicos.some(s => ganNorm(s.frente) === fr && (plChaveNome(s.nome) === sv || plChaveNome(s.nome).endsWith(sv) || sv.endsWith(plChaveNome(s.nome))));   // mesmo serviço com outro nome no cronograma
     if (ok) nomes.push(e.nome);
   });
   return nomes;
@@ -201,15 +203,139 @@ async function plCarregar(forcar) {
 }
 const plPlano = id => (PL.dados?.planos || []).find(p => p.id === id);
 
+
+// ---------------------------------------------------------------- sugestão a partir do cronograma
+// Para um período [ini, fim]: o que o cronograma previa × o que foi realizado, quanto precisa ser realizado e quem executa.
+function plRealAte(a, ate) {
+  if (!a._serie) a._serie = plSerieReal(a);
+  let t = 0;
+  a._serie.forEach(([d, v]) => { if (d <= ate) t += v; });
+  return t;
+}
+function plSugestao(a, ini, fim) {
+  const base = plBase(), it = a.it, qtd = a.qtd, veI = add(ini, -1);
+  const prevRef = prevCliente(it, base), P0 = prevCliente(it, veI), P1 = prevCliente(it, fim);
+  const Rb = plRealAte(a, base), R0 = plRealAte(a, minD(veI, base));
+  const precisa = Math.max(0, Math.min(qtd - Rb, P1 - Rb));
+  const diasRest = fim > base ? contarDiasUteis(maxD(base, veI), fim) : 0;
+  return { base, prevRef, P0, P1, Rb, R0, qtd, precisa, desvio: Rb - prevRef, atraso: Math.max(0, P0 - R0),
+    previstoPeriodo: Math.max(0, P1 - P0), realPeriodo: Math.max(0, Rb - R0), metaPeriodo: Math.max(0, Math.min(qtd - R0, P1 - R0)),
+    diasRest, porDia: diasRest > 0 ? precisa / diasRest : null, concluida: Rb >= qtd - 1e-9 };
+}
+function plSugPeriodo() {
+  const g = PL.sug, b = plBase();
+  if (g.preset !== 'livre' || !g.ini || !g.fim) {
+    const seg = plSegunda(b);
+    const ult = (() => { const [y, m] = b.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); })();
+    const mapa = { semana: [seg, add(seg, 4)], prox: [add(seg, 7), add(seg, 11)], duas: [seg, add(seg, 11)], mes: [seg, ult >= seg ? ult : add(seg, 4)] };
+    [g.ini, g.fim] = mapa[g.preset] || mapa.semana;
+  }
+  return [g.ini, g.fim];
+}
+function plSugLinhas(ini, fim) {
+  const g = PL.sug;
+  return plAtividades().map(a => ({ a, s: plSugestao(a, ini, fim) }))
+    .filter(({ a, s }) => (g.concl || !s.concluida) && (!a.ini || a.ini <= fim) && (s.concluida ? (a.prazo || fim) >= ini : true))
+    .sort((x, y) => (y.s.precisa > 1e-9) - (x.s.precisa > 1e-9) || (x.s.desvio / (x.a.qtd || 1)) - (y.s.desvio / (y.a.qtd || 1)) || x.a.frente.localeCompare(y.a.frente));
+}
+const plQuem = a => a.empresas.join(' / ') || a.it.responsavel || 'Sem empresa definida';
+function plSugLinhaHtml({ a, s }, g) {
+  const un = a.unidade, marca = g.sel.has(a.chave), temAcao = s.precisa > 1e-9;
+  const st = s.concluida ? 'CONCLUÍDO' : a.status;
+  return `<tr class="${marca ? 'marcada' : ''}"><td><input type="checkbox" data-pl-sug-marca="${esc(a.chave)}" ${marca ? 'checked' : ''} ${temAcao ? '' : 'disabled title="Nada a realizar neste período"'}></td>
+    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div></td><td>${esc(plQuem(a))}</td>
+    <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevRef, un)}</td><td class="n"><b>${plFmt(s.Rb, un)}</b></td>
+    <td class="n ${s.desvio < -1e-9 ? 'valor-neg' : ''}">${s.desvio > 0 ? '+' : ''}${plFmt(s.desvio, un)}</td><td class="n">${plFmt(s.P1, un)}</td>
+    <td class="n pl-precisa ${temAcao ? '' : 'ok'}" title="Previsto até ${fdA(s.base)} = ${plFmt(s.prevRef, un)}; realizado = ${plFmt(s.Rb, un)}; previsto até ${fdA(PL.sug.fim)} = ${plFmt(s.P1, un)}">${temAcao ? `<b>${plFmt(s.precisa, un)}</b> ${esc(un)}` : '—'}</td>
+    <td class="n">${s.porDia != null && temAcao ? plFmtTaxa(s.porDia) + ' ' + esc(un) + '/dia' : temAcao ? '<span class="valor-neg">prazo do período vencido</span>' : '—'}</td><td>${plFarol(st)}</td></tr>`;
+}
+function plSugCurva(linhas, ini, fim) {
+  const itens = linhas.map(l => l.a), dias = plDias(ini, fim), base = plBase();
+  const pesoTot = soma0(itens, a => a.it.peso || 1) || 1;
+  const pct = (fn, d) => soma0(itens, a => (a.it.peso || 1) * Math.min(1, fn(a, d) / (a.qtd || 1))) / pesoTot * 100;
+  const prev = dias.map(d => pct((a, x) => prevCliente(a.it, x), d));
+  const real = dias.map(d => (d <= base ? pct(plRealAte, d) : null));
+  const iB = dias.filter(d => d <= base).length - 1, rB = iB >= 0 ? real[iB] : pct(plRealAte, base), pF = prev[prev.length - 1];
+  const meta = dias.map((d, i) => (i < iB ? null : iB < 0 ? (i === dias.length - 1 ? pF : null) : i === iB ? rB : rB + (pF - rB) * (i - iB) / Math.max(1, dias.length - 1 - iB)));
+  const n = v => (v == null ? null : +v.toFixed(1));
+  trocarGrafico('gSugCurva', {
+    type: 'line',
+    data: { labels: dias.map(fd), datasets: [
+      { label: 'Previsto no cronograma', data: prev.map(n), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
+      { label: 'Realizado', data: real.map(n), borderColor: cor('--verde'), backgroundColor: cor('--verde'), borderWidth: 3, pointRadius: 2, tension: .2 },
+      { label: 'Precisa realizar (rumo ao previsto)', data: meta.map(n), borderColor: cor('--amarelo'), backgroundColor: cor('--amarelo'), borderDash: [2, 3], borderWidth: 2, pointRadius: 0, tension: 0 },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true, labels: { color: cor('--fg2'), usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.raw == null ? '—' : nf(x.raw, 1) + '%'}` } } },
+      scales: eixos({ max: 100, ticks: { color: cor('--fg2'), callback: v => v + '%' } }, { ticks: { color: cor('--fg2'), maxTicksLimit: 14 } }) },
+  });
+  return { prevRef: iB >= 0 ? prev[iB] : pct((a, x) => prevCliente(a.it, x), base), realRef: rB, prevFim: pF };
+}
+function renderSugestao(box) {
+  PL._atv = null;
+  const g = PL.sug, [ini, fim] = plSugPeriodo();
+  g.ini = ini; g.fim = fim;
+  const linhas = plSugLinhas(ini, fim);
+  if (!g.sel) g.sel = new Set(linhas.filter(l => l.s.precisa > 1e-9).map(l => l.a.chave));
+  [...g.sel].forEach(k => { if (!linhas.some(l => l.a.chave === k)) g.sel.delete(k); });
+  const base = plBase(), acao = linhas.filter(l => l.s.precisa > 1e-9), atras = linhas.filter(l => !l.s.concluida && l.a.status === 'ATRASADO');
+  const quems = new Set(); acao.forEach(l => (l.a.empresas.length ? l.a.empresas : [plQuem(l.a)]).forEach(e => quems.add(e)));
+  const presets = [['semana', 'Semana da referência'], ['prox', 'Próxima semana'], ['duas', 'Esta + próxima'], ['mes', 'Até o fim do mês'], ['livre', 'Escolher datas']];
+  let h = `<div class="pl-topo"><div><h2 class="pl-titulo">Sugestão de planejamento</h2><p class="nota">Montada sozinha a partir do cronograma: o que estava previsto, o que já foi realizado, o que precisa ser realizado no período e quem executa. Confira, marque o que entra e crie o planejamento 5W2H.</p></div>
+    <button class="btn primario" data-pl-sug-criar ${g.sel.size ? '' : 'disabled'}>Criar planejamento com ${g.sel.size} selecionada(s)</button></div>
+    <div class="bloco pl-sug-per"><div class="acoes"><b>Período</b><div class="seg" id="plSugPreset">${presets.map(([k, r]) => `<button data-pl-sug-preset="${k}" class="${g.preset === k ? 'ativa' : ''}">${r}</button>`).join('')}</div>
+      <label class="rot-sel">de <input type="date" data-pl-sug-data="ini" value="${ini}"></label><label class="rot-sel">até <input type="date" data-pl-sug-data="fim" value="${fim}"></label>
+      <span class="nota">${plDias(ini, fim).length} dias úteis · realizado até ${fdA(base)} (data de referência)</span></div></div>`;
+  if (!linhas.length) {
+    box.innerHTML = h + '<div class="bloco pl-vazio"><h3>Nada previsto para este período</h3><p>Nenhuma atividade do cronograma cai nestas datas. Escolha outro período.</p></div>';
+    return;
+  }
+  h += `<div class="tiles" id="plSugTiles"></div>
+    <div class="bloco"><div class="bloco-cab"><h2>Cronograma: previsto × realizado × o que precisa realizar</h2><span class="nota">Curva ponderada pelo peso das atividades listadas, nos dias úteis do período.</span></div><div class="grafico pl-grafico"><canvas id="gSugCurva"></canvas></div></div>`;
+  h += `<div class="bloco"><div class="bloco-cab"><h2>O que fazer e quem faz</h2><div class="acoes">
+    <div class="seg" id="plSugGrupo"><button data-pl-sug-grupo="atividade" class="${g.grupo === 'atividade' ? 'ativa' : ''}">Por atividade</button><button data-pl-sug-grupo="quem" class="${g.grupo === 'quem' ? 'ativa' : ''}">Por quem executa</button></div>
+    <label class="check"><input type="checkbox" data-pl-sug-concl ${g.concl ? 'checked' : ''}> mostrar concluídas</label>
+    <button class="btn" data-pl-sug-todas>Marcar as que precisam</button><button class="btn" data-pl-sug-nenhuma>Limpar</button></div></div>
+    <p class="nota"><b>Precisa realizar</b> = quanto o cronograma prevê acumulado até ${fdA(fim)} menos o que já foi realizado (nunca mais que o saldo do contrato); inclui o atraso acumulado. <b>Por dia</b> = precisa realizar ÷ dias úteis que restam no período.</p>
+    <div class="tabela-rolagem"><table class="pl-tab pl-sug"><thead><tr><th></th><th>Atividade</th><th>Quem</th><th class="n">Contrato</th><th class="n">Previsto até ${fd(base)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Previsto até ${fd(fim)}</th><th class="n">Precisa realizar</th><th class="n">Por dia útil</th><th>Situação</th></tr></thead><tbody>`;
+  if (g.grupo === 'quem') {
+    const grupos = new Map();
+    linhas.forEach(l => { const k = plQuem(l.a); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(l); });
+    [...grupos.entries()].sort((x, y) => y[1].filter(l => l.s.precisa > 1e-9).length - x[1].filter(l => l.s.precisa > 1e-9).length).forEach(([k, ls]) => {
+      const n = ls.filter(l => l.s.precisa > 1e-9).length, at = ls.filter(l => !l.s.concluida && l.a.status === 'ATRASADO').length;
+      h += `<tr class="pl-grp"><td colspan="11"><b>${esc(k)}</b> · ${ls.length} atividade(s) · ${n} com algo a realizar${at ? ` · <span class="valor-neg">${at} atrasada(s)</span>` : ''}</td></tr>` + ls.map(l => plSugLinhaHtml(l, g)).join('');
+    });
+  } else h += linhas.map(l => plSugLinhaHtml(l, g)).join('');
+  h += '</tbody></table></div></div>';
+  box.innerHTML = h;
+  const r = plSugCurva(linhas, ini, fim), dev = r.realRef - r.prevRef;
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  $('#plSugTiles').innerHTML = tile('Previsto até a referência', nf(r.prevRef, 1) + '%', 'o que o cronograma pedia', 'var(--prev, var(--fg3))')
+    + tile('Realizado', nf(r.realRef, 1) + '%', `desvio ${dev >= 0 ? '+' : ''}${nf(dev, 1)} p.p.`, dev < -5 ? 'var(--vermelho)' : dev < -1 ? 'var(--amarelo)' : 'var(--verde)')
+    + tile('Previsto até ' + fd(fim), nf(r.prevFim, 1) + '%', `faltam ${nf(Math.max(0, r.prevFim - r.realRef), 1)} p.p. para a meta do período`, 'var(--acento)')
+    + tile('Com algo a realizar', `${acao.length}/${linhas.length}`, `${atras.length} atrasada(s)`, atras.length ? 'var(--vermelho)' : 'var(--verde)')
+    + tile('Quem executa', String(quems.size), [...quems].join(' · ') || 'nenhuma empresa definida', 'var(--ga, var(--acento))');
+}
+function plCriarDaSugestao() {
+  const g = PL.sug, [ini, fim] = plSugPeriodo();
+  const w = { id: '', passo: 3, nome: `Planejamento ${fdA(ini)} a ${fdA(fim)}`, inicio: ini, fim, responsavel: '',
+    objetivo: `Recuperar o atraso e cumprir o previsto no cronograma até ${fdA(fim)}.`, status: 'ativo', sel: new Map(), busca: '', frente: '' };
+  PL.wiz = w;
+  plAtividades().filter(a => g.sel.has(a.chave)).forEach(a => w.sel.set(a.chave, plItemPadrao(a, w)));
+  if (!w.sel.size) { PL.wiz = null; return toast('Marque ao menos uma atividade.', true); }
+  plWizRender();
+}
+
 // ---------------------------------------------------------------- tela principal
 async function renderPlanejamento() {
   const box = $('#planoNovo');
   if (!box) return;
-  $('#segPlanSub').innerHTML = [['planos', 'Planos 5W2H'], ['legado', 'Setores e impacto logístico']]
+  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['legado', 'Setores e impacto logístico']]
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
   $('#planoLegado').hidden = PL.sub !== 'legado';
-  box.hidden = PL.sub !== 'planos';
+  box.hidden = PL.sub === 'legado';
   if (PL.sub === 'legado') return renderPlanejamentoLegado();
+  if (PL.sub === 'sug') { await plCarregar(); return renderSugestao(box); }
   if (!PL.dados) { box.innerHTML = '<p class="vazio">Carregando planejamentos…</p>'; await plCarregar(); }
   PL._atv = null;
   const planos = PL.dados.planos.slice().sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
@@ -431,15 +557,21 @@ function plWizEditar(pl) {
   plWizRender();
 }
 function plItemPadrao(a, w) {
-  let ini = maxD(w.inicio, a.ini || w.inicio), fim = minD(w.fim, a.prazo || w.fim);
-  if (ini > fim) { ini = w.inicio; fim = w.fim; }
-  const dias = plDias(ini, fim).length, saldo = Math.max(0, a.qtd - a.realAc), meta = Number(a.it.meta_dia) || (a.qtd / Math.max(1, contarDiasUteis(add(a.ini || w.inicio, -1), a.prazo || w.fim)));
-  let q = Math.min(saldo > 0 ? saldo : a.qtd, meta * dias);
+  const sg = plSugestao(a, w.inicio, w.fim);
+  let ini = maxD(w.inicio, a.ini || w.inicio);
+  if (ini > w.fim) ini = w.inicio;
+  const semAtraso = sg.atraso <= 1e-9 && sg.precisa <= sg.previstoPeriodo + 1e-9;
+  const fim = semAtraso && a.prazo && a.prazo >= ini && a.prazo < w.fim ? a.prazo : w.fim;   // atrasada ou sem prazo no período: vai até o fim do período
+  const dias = plDias(ini, fim).length, saldo = Math.max(0, a.qtd - a.realAc);
+  const meta = Number(a.it.meta_dia) || (a.qtd / Math.max(1, contarDiasUteis(add(a.ini || w.inicio, -1), a.prazo || w.fim)));
+  let q = sg.metaPeriodo > 1e-9 ? sg.metaPeriodo : Math.min(saldo > 0 ? saldo : a.qtd, meta * dias);   // meta do período = previsto + atraso (o que já saiu no período conta)
   q = plInteiro(a.unidade) ? Math.max(1, Math.round(q)) : +Math.max(.1, q).toFixed(1);
-  const quem = a.empresas.join(' / ');
+  const quem = plQuem(a) === 'Sem empresa definida' ? '' : plQuem(a);
   return { chave: a.chave, atividade: a.nome, frente: a.frente, empresa: quem, unidade: a.unidade, qtd_contrato: a.qtd, qtd: q, peso: dias, inicio: ini, fim,
     meta_dia: meta * dias >= q - 1e-9 ? null : +(q / dias).toFixed(3),   // em branco = acompanha a meta atual do cronograma
-    o_que: `Executar ${a.nome}`, por_que: '', onde: cap(a.frente), quem, como: '', custo: null, obs: '' };
+    o_que: `Executar ${a.nome}`,
+    por_que: `Cronograma previa ${plFmt(sg.prevRef, a.unidade)} ${a.unidade} até ${fd(sg.base)}; realizado ${plFmt(sg.Rb, a.unidade)} (desvio ${sg.desvio >= 0 ? '+' : ''}${plFmt(sg.desvio, a.unidade)}). Previsto até ${fd(w.fim)}: ${plFmt(sg.P1, a.unidade)}.`,
+    onde: cap(a.frente), quem, como: '', custo: null, obs: '' };
 }
 function plWizRender() {
   const w = PL.wiz;
@@ -458,16 +590,16 @@ function plWizRender() {
     const ats = plAtividades(), frentes = [...new Set(ats.map(a => a.frente))];
     const f = w.busca.toUpperCase();
     const vis = ats.filter(a => (!w.frente || a.frente === w.frente) && (!f || ganNorm(a.nome + ' ' + a.frente + ' ' + a.empresas.join(' ')).includes(ganNorm(f))));
-    const sobrepoe = a => a.status !== 'CONCLUÍDO' && (!a.ini || a.ini <= w.fim) && (!a.prazo || a.prazo >= w.inicio);
+    const sobrepoe = a => plSugestao(a, w.inicio, w.fim).precisa > 1e-9;
     corpo = `<div class="pl-barra-sel"><input type="search" class="input-filtro" data-pl-busca placeholder="Buscar atividade, frente ou empresa…" value="${esc(w.busca)}">
       <select data-pl-frente><option value="">Todas as frentes</option>${frentes.map(x => `<option ${x === w.frente ? 'selected' : ''} value="${esc(x)}">${esc(cap(x))}</option>`).join('')}</select>
-      <button class="btn" data-pl-sugerir>Sugerir as do período</button><button class="btn" data-pl-todas>Marcar visíveis</button><button class="btn" data-pl-nenhuma>Limpar</button>
+      <button class="btn" data-pl-sugerir>Sugerir pelo cronograma</button><button class="btn" data-pl-todas>Marcar visíveis</button><button class="btn" data-pl-nenhuma>Limpar</button>
       <span class="nota"><b>${w.sel.size}</b> selecionada(s) · ${ats.length} atividades no cronograma</span></div>
-      <div class="tabela-rolagem pl-lista"><table class="pl-tab"><thead><tr><th></th><th>Atividade</th><th>Frente</th><th>Empresa</th><th class="n">Contrato</th><th class="n">Realizado</th><th class="n">Saldo</th><th>Cronograma</th><th>Situação</th></tr></thead><tbody>` +
+      <div class="tabela-rolagem pl-lista"><table class="pl-tab"><thead><tr><th></th><th>Atividade</th><th>Frente</th><th>Empresa</th><th class="n">Contrato</th><th class="n">Realizado</th><th class="n">Precisa realizar</th><th>Cronograma</th><th>Situação</th></tr></thead><tbody>` +
       (vis.length ? vis.map(a => `<tr class="${w.sel.has(a.chave) ? 'marcada' : ''} ${sobrepoe(a) ? '' : 'fora'}"><td><input type="checkbox" data-pl-marca="${esc(a.chave)}" ${w.sel.has(a.chave) ? 'checked' : ''}></td>
         <td><b>${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(a.realAc, a.unidade)}</td>
-        <td class="n">${plFmt(Math.max(0, a.qtd - a.realAc), a.unidade)}</td><td>${fd(a.ini)} a ${fd(a.prazo)}</td><td>${plFarol(a.status)}</td></tr>`).join('') : '<tr><td colspan="9" class="vazio">Nenhuma atividade encontrada.</td></tr>') +
-      '</tbody></table></div><p class="nota">Linhas esmaecidas não coincidem com o período escolhido ou já estão concluídas; dá para marcá-las mesmo assim.</p>';
+        <td class="n"><b>${plFmt(plSugestao(a, w.inicio, w.fim).precisa, a.unidade)}</b></td><td>${fd(a.ini)} a ${fd(a.prazo)}</td><td>${plFarol(a.status)}</td></tr>`).join('') : '<tr><td colspan="9" class="vazio">Nenhuma atividade encontrada.</td></tr>') +
+      '</tbody></table></div><p class="nota">Linhas esmaecidas não têm nada a realizar no período (em dia ou concluídas); dá para marcá-las mesmo assim.</p>';
   } else {
     const itens = [...w.sel.values()];
     corpo = `<p class="nota">Preencha o 5W2H de cada atividade. O quê, onde, quem e a quantidade já vêm sugeridos do cronograma. A divisão por dia usa a meta/dia atual de cada atividade (ou a que você digitar) e, no painel, também o ritmo real.</p>
@@ -524,7 +656,7 @@ async function plWizSalvar() {
   try {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);
-    PL.sel = r.id || w.id; PL.vista = 'resumo'; PL.atv = '';
+    PL.sel = r.id || w.id; PL.vista = 'resumo'; PL.atv = ''; PL.sub = 'planos';
     plWizFechar();
     toast('Planejamento salvo ' + ONDE);
     renderPlanejamento();
@@ -554,6 +686,13 @@ document.addEventListener('click', async ev => {
   const t = ev.target;
   const sub = t.closest('[data-pl-sub]');
   if (sub) { PL.sub = sub.dataset.plSub; return renderPlanejamento(); }
+  const sp = t.closest('[data-pl-sug-preset]');
+  if (sp) { PL.sug.preset = sp.dataset.plSugPreset; PL.sug.sel = null; return renderPlanejamento(); }
+  const sg = t.closest('[data-pl-sug-grupo]');
+  if (sg) { PL.sug.grupo = sg.dataset.plSugGrupo; return renderPlanejamento(); }
+  if (t.closest('[data-pl-sug-todas]')) { PL.sug.sel = null; return renderPlanejamento(); }
+  if (t.closest('[data-pl-sug-nenhuma]')) { PL.sug.sel = new Set(); return renderPlanejamento(); }
+  if (t.closest('[data-pl-sug-criar]')) return plCriarDaSugestao();
   if (t.closest('[data-pl-novo]')) return plWizNovo();
   const abrir = t.closest('[data-pl-abrir]');
   if (abrir) { PL.sel = abrir.dataset.plAbrir; PL.atv = ''; return renderPlanejamento(); }
@@ -605,7 +744,7 @@ document.addEventListener('click', async ev => {
   const marca = t.closest('[data-pl-marca]');
   if (marca) { const a = plAtivPorChave(marca.dataset.plMarca); if (marca.checked) { if (a && !w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); } else w.sel.delete(marca.dataset.plMarca); return plWizRender(); }
   if (t.closest('[data-pl-sugerir]')) {
-    plAtividades().filter(a => a.status !== 'CONCLUÍDO' && (!a.ini || a.ini <= w.fim) && (!a.prazo || a.prazo >= w.inicio)).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
+    plAtividades().filter(a => plSugestao(a, w.inicio, w.fim).precisa > 1e-9).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
     return plWizRender();
   }
   if (t.closest('[data-pl-todas]')) {
@@ -640,6 +779,13 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   const w = PL.wiz, t = ev.target;
+  if (t.dataset.plSugData) {
+    PL.sug.preset = 'livre'; PL.sug[t.dataset.plSugData] = t.value;
+    if (ehISO(PL.sug.ini) && ehISO(PL.sug.fim) && PL.sug.fim >= PL.sug.ini) { PL.sug.sel = null; renderPlanejamento(); }
+    return;
+  }
+  if (t.dataset.plSugMarca !== undefined) { t.checked ? PL.sug.sel.add(t.dataset.plSugMarca) : PL.sug.sel.delete(t.dataset.plSugMarca); return renderPlanejamento(); }
+  if (t.dataset.plSugConcl !== undefined) { PL.sug.concl = t.checked; return renderPlanejamento(); }
   if (t.id === 'plAtv') { PL.atv = t.value; const pl = plPlano(PL.sel); if (pl) plDesenharCurva(pl, plCalc(pl)); return; }
   if (!w) return;
   if (t.dataset.plFrente !== undefined) { w.frente = t.value; plWizRender(); }
