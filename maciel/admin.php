@@ -166,13 +166,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Token revogado. Chamadas via Bearer serão recusadas.';
         }
         // Auto-sync para o GitHub após qualquer ação bem-sucedida (exceto a própria sync)
-        if ($acao !== 'sincronizar_github' && !empty($cfg['github_token'])) {
-            try {
-                $rs = sincronizar_para_github($cfg);
-                $msg .= ' · ' . $rs['mensagem'];
-            } catch (Throwable $e) {
-                // Falha silenciosa — não prejudica a ação principal
-            }
+        // A sincronização roda DEPOIS de a página ser entregue (no fim deste arquivo): enviar tudo ao GitHub dentro do
+        // pedido passava de 60 s e o servidor devolvia 504. Trocar o tema é preferência pessoal e não sincroniza.
+        if ($acao !== 'sincronizar_github' && $acao !== 'salvar_tema' && !empty($cfg['github_token'])) {
+            $sincronizarDepois = true;
         }
     } catch (InvalidArgumentException $e) {
         $erro = $e->getMessage();
@@ -356,3 +353,10 @@ pagina_inicio('Administração');
   </section>
 </main>
 </body></html>
+<?php
+if (!empty($sincronizarDepois)) {
+    ignore_user_abort(true);
+    @set_time_limit(600);
+    if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }   // a página já foi entregue; o resto roda em segundo plano
+    try { sincronizar_para_github($cfg); } catch (Throwable $e) { /* falha silenciosa: não atrapalha a ação principal */ }
+}

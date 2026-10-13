@@ -75,15 +75,25 @@ function sincronizar_para_github(array $cfg): array
     $commit  = http_api_github('GET', $api . '/git/commits/' . $commitSha, $token);
     $treeSha = $commit['tree']['sha'] ?? '';
 
-    // 3. Cria blobs para cada arquivo
+    // 3. Só envia o que mudou: compara o SHA git de cada arquivo local com o que já está no ramo (evita centenas de chamadas e commits vazios)
+    $existentes = [];
+    $arvore = http_api_github('GET', $api . '/git/trees/' . $treeSha . '?recursive=1', $token);
+    foreach (($arvore['tree'] ?? []) as $e) {
+        if (($e['type'] ?? '') === 'blob') { $existentes[$e['path']] = $e['sha']; }
+    }
     $treeItems = [];
     foreach ($arquivos as $caminho => $local) {
         $conteudo = file_get_contents($local);
+        if (($existentes[$caminho] ?? '') === sha1('blob ' . strlen($conteudo) . "\0" . $conteudo)) { continue; }
         $blob = http_api_github('POST', $api . '/git/blobs', $token, [
             'content'  => base64_encode($conteudo),
             'encoding' => 'base64',
         ]);
         $treeItems[] = ['path' => $caminho, 'mode' => '100644', 'type' => 'blob', 'sha' => $blob['sha']];
+    }
+
+    if (!$treeItems) {
+        return ['mensagem' => 'GitHub já está atualizado: nenhum arquivo mudou.'];
     }
 
     // 4. Nova tree
