@@ -5743,6 +5743,19 @@ function gerarRelImpactoPopup() {
     toast(`Erro ao gerar relatório: ${err?.message || err}`, true, 7000);
   }
 }
+// Perfilagem, telhar e fechamento (telhas) da Globo são medidos em m² pelo catálogo do BM. O relatório usa o mesmo previsto e realizado
+// do Dashboard cliente e do Avanço físico (item do cronograma do cliente: contrato em m² ÷ dias úteis; realizado = maior entre lançamentos e BM).
+function relItemCatalogoM2(serv) {
+  const s = ganNorm(serv);
+  const chave = s.includes('PERFILAG') || s.includes('PERFILAC') ? 'PERFILACAO' : s.includes('TELHAR') || s.includes('INSTALACAO DE TELHA') ? 'TELHAR' : s === 'FECHAMENTO' || s.includes('FECHAMENTO LATERAL TELHA') ? 'FECHAMENTO' : null;
+  if (!chave) return null;
+  const achado = (M.cliente || []).map(clienteComFontes).find(c => c.fonte_catalogo && !c.fonte_pct && c.qtd > 0 && ganNorm(c.servico) === chave);
+  if (achado) return achado;
+  // cadastro do cliente com outro nome (ex.: "PERFILAGEM DE TELHAS"): aplica a mesma fonte do catálogo, com as datas e a meta da própria linha
+  const c0 = (M.cliente || []).find(c => faseItem(c.frente) === '1' && (chave === 'PERFILACAO' ? /PERFILAG|PERFILAC/.test(ganNorm(c.servico)) : ganNorm(c.servico).includes(chave)));
+  const it = c0 ? clienteComFontes({ ...c0, servico: chave }) : null;
+  return it && it.fonte_catalogo && it.qtd > 0 ? it : null;
+}
 function baixarRelImpacto(ini, fim, empFiltro = []) {
   const modelo = M || { empresas: [], metas: [], impactos: [] };
   const tabelas = T || {};
@@ -5757,6 +5770,12 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const servicos = [...new Set(imp.map(i => i.servico).filter(Boolean))];
   const prodRows = [];
   empsRel.forEach(emp => servicos.forEach(serv => {
+    const cat = ganNorm(emp) === 'GLOBO ACOS' ? relItemCatalogoM2(serv) : null;
+    if (cat) {   // em m², como no Dashboard cliente
+      const previstoM2 = Math.max(0, prevCliente(cat, fim) - prevCliente(cat, add(ini, -1))), realM2 = realizadoPeriodoItem(cat, emp, ini, fim);
+      if (realM2 || previstoM2) prodRows.push({ emp, serv, real: realM2, previsto: previstoM2, pct: previstoM2 ? realM2 / previstoM2 * 100 : null, un: 'm²', contrato: cat.qtd });
+      return;
+    }
     const real = prodServico(serv, emp, ini, fim);
     const metas = (modelo.metas || []).filter(m => m.empresa === emp && m.servico === serv && m.fim >= ini && m.inicio <= fim);
     const previsto = soma0(metas, m => prevMeta(m, ini, fim));
@@ -5771,7 +5790,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const totalHorasRem = soma0(remAtr, r => r.horas);
   const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(cap(i.servico))}</td><td>${esc(impactoSetor(i))}</td><td>${esc(i.motivo)}</td><td>${esc(i.tempo || '')}</td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="9">Sem impactos no período.</td></tr>';
   const rowsRemAtr = remAtr.map(r => `<tr><td>${esc(r.nome)}</td><td>${fdA(r.prevista)}</td><td>${fdA(r.chegada)}</td><td class="n">${nf(r.dias,0)}</td><td class="n">${nf(r.horas,0)}h</td><td class="n">${nf(r.qtdTotal,1)}</td><td>${esc(r.itens.slice(0,8).map(i => i.tag + ' (' + nf(i.qtd,1) + ')').join(', '))}${r.itens.length > 8 ? '...' : ''}</td></tr>`).join('') || '<tr><td colspan="7">Sem remessas em atraso no período.</td></tr>';
-  const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}</td><td class="n">${nf(r.real,1)}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
+  const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${nf(r.real,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
   const empsEquip = [...new Set(usos.map(u => normEmp(u.empAjust)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const porEq = new Map();
   usos.forEach(u => {
@@ -5788,8 +5807,19 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const rowsEqTot = [...porEq.values()].sort((a,b)=>b.total-a.total || a.eq.localeCompare(b.eq)).map(o => `<tr><td>${esc(o.eq)}</td>${empsEquip.map(e => `<td class="n">${rs(o.porEmp[e] || 0)}</td>`).join('')}<td class="n"><b>${rs(o.total)}</b></td></tr>`).join('') || `<tr><td colspan="${empsEquip.length + 2}">Sem totais de equipamento.</td></tr>`;
   const footEqTot = empsEquip.length ? `<tfoot><tr><th>Total por empresa</th>${empsEquip.map(e => `<th class="n">${rs(soma0([...porEq.values()], o => o.porEmp[e] || 0))}</th>`).join('')}<th class="n">${rs(soma0([...porEq.values()], o => o.total))}</th></tr></tfoot>` : '';
   const porDpDiaEmp = new Map(); dp.forEach(d => { const emp = normEmp(d.empresa); const k = `${d.data}|${emp}`; const o = porDpDiaEmp.get(k) || { data:d.data, empresa:emp, total:0 }; o.total += d.quantidade || 0; porDpDiaEmp.set(k, o); });
-  const rowsDP = [...porDpDiaEmp.values()].sort((a,b)=>String(a.data).localeCompare(String(b.data)) || String(a.empresa).localeCompare(String(b.empresa))).map(d => `<tr><td>${fdA(d.data)}</td><td>${esc(d.empresa)}</td><td class="n">${nf(d.total,0)}</td></tr>`).join('') || '<tr><td colspan="3">Sem pessoal lançado no período.</td></tr>';
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro)}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th>Tempo</th><th>Efetivo no dia</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias</th><th class="n">Horas</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(totalHorasRem,0)}h</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table><h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead><tr><th>Data</th><th>Empresa</th><th class="n">Efetivo total</th></tr></thead><tbody>${rowsDP}</tbody></table></body></html>`;
+  // Pessoal por dia: uma linha por data, uma coluna por empresa (quantidade lançada no DP) e o total do efetivo no dia.
+  const empsDP = empsRel.filter(e => [...porDpDiaEmp.values()].some(o => o.empresa === e));
+  const diasDP = [...new Set([...porDpDiaEmp.values()].map(o => o.data))].sort();
+  const efDiaEmp = (data, emp) => (porDpDiaEmp.get(`${data}|${emp}`) || {}).total || 0;
+  const impNoDia = data => imp.filter(i => { const pi = periodoImpacto(i); return pi.ini <= data && pi.fim >= data; }).length;
+  const totDia = data => soma0(empsDP, e => efDiaEmp(data, e));
+  const DIAS_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const rowsDP = diasDP.map(dt => `<tr><td><b>${fdA(dt)}</b> <span class="nota-rel">${DIAS_CURTO[dU(dt).getUTCDay()]}</span></td>${empsDP.map(e => { const v = efDiaEmp(dt, e); return `<td class="n">${v ? nf(v, 0) : '—'}</td>`; }).join('')}<td class="n"><b>${nf(totDia(dt), 0)}</b></td><td class="n">${impNoDia(dt) || '—'}</td></tr>`).join('') || `<tr><td colspan="${empsDP.length + 3}">Sem pessoal lançado no período.</td></tr>`;
+  const headDP = `<tr><th>Data</th>${empsDP.map(e => `<th class="n">${esc(e)}</th>`).join('')}<th class="n">Total do efetivo no dia</th><th class="n">Impactos em andamento</th></tr>`;
+  const footDP = diasDP.length ? `<tfoot><tr><th>Total (homem-dia)</th>${empsDP.map(e => `<th class="n">${nf(soma0(diasDP, d => efDiaEmp(d, e)), 0)}</th>`).join('')}<th class="n">${nf(soma0(diasDP, totDia), 0)}</th><th></th></tr>
+    <tr><th>Média por dia lançado</th>${empsDP.map(e => { const ds = diasDP.filter(d => efDiaEmp(d, e)); return `<th class="n">${ds.length ? nf(soma0(ds, d => efDiaEmp(d, e)) / ds.length, 1) : '—'}</th>`; }).join('')}<th class="n">${nf(soma0(diasDP, totDia) / diasDP.length, 1)}</th><th></th></tr>
+    <tr><th>Pico no período</th>${empsDP.map(e => `<th class="n">${nf(Math.max(0, ...diasDP.map(d => efDiaEmp(d, e))), 0)}</th>`).join('')}<th class="n">${nf(Math.max(0, ...diasDP.map(totDia)), 0)}</th><th></th></tr></tfoot>` : '';
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro)}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th>Tempo</th><th>Efetivo no dia</th><th>Efeito</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias</th><th class="n">Horas</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(totalHorasRem,0)}h</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p></body></html>`;
   baixarHtml(`relatorio_impactos_${ini}_${fim}.html`, html);
 }
 function dpEmpresas() {
