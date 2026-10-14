@@ -312,6 +312,11 @@ function paresMeta() {
   return pares;
 }
 function kpiPer(emp, serv, ini, fim, corte) {
+  const tot = telharM2(emp, serv, ini, fim);   // telhas da Globo: previsto e realizado em m² (catálogo do BM)
+  if (tot) {
+    const ate = minD(fim, corte), t = corte < ini ? { prev: 0, real: 0 } : telharM2(emp, serv, ini, ate) || { prev: 0, real: 0 };
+    return { emp, serv, e: empresa(emp), col: colDe(empresa(emp), serv), prevTotal: tot.prev, prev: t.prev, real: t.real, pct: t.prev > 0 ? t.real / t.prev * 100 : null, un: 'm²' };
+  }
   const e = empresa(emp), col = colDe(e, serv);
   const ms = M.metas.filter(m => m.empresa === emp && m.servico === serv && m.fim >= ini && m.inicio <= fim);
   const prevTotal = soma0(ms, m => prevMeta(m, ini, fim));
@@ -533,6 +538,8 @@ function renderAba() {
 // ------------------------------------------------------------ PAINEL (por período)
 function renderPainel() {
   const c = corte();
+  plIndicePainel();   // planos 5W2H ativos (Farol, alertas e bloco de planejamento)
+  if (!PL.dados && !PL._carregandoPainel) { PL._carregandoPainel = true; plCarregar().then(() => { PL._carregandoPainel = false; if (abaAtual === 'painel') renderPainel(); }); }
   const ksAll = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
 
   // --- filtro de empresa ---
@@ -581,22 +588,25 @@ function renderPainel() {
     ? tileGeral
     : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
-  let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th><th class="n" title="Atividades dos planos 5W2H ativos: % do plano já executado">Plano 5W2H</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
-    if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
+    if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="9"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
     const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
     const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
     const atrasado = k.prev > 0 && k.real === 0 && c >= per.ini;
-    h += `<tr><td>${esc(cap(k.serv))}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
+    const pp = plResumoFarol(k);
+    const celPlano = pp ? `<td class="n" title="${nf(pp.real, 1)} ${esc(pp.un)} executados de ${nf(pp.qtd, 1)} do plano; previsto até hoje ${nf(pp.plan, 1)}"><b>${nf(pp.pctPlano, 0)}%</b> ${plFarol(pp.st)}<div class="nota">${pp.pctPrev != null ? nf(pp.pctPrev, 0) + '% do previsto' : 'a iniciar'}</div></td>` : '<td class="n nota">—</td>';
+    h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
       <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
       <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
-      <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+      <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td>${celPlano}</tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
   renderAlertas(ks, c);
   graficoPainel(ks);
   renderPlanoAcao(c);
+  renderPainelPlanos();
 }
 
 function renderAlertas(ks, c) {
@@ -635,6 +645,7 @@ function renderAlertas(ks, c) {
     if (produzido === 0) al.push(['vermelho', `<b>${esc(cap(cl.servico))}</b>: planejado iniciar em ${fd(cl.inicio_plan)} mas ainda não iniciado — <span class="farol f-vermelho">ATRASADO</span>`]);
   });
 
+  plAlertasPainel().forEach(x => al.push(x));   // atividades dos planos 5W2H atrasadas ou no limite
   $('#alertas').innerHTML = al.length
     ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
     : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
@@ -5759,11 +5770,11 @@ function relItemCatalogoM2(serv) {
   const it = c0 ? clienteComFontes({ ...c0, servico: chave }) : null;
   return it && it.fonte_catalogo && it.qtd > 0 ? it : null;
 }
-// Instalação de telhas da Globo Aços na aba Tendências: previsto e realizado em m², iguais aos do Dashboard cliente / Avanço físico
-// (contrato do catálogo do BM GLO-3.2.1-02; realizado = maior entre lançamentos e BM). A meta semanal cadastrada é em telhas e não serve
-// para comparar com o realizado em m². Devolve null para outro serviço ou empresa (usa a meta cadastrada de sempre).
+// Serviços de telha da Globo Aços (instalação de telhas, perfilagem, fechamento) no Painel, Faróis e Tendências: previsto e realizado em m²,
+// iguais aos do Dashboard cliente / Avanço físico (contrato do catálogo do BM; realizado = maior entre lançamentos e BM). A meta semanal
+// cadastrada é em telhas e não serve para comparar com o realizado em m². Devolve null para outro serviço ou empresa (usa a meta cadastrada).
 function telharM2(empNome, serv, ini, fim) {
-  if (ganNorm(empNome) !== 'GLOBO ACOS' || !ehTelhar(ganNorm(serv))) return null;
+  if (ganNorm(empNome) !== 'GLOBO ACOS') return null;
   const it = relItemCatalogoM2(serv);
   if (!it || fim < ini) return null;
   return { prev: Math.max(0, prevCliente(it, fim) - prevCliente(it, add(ini, -1))), real: realizadoPeriodoItem(it, empNome, ini, fim), un: 'm²' };

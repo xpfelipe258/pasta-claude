@@ -135,7 +135,8 @@ function plSerieReal(a) {
 }
 
 // ---------------------------------------------------------------- cálculo do plano
-function plCalcItem(pl, it0, base) {
+function plCalcItem(pl0, it0, base) {
+  const pl = it0._plano || pl0;   // item vindo de outro plano (visão combinada no Painel): vale a janela do plano dele
   const ativ = plAtivPorChave(it0.chave);
   // Eclusa – Vigas e Joists: quantidade = contratado (un), mesmo em planos salvos antes; o que já foi lançado antes do período (r0) conta como feito
   const it = ativ?.acumulado ? { ...it0, qtd: ativ.qtd, unidade: 'un' } : it0;
@@ -441,10 +442,10 @@ function plResumo(pl, c, box) {
   box.innerHTML = h;
   plDesenharCurva(pl, c);
 }
-function plDesenharCurva(pl, c) {
+function plDesenharCurva(pl, c, canvasId = 'gPlanoCurva', atv = PL.atv) {
   let planPct = c.planPct, realPct = c.realPct, proj = c.proj, nec = c.nec;
-  if (PL.atv) {
-    const x = c.itens.find(i => i.it.chave === PL.atv);
+  if (atv) {
+    const x = c.itens.find(i => i.it.chave === atv);
     if (x) {
       const pa = [], ra = [];
       let pAc = x.r0 || 0, rAc = x.r0 || 0;
@@ -460,7 +461,7 @@ function plDesenharCurva(pl, c) {
     }
   }
   const n = v => v == null ? null : +v.toFixed(1);
-  trocarGrafico('gPlanoCurva', {
+  trocarGrafico(canvasId, {
     type: 'line',
     data: { labels: c.diasPlano.map(fd), datasets: [
       { label: 'Planejado', data: planPct.map(n), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: .25 },
@@ -822,3 +823,105 @@ document.addEventListener('change', ev => {
   if (t.dataset.plW && (t.dataset.plW === 'inicio' || t.dataset.plW === 'fim')) plWizRender();
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz) plWizFechar(); });
+
+// ---------------------------------------------------------------- PLANEJAMENTO DENTRO DO PAINEL (dashboard)
+// O que foi planejado (planos 5W2H ativos que cruzam o período do Painel) × o que foi executado: curva S, % executado e situação por atividade.
+// Também alimenta a coluna "Plano 5W2H" do Farol do período e os pontos de atenção.
+PL.pp = { plano: '', atv: '' };
+const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio <= per.fim && p.fim >= per.ini);
+function plItemDaEmpresa(it, emp) {
+  if (!emp) return true;
+  const a = plAtivPorChave(it.chave);
+  return (a?.empresas || []).includes(emp) || ganNorm(it.empresa || '').includes(ganNorm(emp));
+}
+function plPlanoCombinado(planos, emp) {
+  const itens = planos.flatMap(p => p.itens.filter(it => plItemDaEmpresa(it, emp)).map(it => ({ ...it, _plano: { inicio: p.inicio, fim: p.fim }, _planoNome: p.nome })));
+  if (!itens.length) return null;
+  return { id: 'combinado', nome: planos.length > 1 ? 'Todos os planos ativos' : planos[0].nome, inicio: planos.map(p => p.inicio).sort()[0], fim: planos.map(p => p.fim).sort().pop(), itens };
+}
+// uma passada por renderização: calcula os planos ativos (cada um com a sua janela) e indexa as atividades
+function plIndicePainel() {
+  PL._atv = null;   // o cronograma depende do período/referência atuais
+  const lista = [];
+  plPlanosPainel().forEach(p => { const c = plCalc(p); c.itens.forEach(x => lista.push({ p, x, emps: x.ativ?.empresas || [] })); });
+  PL._ix = lista;
+  return lista;
+}
+function plCasaLinha(e, k) {   // atividade do plano ↔ linha de meta do Farol (empresa + serviço)
+  const a = e.x.ativ;
+  if (!a || !e.emps.includes(k.emp)) return false;
+  const sa = ganNorm(a.it.servico), sk = ganNorm(k.serv);
+  if (sa === sk || (ehTelhar(sa) && ehTelhar(sk))) return true;
+  if (ehFrenteAnexa(a.it.frente)) return false;
+  return servicoCompat(a.it.servico, k.serv);
+}
+function plResumoFarol(k) {   // célula "Plano 5W2H" da linha do Farol; null = serviço fora dos planos ativos
+  const es = (PL._ix || []).filter(e => plCasaLinha(e, k));
+  if (!es.length) return null;
+  const qtd = soma0(es, e => e.x.it.qtd), plan = soma0(es, e => e.x.planAc), real = soma0(es, e => e.x.realAc);
+  const ordem = ['ATRASADO', 'NO LIMITE', 'NO PRAZO', 'ADIANTADO', 'A INICIAR', 'CONCLUÍDO'];
+  const st = es.map(e => e.x.status).sort((a, b) => ordem.indexOf(a) - ordem.indexOf(b))[0];
+  return { n: es.length, qtd, plan, real, un: es[0].x.it.unidade, pctPlano: qtd ? real / qtd * 100 : 0, pctPrev: plan > 0 ? real / plan * 100 : null, st };
+}
+function plAlertasPainel() {
+  const al = [];
+  (PL._ix || []).filter(e => !painelEmpFiltro || e.emps.includes(painelEmpFiltro)).forEach(({ p, x }) => {
+    if (x.status !== 'ATRASADO' && x.status !== 'NO LIMITE') return;
+    const nivel = x.status === 'ATRASADO' ? 'vermelho' : 'amarelo';
+    al.push([nivel, `<b>Plano ${esc(p.nome)} · ${esc(x.it.atividade)}</b>: executado ${nf(x.pctReal * 100, 0)}% do plano, previsto ${nf(x.pctPlan * 100, 0)}% até hoje (${x.status.toLowerCase()}). Falta ${plFmt(x.falta, x.it.unidade)} ${esc(x.it.unidade)}${x.ritmoNec != null ? ` — precisa de ${plFmtTaxa(x.ritmoNec)}/dia, ritmo atual ${plFmtTaxa(x.ritmoAtual)}/dia` : ''}.`]);
+  });
+  return al;
+}
+async function renderPainelPlanos() {
+  const box = document.getElementById('painelPlanos');
+  if (!box) return;
+  const tk = PL._ppTk = (PL._ppTk || 0) + 1;
+  if (!PL.dados || Date.now() - (PL._ts || 0) > 60000) {
+    const antes = JSON.stringify(PL.dados?.planos || []);
+    await plCarregar(true); PL._ts = Date.now();
+    if (tk !== PL._ppTk) return;
+    if (JSON.stringify(PL.dados.planos) !== antes) { renderPainel(); return; }   // planos mudaram: refaz Farol e alertas também
+  }
+  const planos = plPlanosPainel(), emp = painelEmpFiltro || '';
+  const cab = `<div class="bloco-cab"><h2>Planejamento 5W2H — planejado × executado</h2><button class="btn" data-ir-aba="plan">Abrir Planejamento</button></div>`;
+  if (!planos.length) {
+    box.innerHTML = `${cab}<p class="nota">Nenhum planejamento 5W2H ativo no período de ${fdA(per.ini)} a ${fdA(per.fim)}. Crie em Planejamento → Sugestão do cronograma → “Criar planejamento”: a curva S e o % executado aparecem aqui.</p>`;
+    return;
+  }
+  if (PL.pp.plano && !planos.some(p => p.id === PL.pp.plano)) PL.pp.plano = '';
+  const sel = PL.pp.plano ? planos.filter(p => p.id === PL.pp.plano) : planos;
+  const pl = plPlanoCombinado(sel, emp);
+  const optsPl = `<option value="">Todos os planos ativos (${planos.length})</option>` + planos.map(p => `<option value="${esc(p.id)}" ${p.id === PL.pp.plano ? 'selected' : ''}>${esc(p.nome)} · ${fd(p.inicio)} a ${fd(p.fim)}</option>`).join('');
+  if (!pl) { box.innerHTML = `${cab}<div class="barra-acoes"><label class="rot-sel">Plano <select id="ppPlano">${optsPl}</select></label></div><p class="nota">Nenhuma atividade de ${esc(emp)} nos planos ativos.</p>`; return; }
+  const c = plCalc(pl), st = plStatusPlano(c);
+  if (PL.pp.atv && !pl.itens.some(i => i.chave === PL.pp.atv)) PL.pp.atv = '';
+  const optsAt = `<option value="">Todo o plano (ponderado)</option>` + pl.itens.map(i => `<option value="${esc(i.chave)}" ${PL.pp.atv === i.chave ? 'selected' : ''}>${esc(i.atividade)} · ${esc(cap(i.frente))}</option>`).join('');
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  let h = `${cab}<div class="barra-acoes"><label class="rot-sel">Plano <select id="ppPlano">${optsPl}</select></label>
+      <label class="rot-sel">Atividade <select id="ppAtv">${optsAt}</select></label>${plFarol(st)}
+      <span class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${pl.itens.length} atividade(s) · executado até ${fdA(c.baseRef)}${emp ? ' · ' + esc(emp) : ''}</span></div>`;
+  const xa = PL.pp.atv ? c.itens.find(i => i.it.chave === PL.pp.atv) : null;   // atividade escolhida: os cartões passam a ser dela
+  const pPlan = xa ? xa.pctPlan * 100 : c.pctPlan, pReal = xa ? xa.pctReal * 100 : c.pctReal, desv = pReal - pPlan, falta = Math.max(0, 100 - pReal);
+  const dRest = xa ? xa.diasRest : c.diasRest;
+  h += '<div class="tiles">' +
+    tile('Planejado até hoje', nf(pPlan, 1) + '%', xa ? esc(xa.it.atividade) : 'curva S do plano', 'var(--acento)') +
+    tile('Executado', nf(pReal, 1) + '%', `desvio ${desv >= 0 ? '+' : ''}${nf(desv, 1)} p.p. sobre o planejado`, desv < -5 ? 'var(--vermelho)' : desv < -1 ? 'var(--amarelo)' : 'var(--verde)') +
+    tile('Falta executar', nf(falta, 1) + '%', dRest ? `${nf(falta / dRest, 1)} p.p. por dia útil (${dRest} dias úteis)` : 'prazo encerrado', 'var(--fg3)') +
+    (xa ? tile('Situação', plFarol(xa.status), `${plFmt(xa.realAc, xa.it.unidade)} de ${plFmt(xa.it.qtd, xa.it.unidade)} ${esc(xa.it.unidade)}`, 'var(--fg3)')
+        : tile('Atividades', `${c.concl}/${pl.itens.length}`, `${c.atrasadas} atrasada(s)${c.terminaEm ? ' · no ritmo, termina em ' + fdA(c.terminaEm) : ''}`, c.atrasadas ? 'var(--vermelho)' : 'var(--verde)')) + '</div>';
+  h += `<div class="grafico pl-grafico"><canvas id="gPainelPlano"></canvas></div>
+    <p class="nota">Curva S: linha cheia = executado; tracejada = planejado (meta/dia de cada atividade); pontilhada = projeção no ritmo atual; cinza = ritmo necessário para fechar no prazo.</p>
+    <div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Plano</th><th class="n">Previsto até hoje</th><th class="n">Executado</th><th class="pl-prog">% do plano executado</th><th class="n">Meta/dia</th><th class="n">Necessário/dia</th><th>Situação</th></tr></thead><tbody>` +
+    c.itens.map(x => `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${pl.id === 'combinado' && x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc((x.ativ?.empresas || []).join(' / ') || x.it.empresa || '—')}</td>
+      <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${plFmt(x.planAc, x.it.unidade)}</td><td class="n"><b>${plFmt(x.realAc, x.it.unidade)}</b></td>
+      <td class="pl-prog"><div class="pl-barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real f-${PL_COR_STATUS[x.status] || 'pendente'}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div><div class="nota">${nf(x.pctReal * 100, 0)}% executado de ${nf(x.pctPlan * 100, 0)}% previsto</div></td>
+      <td class="n">${plFmtTaxa(x.meta)}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec != null ? plFmtTaxa(x.ritmoNec) : '—'}</td><td>${plFarol(x.status)}</td></tr>`).join('') + '</tbody></table></div>';
+  box.innerHTML = h;
+  plDesenharCurva(pl, c, 'gPainelPlano', PL.pp.atv);
+}
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.id === 'ppPlano') { PL.pp.plano = t.value; PL.pp.atv = ''; renderPainelPlanos(); }
+  else if (t.id === 'ppAtv') { PL.pp.atv = t.value; renderPainelPlanos(); }
+});
+
