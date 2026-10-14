@@ -5271,7 +5271,7 @@ const FORMS = {
   bm_atividades: { tit: 'atividade do catálogo do BM', campos: [
     ['codigo', 'Código (único)', 'text', 1], ['empresa', 'Empresa', 'empresa', 1], ['item', 'Item do BM (ex.: 3.1.1)', 'text', 1],
     ['item_desc', 'Descrição do item', 'text', 1, 'largo'], ['atividade', 'Atividade (serviço)', 'text', 1, 'largo'], ['unidade', 'Unidade', 'text', 1],
-    ['qtd', 'Quantidade contratada', 'num', 1], ['peso', 'Peso no item (0 a 1)', 'num', 1], ['valor_qpc', 'Valor do item QPC (R$)', 'num'],
+    ['qtd', 'Quantidade contratada', 'num', 1], ['peso', 'Peso no item (0 a 1 — ex.: 0,25 = 25%)', 'num', 1], ['valor_qpc', 'Valor do item QPC (R$)', 'num'],
     ['valor_rotula', 'Valor do item RÓTULA (R$)', 'num'], ['controle', 'Coluna no controle de produção (nome do serviço)', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
   estoque_eventos: { tit: 'evento de produção (baixa por IFC)', campos: [
@@ -5356,7 +5356,7 @@ async function salvarDialogo(ev) {
   const tabela = dlg.dataset.tabela, linha = dlg.dataset.linha ? +dlg.dataset.linha : null;
   const campos = {};
   FORMS[tabela].campos.forEach(([k, , tipo]) => {
-    let v = f.elements[k].value.trim();
+    let v = f.elements.namedItem(k).value.trim();   // namedItem: o campo "item" (BM) colidia com form.elements.item()
     if (tipo === 'num' && v && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
     if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && !['obs', 'material', 'atividade', 'item_desc', 'descricao', 'unidade'].includes(k)) v = v.toUpperCase();
     campos[k] = v || null;
