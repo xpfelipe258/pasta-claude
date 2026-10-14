@@ -344,6 +344,7 @@ async function carregar() {
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
+  M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
   $('#pontoSync').className = 'ponto ok';
@@ -1264,11 +1265,44 @@ function pctFechLat(ate, empresaNome = null) {
   const sel = empresaNome ? porEmp.filter(x => x.nome === normEmp(empresaNome)) : porEmp;
   return sel.length ? soma0(sel, x => x.pct) / sel.length : 0;
 }
+// ECLUSA – VIGAS E JOISTS separada em dois itens do cronograma, em unidades: Vigas (contrato = catálogo do BM EJ-3.3.1-01, 9 un) e Joists
+// (EJ-3.3.1-03, 18 un). O executado vem do que foi LANÇADO nas colunas da Eclusa de cada empresa, classificadas pelo nome (coluna com "viga"
+// = vigas; com "joist" = joists; pré-montagem não entra; coluna que junta as duas palavras não dá para separar e fica de fora).
+const ECLUSA_VJ = [['viga', 'ECLUSA – VIGAS', ['EJ-3.3.1-01'], 9], ['joist', 'ECLUSA – JOISTS', ['EJ-3.3.1-03'], 18]];
+function eclusaTipoServico(nome) {
+  const n = ganNorm(nome);
+  if (/PREMONT|PRE MONT/.test(n)) return null;
+  const v = /VIGA/.test(n), j = /JOIST/.test(n);
+  return v && !j ? 'viga' : j && !v ? 'joist' : null;
+}
+const eclusaQtd = tipo => { const d = ECLUSA_VJ.find(x => x[0] === tipo); return d ? (catalogoQtd(d[2]) || d[3]) : 0; };
+function eclusaSerie(tipo, empNome) {
+  const ds = [];
+  M.empresas.forEach(e => {
+    if (empNome && e.nome !== empNome) return;
+    (e.servicos || []).filter(sv => ganNorm(sv.frente) === 'ECLUSA' && eclusaTipoServico(sv.nome) === tipo).forEach(sv => Object.keys(e.registros || {}).forEach(d => {
+      const v = e.registros[d].v[sv.col];
+      if (typeof v === 'number' && v > 0) ds.push([d, v]);
+    }));
+  });
+  return ds.sort((a, b) => a[0].localeCompare(b[0]));
+}
+function eclusaSepararCliente(lista) {
+  const out = [];
+  (lista || []).forEach(c => {
+    if (ganNorm(c.frente) === 'ECLUSA' && ganNorm(c.servico).includes('VIGAS E JOISTS')) {
+      const itens = ECLUSA_VJ.map(([tipo, nome]) => ({ tipo, nome, qtd: eclusaQtd(tipo) })), tot = soma0(itens, x => x.qtd) || 1;
+      itens.forEach(x => out.push({ ...c, servico: x.nome, qtd: x.qtd, peso: (Number(c.peso) || 1) * x.qtd / tot, meta_dia: null, _eclusa: x.tipo }));
+    } else out.push(c);
+  });
+  return out;
+}
 // Frentes anexas (Eclusa, Portaria, Refeitório, Vestiário, Passarelas, Marquise...): o realizado vem só das colunas da própria
 // frente (e, na Eclusa, das atividades do BM dela). Antes entrava qualquer serviço de nome parecido (ex.: VIGAS do galpão) e o
 // realizado ficava muito acima do que foi lançado.
 const ehFrenteAnexa = f => { const n = ganNorm(f); return !!n && (!n.startsWith('GALPAO') || n.includes('MARQUISE')); };
 function servicosDaFrente(e, c) {
+  if (c._eclusa) return (e.servicos || []).filter(s => ganNorm(s.frente) === 'ECLUSA' && eclusaTipoServico(s.nome) === c._eclusa);   // Eclusa: vigas ou joists
   const fr = ganNorm(c.frente), sv = ganNorm(c.servico);
   const daFrente = (e.servicos || []).filter(s => ganNorm(s.frente) === fr);
   const exato = daFrente.filter(s => ganNorm(s.nome) === sv);
@@ -1384,7 +1418,8 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Testeira', inicio_plan: '2026-10-19', prazo: '2026-12-30', fontes: ['Marquise - Testeira', 'Testeira'] },
 
   // Prédios anexos / áreas complementares
-  { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Vigas e Joists', inicio_plan: '2026-09-08', prazo: '2026-09-16', fontes: ['Eclusa', 'Vigas', 'Joist'] },
+  { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Vigas', inicio_plan: '2026-09-08', prazo: '2026-09-16', fontes: [], _eclusa: 'viga' },
+  { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Joists', inicio_plan: '2026-09-08', prazo: '2026-09-16', fontes: [], _eclusa: 'joist' },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Calhas', inicio_plan: '2026-09-17', prazo: '2026-09-23', fontes: ['Eclusa', 'Calhas'] },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Telhas', inicio_plan: '2026-09-24', prazo: '2026-10-09', fontes: ['Eclusa', 'Telhas', 'Instalação de telhas'] },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Fechamento ACM', inicio_plan: '2026-11-03', prazo: '2026-11-12', fontes: ['Eclusa', 'Fechamento ACM', 'Fechamento'] },
@@ -1429,7 +1464,8 @@ const GAN_AJUSTES_DATAS_PADRAO = {
   'GALPÃO F1 – COBERTURA|Instalação de telhas|1': { inicio_plan: '2026-10-01', prazo: '2026-11-27' },
   'GALPÃO F1 – FECHAMENTO LATERAL|Fech. Lateral – Estrutura|1': { inicio_plan: '2026-10-01' },
   'GALPÃO F1 – FECHAMENTO LATERAL|Fechamento|1': { inicio_plan: '2026-10-01' },
-  'ECLUSA|Eclusa - Vigas e Joists|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
+  'ECLUSA|Eclusa - Vigas|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
+  'ECLUSA|Eclusa - Joists|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
   'ECLUSA|Eclusa - Calhas|1': { inicio_plan: '2026-10-22', prazo: '2026-10-28' },
   'ECLUSA|Eclusa - Telhas|1': { inicio_plan: '2026-10-29', prazo: '2026-11-13' },
   'ECLUSA|Eclusa - Fechamento ACM|1': { inicio_plan: '2026-12-03', prazo: '2026-12-14' },
@@ -1479,7 +1515,7 @@ function ganAplicarDatas(it) {
 
 
 function ganSuprimirAvancoVisual(it) {
-  if (ganBmAtividadesEspecificas(it).length) return false;
+  if (it._eclusa || ganBmAtividadesEspecificas(it).length) return false;
   const fr = ganNorm(it.frente), sv = ganNorm(it.servico);
   return fr === 'ECLUSA'
     || fr === 'PORTARIA'
@@ -1510,6 +1546,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
 }
 
 function ganProducao(itOuServico, empNome) {
+  if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
   const fontes = ganServicosFonte(itOuServico);
   const ds = [];
   M.empresas.forEach(e => {
@@ -1571,7 +1608,7 @@ function ganItensCliente() {
       alvo.fontes = [...new Set([...(alvo.fontes || []), ...(cr.fontes || []), cr.servico])];
     } else {
       const porBm = ganBmAtividadesEspecificas(cr).length > 0;
-      const qtd = porBm ? 100 : ganQtdRef(cr);
+      const qtd = cr._eclusa ? eclusaQtd(cr._eclusa) : porBm ? 100 : ganQtdRef(cr);
       base.push({ ...cr, qtd, peso: porBm ? 1 : qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true, bm_percentual: porBm });
     }
   });
@@ -1611,7 +1648,7 @@ function ganProducaoFase(it, empNome) {
 
 function ganBmAtividades(it) {
   const serv = ganNorm(it.servico), frente = ganNorm(it.frente), fontes = ganServicosFonte(it).map(ganNorm);
-  if (!serv) return [];
+  if (!serv || it._eclusa) return [];
   const ehFechamentoGalpao = serv === 'FECHAMENTO';
   const ehFechEstrutura = serv.includes('FECH LATERAL ESTRUTURA') || serv.includes('FECHAMENTO LATERAL ESTRUTURA');
   return bmTab('bm_atividades').filter(a => {
@@ -2381,7 +2418,7 @@ function renderAvanco() {
     const totStatus = fases.map(f => f.status).sort((a, b) => statusPrioridadeContrato.indexOf(a) - statusPrioridadeContrato.indexOf(b))[0];
     const totNecessario = soma0(fases, f => f.necessario || 0) || null;
     const totRitmo = soma0(fases, f => f.ritmo || 0);
-    const ed1 = fases.length === 1 && !fases[0].fonte_catalogo;
+    const ed1 = fases.length === 1 && !fases[0].fonte_catalogo && !fases[0]._eclusa;   // Eclusa vigas/joists: itens derivados de uma linha só do cadastro
     tBodyContrato += `<tr>
       <td><b>${esc(fases.find(f => f.servico_exib)?.servico_exib || cap(serv))}</b></td>
       <td class="n${ed1 ? ' editavel' : ''}"${ed1 ? ` data-edit-campo="qtd" data-edit-id="${fases[0].linha}" data-edit-val="${fases[0].qtd ?? ''}"` : ''}><b>${totQtd ? nf(totQtd) : semContratoNote}</b></td>
@@ -2563,6 +2600,7 @@ function renderCliente() {
 function clienteConsolidacao() {
   const out = [];
   M.cliente.forEach(c0 => {
+    if (c0._eclusa) return;   // itens derivados (vigas/joists) não existem como linhas do cadastro
     const r = clienteComFontes(c0);
     if (!r.qtd) return;
     // O contrato NÃO é gravado: a rota de registro copia cliente.qtd para servicos.escopo (grade por empresa, em outra unidade).

@@ -52,24 +52,12 @@ const plFmt = (v, un) => { if (Math.abs(v) < 0.005) v = 0; return nf(v, plInteir
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
 function plSegunda(d) { return add(d, -dow(d)); }
 
-// ---------------------------------------------------------------- Eclusa – Vigas e Joists: contratado em unidades, realizado = acumulado lançado
-// Contratado = instalação das vigas (EJ-3.3.1-01) + instalação de joists (EJ-3.3.1-03) do catálogo do BM (9 + 18 = 27 un).
-// Realizado = acumulado de tudo que foi lançado (EJ + CMM, desde o início) nas colunas de montagem de vigas e de joist da Eclusa
-// (pré-montagem não entra). No plano o realizado acumulado conta inteiro, mesmo o que saiu antes do início do período.
-const PL_ECLUSA_VJ_COD = ['EJ-3.3.1-01', 'EJ-3.3.1-03'];
-const plEhEclusaVJ = it => !!it.bm_percentual && ganNorm(it.frente).includes('ECLUSA') && /VIGA/.test(ganNorm(it.servico)) && /JOIST/.test(ganNorm(it.servico));
-function plEclusaVJSerie() {
-  const lista = [];
-  M.empresas.forEach(e => (e.servicos || []).forEach(sv => {
-    const n = ganNorm(sv.nome);
-    if (!ganNorm(sv.frente).includes('ECLUSA') || !(/VIGA/.test(n) || /JOIST/.test(n)) || /PREMONT|PRE MONT/.test(n)) return;
-    Object.keys(e.registros || {}).forEach(d => { const v = e.registros[d].v[sv.col]; if (typeof v === 'number' && v > 0) lista.push([d, v]); });
-  }));
-  return lista.sort((x, y) => x[0].localeCompare(y[0]));
-}
-
+// ---------------------------------------------------------------- Eclusa – Vigas e Joists (dois itens do cronograma, em unidades)
+// Vigas (9 un) e Joists (18 un): o realizado é o acumulado lançado nas colunas de vigas / de joists da Eclusa (eclusaSerie, app.js), inteiro,
+// mesmo o que saiu antes do início do período. Planos salvos com o item antigo (27 un juntos) são divididos ao abrir (plMigrarEclusa).
 // ---------------------------------------------------------------- atividades (todas as do cronograma)
 function plUnidade(it) {
+  if (it._eclusa) return 'un';
   if (it.bm_percentual || it.fonte_pct) return '%';
   const s = ganNorm(it.servico);
   if (typeof servicoUsaCatalogoM2 === 'function' && servicoUsaCatalogoM2(it.servico)) return 'm²';
@@ -93,19 +81,13 @@ function plAtividades(forcar) {
   faseFiltro = '';
   let ls = [];
   try { ls = ganLinhas(corte()); } finally { faseFiltro = f; }
-  const contratoVJ = catalogoQtd(PL_ECLUSA_VJ_COD);
   PL._atv = ls.map(l => {
-    let it = l.it, a;
+    let a;
     const base = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
       unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
       realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
     a = base();
-    if (contratoVJ > 0 && plEhEclusaVJ(it)) {   // em unidades: contratado 27 e realizado = acumulado lançado de vigas + joists
-      const fator = contratoVJ / (Number(it.qtd) || 100), itx = { ...it, qtd: contratoVJ, bm_percentual: false, meta_dia: (Number(it.meta_dia) || 0) * fator };
-      const serie = plEclusaVJSerie(), realAc = soma0(serie, ([, v]) => v), prevAc = prevCliente(itx, corte());
-      const status = realAc >= contratoVJ ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
-      Object.assign(a, { it: itx, unidade: 'un', qtd: contratoVJ, realAc, prevAc, status, acumulado: true, linha: { ...l, it: itx, dsReal: serie, realAc, prevAc, status } });
-    }
+    if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
     return a;
   }).sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || a.nome.localeCompare(b.nome));
   return PL._atv;
@@ -230,7 +212,23 @@ async function plCarregar(forcar) {
     PL.dados = r.ok ? await r.json() : { planos: [] };
   } catch { PL.dados = { planos: [] }; }
   if (!Array.isArray(PL.dados.planos)) PL.dados = { planos: [] };
+  plMigrarEclusa(PL.dados.planos);
   return PL.dados;
+}
+// Planos salvos com "ECLUSA – VIGAS E JOISTS" (27 un juntos) passam a ter dois itens, vigas (9) e joists (18), na proporção do contratado.
+// A mudança vale na tela; é gravada quando o plano for salvo de novo.
+function plMigrarEclusa(planos) {
+  let novos = null;
+  planos.forEach(p => {
+    if (!(p.itens || []).some(i => /ECLUSA/.test(ganNorm(i.chave)) && /VIGAS E JOISTS/.test(ganNorm(i.chave + ' ' + (i.atividade || ''))))) return;
+    novos ||= plAtividades().filter(a => a.it._eclusa);
+    if (novos.length < 2) return;
+    const tot = soma0(novos, a => a.qtd) || 1;
+    p.itens = p.itens.flatMap(i => {
+      if (!(/ECLUSA/.test(ganNorm(i.chave)) && /VIGAS E JOISTS/.test(ganNorm(i.chave + ' ' + (i.atividade || ''))))) return [i];
+      return novos.map(a => { const f = a.qtd / tot; return { ...i, chave: a.chave, atividade: a.nome, unidade: 'un', qtd_contrato: a.qtd, qtd: +(Number(i.qtd) * f).toFixed(1), peso: (Number(i.peso) || 1) * f, meta_dia: i.meta_dia ? +(Number(i.meta_dia) * f).toFixed(3) : null }; });
+    });
+  });
 }
 const plPlano = id => (PL.dados?.planos || []).find(p => p.id === id);
 
