@@ -1262,7 +1262,7 @@
      },
      {
       "col": "C",
-      "nome": "TELHAR",
+      "nome": "Instalação de telhas",
       "frente": "GALPÃO F1 – COBERTURA",
       "id": "ID 18",
       "escopo": 888,
@@ -1535,7 +1535,7 @@
    {
     "linha": 24,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-07-20",
     "fim": "2026-07-24",
     "corte": "2026-07-25",
@@ -1643,7 +1643,7 @@
    {
     "linha": 33,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-07-27",
     "fim": "2026-07-31",
     "corte": "2026-08-01",
@@ -1751,7 +1751,7 @@
    {
     "linha": 42,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-08-03",
     "fim": "2026-08-07",
     "corte": "2026-08-08",
@@ -1859,7 +1859,7 @@
    {
     "linha": 51,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-08-10",
     "fim": "2026-08-14",
     "corte": "2026-08-15",
@@ -1967,7 +1967,7 @@
    {
     "linha": 60,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-08-17",
     "fim": "2026-08-21",
     "corte": "2026-08-22",
@@ -2075,7 +2075,7 @@
    {
     "linha": 69,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-08-24",
     "fim": "2026-08-28",
     "corte": "2026-08-29",
@@ -2183,7 +2183,7 @@
    {
     "linha": 78,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-08-31",
     "fim": "2026-09-04",
     "corte": "2026-09-05",
@@ -2291,7 +2291,7 @@
    {
     "linha": 87,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-09-07",
     "fim": "2026-09-12",
     "corte": "2026-09-12",
@@ -2399,7 +2399,7 @@
    {
     "linha": 96,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-09-14",
     "fim": "2026-09-19",
     "corte": "2026-09-19",
@@ -2507,7 +2507,7 @@
    {
     "linha": 105,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-09-21",
     "fim": "2026-09-25",
     "corte": "2026-09-26",
@@ -2615,7 +2615,7 @@
    {
     "linha": 114,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-09-28",
     "fim": "2026-10-02",
     "corte": "2026-10-03",
@@ -2723,7 +2723,7 @@
    {
     "linha": 123,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-10-05",
     "fim": "2026-10-09",
     "corte": "2026-10-10",
@@ -2831,7 +2831,7 @@
    {
     "linha": 132,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-10-12",
     "fim": "2026-10-16",
     "corte": "2026-10-17",
@@ -2939,7 +2939,7 @@
    {
     "linha": 141,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-10-19",
     "fim": "2026-10-23",
     "corte": "2026-10-24",
@@ -3047,7 +3047,7 @@
    {
     "linha": 150,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-10-26",
     "fim": "2026-10-30",
     "corte": "2026-10-31",
@@ -3155,7 +3155,7 @@
    {
     "linha": 159,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-11-02",
     "fim": "2026-11-06",
     "corte": "2026-11-07",
@@ -3263,7 +3263,7 @@
    {
     "linha": 168,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-11-09",
     "fim": "2026-11-13",
     "corte": "2026-11-14",
@@ -3371,7 +3371,7 @@
    {
     "linha": 177,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-11-16",
     "fim": "2026-11-20",
     "corte": "2026-11-21",
@@ -3479,7 +3479,7 @@
    {
     "linha": 186,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-11-23",
     "fim": "2026-11-27",
     "corte": "2026-11-28",
@@ -3587,7 +3587,7 @@
    {
     "linha": 195,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-11-30",
     "fim": "2026-12-04",
     "corte": "2026-12-05",
@@ -3695,7 +3695,7 @@
    {
     "linha": 204,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-12-07",
     "fim": "2026-12-11",
     "corte": "2026-12-12",
@@ -3803,7 +3803,7 @@
    {
     "linha": 213,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-12-14",
     "fim": "2026-12-18",
     "corte": "2026-12-19",
@@ -3911,7 +3911,7 @@
    {
     "linha": 222,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-12-21",
     "fim": "2026-12-25",
     "corte": "2026-12-26",
@@ -4019,7 +4019,7 @@
    {
     "linha": 231,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2026-12-28",
     "fim": "2027-01-01",
     "corte": "2027-01-02",
@@ -4127,7 +4127,7 @@
    {
     "linha": 240,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-01-04",
     "fim": "2027-01-08",
     "corte": "2027-01-09",
@@ -4235,7 +4235,7 @@
    {
     "linha": 249,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-01-11",
     "fim": "2027-01-15",
     "corte": "2027-01-16",
@@ -4343,7 +4343,7 @@
    {
     "linha": 258,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-01-18",
     "fim": "2027-01-22",
     "corte": "2027-01-23",
@@ -4451,7 +4451,7 @@
    {
     "linha": 267,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-01-25",
     "fim": "2027-01-29",
     "corte": "2027-01-30",
@@ -4559,7 +4559,7 @@
    {
     "linha": 276,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-02-01",
     "fim": "2027-02-05",
     "corte": "2027-02-06",
@@ -4667,7 +4667,7 @@
    {
     "linha": 285,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-02-08",
     "fim": "2027-02-12",
     "corte": "2027-02-13",
@@ -4775,7 +4775,7 @@
    {
     "linha": 294,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-02-15",
     "fim": "2027-02-19",
     "corte": "2027-02-20",
@@ -4883,7 +4883,7 @@
    {
     "linha": 303,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-02-22",
     "fim": "2027-02-26",
     "corte": "2027-02-27",
@@ -4991,7 +4991,7 @@
    {
     "linha": 312,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-03-01",
     "fim": "2027-03-05",
     "corte": "2027-03-06",
@@ -5099,7 +5099,7 @@
    {
     "linha": 321,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-03-08",
     "fim": "2027-03-12",
     "corte": "2027-03-13",
@@ -5207,7 +5207,7 @@
    {
     "linha": 330,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-03-15",
     "fim": "2027-03-19",
     "corte": "2027-03-20",
@@ -5315,7 +5315,7 @@
    {
     "linha": 339,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-03-22",
     "fim": "2027-03-26",
     "corte": "2027-03-27",
@@ -5423,7 +5423,7 @@
    {
     "linha": 348,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-03-29",
     "fim": "2027-04-02",
     "corte": "2027-04-03",
@@ -5531,7 +5531,7 @@
    {
     "linha": 357,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-04-05",
     "fim": "2027-04-09",
     "corte": "2027-04-10",
@@ -5639,7 +5639,7 @@
    {
     "linha": 366,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-04-12",
     "fim": "2027-04-16",
     "corte": "2027-04-17",
@@ -5747,7 +5747,7 @@
    {
     "linha": 375,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-04-19",
     "fim": "2027-04-23",
     "corte": "2027-04-24",
@@ -5855,7 +5855,7 @@
    {
     "linha": 384,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-04-26",
     "fim": "2027-04-30",
     "corte": "2027-05-01",
@@ -5963,7 +5963,7 @@
    {
     "linha": 393,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-05-03",
     "fim": "2027-05-07",
     "corte": "2027-05-08",
@@ -6071,7 +6071,7 @@
    {
     "linha": 402,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-05-10",
     "fim": "2027-05-14",
     "corte": "2027-05-15",
@@ -6179,7 +6179,7 @@
    {
     "linha": 411,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-05-17",
     "fim": "2027-05-21",
     "corte": "2027-05-22",
@@ -6287,7 +6287,7 @@
    {
     "linha": 420,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-05-24",
     "fim": "2027-05-28",
     "corte": "2027-05-29",
@@ -6395,7 +6395,7 @@
    {
     "linha": 429,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-05-31",
     "fim": "2027-06-04",
     "corte": "2027-06-05",
@@ -6503,7 +6503,7 @@
    {
     "linha": 438,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-06-07",
     "fim": "2027-06-11",
     "corte": "2027-06-12",
@@ -6611,7 +6611,7 @@
    {
     "linha": 447,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-06-14",
     "fim": "2027-06-18",
     "corte": "2027-06-19",
@@ -6719,7 +6719,7 @@
    {
     "linha": 456,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-06-21",
     "fim": "2027-06-25",
     "corte": "2027-06-26",
@@ -6827,7 +6827,7 @@
    {
     "linha": 465,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-06-28",
     "fim": "2027-07-02",
     "corte": "2027-07-03",
@@ -6935,7 +6935,7 @@
    {
     "linha": 474,
     "empresa": "GLOBO AÇOS",
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "inicio": "2027-07-05",
     "fim": "2027-07-09",
     "corte": "2027-07-10",
@@ -7012,7 +7012,7 @@
    },
    {
     "linha": 9,
-    "servico": "TELHAR",
+    "servico": "Instalação de telhas",
     "qtd": 446,
     "inicio_plan": "2026-09-01",
     "meta_dia": 7,

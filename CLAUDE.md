@@ -111,7 +111,7 @@ Testar em mtecengenharia.net/claude/maciel/
 
 ---
 
-## Estado atual do banco (esquema v14)
+## Estado atual do banco (esquema v15)
 
 Tabelas presentes: `usuarios`, `obras`, `obras_dados`, `sistema`, `historico`,
 `estoque_materiais`, `estoque_remessas`, `estoque_remessas_itens`,
@@ -136,6 +136,14 @@ Obra ativa: **OBRA 198** (id=1)
 ---
 
 ## Histórico de sessões
+
+### 2026-10-14 (2)
+**"Telhar" → "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os lugares; KPI removido; Tendências em m²:**
+- **ESQUEMA_VERSAO = 15** — `renomear_telhar_v15()` em `maciel/inc/nucleo.php` troca `TELHAR` (qualquer caixa) por `Instalação de telhas` em `servicos.nome`, `metas.servico`, `cliente.servico`, `impactos.servico`, `materiais.servico` e, por substituição de texto, nos JSON de `obra_config`/`sistema` (planos 5W2H, `contratos_cliente`, planilha de estoque) — só quando "telhar" é o valor inteiro ou parte de uma chave separada por `|`. Sementes (`inc/dados_iniciais.json`) já com o nome novo.
+- Código (`maciel/app.js`): `ehTelhar(n)` aceita os dois nomes; `CLIENTE_FONTES` usa a chave `INSTALACAO DE TELHAS` (`clienteFonte()` ainda entende `TELHAR`); Gantt (`GAN_CRONOGRAMA_CLIENTE`, `GAN_AJUSTES_DATAS_PADRAO`) com o nome novo; datas editadas no Gantt (localStorage `obra198_gantt_datas`) com chave antiga são migradas sozinhas; `cap()` não força mais maiúsculas em nome já escrito com maiúsculas e minúsculas (mostra "Instalação de telhas" como no catálogo).
+- **Área KPI removida:** grupo "KPI / Insights" do menu (`inc/painel.html`, `dashboard_admin.php`), seção `#aba-kpi`, `renderKPI`/`renderKpiProntidao`/`atualizarContadorKpi` (`app.js`) e o módulo `kpi` em `modulos_sistema()`. As funções `kpi()`/`kpiPer()` ficam (Painel, Semana e Tendências usam).
+- **Tendências — Instalação de telhas:** para a Globo Aços usa `telharM2()` (`app.js`): previsto = cronograma do cliente em m² (`prevCliente`, contrato do catálogo do BM) e realizado = `realizadoPeriodoItem` (maior entre lançamentos e BM), igual ao Dashboard cliente. Antes comparava a meta semanal em telhas com produção em m². Vale nos 3 gráficos (atingimento, produção semanal, comparativo); o título indica "(m² · catálogo Globo Aços)". Painel/farol continuam com `kpiPer` (meta em telhas) — ainda não conciliado.
+- Teste de ponta a ponta (banco v14 com nomes antigos → migração → Chromium): `scratchpad/t/e2e_telhar.py`.
 
 ### 2026-10-13 (2)
 **Planejamento — botão "Baixar planejamento":** gera um documento HTML único (abre em qualquer navegador; botão interno ou Ctrl+P salva em PDF) com resumo, fluxo executivo colorido por situação, curva S, quadro das atividades e cada etapa do fluxo explicada (o que é, por que importa, **impacto se não alcançar o objetivo**, como recuperar) + cartão de cada atividade do plano (5W2H, situação, atraso projetado e efeito em cascata nas etapas seguintes). Arquivo novo: `maciel/planos_doc.js` (botão `data-pl-doc` em `plRenderPainel`, `planos.js`; script carregado em `inc/painel.html`, versionado por `filemtime` em `index.php`). Fluxos em `PLD_FLUXOS`: galpão principal (17 etapas: chegada de material … rufos e acabamentos) e anexos (8 etapas); o enquadramento da atividade do cronograma na etapa é por nome (`PLD_REGRAS`, só frentes `GALPÃO…` entram no fluxo do galpão; o resto vai para anexos). Chegada de material, descarregamento e checklist não têm linha no cronograma: aparecem como etapas de apoio.

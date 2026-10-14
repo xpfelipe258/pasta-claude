@@ -25,8 +25,8 @@ const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const COR_EMP = { 'EJ': '--ej', 'CMM': '--cmm', 'GLOBO AÇOS': '--ga' };
 const API = window.API_BASE || 'api/';
 let ONDE = 'na planilha';
-const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia', 'kpi']);
-const ABAS_PRODUCAO = new Set(['painel', 'semana', 'lanc', 'apont', 'plan', 'avanco', 'gantt', 'cliente', 'tendencia', 'kpi']);
+const ABAS_PERIODO = new Set(['painel', 'cliente', 'equip', 'tendencia']);
+const ABAS_PRODUCAO = new Set(['painel', 'semana', 'lanc', 'apont', 'plan', 'avanco', 'gantt', 'cliente', 'tendencia']);
 const ABAS_ESTOQUE = new Set(['estmat', 'estrem', 'estcons', 'estinv', 'estcrit', 'estsis']);
 
 
@@ -85,7 +85,7 @@ function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
 function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
 function rs2(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function cap(s) { return String(s || '').toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
+function cap(s) { s = String(s || ''); if (s !== s.toLowerCase() && s !== s.toUpperCase()) return s; return s.toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
 function cor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function corEmp(nome) { return `var(${COR_EMP[nome] || '--fg3'})`; }
 function corEmpHex(nome) { return cor(COR_EMP[nome] || '--fg3'); }
@@ -164,6 +164,8 @@ function vigiarScrollTopo() {
 
 // ------------------------------------------------------------ dados de produção
 function empresa(nome) { return M.empresas.find(e => e.nome === nome); }
+// "Telhar" passou a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02). Aceita os dois nomes (texto já normalizado por ganNorm).
+function ehTelhar(n) { return n.includes('TELHAR') || n === 'INSTALACAO DE TELHAS'; }
 function servicoCompat(nomeFonte, nomeAlvo) {
   const f = ganNorm(nomeFonte), a = ganNorm(nomeAlvo);
   if (!f || !a) return false;
@@ -171,7 +173,7 @@ function servicoCompat(nomeFonte, nomeAlvo) {
   const fontePerfil = f.includes('PERFILAG') || f.includes('PERFILAC');
   const alvoPerfil = a.includes('PERFILAG') || a.includes('PERFILAC');
   if (alvoPerfil) return fontePerfil;
-  if (a === 'TELHAR' || a.includes('TELHAR')) return !fontePerfil && !f.includes('PERFIL') && (f.includes('INSTALACAO DE TELH') || f.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || f.includes('FACEFELT') || f.includes('MONTAGEM TELH') || f === 'TELHAS' || f === 'TELHA' || f.includes(' TELHAS') || f.includes(' TELHA'));
+  if (ehTelhar(a)) return !fontePerfil && !f.includes('PERFIL') && (f.includes('INSTALACAO DE TELH') || f.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || f.includes('FACEFELT') || f.includes('MONTAGEM TELH') || f === 'TELHAS' || f === 'TELHA' || f.includes(' TELHAS') || f.includes(' TELHA'));
   return f.includes(a) || a.includes(f);
 }
 function colDe(e, serv) { const s = e && e.servicos.find(x => servicoCompat(x.nome, serv)); return s ? s.col : null; }
@@ -198,7 +200,7 @@ function bmAtividadeCompatServico(a, servico) {
   if (ctl && servicoCompat(ctl, servico)) return true;
   const alvoPerfil = alvo.includes('PERFILAG') || alvo.includes('PERFILAC');
   if (alvoPerfil) return ativ.includes('PERFILAG') || ativ.includes('PERFILAC');
-  if (alvo.includes('TELHAR')) return !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT') || ativ === 'TELHAS' || ativ.includes(' TELHAS'));
+  if (ehTelhar(alvo)) return !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT') || ativ === 'TELHAS' || ativ.includes(' TELHAS'));
   if (servicoCompat(item, servico) || servicoCompat(ativ, servico)) return true;
   return false;
 }
@@ -222,7 +224,7 @@ function bmCatalogoServico(servico, fase = '') {
     const emp = ganNorm(a.empresa), txt = bmTextoAtividade(a), ativ = ganNorm(a.atividade || '');
     const itemCobGalpao = txt.includes('COBERTURA DO GALPAO EM TELHA ZIPADA') || txt.includes('COBERTURA DO GALPAO EM TELHA');
     if ((alvo.includes('PERFILAG') || alvo.includes('PERFILAC'))) return emp === 'GLOBO ACOS' && itemCobGalpao && (ativ.includes('PERFILAG') || ativ.includes('PERFILAC'));
-    if (alvo.includes('TELHAR')) return emp === 'GLOBO ACOS' && itemCobGalpao && !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT'));
+    if (ehTelhar(alvo)) return emp === 'GLOBO ACOS' && itemCobGalpao && !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT'));
     if (alvo === 'FECHAMENTO') return emp === 'GLOBO ACOS' && !itemCobGalpao && (txt.includes('FECHAMENTO LATERAL') || txt.includes('RUFO') || txt.includes('RUFOS'));
     if (alvo.includes('FECH LATERAL ESTRUTURA') || alvo.includes('FECHAMENTO LATERAL ESTRUTURA')) return (emp === 'EJ' || emp === 'CMM') && txt.includes('FECHAMENTO LATERAL');
     return false;
@@ -231,12 +233,12 @@ function bmCatalogoServico(servico, fase = '') {
 function contratoCatalogoServico(servico, fase = '') {
   const ats = bmCatalogoServico(servico, fase);
   const alvo = ganNorm(servico);
-  if (alvo.includes('TELHAR')) return ats.length ? Math.max(...ats.map(a => Number(a.qtd) || 0)) : 0;
+  if (ehTelhar(alvo)) return ats.length ? Math.max(...ats.map(a => Number(a.qtd) || 0)) : 0;
   return soma0(ats, a => Number(a.qtd) || 0);
 }
 function servicoUsaCatalogoM2(servico) {
   const s = ganNorm(servico);
-  return s.includes('PERFILAG') || s.includes('PERFILAC') || s.includes('TELHAR') || s === 'FECHAMENTO' || s.includes('FECH LATERAL ESTRUTURA') || s.includes('FECHAMENTO LATERAL ESTRUTURA');
+  return s.includes('PERFILAG') || s.includes('PERFILAC') || ehTelhar(s) || s === 'FECHAMENTO' || s.includes('FECH LATERAL ESTRUTURA') || s.includes('FECHAMENTO LATERAL ESTRUTURA');
 }
 function bmApontamentoServicoValor(a, quantidade, servico) {
   const emp = normEmp(a?.empresa || '');
@@ -352,7 +354,7 @@ async function carregar() {
     const menuDash = document.getElementById('menuDashboardGeral');
     if (menuDash) menuDash.textContent = u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard';
     document.body.classList.toggle('somente-leitura', u.perfil === 'leitura');
-    const mods = Array.isArray(u.modulos) ? u.modulos : ['producao','suprimentos','consumo','financeiro','kpi','gestao'];
+    const mods = Array.isArray(u.modulos) ? u.modulos : ['producao','suprimentos','consumo','financeiro','gestao'];
     document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(t => {
       const grupo = t.dataset.grupo;
       const caixa = t.closest('.sidebar-grupo');
@@ -366,7 +368,7 @@ async function carregar() {
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
   preencherListas();
   renderTudo();
-  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); atualizarContadorKpi(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); else if (abaAtual === 'kpi') renderKPI(); }).catch(() => {});
+  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); }).catch(() => {});
 }
 
 async function postar(url, corpo) {
@@ -515,27 +517,15 @@ function renderTudo() {
   // Inventário, fixadores e baixa automática possuem seus próprios indicadores.
   const faltaMateriais = estoqueLinhas().filter(l => l.nivel === 'vermelho').length;
   $('#estCont').hidden = !faltaMateriais; $('#estCont').textContent = faltaMateriais;
-  atualizarContadorKpi();
   atualizarPendentes();
   renderAba();
-}
-
-// Mesmo cálculo do painel KPI: serviços < 90% + impactos abertos + materiais críticos (quando o estoque já carregou).
-function atualizarContadorKpi() {
-  const kpiC = document.getElementById('kpiCont');
-  if (!kpiC || !M) return;
-  const c = corte();
-  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
-  const n = ks.filter(k => k.pct != null && k.pct < 90).length + impactosComAutomaticos().filter(i => !i.solucionado).length
-    + (EP ? EP.materiais.filter(m => m.status_logistico === 'Crítico').length : 0);
-  kpiC.hidden = !n; kpiC.textContent = n;
 }
 
 function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, kpi: renderKPI, apont: renderApont,
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, apont: renderApont,
      plan: renderPlanejamento })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);
 }
@@ -1199,11 +1189,11 @@ const CLIENTE_FONTES = [
   { chave: 'ICAMENTO JOIST', nome: 'Instalação de joist', atividades: ['EJ-3.1.1-03', 'CMM-3.1.1-03'] },
   { chave: 'VIGAS', nome: 'Instalação de estrutura principal vigas senoidais e laminadas', atividades: ['EJ-3.1.1-01', 'CMM-3.1.1-01'] },
   { chave: 'PERFILACAO', nome: 'Perfilagem de telhas', atividades: ['GLO-3.2.1-01'] },
-  { chave: 'TELHAR', nome: 'Instalação de telhas', atividades: ['GLO-3.2.1-02'] },
+  { chave: 'INSTALACAO DE TELHAS', nome: 'Instalação de telhas', atividades: ['GLO-3.2.1-02'] },
   { chave: 'FECHAMENTO', nome: 'Instalação das telhas (fechamento lateral)', atividades: ['GLO-3.2.2-01'] },
   { chave: 'FECH LATERAL ESTRUTURA', nome: 'Fechamento lateral (estrutura) · % de avanço', percentual: true },
 ];
-function clienteFonte(c) { const k = ganNorm(c?.servico); return CLIENTE_FONTES.find(f => f.chave === k) || null; }
+function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'TELHAR') k = 'INSTALACAO DE TELHAS'; return CLIENTE_FONTES.find(f => f.chave === k) || null; }
 function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
@@ -1379,31 +1369,31 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Premontagem Terças', inicio_plan: '2026-09-29', prazo: '2026-12-10', fontes: ['Marquise - Premontagem Terças', 'Premontagem', 'Terças'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Montagem Terças', inicio_plan: '2026-10-06', prazo: '2026-12-17', fontes: ['Marquise - Montagem Terças', 'Terças'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Calhas', inicio_plan: '2026-10-07', prazo: '2026-12-18', fontes: ['Marquise - Calhas', 'Calhas'] },
-  { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Telhas', inicio_plan: '2026-10-15', prazo: '2026-12-28', fontes: ['Marquise - Telhas', 'Telhas', 'Telhar'] },
+  { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Telhas', inicio_plan: '2026-10-15', prazo: '2026-12-28', fontes: ['Marquise - Telhas', 'Telhas', 'Instalação de telhas'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Testeira', inicio_plan: '2026-10-19', prazo: '2026-12-30', fontes: ['Marquise - Testeira', 'Testeira'] },
 
   // Prédios anexos / áreas complementares
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Vigas e Joists', inicio_plan: '2026-09-08', prazo: '2026-09-16', fontes: ['Eclusa', 'Vigas', 'Joist'] },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Calhas', inicio_plan: '2026-09-17', prazo: '2026-09-23', fontes: ['Eclusa', 'Calhas'] },
-  { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Telhas', inicio_plan: '2026-09-24', prazo: '2026-10-09', fontes: ['Eclusa', 'Telhas', 'Telhar'] },
+  { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Telhas', inicio_plan: '2026-09-24', prazo: '2026-10-09', fontes: ['Eclusa', 'Telhas', 'Instalação de telhas'] },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Fechamento ACM', inicio_plan: '2026-11-03', prazo: '2026-11-12', fontes: ['Eclusa', 'Fechamento ACM', 'Fechamento'] },
   { frente: 'ECLUSA', fase: '1', servico: 'Eclusa - Rufos e Arremates', inicio_plan: '2026-11-03', prazo: '2026-11-16', fontes: ['Eclusa', 'Rufos', 'Arremates'] },
   { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Vigas e Terças', inicio_plan: '2026-09-17', prazo: '2026-09-28', fontes: ['Portaria', 'Vigas', 'Terças'] },
   { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Calhas', inicio_plan: '2026-09-29', prazo: '2026-10-01', fontes: ['Portaria', 'Calhas'] },
-  { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Telhas', inicio_plan: '2026-10-13', prazo: '2026-10-26', fontes: ['Portaria', 'Telhas', 'Telhar'] },
+  { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Telhas', inicio_plan: '2026-10-13', prazo: '2026-10-26', fontes: ['Portaria', 'Telhas', 'Instalação de telhas'] },
   { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Platibanda', inicio_plan: '2026-10-27', prazo: '2026-11-05', fontes: ['Portaria', 'Platibanda'] },
   { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Fechamento ACM', inicio_plan: '2026-11-16', prazo: '2026-11-24', fontes: ['Portaria', 'Fechamento ACM', 'Fechamento'] },
   { frente: 'PORTARIA', fase: '1', servico: 'Portaria - Rufos e Arremates', inicio_plan: '2026-11-16', prazo: '2026-11-25', fontes: ['Portaria', 'Rufos', 'Arremates'] },
   { frente: 'REFEITÓRIO', fase: '1', servico: 'Refeitório - Vigas e Terças', inicio_plan: '2026-09-29', prazo: '2026-10-07', fontes: ['Refeitório', 'Vigas', 'Terças'] },
   { frente: 'REFEITÓRIO', fase: '1', servico: 'Refeitório - Calhas', inicio_plan: '2026-10-08', prazo: '2026-10-14', fontes: ['Refeitório', 'Calhas'] },
-  { frente: 'REFEITÓRIO', fase: '1', servico: 'Refeitório - Telhas', inicio_plan: '2026-10-09', prazo: '2026-10-21', fontes: ['Refeitório', 'Telhas', 'Telhar'] },
+  { frente: 'REFEITÓRIO', fase: '1', servico: 'Refeitório - Telhas', inicio_plan: '2026-10-09', prazo: '2026-10-21', fontes: ['Refeitório', 'Telhas', 'Instalação de telhas'] },
   { frente: 'REFEITÓRIO', fase: '1', servico: 'Refeitório - Rufos e Arremates', inicio_plan: '2026-11-23', prazo: '2026-12-02', fontes: ['Refeitório', 'Rufos', 'Arremates'] },
   { frente: 'VESTIÁRIO', fase: '1', servico: 'Vestiário - Vigas e Terças', inicio_plan: '2026-10-08', prazo: '2026-10-15', fontes: ['Vestiário', 'Vigas', 'Terças'] },
   { frente: 'VESTIÁRIO', fase: '1', servico: 'Vestiário - Calhas', inicio_plan: '2026-10-16', prazo: '2026-10-20', fontes: ['Vestiário', 'Calhas'] },
-  { frente: 'VESTIÁRIO', fase: '1', servico: 'Vestiário - Telhas', inicio_plan: '2026-10-21', prazo: '2026-11-06', fontes: ['Vestiário', 'Telhas', 'Telhar'] },
+  { frente: 'VESTIÁRIO', fase: '1', servico: 'Vestiário - Telhas', inicio_plan: '2026-10-21', prazo: '2026-11-06', fontes: ['Vestiário', 'Telhas', 'Instalação de telhas'] },
   { frente: 'VESTIÁRIO', fase: '1', servico: 'Vestiário - Rufos e Arremates', inicio_plan: '2026-12-08', prazo: '2026-12-21', fontes: ['Vestiário', 'Rufos', 'Arremates'] },
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Estrutura', inicio_plan: '2026-10-16', prazo: '2026-12-16', fontes: ['Cobertura de Pedestres', 'Passarela', 'Estrutura'] },
-  { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Telhas', inicio_plan: '2026-11-16', prazo: '2026-12-09', fontes: ['Cobertura de Pedestres', 'Telhas', 'Telhar'] },
+  { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Telhas', inicio_plan: '2026-11-16', prazo: '2026-12-09', fontes: ['Cobertura de Pedestres', 'Telhas', 'Instalação de telhas'] },
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Testeira', inicio_plan: '2026-11-27', prazo: '2026-12-14', fontes: ['Cobertura de Pedestres', 'Testeira'] },
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura Área de Vivência', inicio_plan: '2026-11-18', prazo: '2026-12-16', fontes: ['Área de Vivência', 'Cobertura'] },
 
@@ -1411,7 +1401,7 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'GALPÃO F2', fase: '2', servico: 'Premontagem', inicio_plan: '2026-09-17', prazo: '2027-03-17', fontes: ['Premontagem'] },
   { frente: 'GALPÃO F2', fase: '2', servico: 'Vigas', inicio_plan: '2026-09-28', prazo: '2027-03-23', fontes: ['Vigas'] },
   { frente: 'GALPÃO F2', fase: '2', servico: 'Içamento Joist', inicio_plan: '2026-10-14', prazo: '2027-04-08', fontes: ['Içamento Joist', 'Içamento', 'Joist'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Telhar', inicio_plan: '2026-10-21', prazo: '2027-04-15', fontes: ['Telhar', 'Montagem Telhas', 'Telhas'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Instalação de telhas', inicio_plan: '2026-10-21', prazo: '2027-04-15', fontes: ['Instalação de telhas', 'Montagem Telhas', 'Telhas'] },
   { frente: 'GALPÃO F2', fase: '2', servico: 'Calhas Cobertura', inicio_plan: '2026-12-18', prazo: '2027-04-23', fontes: ['Calhas Cobertura', 'Calhas'] },
   { frente: 'GALPÃO F2', fase: '2', servico: 'Arremates Cobertura', inicio_plan: '2027-01-06', prazo: '2027-04-30', fontes: ['Arremates Cobertura', 'Arremates', 'Rufos'] },
   { frente: 'GALPÃO F2 – FECHAMENTO LATERAL', fase: '2', servico: 'Fech. Lateral – Estrutura', inicio_plan: '2026-11-12', prazo: '2027-04-08', fontes: ['Fech. Lateral – Estrutura', 'Fechamento Lateral Estrutura', 'Fechamento Lateral'] },
@@ -1420,12 +1410,12 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Premontagem Terças', inicio_plan: '2026-12-30', prazo: '2027-03-29', fontes: ['Marquise - Premontagem Terças', 'Premontagem', 'Terças'] },
   { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Montagem Terças', inicio_plan: '2027-01-06', prazo: '2027-04-01', fontes: ['Marquise - Montagem Terças', 'Terças'] },
   { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Calhas', inicio_plan: '2027-01-07', prazo: '2027-04-02', fontes: ['Marquise - Calhas', 'Calhas'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Telhas', inicio_plan: '2027-01-19', prazo: '2027-04-14', fontes: ['Marquise - Telhas', 'Telhas', 'Telhar'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Telhas', inicio_plan: '2027-01-19', prazo: '2027-04-14', fontes: ['Marquise - Telhas', 'Telhas', 'Instalação de telhas'] },
   { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Testeira', inicio_plan: '2027-01-21', prazo: '2027-04-16', fontes: ['Marquise - Testeira', 'Testeira'] },
 ];
 
 const GAN_AJUSTES_DATAS_PADRAO = {
-  'GALPÃO F1 – COBERTURA|TELHAR|1': { inicio_plan: '2026-10-01', prazo: '2026-11-27' },
+  'GALPÃO F1 – COBERTURA|Instalação de telhas|1': { inicio_plan: '2026-10-01', prazo: '2026-11-27' },
   'GALPÃO F1 – FECHAMENTO LATERAL|Fech. Lateral – Estrutura|1': { inicio_plan: '2026-10-01' },
   'GALPÃO F1 – FECHAMENTO LATERAL|Fechamento|1': { inicio_plan: '2026-10-01' },
   'ECLUSA|Eclusa - Vigas e Joists|1': { inicio_plan: '2026-10-13', prazo: '2026-10-21' },
@@ -1454,7 +1444,18 @@ const GAN_AJUSTES_DATAS_PADRAO = {
 };
 
 function ganDataKey(it) { return `${it.frente || 'SEM FRENTE'}|${it.servico}|${ganFaseNumero(it)}`; }
-function ganDataOverrides() { try { return JSON.parse(localStorage.getItem('obra198_gantt_datas') || '{}') || {}; } catch { return {}; } }
+function ganDataOverrides() {
+  try {
+    const o = JSON.parse(localStorage.getItem('obra198_gantt_datas') || '{}') || {};
+    // datas salvas antes de "Telhar" virar "Instalação de telhas": passam para a chave nova
+    const antigas = Object.keys(o).filter(k => /\|telhar\|/i.test(k));
+    if (antigas.length) {
+      antigas.forEach(k => { o[k.replace(/\|telhar\|/i, '|Instalação de telhas|')] ||= o[k]; delete o[k]; });
+      localStorage.setItem('obra198_gantt_datas', JSON.stringify(o));
+    }
+    return o;
+  } catch { return {}; }
+}
 function ganSalvarDataOverride(k, v) { const o = ganDataOverrides(); o[k] = v; localStorage.setItem('obra198_gantt_datas', JSON.stringify(o)); }
 function ganAplicarDatas(it) {
   const k = ganDataKey(it), kn = ganNorm(k);
@@ -1493,7 +1494,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
   const alvoPerfil = a.includes('PERFILAG') || a.includes('PERFILAC');
   const fontePerfil = b.includes('PERFILAG') || b.includes('PERFILAC');
   if (alvoPerfil) return fontePerfil;
-  if (a.includes('TELHAR')) return !fontePerfil && !b.includes('PERFIL') && (b.includes('INSTALACAO DE TELH') || b.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || b.includes('FACEFELT') || b === 'TELHAS' || b.includes(' TELHAS'));
+  if (ehTelhar(a)) return !fontePerfil && !b.includes('PERFIL') && (b.includes('INSTALACAO DE TELH') || b.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || b.includes('FACEFELT') || b === 'TELHAS' || b.includes(' TELHAS'));
   return a === b || a.includes(b) || b.includes(a);
 }
 
@@ -3184,7 +3185,6 @@ async function salvarDataRemessa(inp) {
     const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
     if (j) EP = j;
     renderEstRemessas();
-    atualizarContadorKpi();
     if (abaAtual === 'impactos') renderImpactos();
     toast('Datas da remessa atualizadas');
   } catch (err) { toast(err.message || 'Erro ao salvar datas da remessa.', true); inp.disabled = false; }
@@ -4440,123 +4440,6 @@ function ligarApontamento() {
   });
 }
 
-// ------------------------------------------------------------ KPI / INSIGHTS GERAL
-function renderKPI() {
-  if (!M) return;
-  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const c = corte();
-  const ks = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
-  const totPrev = soma0(ks, k => k.prev);
-  const totReal = soma0(ks, k => k.real);
-  const pctGeral = totPrev > 0 ? Math.round(100 * totReal / totPrev) : 0;
-  const atrasados = ks.filter(k => k.pct != null && k.pct < 90).length;
-  const noPrazo = ks.filter(k => k.pct != null && k.pct >= 90).length;
-  const impAbertos = M.impactos.filter(i => !i.solucionado).length;
-  let estCrit = 0, estOk = 0;
-  if (EP) {
-    estCrit = EP.materiais.filter(m => m.status_logistico === 'Crítico').length;
-    estOk = EP.materiais.filter(m => m.status_logistico === 'Atendido' || m.status_logistico === 'Excedente').length;
-  }
-  const tilesH =
-    tile('Producao geral', pctGeral + '%', `${nf(totReal)} de ${nf(totPrev)} previstos`, pctGeral >= 90 ? 'var(--verde)' : pctGeral >= 70 ? 'var(--amarelo)' : 'var(--vermelho)') +
-    tile('Atrasados', atrasados, 'servicos < 90% do previsto', atrasados ? 'var(--vermelho)' : 'var(--verde)') +
-    tile('No prazo', noPrazo, 'servicos >= 90%', 'var(--verde)') +
-    tile('Impactos abertos', impAbertos, impAbertos ? 'requerem atenção' : 'nenhum pendente', impAbertos ? 'var(--amarelo)' : 'var(--verde)') +
-    tile('Materiais criticos', estCrit, 'nenhuma peça recebida', estCrit ? 'var(--vermelho)' : 'var(--verde)') +
-    tile('Materiais OK', estOk, 'totalmente atendidos', 'var(--acento)');
-  document.getElementById('kpiTiles').innerHTML = tilesH;
-
-  // Faróis de produção
-  let hProd = '<thead><tr><th>Empresa</th><th>Servico</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">%</th><th>Farol</th></tr></thead><tbody>';
-  ks.sort((a, b) => (a.pct || 0) - (b.pct || 0)).forEach(k => {
-    const [fc, ft] = farol(k.pct, k.prev === 0);
-    hProd += `<tr><td><span class="emp-tag" style="--c:${corEmp(k.emp)}">${esc(k.emp)}</span></td><td>${esc(cap(k.serv))}</td>
-      <td class="n">${nf(k.prev, 1)}</td><td class="n">${nf(k.real, 1)}</td>
-      <td class="n">${k.pct != null ? nf(k.pct, 1) + '%' : '—'}</td><td><span class="farol f-${fc}">${ft}</span></td></tr>`;
-  });
-  document.getElementById('tabKpiProd').innerHTML = hProd + '</tbody>';
-
-  // Faróis de estoque
-  let hEst = '<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Status</th></tr></thead><tbody>';
-  if (EP) {
-    const critMats = EP.materiais.filter(m => m.status_logistico === 'Crítico' || m.status_logistico === 'Recebimento Parcial')
-      .sort((a, b) => (a.atendimento || 0) - (b.atendimento || 0)).slice(0, 20);
-    critMats.forEach(m => {
-      const fc = m.status_logistico === 'Crítico' ? 'vermelho' : 'amarelo';
-      hEst += `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
-        <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td>
-        <td><span class="farol f-${fc}">${esc(m.status_logistico)}</span></td></tr>`;
-    });
-    if (!critMats.length) hEst += '<tr><td colspan="5" class="vazio">Todos os materiais atendidos.</td></tr>';
-  } else {
-    hEst += '<tr><td colspan="5" class="vazio">Dados de estoque não carregados.</td></tr>';
-  }
-  document.getElementById('tabKpiEstoque').innerHTML = hEst + '</tbody>';
-
-  // Prontidão de materiais (próxima semana)
-  renderKpiProntidao();
-
-  // Alertas gerais
-  const alertas = [];
-  ks.filter(k => k.pct != null && k.pct < 90).forEach(k => {
-    const dias = k.prev > 0 ? Math.ceil((k.prev - k.real) / Math.max(k.real / 5, 0.1)) : 0;
-    alertas.push(`<li class="alerta vermelho"><b>${esc(k.emp)} — ${esc(cap(k.serv))}</b>: ${nf(k.pct, 1)}% do previsto. Desvio de ${nf(k.prev - k.real, 1)} un.</li>`);
-  });
-  if (impAbertos) alertas.push(`<li class="alerta amarelo"><b>${impAbertos} impacto(s) em aberto</b> — verificar solucao.</li>`);
-  M.cliente.forEach(cl => {
-    if (!cl.prazo) return;
-    const diasP = Math.ceil((dU(cl.prazo) - dU(hoje())) / 86400000);
-    if (diasP <= 7 && diasP > 0) alertas.push(`<li class="alerta amarelo"><b>${esc(cl.servico)}</b>: prazo em ${diasP} dia(s) (${fd(cl.prazo)}).</li>`);
-    if (diasP <= 0) alertas.push(`<li class="alerta vermelho"><b>${esc(cl.servico)}</b>: prazo vencido em ${fd(cl.prazo)}.</li>`);
-  });
-  if (estCrit) alertas.push(`<li class="alerta vermelho"><b>${estCrit} material(is) critico(s)</b> — nenhuma peça recebida, verificar remessas.</li>`);
-  if (!alertas.length) alertas.push('<li class="vazio">Nenhum alerta no momento.</li>');
-  document.getElementById('kpiAlertas').innerHTML = alertas.join('');
-
-  atualizarContadorKpi();
-}
-
-function renderKpiProntidao() {
-  const tab = document.getElementById('tabKpiProntidao');
-  if (!M || !EP) { tab.innerHTML = '<tbody><tr><td class="vazio">Dados não disponíveis.</td></tr></tbody>'; return; }
-  const proxSeg = add(segunda(ref), 7);
-  const proxFim = add(proxSeg, 5);
-  const metasProx = M.metas.filter(m => m.inicio <= proxFim && m.fim >= proxSeg);
-  if (!metasProx.length) { tab.innerHTML = '<tbody><tr><td class="vazio">Nenhuma atividade planejada para a próxima semana.</td></tr></tbody>'; return; }
-  const regras = regrasBaixa(renderKpiProntidao);
-  if (!regras) {
-    tab.innerHTML = '<tbody><tr><td class="vazio">Carregando...</td></tr></tbody>';
-    return;
-  }
-  let h = '<thead><tr><th>Servico</th><th>Empresa</th><th>Meta semana</th><th>Materiais necessarios</th><th>Disponivel</th><th>Sinal</th></tr></thead><tbody>';
-  metasProx.forEach(m => {
-    const metaTot = metaSemanaTotal(m);
-    const consumo = regras.consumo_por_servico?.[m.servico];
-    if (!consumo || !consumo.itens) {
-      h += `<tr><td>${esc(cap(m.servico))}</td><td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td>
-        <td class="n">${nf(metaTot, 1)}</td><td colspan="2" class="sub">Sem regra de consumo</td><td><span class="farol f-verde">OK</span></td></tr>`;
-      return;
-    }
-    let todosOk = true, faltam = [];
-    consumo.itens.forEach(ci => {
-      const necessario = Math.ceil(ci.por_unidade * metaTot);
-      const remItem = EP.remessas.itens.find(r => r.tag === ci.codigo);
-      const disp = remItem ? remItem.total_recebido : 0;
-      const retirado = EP.consumo_fisico.itens.find(c => c.tag === ci.codigo)?.total_consumo || 0;
-      const saldoDisp = disp - retirado;
-      if (saldoDisp < necessario) { todosOk = false; faltam.push(`${ci.codigo} (falta ${nf(necessario - Math.max(saldoDisp, 0))})`); }
-    });
-    const sinal = todosOk ? 'verde' : 'vermelho';
-    const sinTxt = todosOk ? 'PODE INICIAR' : 'SOLICITAR MATERIAL';
-    h += `<tr><td>${esc(cap(m.servico))}</td><td><span class="emp-tag" style="--c:${corEmp(m.empresa)}">${esc(m.empresa)}</span></td>
-      <td class="n">${nf(metaTot, 1)}</td>
-      <td>${todosOk ? 'Todos disponíveis' : faltam.slice(0, 3).join(', ') + (faltam.length > 3 ? ` +${faltam.length - 3}` : '')}</td>
-      <td>${todosOk ? '<span class="farol f-verde">SIM</span>' : '<span class="farol f-vermelho">NÃO</span>'}</td>
-      <td><span class="farol f-${sinal}">${sinTxt}</span></td></tr>`;
-  });
-  tab.innerHTML = h + '</tbody>';
-}
-
 // ------------------------------------------------------------ EQUIPAMENTOS
 function usosPeriodo() { return T.usos.filter(u => u.data && u.data >= per.ini && u.data <= per.fim); }
 function ratear(lista) {
@@ -5773,18 +5656,27 @@ function gerarRelImpactoPopup() {
     toast(`Erro ao gerar relatório: ${err?.message || err}`, true, 7000);
   }
 }
-// Perfilagem, telhar e fechamento (telhas) da Globo são medidos em m² pelo catálogo do BM. O relatório usa o mesmo previsto e realizado
+// Perfilagem, instalação de telhas e fechamento (telhas) da Globo são medidos em m² pelo catálogo do BM. O relatório usa o mesmo previsto e realizado
 // do Dashboard cliente e do Avanço físico (item do cronograma do cliente: contrato em m² ÷ dias úteis; realizado = maior entre lançamentos e BM).
 function relItemCatalogoM2(serv) {
   const s = ganNorm(serv);
-  const chave = s.includes('PERFILAG') || s.includes('PERFILAC') ? 'PERFILACAO' : s.includes('TELHAR') || s.includes('INSTALACAO DE TELHA') ? 'TELHAR' : s === 'FECHAMENTO' || s.includes('FECHAMENTO LATERAL TELHA') ? 'FECHAMENTO' : null;
+  const chave = s.includes('PERFILAG') || s.includes('PERFILAC') ? 'PERFILACAO' : ehTelhar(s) || s.includes('INSTALACAO DE TELHA') ? 'INSTALACAO DE TELHAS' : s === 'FECHAMENTO' || s.includes('FECHAMENTO LATERAL TELHA') ? 'FECHAMENTO' : null;
   if (!chave) return null;
-  const achado = (M.cliente || []).map(clienteComFontes).find(c => c.fonte_catalogo && !c.fonte_pct && c.qtd > 0 && ganNorm(c.servico) === chave);
+  const achado = (M.cliente || []).map(clienteComFontes).find(c => c.fonte_catalogo && !c.fonte_pct && c.qtd > 0 && (clienteFonte(c)?.chave || ganNorm(c.servico)) === chave);
   if (achado) return achado;
   // cadastro do cliente com outro nome (ex.: "PERFILAGEM DE TELHAS"): aplica a mesma fonte do catálogo, com as datas e a meta da própria linha
-  const c0 = (M.cliente || []).find(c => faseItem(c.frente) === '1' && (chave === 'PERFILACAO' ? /PERFILAG|PERFILAC/.test(ganNorm(c.servico)) : ganNorm(c.servico).includes(chave)));
+  const c0 = (M.cliente || []).find(c => faseItem(c.frente) === '1' && (chave === 'PERFILACAO' ? /PERFILAG|PERFILAC/.test(ganNorm(c.servico)) : (clienteFonte(c)?.chave || ganNorm(c.servico)).includes(chave)));
   const it = c0 ? clienteComFontes({ ...c0, servico: chave }) : null;
   return it && it.fonte_catalogo && it.qtd > 0 ? it : null;
+}
+// Instalação de telhas da Globo Aços na aba Tendências: previsto e realizado em m², iguais aos do Dashboard cliente / Avanço físico
+// (contrato do catálogo do BM GLO-3.2.1-02; realizado = maior entre lançamentos e BM). A meta semanal cadastrada é em telhas e não serve
+// para comparar com o realizado em m². Devolve null para outro serviço ou empresa (usa a meta cadastrada de sempre).
+function telharM2(empNome, serv, ini, fim) {
+  if (ganNorm(empNome) !== 'GLOBO ACOS' || !ehTelhar(ganNorm(serv))) return null;
+  const it = relItemCatalogoM2(serv);
+  if (!it || fim < ini) return null;
+  return { prev: Math.max(0, prevCliente(it, fim) - prevCliente(it, add(ini, -1))), real: realizadoPeriodoItem(it, empNome, ini, fim), un: 'm²' };
 }
 function baixarRelImpacto(ini, fim, empFiltro = []) {
   if (typeof PL !== 'undefined') PL._atv = null;   // efeito cascata usa o cronograma atual
@@ -6173,8 +6065,9 @@ function renderTendencia() {
     .filter(s => M.metas.some(m => m.servico === serv && m.inicio === s && (metaSemanaTotal(m) > 0 || kpi(m, minD(m.fim, ref)).realSemana > 0)));
   const todasEmps = [...new Set(M.metas.map(m => m.empresa))];
   $('#legTend').innerHTML = todasEmps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('');
+  const emM2 = emps.some(n => telharM2(n, serv, ref, ref)) ? ' (m² · catálogo Globo Aços)' : '';
   $('#titAting').textContent = `Atingimento semanal por empresa — ${cap(serv)}`;
-  $('#titProd').textContent = `Produção semanal por empresa — ${cap(serv)}`;
+  $('#titProd').textContent = `Produção semanal por empresa — ${cap(serv)}${emM2}`;
 
   const linhaDe = (n, s) => M.metas.find(m => m.empresa === n && m.servico === serv && m.inicio === s);
   trocarGrafico('gAting', {
@@ -6183,7 +6076,12 @@ function renderTendencia() {
       labels: semanas.map(fd),
       datasets: emps.map(n => ({
         label: n,
-        data: semanas.map(s => { const m = linhaDe(n, s); if (!m) return null; const k = kpi(m, minD(m.fim, ref)); return k.prevAte > 0 ? Math.round(k.real / k.prevAte * 100) : null; }),
+        data: semanas.map(s => {
+          const m = linhaDe(n, s); if (!m) return null;
+          const t = telharM2(n, serv, m.inicio, minD(m.fim, ref));
+          if (t) return t.prev > 0 ? Math.round(t.real / t.prev * 100) : null;
+          const k = kpi(m, minD(m.fim, ref)); return k.prevAte > 0 ? Math.round(k.real / k.prevAte * 100) : null;
+        }),
         borderColor: corEmpHex(n), backgroundColor: corEmpHex(n), borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, tension: 0, spanGaps: true,
       })),
     },
@@ -6198,8 +6096,8 @@ function renderTendencia() {
     data: {
       labels: semanas.map(fd),
       datasets: [
-        { type: 'line', label: 'Meta (soma das empresas)', data: semanas.map(s => soma0(emps.map(n => linhaDe(n, s)).filter(Boolean), metaSemanaTotal)), borderColor: cor('--fg2'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, stepped: 'middle', order: 0 },
-        ...emps.map(n => ({ type: 'bar', label: n, data: semanas.map(s => { const m = linhaDe(n, s); return m ? kpi(m, m.fim).realSemana : 0; }), backgroundColor: corEmpHex(n), borderColor: cor('--card'), borderWidth: 1, borderRadius: 4, maxBarThickness: 22, order: 1 })),
+        { type: 'line', label: 'Meta (soma das empresas)', data: semanas.map(s => soma0(emps.map(n => linhaDe(n, s) && { n, m: linhaDe(n, s) }).filter(Boolean), x => { const t = telharM2(x.n, serv, x.m.inicio, x.m.fim); return t ? t.prev : metaSemanaTotal(x.m); })), borderColor: cor('--fg2'), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, stepped: 'middle', order: 0 },
+        ...emps.map(n => ({ type: 'bar', label: n, data: semanas.map(s => { const m = linhaDe(n, s); if (!m) return 0; const t = telharM2(n, serv, m.inicio, m.fim); return t ? t.real : kpi(m, m.fim).realSemana; }), backgroundColor: corEmpHex(n), borderColor: cor('--card'), borderWidth: 1, borderRadius: 4, maxBarThickness: 22, order: 1 })),
       ],
     },
     options: {
@@ -6217,7 +6115,7 @@ function renderTendencia() {
       labels: servicos.map(cap),
       datasets: todasEmps.map(n => ({
         label: n,
-        data: servicos.map(s => { if (!M.metas.some(m => m.empresa === n && m.servico === s)) return null; const k = kpiPer(n, s, per.ini, per.fim, c); return k.pct == null ? null : Math.round(k.pct); }),
+        data: servicos.map(s => { if (!M.metas.some(m => m.empresa === n && m.servico === s)) return null; const t = telharM2(n, s, per.ini, minD(per.fim, c)); if (t && c >= per.ini) return t.prev > 0 ? Math.round(t.real / t.prev * 100) : null; const k = kpiPer(n, s, per.ini, per.fim, c); return k.pct == null ? null : Math.round(k.pct); }),
         backgroundColor: corEmpHex(n), borderColor: cor('--card'), borderWidth: 1, borderRadius: 4, maxBarThickness: 26,
       })),
     },

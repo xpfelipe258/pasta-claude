@@ -135,7 +135,9 @@ function tabelas_spec()
 }
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
-const ESQUEMA_VERSAO = 14;
+// 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
+const ESQUEMA_VERSAO = 15;
+const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
 function garantir_esquema(PDO $pdo, array $c)
@@ -152,6 +154,9 @@ function garantir_esquema(PDO $pdo, array $c)
     garantir_multiobra($pdo, $c['driver']);
     if ((int)$v < 13) {
         corrigir_dados_v13($pdo);
+    }
+    if ((int)$v < 15) {
+        renomear_telhar_v15($pdo);
     }
     $pdo->prepare("DELETE FROM sistema WHERE chave = 'esquema'")->execute();
     $pdo->prepare("INSERT INTO sistema (chave, valor) VALUES ('esquema', ?)")->execute([(string)ESQUEMA_VERSAO]);
@@ -173,6 +178,43 @@ function corrigir_dados_v13(PDO $pdo)
             AND (servico LIKE '%JOIST%' OR servico LIKE '%PREMONT%' OR servico LIKE '%PRÉ-MONT%')");
     } catch (Exception $e) {
         // tabela ainda inexistente em instalação muito antiga: nada a corrigir
+    }
+}
+
+// Esquema 15: troca o nome "TELHAR" (qualquer caixa) por "Instalação de telhas" nas tabelas com nome de serviço e nos JSON guardados
+// (planos 5W2H, contratos do cliente, planilha de estoque...). Nos JSON a troca é no texto, só quando "telhar" é o valor inteiro ou uma
+// parte de uma chave separada por "|" (ex.: "GALPÃO F1 – COBERTURA|TELHAR|1"), para não mudar objetos vazios nem outros campos.
+function renomear_telhar_v15(PDO $pdo)
+{
+    foreach ([['servicos', 'nome'], ['metas', 'servico'], ['cliente', 'servico'], ['impactos', 'servico'], ['materiais', 'servico']] as [$tabela, $col]) {
+        try {
+            $pdo->prepare("UPDATE `$tabela` SET `$col` = ? WHERE UPPER(TRIM(`$col`)) = 'TELHAR'")->execute([NOME_INSTALACAO_TELHAS]);
+        } catch (Throwable $e) {
+            // tabela ou coluna inexistente nesta instalação: nada a renomear
+        }
+    }
+    $troca = function ($texto) {
+        return preg_replace('/(?<=["|])telhar(?=["|])/iu', NOME_INSTALACAO_TELHAS, $texto);
+    };
+    foreach ([['obra_config', 'obra_id, chave'], ['sistema', 'chave']] as [$tabela, $cols]) {
+        try {
+            $lista = explode(', ', $cols);
+            $linhas = $pdo->query("SELECT $cols, valor FROM `$tabela` WHERE valor LIKE '%telhar%'")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($linhas as $l) {
+                $novo = $troca((string)$l['valor']);
+                if ($novo === $l['valor']) {
+                    continue;
+                }
+                $onde = implode(' AND ', array_map(function ($c) { return "$c = ?"; }, $lista));
+                $params = [$novo];
+                foreach ($lista as $c) {
+                    $params[] = $l[$c];
+                }
+                $pdo->prepare("UPDATE `$tabela` SET valor = ? WHERE $onde")->execute($params);
+            }
+        } catch (Throwable $e) {
+            // tabela ainda inexistente: nada a renomear
+        }
     }
 }
 
@@ -572,7 +614,7 @@ function autenticar_machine_token()
 
 function modulos_sistema()
 {
-    return ['producao','suprimentos','consumo','financeiro','kpi','gestao','sesmt'];
+    return ['producao','suprimentos','consumo','financeiro','gestao','sesmt'];
 }
 
 function modulos_usuario(array $u)
