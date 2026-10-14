@@ -5536,43 +5536,65 @@ function intervaloImpacto(i) {
   const fim = i.solucionado && ehISO(i.solucionado) ? i.solucionado : ref;
   return { ini: i.data, fim: fim < i.data ? i.data : fim };
 }
-function diasUnidosImpactos(lista) {
-  const itens = lista.map(i => ({ i, iv: intervaloImpacto(i), d: diasUteisImpacto(i) }));
-  const semData = itens.filter(x => !x.iv);
-  const trechos = [];
-  itens.filter(x => x.iv).sort((a, b) => a.iv.ini.localeCompare(b.iv.ini)).forEach(x => {
-    const t = trechos[trechos.length - 1];
-    if (t && x.iv.ini <= proxDiaUtil(t.fim)) { if (x.iv.fim > t.fim) t.fim = x.iv.fim; t.itens.push(x); }
-    else trechos.push({ ini: x.iv.ini, fim: x.iv.fim, itens: [x] });
+// DIAS REAIS DO CALENDÁRIO: cada impacto vira os dias úteis em que ele valeu, limitados ao período do relatório (lim = {ini, fim}); o dia em
+// que há mais de um impacto conta uma vez só (vários serviços parados no mesmo dia = 1 dia) e fração de dia (horas) vale a fração.
+// Assim a soma nunca passa dos dias úteis do próprio período.
+const _cacheDiasImp = new WeakMap();
+function diasPorImpacto(i, lim) {
+  const ck = ref + '|' + (lim ? lim.ini + '|' + lim.fim : '');
+  let c = _cacheDiasImp.get(i); if (!c) { c = new Map(); _cacheDiasImp.set(i, c); }
+  if (c.has(ck)) return c.get(ck);
+  const m = new Map(), iv = intervaloImpacto(i);
+  if (iv) {
+    const t = i._autoRemessa ? null : diasDoTempo(i.tempo);
+    let d = iv.ini; while (!diaUtil(d)) d = add(d, 1);
+    const dias = []; for (let x = d; x <= iv.fim && dias.length < 1500; x = add(x, 1)) if (diaUtil(x)) dias.push(x);
+    if (!dias.length) dias.push(d);
+    const fr = t != null ? (t < 1 ? t : (t % 1 || 1)) : 1;
+    dias.forEach((x, k) => { if ((!lim || (x >= lim.ini && x <= lim.fim))) m.set(x, k === dias.length - 1 ? fr : 1); });
+  }
+  c.set(ck, m);
+  return m;
+}
+function unirMapas(maps) { const r = new Map(); maps.forEach(m => m.forEach((w, d) => r.set(d, Math.min(1, (r.get(d) || 0) + w)))); return r; }
+const somaMapa = m => { let t = 0; m.forEach(w => { t += w; }); return t; };
+const mapaImpactos = (lista, lim) => unirMapas(lista.map(i => diasPorImpacto(i, lim)));
+// Sequências de dias úteis seguidos viram um trecho (início do primeiro ao fim do último); com interrupção entre as datas, outro trecho
+function trechosDoMapa(m, lista, lim) {
+  const tr = [];
+  [...m.keys()].sort().forEach(d => {
+    const t = tr[tr.length - 1];
+    if (t && d <= proxDiaUtil(t.fim)) { t.fim = d; t.dias += m.get(d); } else tr.push({ ini: d, fim: d, dias: m.get(d) });
   });
-  trechos.forEach(t => { t.n = t.itens.length; t.dias = t.n === 1 ? t.itens[0].d : contarDiasUteis(add(t.ini, -1), t.fim); });
-  return { dias: soma0(trechos, t => t.dias) + soma0(semData, x => x.d), trechos, n: lista.length };
+  const mapas = lista.map(i => [...diasPorImpacto(i, lim).keys()]);
+  tr.forEach(t => { t.n = mapas.filter(ds => ds.some(d => d >= t.ini && d <= t.fim)).length; });
+  return tr;
 }
 const atividadeImpactoKey = i => ganNorm(i.servico) || 'SEM ATIVIDADE';
 function agruparPor(lista, chave) { const m = new Map(); lista.forEach(x => { const k = chave(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); }); return m; }
 // Um registro por atividade: ocorrências, dias úteis perdidos (trechos unidos), setores, empresas e situação
-function resumoImpactosPorAtividade(imp) {
+function resumoImpactosPorAtividade(imp, lim = null) {
   return [...agruparPor(imp, atividadeImpactoKey).values()].map(lista => {
-    const u = diasUnidosImpactos(lista);
+    const mapa = mapaImpactos(lista, lim), trechos = trechosDoMapa(mapa, lista, lim);
     const uniq = xs => [...new Set(xs.filter(Boolean))];
-    return { servico: lista[0].servico || 'Sem atividade', data: (u.trechos[0] || {}).ini || lista[0].data, n: lista.length, dias: u.dias, trechos: u.trechos,
+    return { servico: lista[0].servico || 'Sem atividade', data: (trechos[0] || {}).ini || lista[0].data, n: lista.length, dias: somaMapa(mapa), mapa, trechos,
       setores: uniq(lista.map(impactoSetor)), empresas: uniq(lista.flatMap(impactoEmpresas)), abertos: lista.filter(i => !i.solucionado).length, lista };
-  }).sort((a, b) => b.dias - a.dias || b.n - a.n || String(a.servico).localeCompare(String(b.servico)));
+  }).filter(r => !lim || r.dias > 0).sort((a, b) => b.dias - a.dias || b.n - a.n || String(a.servico).localeCompare(String(b.servico)));
 }
 const trechosTexto = r => r.trechos.map(t => `${fdA(t.ini)}${t.fim > t.ini ? ' a ' + fdA(t.fim) : ''} (${fmtD(t.dias)}${t.n > 1 ? ', ' + t.n + ' ocorrências unidas' : ''})`).join(' + ');
 const fmtD = d => `${nf(d, d % 1 ? 1 : 0)} ${d === 1 ? 'dia útil' : 'dias úteis'}`;
 const SEM_EMPRESA = 'Todas / não informada';
 // Ranking: setores responsáveis e empresas mais afetadas, em dias úteis de impacto. Efeito cascata: o impacto numa atividade atinge as
 // POSTERIORES do fluxo (ex.: estrutura do fechamento → telhas do fechamento…); as empresas dessas atividades sofrem o impacto indireto.
-function rankingImpactos(imp, empFiltro = []) {
-  const diasAtiv = lista => soma0([...agruparPor(lista, atividadeImpactoKey).values()], l => diasUnidosImpactos(l).dias);   // mesma atividade: dias unidos, não somados em dobro
+function rankingImpactos(imp, empFiltro = [], lim = null) {
+  const mp = lista => mapaImpactos(lista, lim), dd = lista => somaMapa(mp(lista));
   const empresas = new Map(), casc = [];
-  const get = e => { let b = empresas.get(e); if (!b) { b = { nome: e, n: 0, dias: 0, indireto: 0, causas: new Map() }; empresas.set(e, b); } return b; };
+  const get = e => { let b = empresas.get(e); if (!b) { b = { nome: e, n: 0, dias: 0, indireto: 0, causas: new Map(), dir: new Map(), ind: new Map() }; empresas.set(e, b); } return b; };
   const lstSet = [...agruparPor(imp, impactoSetor).entries()].map(([nome, lista]) => {
-    const a = { nome, n: lista.length, dias: diasAtiv(lista), abertos: lista.filter(i => !i.solucionado).length, atingidas: new Set() };
+    const a = { nome, n: lista.length, dias: dd(lista), abertos: lista.filter(i => !i.solucionado).length, atingidas: new Set() };
     agruparPor(lista, atividadeImpactoKey).forEach(l => {
       const c = impactoCascataDe(l[0]);
-      if (c && c.posteriores.length && diasUnidosImpactos(l).dias > 0) c.posteriores.forEach(p => a.atingidas.add(p.rotulo || p.nome));
+      if (c && c.posteriores.length && dd(l) > 0) c.posteriores.forEach(p => a.atingidas.add(p.rotulo || p.nome));
     });
     return a;
   });
@@ -5580,17 +5602,18 @@ function rankingImpactos(imp, empFiltro = []) {
   imp.forEach(i => { const xs = impactoEmpresas(i); (xs.length ? xs : [SEM_EMPRESA]).filter(e => e === SEM_EMPRESA || !empFiltro.length || empFiltro.includes(e)).forEach(e => pares.push({ e, i })); });
   agruparPor(pares, p => p.e).forEach((ps, e) => {
     const b = get(e), lista = ps.map(p => p.i);
-    b.n = lista.length; b.dias = diasAtiv(lista);
-    agruparPor(lista, impactoSetor).forEach((ls, st) => b.causas.set(st, { dias: diasAtiv(ls), n: ls.length }));
+    b.n = lista.length; b.dir = mp(lista); b.dias = somaMapa(b.dir);
+    agruparPor(lista, impactoSetor).forEach((ls, st) => b.causas.set(st, { dias: dd(ls), n: ls.length }));
   });
-  resumoImpactosPorAtividade(imp).forEach(r => {   // cascata: uma vez por atividade, com os dias unidos
+  resumoImpactosPorAtividade(imp, lim).forEach(r => {   // cascata: uma vez por atividade, nos dias em que ela ficou impactada
     const c = impactoCascataDe(r.lista[0]);
     if (!c || !c.posteriores.length || r.dias <= 0) return;
     casc.push({ i: { servico: r.servico, data: r.data, setor: r.setores.join(' / '), empresas: r.empresas.join(' / '), n: r.n }, d: r.dias, c });
     const indiretas = new Set();
     c.posteriores.forEach(p => (p.empresas || []).forEach(e => indiretas.add(e)));
-    [...indiretas].filter(e => !r.empresas.includes(e) && (!empFiltro.length || empFiltro.includes(e))).forEach(e => { get(e).indireto += r.dias; });   // cada empresa sofre os dias uma vez por atividade impactada
+    [...indiretas].filter(e => !r.empresas.includes(e) && (!empFiltro.length || empFiltro.includes(e))).forEach(e => { const b = get(e); b.ind = unirMapas([b.ind, r.mapa]); });
   });
+  empresas.forEach(b => { let t = 0; b.ind.forEach((w, d) => { t += Math.max(0, w - (b.dir.get(d) || 0)); }); b.indireto = t; });   // só os dias em que a empresa não estava já parada por impacto direto
   const ordem = (x, y) => y.dias - x.dias || y.n - x.n || x.nome.localeCompare(y.nome);
   lstSet.sort(ordem);
   const lstEmp = [...empresas.values()].sort((x, y) => (x.nome === SEM_EMPRESA) - (y.nome === SEM_EMPRESA) || (y.dias + y.indireto) - (x.dias + x.indireto) || y.n - x.n || x.nome.localeCompare(y.nome));   // "sem empresa" é só um balde: fica por último
@@ -5598,35 +5621,41 @@ function rankingImpactos(imp, empFiltro = []) {
     const top = [...b.causas.entries()].sort((p, q) => q[1].dias - p[1].dias || q[1].n - p[1].n)[0];
     b.causador = top ? top[0] : '—'; b.causadorDias = top ? top[1].dias : 0; b.causadorN = top ? top[1].n : 0;
   });
-  return { setores: lstSet, empresas: lstEmp, cascata: casc, dias: diasAtiv(imp), n: imp.length, atividades: resumoImpactosPorAtividade(imp) };
+  const uteis = lim ? contarDiasUteis(add(lim.ini, -1), lim.fim) : 0;   // dias úteis do período do relatório
+  return { setores: lstSet, empresas: lstEmp, cascata: casc, dias: dd(imp), n: imp.length, uteis, atividades: resumoImpactosPorAtividade(imp, lim) };
 }
-function htmlRankingImpactos(imp, empFiltro = []) {
+function htmlRankingImpactos(imp, empFiltro = [], lim = null) {
   if (!imp.length) return '<h2>Impacto por setor responsável</h2><p>Sem impactos no período.</p>';
-  const r = rankingImpactos(imp, empFiltro), topS = r.setores[0], topE = r.empresas.find(x => x.nome !== SEM_EMPRESA) || r.empresas[0];
-  const pct = d => (r.dias ? d / r.dias * 100 : 0);
+  const r = rankingImpactos(imp, empFiltro, lim), topS = r.setores[0], topE = r.empresas.find(x => x.nome !== SEM_EMPRESA) || r.empresas[0];
+  const pct = d => (r.uteis ? d / r.uteis * 100 : 0);   // proporção dos dias úteis do período
   const posic = k => `<span class="pos${k ? ' o' : ''}">${k + 1}</span>`;
   const barra = p => `<div class="bg"><div class="bar" style="width:${nf(Math.min(100, p), 0)}%"></div></div>`;
+  const de = d => `${fmtD(d)}${r.uteis ? ' de ' + nf(r.uteis, 0) + ' do período (' + nf(pct(d), 0) + '%)' : ''}`;
   const linhasS = r.setores.map((x, k) => `<tr><td>${posic(k)}</td><td><b>${esc(x.nome)}</b></td><td class="n">${nf(x.n, 0)}</td><td class="n"><b>${fmtD(x.dias)}</b></td><td class="n">${x.atingidas.size ? nf(x.atingidas.size, 0) : '—'}</td><td class="n">${nf(x.abertos, 0)}</td><td>${barra(pct(x.dias))} ${nf(pct(x.dias), 0)}%</td></tr>`).join('');
-  const linhasE = r.empresas.map((x, k) => `<tr><td>${x.nome === SEM_EMPRESA ? '—' : posic(k)}</td><td><b>${esc(x.nome)}</b></td><td class="n">${nf(x.n, 0)}</td><td class="n">${x.dias ? fmtD(x.dias) : '—'}</td><td class="n">${x.indireto ? fmtD(x.indireto) : '—'}</td><td class="n"><b>${fmtD(x.dias + x.indireto)}</b></td><td>${esc(x.causador)}${x.causadorDias ? ` (${fmtD(x.causadorDias)})` : ''}</td></tr>`).join('');
+  const linhasE = r.empresas.map((x, k) => `<tr><td>${x.nome === SEM_EMPRESA ? '—' : posic(k)}</td><td><b>${esc(x.nome)}</b></td><td class="n">${nf(x.n, 0)}</td><td class="n">${x.dias ? fmtD(x.dias) : '—'}</td><td class="n">${x.indireto ? fmtD(x.indireto) : '—'}</td><td class="n"><b>${fmtD(x.dias + x.indireto)}</b></td><td>${barra(pct(x.dias + x.indireto))} ${nf(pct(x.dias + x.indireto), 0)}%</td><td>${esc(x.causador)}${x.causadorDias ? ` (${fmtD(x.causadorDias)})` : ''}</td></tr>`).join('');
+  const setsCols = r.setores.map(x => x.nome);
+  const linhasM = r.empresas.filter(x => x.nome !== SEM_EMPRESA).map(x => `<tr><td><b>${esc(x.nome)}</b></td>${setsCols.map(n => { const c = x.causas.get(n); return `<td class="n">${c && c.dias ? fmtD(c.dias) : '—'}</td>`; }).join('')}<td class="n"><b>${fmtD(x.dias)}</b></td></tr>`).join('');
   const linhasA = r.atividades.map(x => `<tr><td><b>${esc(x.servico)}</b></td><td class="n">${nf(x.n, 0)}</td><td>${esc(trechosTexto(x))}</td><td class="n"><b>${fmtD(x.dias)}</b></td><td>${esc(x.setores.join(' / '))}</td><td>${esc(x.empresas.join(' / ') || '—')}</td></tr>`).join('');
   const dataNova = (ini, d) => (ini && d > 0 ? fdA(somarDiasUteis(ini, Math.ceil(d))) : '—');
   const linhasC = r.cascata.map(({ i, d, c }) => `<tr><td><b>${esc(i.servico)}</b><div class="nota-rel">${fdA(i.data)} · ${esc(impactoEmpresasTexto(i))} · setor: ${esc(impactoSetor(i))}${i.n > 1 ? ' · ' + i.n + ' ocorrências somadas' : ''}</div></td><td class="n">${fmtD(d)}</td>
       <td>${[...new Set(c.posteriores.map(p => p.etapa))].map(et => `<div><b>${esc(et)}:</b> ${c.posteriores.filter(p => p.etapa === et).map(p => `${esc(p.rotulo || p.nome)}${p.empresas.length ? ' <span class="nota-rel">(' + esc(p.empresas.join('/')) + ')</span>' : ''} ${p.ini ? fdA(p.ini) + ' → <b>' + dataNova(p.ini, d) + '</b>' : '—'}`).join(' · ')}</div>`).join('')}</td></tr>`).join('');
   return `<h2>Impacto por setor responsável — ranking</h2>
-    <div class="cards"><div class="card"><div>Setor que mais impactou</div><div class="val">${esc(topS.nome)}</div><div>${nf(topS.n, 0)} impacto(s) · ${fmtD(topS.dias)}${r.dias ? ' · ' + nf(pct(topS.dias), 0) + '% dos dias' : ''}</div></div>
-      <div class="card"><div>Empresa mais afetada</div><div class="val">${esc(topE.nome)}</div><div>${nf(topE.n, 0)} impacto(s) · ${fmtD(topE.dias + topE.indireto)}${topE.indireto ? ' (incl. cascata)' : ''}</div></div>
-      <div class="card"><div>Total no período</div><div class="val">${nf(r.n, 0)}</div><div>${fmtD(r.dias)} de impacto</div></div></div>
+    <div class="cards"><div class="card"><div>Setor que mais impactou a obra</div><div class="val">${esc(topS.nome)}</div><div>${nf(topS.n, 0)} impacto(s) · ${de(topS.dias)}</div></div>
+      <div class="card"><div>Empresa mais afetada</div><div class="val">${esc(topE.nome)}</div><div>${nf(topE.n, 0)} impacto(s) · ${de(topE.dias + topE.indireto)}${topE.indireto ? ' (' + fmtD(topE.dias) + ' direto + ' + fmtD(topE.indireto) + ' por cascata)' : ''}</div></div>
+      <div class="card"><div>Dias do período com algum impacto</div><div class="val">${fmtD(r.dias)}</div><div>${r.uteis ? nf(pct(r.dias), 0) + '% dos ' + nf(r.uteis, 0) + ' dias úteis do período · ' : ''}${nf(r.n, 0)} registro(s)</div></div></div>
+    <h3>Ranking dos setores responsáveis — dias do período em que cada setor impactou a obra</h3>
+    <table><thead><tr><th>#</th><th>Setor responsável</th><th class="n">Impactos</th><th class="n">Dias úteis impactados</th><th class="n">Atividades atingidas em cascata</th><th class="n">Em aberto</th><th>% dos dias úteis do período</th></tr></thead><tbody>${linhasS}</tbody>
+      <tfoot><tr><th colspan="2">Dias do período com algum impacto (sem repetir o mesmo dia)</th><th class="n">${nf(r.n, 0)}</th><th class="n">${fmtD(r.dias)}</th><th></th><th class="n">${nf(soma0(r.setores, x => x.abertos), 0)}</th><th>${r.uteis ? nf(pct(r.dias), 0) + '%' : ''}</th></tr></tfoot></table>
+    <h3>Ranking de quem foi mais afetado — dias do período em que cada empresa ficou impactada</h3>
+    <table><thead><tr><th>#</th><th>Empresa</th><th class="n">Impactos sofridos</th><th class="n">Dias úteis parada (direto)</th><th class="n">Dias úteis por cascata</th><th class="n">Total</th><th>% dos dias úteis do período</th><th>Principal setor causador</th></tr></thead><tbody>${linhasE}</tbody></table>
+    <h3>Empresa × setor — dias úteis do período em que o setor impactou a empresa</h3>
+    <table><thead><tr><th>Empresa</th>${setsCols.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total (sem repetir dia)</th></tr></thead><tbody>${linhasM}</tbody></table>
     <h3>Dias perdidos por atividade (consolidado)</h3>
     <table><thead><tr><th>Atividade</th><th class="n">Ocorrências</th><th>Trechos de impacto (datas · dias úteis)</th><th class="n">Dias úteis perdidos</th><th>Setor(es)</th><th>Empresa(s)</th></tr></thead><tbody>${linhasA}</tbody></table>
     <p class="nota-rel">A atividade com mais de um impacto aparece uma só vez: ocorrências em datas seguidas ou sobrepostas formam um trecho único (do início do primeiro ao fim do último); com interrupção entre as datas, os trechos se somam.</p>
-    <h3>Ranking dos setores responsáveis</h3>
-    <table><thead><tr><th>#</th><th>Setor responsável</th><th class="n">Impactos</th><th class="n">Dias úteis de impacto</th><th class="n">Atividades atingidas em cascata</th><th class="n">Em aberto</th><th>% dos dias</th></tr></thead><tbody>${linhasS}</tbody>
-      <tfoot><tr><th colspan="2">Total</th><th class="n">${nf(r.n, 0)}</th><th class="n">${fmtD(r.dias)}</th><th></th><th class="n">${nf(soma0(r.setores, x => x.abertos), 0)}</th><th></th></tr></tfoot></table>
-    <h3>Ranking de quem foi mais afetado (empresas)</h3>
-    <table><thead><tr><th>#</th><th>Empresa</th><th class="n">Impactos sofridos</th><th class="n">Dias úteis (direto)</th><th class="n">Dias úteis por cascata</th><th class="n">Total</th><th>Principal setor causador</th></tr></thead><tbody>${linhasE}</tbody></table>
     <h3>Efeito cascata registrado</h3>
     ${r.cascata.length ? `<table><thead><tr><th>Impacto (atividade impactada)</th><th class="n">Dias úteis</th><th>Atividades posteriores atingidas (por etapa do fluxo) · início previsto → início empurrado</th></tr></thead><tbody>${linhasC}</tbody></table>` : '<p>Nenhum impacto do período atinge atividades posteriores do fluxo (ou os serviços não estão mapeados no fluxo da obra).</p>'}
-    <p class="nota-rel">Critério: dias úteis de impacto (só dia de trabalho; nada em horas). Impacto lançado = “Tempo perdido” informado (8 h = 1 dia útil) ou, sem tempo, a duração útil até a solução/referência; remessa atrasada = dias úteis entre a data prevista e a chegada real. Cascata: o impacto numa atividade empurra as posteriores do fluxo da obra pelos mesmos dias úteis (ex.: se a estrutura do fechamento atrasa, as telhas do fechamento e o que vem depois também). Impacto com mais de uma empresa conta integralmente para cada uma; “${SEM_EMPRESA}” reúne impactos sem empresa definida.</p>`;
+    <p class="nota-rel">Critério: dias ÚTEIS REAIS do calendário, limitados ao período do relatório${lim ? ' (' + fdA(lim.ini) + ' a ' + fdA(lim.fim) + ')' : ''}. Cada dia conta uma vez por setor e por empresa, mesmo que vários serviços tenham sido impactados no mesmo dia (por isso o total nunca passa dos dias úteis do período). Impacto lançado = “Tempo perdido” informado (8 h = 1 dia útil; horas valem a fração do dia) ou, sem tempo, os dias úteis até a solução/referência; remessa atrasada = dias úteis entre a data prevista e a chegada real. Cascata: o impacto numa atividade empurra as posteriores do fluxo pelos mesmos dias úteis; a empresa dessas atividades sofre o impacto indireto nos dias em que não estava já parada. Impacto com mais de uma empresa conta integralmente para cada uma; “${SEM_EMPRESA}” reúne impactos sem empresa definida.</p>`;
 }
 
 function impactoDeRemessa(r) {
@@ -5757,7 +5786,8 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const totalEquip = soma0(usos, u => (u.custoR || 0) + (u.combR || 0));
   const totalPessoasDia = soma0(dp, d => d.quantidade || 0);
   const remAtr = remessasAtrasadas().filter(r => r.chegada >= ini && r.chegada <= fim);
-  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(i.servico)}</td><td>${esc(impactoSetor(i))}</td><td>${esc(i.motivo)}</td><td class="n"><b>${nf(diasUteisImpacto(i), diasUteisImpacto(i) % 1 ? 1 : 0)}</b></td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${esc(cascataTexto(impactoCascataDe(i), 4))}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="10">Sem impactos no período.</td></tr>';
+  const limRel = { ini, fim: minD(fim, ref) };   // período do relatório: os dias de impacto nunca passam dele
+  const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(i.servico)}</td><td>${esc(impactoSetor(i))}</td><td>${esc(i.motivo)}</td><td class="n"><b>${nf(somaMapa(diasPorImpacto(i, limRel)), somaMapa(diasPorImpacto(i, limRel)) % 1 ? 1 : 0)}</b></td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${esc(cascataTexto(impactoCascataDe(i), 4))}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="10">Sem impactos no período.</td></tr>';
   const rowsRemAtr = remAtr.map(r => `<tr><td>${esc(r.nome)}</td><td>${fdA(r.prevista)}</td><td>${fdA(r.chegada)}</td><td class="n">${nf(r.dias,0)}</td><td class="n"><b>${nf(r.diasUteis,0)}</b></td><td class="n">${nf(r.qtdTotal,1)}</td><td>${esc(r.itens.slice(0,8).map(i => i.tag + ' (' + nf(i.qtd,1) + ')').join(', '))}${r.itens.length > 8 ? '...' : ''}</td></tr>`).join('') || '<tr><td colspan="7">Sem remessas em atraso no período.</td></tr>';
   const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${nf(r.real,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
   const empsEquip = [...new Set(usos.map(u => normEmp(u.empAjust)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -5788,7 +5818,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const footDP = diasDP.length ? `<tfoot><tr><th>Total (homem-dia)</th>${empsDP.map(e => `<th class="n">${nf(soma0(diasDP, d => efDiaEmp(d, e)), 0)}</th>`).join('')}<th class="n">${nf(soma0(diasDP, totDia), 0)}</th><th></th></tr>
     <tr><th>Média por dia lançado</th>${empsDP.map(e => { const ds = diasDP.filter(d => efDiaEmp(d, e)); return `<th class="n">${ds.length ? nf(soma0(ds, d => efDiaEmp(d, e)) / ds.length, 1) : '—'}</th>`; }).join('')}<th class="n">${nf(soma0(diasDP, totDia) / diasDP.length, 1)}</th><th></th></tr>
     <tr><th>Pico no período</th>${empsDP.map(e => `<th class="n">${nf(Math.max(0, ...diasDP.map(d => efDiaEmp(d, e))), 0)}</th>`).join('')}<th class="n">${nf(Math.max(0, ...diasDP.map(totDia)), 0)}</th><th></th></tr></tfoot>` : '';
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro)}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th class="n">Dias úteis</th><th>Efetivo no dia</th><th>Efeito</th><th>Efeito cascata</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias corridos</th><th class="n">Dias úteis (impacto)</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Total de impacto gerado por remessas</th><th class="n">${nf(soma0(remAtr, r => r.dias),0)}</th><th class="n">${nf(soma0(remAtr, r => r.diasUteis),0)}</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p></body></html>`;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro, { ini, fim: minD(fim, ref) })}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th class="n">Dias úteis no período</th><th>Efetivo no dia</th><th>Efeito</th><th>Efeito cascata</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias corridos</th><th class="n">Dias úteis (impacto)</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Dias úteis do período com remessa em atraso (sem repetir o mesmo dia)</th><th class="n">—</th><th class="n">${nf(somaMapa(mapaImpactos(remAtr.map(impactoDeRemessa), limRel)),0)}</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p></body></html>`;
   baixarHtml(`relatorio_impactos_${ini}_${fim}.html`, html);
 }
 function dpEmpresas() {
