@@ -5820,6 +5820,25 @@ function telharM2(empNome, serv, ini, fim) {
   if (!it || fim < ini) return null;
   return { prev: Math.max(0, prevCliente(it, fim) - prevCliente(it, add(ini, -1))), real: realizadoPeriodoItem(it, empNome, ini, fim), un: 'm²' };
 }
+// Previsto de UMA empresa numa atividade do cronograma do cliente: meta do cliente (contrato ÷ dias úteis) × dias úteis do período até a data
+// limite (hoje), dividido pelo número de empresas que executam o serviço (Premontagem: EJ e CMM = metade cada). Sem item no cronograma
+// do cliente (ou empresa que não executa o serviço): null e vale a meta cadastrada da empresa.
+function previstoClienteDaEmpresa(serv, emp, ini, lim) {
+  const alvo = ganNorm(serv);
+  const exec = M.empresas.filter(e => (e.servicos || []).some(sv => ganNorm(sv.nome) === alvo)).map(e => e.nome);
+  const doCat = relItemCatalogoM2(serv);
+  if (doCat ? ganNorm(emp) !== 'GLOBO ACOS' : !exec.includes(emp)) return null;   // catálogo m² é só da Globo; os demais, só empresas que têm o serviço
+  const donos = doCat ? [emp] : exec;
+  let item = doCat;
+  if (!item) {
+    const itens = (M.cliente || []).map(clienteComFontes).filter(c => c.qtd > 0 && (ganNorm(c.servico) === alvo || (c.servico_exib && ganNorm(c.servico_exib) === alvo)));
+    item = itens.find(c => faseItem(c.frente) === '1') || itens[0] || null;
+  }
+  if (!item || !item.meta_dia) return null;
+  const total = lim < ini ? 0 : Math.max(0, prevCliente(item, lim) - prevCliente(item, add(ini, -1)));
+  const n = Math.max(1, donos.length);
+  return { item, m2: !!doCat, n, previsto: total / n };
+}
 function baixarRelImpacto(ini, fim, empFiltro = []) {
   if (typeof PL !== 'undefined') PL._atv = null;   // efeito cascata usa o cronograma atual
   const modelo = M || { empresas: [], metas: [], impactos: [] };
@@ -5832,13 +5851,13 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
     const empOk = !empFiltro.length || !xs.length || xs.some(e => empFiltro.includes(e));
     return cruza && empOk;
   }).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
-  const servicos = [...new Set(imp.map(i => i.servico).filter(Boolean))];
+  const servicos = [...new Map(imp.map(i => i.servico).filter(Boolean).map(sv => [ganNorm(sv), sv])).values()];   // sem repetir o mesmo serviço escrito de outro jeito (caixa/acento)
   const prodRows = [];
   empsRel.forEach(emp => servicos.forEach(serv => {
-    const cat = ganNorm(emp) === 'GLOBO ACOS' ? relItemCatalogoM2(serv) : null;
-    if (cat) {   // em m², como no Dashboard cliente
-      const previstoM2 = Math.max(0, prevCliente(cat, fim) - prevCliente(cat, add(ini, -1))), realM2 = realizadoPeriodoItem(cat, emp, ini, fim);
-      if (realM2 || previstoM2) prodRows.push({ emp, serv, real: realM2, previsto: previstoM2, pct: previstoM2 ? realM2 / previstoM2 * 100 : null, un: 'm²', contrato: cat.qtd });
+    const cli = previstoClienteDaEmpresa(serv, emp, ini, minD(fim, ref));   // meta do cliente × dias úteis até hoje, dividida entre as empresas que executam o serviço
+    if (cli) {
+      const real = cli.m2 ? realizadoPeriodoItem(cli.item, emp, ini, fim) : prodServico(serv, emp, ini, fim);   // Globo em m² (catálogo), demais pela produção da própria empresa
+      if (real || cli.previsto) prodRows.push({ emp, serv, real, previsto: cli.previsto, pct: cli.previsto ? real / cli.previsto * 100 : null, un: cli.m2 ? 'm²' : '', empresas: cli.n });
       return;
     }
     const real = prodServico(serv, emp, ini, fim);
@@ -5855,7 +5874,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const limRel = { ini, fim: minD(fim, ref) };   // período do relatório: os dias de impacto nunca passam dele
   const rowsImp = imp.map(i => `<tr><td>${fdA(i.data)}</td><td>${esc(impactoEmpresasTexto(i))}</td><td>${esc(i.servico)}</td><td>${esc(impactoSetor(i))}</td><td>${esc(i.motivo)}</td><td class="n"><b>${nf(somaMapa(diasPorImpacto(i, limRel)), somaMapa(diasPorImpacto(i, limRel)) % 1 ? 1 : 0)}</b></td><td>${esc(efetivoImpactoTexto(i))}</td><td>${esc(i.paralisacao || '')}</td><td>${esc(cascataTexto(impactoCascataDe(i), 4))}</td><td>${i.solucionado ? fdA(i.solucionado) : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="10">Sem impactos no período.</td></tr>';
   const rowsRemAtr = remAtr.map(r => `<tr><td>${esc(r.nome)}</td><td>${fdA(r.prevista)}</td><td>${fdA(r.chegada)}</td><td class="n">${nf(r.dias,0)}</td><td class="n"><b>${nf(r.diasUteis,0)}</b></td><td class="n">${nf(r.qtdTotal,1)}</td><td>${esc(r.itens.slice(0,8).map(i => i.tag + ' (' + nf(i.qtd,1) + ')').join(', '))}${r.itens.length > 8 ? '...' : ''}</td></tr>`).join('') || '<tr><td colspan="7">Sem remessas em atraso no período.</td></tr>';
-  const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${nf(r.real,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
+  const rowsProd = prodRows.map(r => `<tr><td>${esc(r.emp)}</td><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto,1)}${r.un ? ' ' + r.un : ''}${r.empresas > 1 ? `<div class="nota-rel">meta do cliente ÷ ${r.empresas} empresas</div>` : ''}</td><td class="n">${nf(r.real,1)}${r.un ? ' ' + r.un : ''}</td><td class="n">${r.pct == null ? '—' : nf(r.pct,1)+'%'}</td></tr>`).join('') || '<tr><td colspan="5">Sem produtividade para as atividades impactadas.</td></tr>';
   const empsEquip = [...new Set(usos.map(u => normEmp(u.empAjust)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const porEq = new Map();
   usos.forEach(u => {
