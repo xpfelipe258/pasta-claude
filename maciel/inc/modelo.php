@@ -148,6 +148,7 @@ function montar_modelo()
         'metas' => $metas,
         'cliente' => $cliente,
         'impactos' => $impactos,
+        'contratos_cliente' => (object)(json_decode((string)sistema_ler('contratos_cliente', '{}'), true) ?: []),   // contrato editado na tela do Dashboard cliente
         'referencia' => sistema_ler('referencia', null),
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],

@@ -617,6 +617,28 @@ document.addEventListener('change', ev => {
   plLibGravar(t.dataset.plLibPrev, pt => { if (pt[k]) pt[k].prev = t.value || null; return pt; });
 });
 
+// ---------------------------------------------------------------- efeito cascata de um impacto (usado na aba Impactos e no relatório)
+// Impacto ou atraso numa atividade empurra as atividades POSTERIORES do fluxo da obra (ordem de PLD_FLUXOS): se a estrutura do
+// fechamento atrasa, as telhas do fechamento e tudo o que vem depois sofrem. Nos anexos, só as atividades do mesmo anexo.
+function pldEtapasPorNome(servico, frente) {
+  const fluxo = pldFluxoDe(frente), serv = ganNorm(servico), reg = PLD_REGRAS[fluxo].find(([re]) => re.test(serv));
+  return { fluxo, ids: reg ? reg[1] : [] };
+}
+function impactoCascata(servico, frente) {
+  const m = pldEtapasPorNome(servico, frente);
+  if (!m.ids.length) return null;
+  const ordem = PLD_ORDEM[m.fluxo], pos = ordem.indexOf(m.ids[0]);
+  const posteriores = (typeof plAtividades === 'function' ? plAtividades() : [])
+    .map(a => ({ a, e: pldEtapasPorNome(a.it.servico, a.frente) }))
+    .filter(({ a, e }) => e.fluxo === m.fluxo && e.ids.length && ordem.indexOf(e.ids[0]) > pos && a.status !== 'CONCLUÍDO' && (m.fluxo === 'galpao' || ganNorm(a.frente) === ganNorm(frente)))
+    .sort((x, y) => ordem.indexOf(x.e.ids[0]) - ordem.indexOf(y.e.ids[0]) || (x.a.ini || '').localeCompare(y.a.ini || ''))
+    .map(({ a, e }) => ({ nome: a.nome, fase: a.fase, frente: a.frente, etapa: pldEtapa(m.fluxo, e.ids[0]).nome, ini: a.ini, prazo: a.prazo, empresas: a.empresas || [], status: a.status }));
+  const vezes = {};
+  posteriores.forEach(p => { vezes[p.nome] = (vezes[p.nome] || 0) + 1; });
+  posteriores.forEach(p => { p.rotulo = vezes[p.nome] > 1 ? `${p.nome} · Fase ${p.fase}` : p.nome; });   // mesmo serviço nas Fases 1 e 2
+  return { fluxo: m.fluxo, etapa: pldEtapa(m.fluxo, m.ids[0]).nome, posteriores };
+}
+
 function plBaixarDoc(pl) {
   const html = plDocHtml(pl);
   const nome = `planejamento-${String(pl.nome || 'plano').replace(/[^\w\-]+/g, '_')}-${plBase()}.html`;

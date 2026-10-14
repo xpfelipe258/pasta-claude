@@ -905,3 +905,8 @@ td.col-nova { padding: 3px 6px; }
 .pl-lib-bt{padding:3px 12px;margin-right:4px}
 .pl-lib-bt.sim{background:var(--verde);border-color:var(--verde);color:#fff}
 .pl-lib-bt.nao{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+
+/* Impactos: efeito cascata (prévia no formulário) */
+.imp-cascata { background: var(--acento-suave); border: 1px solid var(--linha); border-radius: 8px; padding: 8px 12px; font-size: .88rem; line-height: 1.7; }
+.chip-casc { display: inline-block; background: var(--card); border: 1px solid var(--linha-forte); border-radius: 999px; padding: 1px 9px; margin: 2px 2px 2px 0; }
+.chip-casc small { color: var(--fg2); }

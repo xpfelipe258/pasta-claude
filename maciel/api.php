@@ -104,7 +104,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -122,7 +122,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1576,6 +1576,33 @@ function acao_salvar_planejamento(array $corpo, array $usuario)
 }
 
 // --------------------------------------------------------- planos 5W2H (aba Planejamento)
+// Contrato editado direto na tabela "previsto × realizado" do Dashboard cliente. Fica guardado à parte (por frente|serviço) e vale
+// sobre o catálogo do BM; apagar o valor volta ao catálogo. Não mexe em cliente.qtd nem em servicos.escopo (a grade de produção).
+function acao_cliente_contrato(array $corpo)
+{
+    $chave = plano_texto($corpo['chave'] ?? '', 300);
+    if ($chave === '') {
+        throw new ErroValidacao('Atividade sem identificação. Recarregue a tela.');
+    }
+    $d = json_decode((string)sistema_ler('contratos_cliente', '{}'), true);
+    if (!is_array($d)) {
+        $d = [];
+    }
+    $valor = $corpo['qtd'] ?? null;
+    if ($valor === null || $valor === '') {
+        unset($d[$chave]);
+    } else {
+        $q = numero($valor);
+        if ($q === null || $q <= 0) {
+            throw new ErroValidacao('Informe um contrato maior que zero (ou apague o valor para voltar ao catálogo).');
+        }
+        $d[$chave] = $q;
+    }
+    sistema_gravar('contratos_cliente', json_encode($d, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('contrato_cliente', ['chave' => $chave, 'qtd' => $d[$chave] ?? null]);
+    return ['salvos' => 1];
+}
+
 function planos_ler()
 {
     $d = json_decode((string)sistema_ler('planos_5w2h', '{"planos":[]}'), true);
