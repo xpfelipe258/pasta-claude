@@ -5491,6 +5491,20 @@ function remessasAtrasadas() {
 // Setor que causou o impacto (campo da aba Impactos) → o relatório soma nº de impactos e dias úteis de impacto por setor
 // e ordena quem mais impactou e quais empresas foram mais afetadas. 1 dia = 8 h (HORAS_POR_DIA).
 const SETORES_IMPACTO = ['Suprimentos', 'Planejamento', 'Engenharia / Projeto', 'Produção / Montagem', 'Qualidade', 'SESMT', 'Equipamentos', 'Cliente', 'Fornecedor', 'Clima / Externo', 'Outro'];
+// Setor "Fornecedor" exige dizer QUAL fornecedor (CMM, EJ, GLOBO AÇOS ou outro): fica gravado como "Fornecedor — CMM" e o ranking separa cada um.
+const FORN_SEP = ' — ';
+function fornecedorDeSetor(txt) {
+  const m = String(txt || '').trim().match(/^fornecedor\s*(?:[—–-]\s*(.*))?$/i);
+  return m ? { isForn: true, nome: (m[1] || '').trim() } : { isForn: false, nome: '' };
+}
+function fornecedoresImpacto() { return [...new Set([...(M?.empresas || []).map(e => e.nome), 'CMM', 'EJ', 'GLOBO AÇOS'])]; }
+function atualizarFornecedorImpacto(f) {
+  const box = $('#impFornecedorBox'); if (!box) return;
+  const fz = fornecedorDeSetor(f.elements.setor.value);
+  box.hidden = !fz.isForn;
+  f.elements.fornecedorOutro.hidden = !fz.isForn || f.elements.fornecedorSel.value !== '__outro';
+  f.elements.fornecedorSel.required = fz.isForn;
+}
 const HORAS_POR_DIA = 8;   // jornada: só converte o campo "Tempo perdido" em dias úteis (nada aparece em horas)
 const normSetor = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const _setorCanon = new Map(SETORES_IMPACTO.map(s => [normSetor(s), s]));   // 'suprimentos' e 'Suprimentos' viram o mesmo setor
@@ -5613,7 +5627,7 @@ function rankingImpactos(imp, empFiltro = [], lim = null) {
     c.posteriores.forEach(p => (p.empresas || []).forEach(e => indiretas.add(e)));
     [...indiretas].filter(e => !r.empresas.includes(e) && (!empFiltro.length || empFiltro.includes(e))).forEach(e => { const b = get(e); b.ind = unirMapas([b.ind, r.mapa]); });
   });
-  empresas.forEach(b => { let t = 0; b.ind.forEach((w, d) => { t += Math.max(0, w - (b.dir.get(d) || 0)); }); b.indireto = t; });   // só os dias em que a empresa não estava já parada por impacto direto
+  empresas.forEach(b => { let t = 0; b.ind.forEach((w, d) => { t += Math.max(0, w - (b.dir.get(d) || 0)); }); b.indireto = t; });   // só os dias em que a empresa não estava já impactada diretamente
   const ordem = (x, y) => y.dias - x.dias || y.n - x.n || x.nome.localeCompare(y.nome);
   lstSet.sort(ordem);
   const lstEmp = [...empresas.values()].sort((x, y) => (x.nome === SEM_EMPRESA) - (y.nome === SEM_EMPRESA) || (y.dias + y.indireto) - (x.dias + x.indireto) || y.n - x.n || x.nome.localeCompare(y.nome));   // "sem empresa" é só um balde: fica por último
@@ -5647,7 +5661,7 @@ function htmlRankingImpactos(imp, empFiltro = [], lim = null) {
     <table><thead><tr><th>#</th><th>Setor responsável</th><th class="n">Impactos</th><th class="n">Dias úteis impactados</th><th class="n">Atividades atingidas em cascata</th><th class="n">Em aberto</th><th>% dos dias úteis do período</th></tr></thead><tbody>${linhasS}</tbody>
       <tfoot><tr><th colspan="2">Dias do período com algum impacto (sem repetir o mesmo dia)</th><th class="n">${nf(r.n, 0)}</th><th class="n">${fmtD(r.dias)}</th><th></th><th class="n">${nf(soma0(r.setores, x => x.abertos), 0)}</th><th>${r.uteis ? nf(pct(r.dias), 0) + '%' : ''}</th></tr></tfoot></table>
     <h3>Ranking de quem foi mais afetado — dias do período em que cada empresa ficou impactada</h3>
-    <table><thead><tr><th>#</th><th>Empresa</th><th class="n">Impactos sofridos</th><th class="n">Dias úteis parada (direto)</th><th class="n">Dias úteis por cascata</th><th class="n">Total</th><th>% dos dias úteis do período</th><th>Principal setor causador</th></tr></thead><tbody>${linhasE}</tbody></table>
+    <table><thead><tr><th>#</th><th>Empresa</th><th class="n">Impactos sofridos</th><th class="n">Dias úteis impactados (direto)</th><th class="n">Dias úteis por cascata</th><th class="n">Total</th><th>% dos dias úteis do período</th><th>Principal setor causador</th></tr></thead><tbody>${linhasE}</tbody></table>
     <h3>Empresa × setor — dias úteis do período em que o setor impactou a empresa</h3>
     <table><thead><tr><th>Empresa</th>${setsCols.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total (sem repetir dia)</th></tr></thead><tbody>${linhasM}</tbody></table>
     <h3>Dias perdidos por atividade (consolidado)</h3>
@@ -5655,7 +5669,7 @@ function htmlRankingImpactos(imp, empFiltro = [], lim = null) {
     <p class="nota-rel">A atividade com mais de um impacto aparece uma só vez: ocorrências em datas seguidas ou sobrepostas formam um trecho único (do início do primeiro ao fim do último); com interrupção entre as datas, os trechos se somam.</p>
     <h3>Efeito cascata registrado</h3>
     ${r.cascata.length ? `<table><thead><tr><th>Impacto (atividade impactada)</th><th class="n">Dias úteis</th><th>Atividades posteriores atingidas (por etapa do fluxo) · início previsto → início empurrado</th></tr></thead><tbody>${linhasC}</tbody></table>` : '<p>Nenhum impacto do período atinge atividades posteriores do fluxo (ou os serviços não estão mapeados no fluxo da obra).</p>'}
-    <p class="nota-rel">Critério: dias ÚTEIS REAIS do calendário, limitados ao período do relatório${lim ? ' (' + fdA(lim.ini) + ' a ' + fdA(lim.fim) + ')' : ''}. Cada dia conta uma vez por setor e por empresa, mesmo que vários serviços tenham sido impactados no mesmo dia (por isso o total nunca passa dos dias úteis do período). Impacto lançado = “Tempo perdido” informado (8 h = 1 dia útil; horas valem a fração do dia) ou, sem tempo, os dias úteis até a solução/referência; remessa atrasada = dias úteis entre a data prevista e a chegada real. Cascata: o impacto numa atividade empurra as posteriores do fluxo pelos mesmos dias úteis; a empresa dessas atividades sofre o impacto indireto nos dias em que não estava já parada. Impacto com mais de uma empresa conta integralmente para cada uma; “${SEM_EMPRESA}” reúne impactos sem empresa definida.</p>`;
+    <p class="nota-rel">Critério: dias ÚTEIS REAIS do calendário, limitados ao período do relatório${lim ? ' (' + fdA(lim.ini) + ' a ' + fdA(lim.fim) + ')' : ''}. Cada dia conta uma vez por setor e por empresa, mesmo que vários serviços tenham sido impactados no mesmo dia (por isso o total nunca passa dos dias úteis do período). Impacto lançado = “Tempo perdido” informado (8 h = 1 dia útil; horas valem a fração do dia) ou, sem tempo, os dias úteis até a solução/referência; remessa atrasada = dias úteis entre a data prevista e a chegada real. Cascata: o impacto numa atividade empurra as posteriores do fluxo pelos mesmos dias úteis; a empresa dessas atividades sofre o impacto indireto nos dias em que não estava já impactada diretamente. Impacto com mais de uma empresa conta integralmente para cada uma; “${SEM_EMPRESA}” reúne impactos sem empresa definida.</p>`;
 }
 
 function impactoDeRemessa(r) {
@@ -6102,6 +6116,8 @@ function abrirFormImp(linha) {
   $('#btnExcluirImp').textContent = 'Excluir';
   const selEmpImp = f.elements.empresasSel;
   if (selEmpImp) selEmpImp.innerHTML = M.empresas.map(e => `<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
+  f.elements.fornecedorSel.innerHTML = '<option value="">Selecione o fornecedor</option>' + fornecedoresImpacto().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__outro">Outros…</option>';
+  f.elements.fornecedorOutro.value = '';
   if (linha) {
     const i = M.impactos.find(x => x.linha === linha);
     for (const k of ['data', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) {
@@ -6112,10 +6128,17 @@ function abrirFormImp(linha) {
     const marcadas = impactoEmpresas(i);
     if (selEmpImp) [...selEmpImp.options].forEach(o => o.selected = marcadas.includes(o.value));
     preencherServicosImpacto(f, i.servico);
+    const fz = fornecedorDeSetor(i.setor);   // "Fornecedor — CMM" volta como setor + fornecedor escolhido
+    if (fz.isForn) {
+      f.elements.setor.value = 'Fornecedor';
+      if (fz.nome && [...f.elements.fornecedorSel.options].some(o => o.value === fz.nome)) f.elements.fornecedorSel.value = fz.nome;
+      else if (fz.nome) { f.elements.fornecedorSel.value = '__outro'; f.elements.fornecedorOutro.value = fz.nome; }
+    }
   } else {
     f.elements.data.value = ref;
     preencherServicosImpacto(f, '');
   }
+  atualizarFornecedorImpacto(f);
   f.hidden = false;
   f.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -6612,8 +6635,10 @@ function ligarEventos() {
     renderImpactos();
   });
   $('#btnNovoImp').onclick = () => abrirFormImp(null);
+  $('#formImp').addEventListener('input', ev => { if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto($('#formImp')); });   // mostra "Qual fornecedor?" assim que o setor vira Fornecedor
   $('#formImp').addEventListener('change', ev => {
     const f = $('#formImp');
+    if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto(f);
     if (ev.target.name === 'empresasSel') preencherServicosImpacto(f, f.elements.servico.value);   // só os serviços das empresas marcadas
     else if (ev.target.name === 'servico') atualizarCascataImpacto(f);
   });
@@ -6641,6 +6666,12 @@ function ligarEventos() {
     const f = ev.target, corpo = {};
     for (const k of ['data', 'servico', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado']) corpo[k] = f.elements[k].value.trim() || null;   // serviço: exatamente como no cadastro da empresa
     corpo.empresas = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value).join(' / ') || null;
+    const fz = fornecedorDeSetor(f.elements.setor.value);
+    if (fz.isForn) {   // setor Fornecedor: precisa dizer qual (CMM, EJ, GLOBO AÇOS ou outro)
+      const escolhido = f.elements.fornecedorSel.value, nomeForn = escolhido === '__outro' ? f.elements.fornecedorOutro.value.trim() : (escolhido || fz.nome);
+      if (!nomeForn) { toast('Selecione qual fornecedor causou o impacto (CMM, EJ, GLOBO AÇOS ou outros).', true); return; }
+      corpo.setor = 'Fornecedor' + FORN_SEP + nomeForn;
+    }
     if (f.dataset.linha) corpo.linha = +f.dataset.linha;
     if (await salvarImpacto(corpo, f.dataset.linha ? `Impacto atualizado ${ONDE}` : `Impacto registrado ${ONDE}`)) f.hidden = true;
   });
