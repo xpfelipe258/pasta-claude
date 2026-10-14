@@ -3397,6 +3397,60 @@ function gerarRelConsumo() {
   fecharRelConsumo();
 }
 
+// ------------------------------------------------------------ EDITAR COLUNA (semana) DO CONSUMO FÍSICO
+// Renomeia a semana, ajusta EJ/CMM de vários itens de uma vez e exclui a coluna (rota estoque-planilha/consumo-semana).
+const consSem = { semana: '', originais: new Map(), novos: new Map() };
+function abrirConsSemana(semana) {
+  const cf = estConsumoComCadastros();
+  consSem.semana = semana; consSem.novos = new Map(); consSem.originais = new Map();
+  cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, { EJ: Number(d.EJ) || 0, CMM: Number(d.CMM) || 0 }); });
+  $('#tituloConsSemana').textContent = `Editar coluna — ${semana}`;
+  $('#consSemNome').value = semana; $('#consSemBusca').value = '';
+  const ex = $('#btnConsSemExcluir'); ex.dataset.confirmar = ''; ex.textContent = 'Excluir coluna';
+  consSemDesenhar();
+  $('#modalConsSemana').hidden = false; document.body.classList.add('modal-aberto');
+}
+function fecharConsSemana() { const m = $('#modalConsSemana'); if (m) m.hidden = true; document.body.classList.remove('modal-aberto'); }
+function consSemDesenhar() {
+  const cf = estConsumoComCadastros(), f = ganNorm($('#consSemBusca').value || '');
+  const vis = cf.itens.filter(m => !f || ganNorm(m.tag + ' ' + (m.produto || '')).includes(f));
+  const val = (tag, emp) => { const n = consSem.novos.get(tag); const v = n && emp in n ? n[emp] : consSem.originais.get(tag)[emp]; return v ? String(v).replace('.', ',') : ''; };
+  $('#tabConsSemana').innerHTML = '<thead><tr><th>TAG</th><th>Produto</th><th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th></tr></thead><tbody>' +
+    (vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto || '')}</td>` +
+      ['EJ', 'CMM'].map(e => `<td class="n"><input type="text" inputmode="decimal" data-cs-tag="${esc(m.tag)}" data-cs-emp="${e}" value="${esc(val(m.tag, e))}" aria-label="${esc(m.tag)} ${e}"></td>`).join('') + '</tr>').join('')
+      || '<tr><td colspan="4" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+}
+async function salvarConsSemana() {
+  const semana = consSem.semana, novo = $('#consSemNome').value.trim();
+  if (!novo) return toast('Informe o nome da semana.', true);
+  const valores = [];
+  consSem.novos.forEach((n, tag) => {
+    const o = consSem.originais.get(tag), v = { tag };
+    ['EJ', 'CMM'].forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
+    if (Object.keys(v).length > 1) valores.push(v);
+  });
+  if (novo === semana && !valores.length) { fecharConsSemana(); return toast('Nada foi alterado.'); }
+  try {
+    await postar(API + 'estoque-planilha/consumo-semana', { semana, novo_nome: novo, valores });
+    fecharConsSemana(); await recarregarEstoquePlanilha();
+    toast(`Coluna ${novo} salva ${ONDE}`);
+  } catch (err) { toast(err.message || 'Erro ao salvar.', true); }
+}
+async function excluirConsSemana() {
+  const b = $('#btnConsSemExcluir');
+  if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão da coluna'; return; }
+  try {
+    await postar(API + 'estoque-planilha/consumo-semana', { semana: consSem.semana, excluir: true });
+    fecharConsSemana(); await recarregarEstoquePlanilha();
+    toast(`Coluna ${consSem.semana} excluída ${ONDE}`);
+  } catch (err) { toast(err.message || 'Erro ao excluir.', true); }
+}
+async function recarregarEstoquePlanilha() {
+  const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+  if (j) EP = j;
+  renderEstoquePlanilha();
+}
+
 function renderEstConsumo() {
   if (!EP) return;
   const cf = estConsumoComCadastros();
@@ -3417,7 +3471,7 @@ function renderEstConsumo() {
   const ed = estEdit.cons, cxC = $('#tabEstCons').closest('.tabela-rolagem'), sxC = cxC.scrollLeft;
   const inp = (m, emp) => `<td class="col-nova"><input class="ed-in" data-ed="cons" data-tag="${esc(m.tag)}" data-emp="${emp}" inputmode="decimal" value="${esc(ed.val.get(m.tag + '|' + emp) || '')}" aria-label="${esc(m.tag)} ${emp}"></td>`;
   $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
-    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}">${esc(abrevS(s))}</th>`).join('') +
+    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}">${esc(abrevS(s))} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
     (ed ? `<th class="n col-nova" colspan="2"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
     `<th class="n">Total</th></tr><tr><th></th><th></th>` +
     sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
@@ -6877,6 +6931,20 @@ function ligarEventos() {
   $('#btnImportarEq').onclick = importarEquip;
   const btnRelEquip = $('#btnRelEquip'); if (btnRelEquip) btnRelEquip.onclick = abrirRelEquipPopup;
   const btnRelCons = $('#btnRelConsumo'); if (btnRelCons) btnRelCons.onclick = abrirRelConsumo;
+  const tabCons = $('#tabEstCons'); if (tabCons) tabCons.addEventListener('click', ev => { const b = ev.target.closest('[data-cons-col]'); if (b) abrirConsSemana(b.dataset.consCol); });
+  const mcs = $('#modalConsSemana');
+  if (mcs) {
+    mcs.querySelectorAll('[data-fechar-cons-sem]').forEach(x => x.addEventListener('click', fecharConsSemana));
+    $('#btnConsSemSalvar').onclick = salvarConsSemana;
+    $('#btnConsSemExcluir').onclick = excluirConsSemana;
+    $('#consSemBusca').addEventListener('input', consSemDesenhar);
+    $('#tabConsSemana').addEventListener('input', ev => {
+      const t = ev.target, tag = t.dataset.csTag; if (!tag) return;
+      const txt = t.value.trim(), q = txt === '' ? 0 : edNum(txt);
+      const n = consSem.novos.get(tag) || {}; n[t.dataset.csEmp] = q >= 0 ? q : 0;
+      consSem.novos.set(tag, n);
+    });
+  }
   const mrc = $('#modalRelCons');
   if (mrc) {
     mrc.querySelectorAll('[data-fechar-rel-cons]').forEach(x => x.addEventListener('click', fecharRelConsumo));

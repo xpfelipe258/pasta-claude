@@ -105,7 +105,7 @@ try {
     }
     $moduloRota = [
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao',
-        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos',
+        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
@@ -121,7 +121,7 @@ try {
         'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
-        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
         'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
@@ -1135,6 +1135,93 @@ function acao_estoque_consumo_celula(array $corpo)
     }
     estoque_planilha_gravar($dados);
     return ['celulas' => 1, 'salvos' => 1, 'total_consumo' => $consumo];
+}
+
+// Edição de uma COLUNA (semana) do Consumo físico: renomeia a semana, ajusta os valores EJ/CMM de vários itens de uma vez ou exclui a semana.
+// corpo: semana (atual), novo_nome (opcional), valores: [{tag, EJ, CMM}] (vazio/zero limpa), excluir: true.
+function acao_estoque_consumo_semana(array $corpo)
+{
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $semana = trim((string)($corpo['semana'] ?? ''));
+    $semanas = $dados['consumo_fisico']['semanas'] ?? [];
+    $pos = array_search($semana, $semanas, true);
+    if ($semana === '' || $pos === false) {
+        throw new ErroValidacao("Semana '$semana' não existe no consumo.");
+    }
+    $excluir = !empty($corpo['excluir']);
+    $novo = trim((string)($corpo['novo_nome'] ?? ''));
+    if (!$excluir && $novo !== '' && $novo !== $semana) {
+        if (in_array($novo, $semanas, true)) {
+            throw new ErroValidacao("Já existe uma semana chamada '$novo'.");
+        }
+        if (mb_strlen($novo) > 80) {
+            throw new ErroValidacao('Nome da semana muito longo (máximo 80 caracteres).');
+        }
+    } else {
+        $novo = $semana;
+    }
+    $valores = [];
+    foreach ((array)($corpo['valores'] ?? []) as $v) {
+        $tag = mb_strtoupper(trim((string)($v['tag'] ?? '')));
+        if ($tag === '') {
+            continue;
+        }
+        foreach (['EJ', 'CMM'] as $emp) {
+            if (!array_key_exists($emp, $v)) {
+                continue;
+            }
+            $q = $v[$emp] === null || $v[$emp] === '' ? 0 : numero($v[$emp]);
+            if ($q === null || $q < 0) {
+                throw new ErroValidacao("Quantidade inválida em $tag ($emp): use um número maior ou igual a zero.");
+            }
+            $valores[$tag][$emp] = $q;
+        }
+    }
+    foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
+        $tag = mb_strtoupper((string)($it['tag'] ?? ''));
+        $cs = isset($it['consumo_semanas']) && is_array($it['consumo_semanas']) ? $it['consumo_semanas'] : [];
+        $novoCs = [];
+        foreach ($cs as $nome => $e) {   // reconstrói mantendo a ordem das semanas
+            if ($nome === $semana) {
+                if ($excluir) {
+                    continue;
+                }
+                $nome = $novo;
+            }
+            $novoCs[$nome] = $e;
+        }
+        if (!$excluir && isset($valores[$tag])) {
+            $e = $novoCs[$novo] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+            foreach ($valores[$tag] as $emp => $q) {
+                $e[$emp] = $q;
+            }
+            $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+            if ($e['total'] > 0) {
+                $novoCs[$novo] = $e;
+            } else {
+                unset($novoCs[$novo]);
+            }
+        }
+        $dados['consumo_fisico']['itens'][$i]['consumo_semanas'] = $novoCs ?: new stdClass();
+        $total = array_sum(array_column($novoCs, 'total'));
+        $dados['consumo_fisico']['itens'][$i]['total_consumo'] = $total;
+        $m = estoque_material($dados, $tag);
+        if ($m !== null) {
+            $dados['materiais'][$m]['consumido'] = $total;
+            $dados['materiais'][$m]['estoque_pos_baixa'] = ($dados['materiais'][$m]['chegou'] ?? 0) - $total;
+        }
+    }
+    if ($excluir) {
+        array_splice($semanas, $pos, 1);
+    } else {
+        $semanas[$pos] = $novo;
+    }
+    $dados['consumo_fisico']['semanas'] = array_values($semanas);
+    estoque_planilha_gravar($dados);
+    return ['semana' => $excluir ? null : $novo, 'excluida' => $excluir, 'itens_ajustados' => count($valores)];
 }
 
 // ------------------------------------------------- apontamento de montagem (joists e vigas)

@@ -919,3 +919,10 @@ td.col-nova { padding: 3px 6px; }
 .rel-cons-lista label{display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer}
 .rel-cons-lista label span.n{margin-left:auto;color:var(--fg3);font-variant-numeric:tabular-nums}
 
+/* Editar coluna (semana) do Consumo físico */
+.cons-sem-tab{max-height:340px;margin:8px 0}
+.cons-sem-tab input{width:84px;text-align:right}
+.btn-col-edit{border:0;background:transparent;cursor:pointer;color:var(--fg3);font-size:13px;padding:0 3px;line-height:1}
+.btn-col-edit:hover{color:var(--acento)}
+.somente-leitura .btn-col-edit{display:none !important}
+
