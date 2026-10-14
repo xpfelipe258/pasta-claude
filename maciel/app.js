@@ -3321,6 +3321,82 @@ function editarConsumoInline(td) {
   });
 }
 
+// ------------------------------------------------------------ RELATÓRIO DE CONSUMO (Consumo físico)
+// Escolhe empresa (cada uma em separado, só EJ, só CMM ou geral somado), semanas e itens; gera um HTML para imprimir/salvar em PDF.
+const relCons = { sem: new Set(), it: new Set() };
+function relConsEmpresas() { const cf = estConsumoComCadastros(); return (cf.empresas && cf.empresas.length ? cf.empresas : ['EJ', 'CMM']).filter(Boolean); }
+function relConsTotalItem(m, sems) { let t = 0; sems.forEach(s => { const d = m.consumo_semanas[s]; if (d) relConsEmpresas().forEach(e => { t += Number(d[e]) || 0; }); }); return t; }
+function abrirRelConsumo() {
+  if (!EP) return toast('Aguarde o carregamento do estoque.', true);
+  const cf = estConsumoComCadastros();
+  const emps = relConsEmpresas();
+  $('#relConsEmp').innerHTML = `<option value="cada">Cada empresa em separado (${emps.map(esc).join(' e ')})</option>` + emps.map(e => `<option value="${esc(e)}">Somente ${esc(e)}</option>`).join('') + `<option value="geral">Geral (${emps.map(esc).join(' + ')} somadas)</option>`;
+  relCons.sem = new Set(cf.semanas);
+  relCons.it = new Set(cf.itens.filter(m => m.total_consumo > 0).map(m => m.tag));
+  if (!relCons.it.size) relCons.it = new Set(cf.itens.map(m => m.tag));
+  $('#relConsBusca').value = '';
+  relConsDesenhar();
+  const pop = $('#modalRelCons'); pop.hidden = false; document.body.classList.add('modal-aberto');
+}
+function fecharRelConsumo() { const pop = $('#modalRelCons'); if (pop) pop.hidden = true; document.body.classList.remove('modal-aberto'); }
+function relConsDesenhar() {
+  const cf = estConsumoComCadastros();
+  $('#relConsSemanas').innerHTML = cf.semanas.map((s, i) => `<label><input type="checkbox" data-rc-sem="${esc(s)}" ${relCons.sem.has(s) ? 'checked' : ''}> ${esc(s)}</label>`).join('') || '<span class="nota">Sem semanas registradas.</span>';
+  const f = ganNorm($('#relConsBusca')?.value || '');
+  const vis = cf.itens.filter(m => !f || ganNorm(m.tag + ' ' + (m.produto || '')).includes(f));
+  $('#relConsItens').innerHTML = vis.map(m => `<label><input type="checkbox" data-rc-it="${esc(m.tag)}" ${relCons.it.has(m.tag) ? 'checked' : ''}> <b>${esc(m.tag)}</b> ${esc(m.produto || '')}<span class="n">${nf(m.total_consumo)}</span></label>`).join('') || '<span class="nota">Nenhum item encontrado.</span>';
+  $('#relConsContagem').textContent = `· ${relCons.it.size} de ${cf.itens.length} selecionados`;
+}
+function relConsDados(modo, semanas, tags, ocultarZero) {
+  const cf = estConsumoComCadastros(), emps = relConsEmpresas();
+  const sems = cf.semanas.filter(s => semanas.has(s));
+  const itens = cf.itens.filter(m => tags.has(m.tag));
+  const val = (m, s, e) => { const d = m.consumo_semanas[s]; return d ? Number(d[e]) || 0 : 0; };
+  const alvo = modo === 'cada' ? emps : modo === 'geral' ? ['GERAL'] : [modo];
+  const tabelas = alvo.map(emp => {
+    const es = emp === 'GERAL' ? emps : [emp];
+    let linhas = itens.map(m => { const porSem = sems.map(s => soma0(es, e => val(m, s, e))); return { tag: m.tag, produto: m.produto || '', porSem, total: soma0(porSem, v => v) }; });
+    if (ocultarZero) linhas = linhas.filter(l => l.total > 0);
+    return { emp, rotulo: emp === 'GERAL' ? emps.join(' + ') : emp, linhas, totSem: sems.map((s, i) => soma0(linhas, l => l.porSem[i])), total: soma0(linhas, l => l.total) };
+  });
+  return { sems, tabelas, emps, itens };
+}
+function relConsHtml(modo, semanas, tags, ocultarZero) {
+  const d = relConsDados(modo, semanas, tags, ocultarZero);
+  const unica = d.tabelas.length === 1, e0 = unica ? d.tabelas[0].emp : null;
+  const titulo = modo === 'cada' ? 'Relatório de consumo físico por empresa' : e0 === 'GERAL' ? 'Relatório de consumo físico — geral' : `Relatório de consumo físico — ${e0}`;
+  const periodo = d.sems.length ? (d.sems.length > 3 ? `${d.sems[0]} … ${d.sems[d.sems.length - 1]} (${d.sems.length} semanas)` : d.sems.join(' · ')) : 'sem semanas';
+  const css = `<style>body{font-family:Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.04em}.sub{color:#555;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.rot{font-size:11px;color:#666;text-transform:uppercase}.val{font-size:18px;font-weight:700;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:5px 6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}tfoot th{background:#eee}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:54px}.assinatura{border-top:1px solid #111;text-align:center;padding-top:8px;font-size:12px}.nota{color:#666;font-size:11px}@media print{body{margin:10mm}.no-print{display:none}.quebra{break-before:page}}</style>`;
+  const tabela = (t, k) => `<h2 class="${k ? 'quebra' : ''}">${modo === 'cada' || unica ? 'Consumo — ' + esc(t.rotulo) : ''}</h2>
+    <table><thead><tr><th>TAG</th><th>Produto</th>${d.sems.map(s => `<th class="n">${esc(s)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${
+      t.linhas.map(l => `<tr><td><b>${esc(l.tag)}</b></td><td>${esc(l.produto)}</td>${l.porSem.map(v => `<td class="n">${v ? nf(v) : ''}</td>`).join('')}<td class="n"><b>${nf(l.total)}</b></td></tr>`).join('') || `<tr><td colspan="${3 + d.sems.length}">Nenhum item com consumo no que foi escolhido.</td></tr>`
+    }</tbody><tfoot><tr><th colspan="2">Total (${t.linhas.length} itens)</th>${t.totSem.map(v => `<th class="n">${nf(v)}</th>`).join('')}<th class="n">${nf(t.total)}</th></tr></tfoot></table>`;
+  let corpo = d.tabelas.map(tabela).join('');
+  if (modo === 'cada' && d.tabelas.length > 1) {   // resumo lado a lado
+    const tags = [...new Set(d.tabelas.flatMap(t => t.linhas.map(l => l.tag)))];
+    const por = (t, tag) => (t.linhas.find(l => l.tag === tag) || { total: 0 }).total;
+    const prod = tag => (d.itens.find(m => m.tag === tag) || {}).produto || '';
+    corpo += `<h2 class="quebra">Resumo por item — ${d.tabelas.map(t => esc(t.rotulo)).join(' × ')}</h2><table><thead><tr><th>TAG</th><th>Produto</th>${d.tabelas.map(t => `<th class="n">${esc(t.rotulo)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${
+      tags.map(tag => `<tr><td><b>${esc(tag)}</b></td><td>${esc(prod(tag))}</td>${d.tabelas.map(t => `<td class="n">${nf(por(t, tag))}</td>`).join('')}<td class="n"><b>${nf(soma0(d.tabelas, t => por(t, tag)))}</b></td></tr>`).join('')
+    }</tbody><tfoot><tr><th colspan="2">Total</th>${d.tabelas.map(t => `<th class="n">${nf(t.total)}</th>`).join('')}<th class="n">${nf(soma0(d.tabelas, t => t.total))}</th></tr></tfoot></table>`;
+  }
+  const totalGeral = soma0(d.tabelas, t => t.total);
+  const assinatura = unica && e0 !== 'GERAL' ? `<div class="assinaturas"><div class="assinatura">Responsável da ${esc(e0)}<br><span class="nota">Nome, assinatura e data</span></div><div class="assinatura">MTEC / Administração da obra<br><span class="nota">Nome, assinatura e data</span></div></div>` : '';
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>${esc(titulo)}</h1><p class="sub">Obra: ${esc(M?.obra?.nome || D?.obra?.nome || 'OBRA 198')} · Período: <b>${esc(periodo)}</b> · Gerado em ${fdA(hoje())}</p>
+    <div class="cards"><div class="card"><div class="rot">Itens no relatório</div><div class="val">${nf(d.itens.length, 0)}</div></div><div class="card"><div class="rot">Semanas</div><div class="val">${nf(d.sems.length, 0)}</div></div><div class="card"><div class="rot">${modo === 'cada' ? 'Total consumido (empresas somadas)' : 'Total consumido'}</div><div class="val">${nf(totalGeral)}</div></div></div>${corpo}${assinatura}</body></html>`;
+}
+function gerarRelConsumo() {
+  const modo = $('#relConsEmp').value || 'cada';
+  if (!relCons.sem.size) return toast('Marque pelo menos uma semana.', true);
+  if (!relCons.it.size) return toast('Marque pelo menos um item.', true);
+  const html = relConsHtml(modo, relCons.sem, relCons.it, $('#relConsSemZero').checked);
+  const nome = `relatorio_consumo_${modo === 'cada' ? 'por_empresa' : modo.toLowerCase()}_${hoje()}.html`;
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  fecharRelConsumo();
+}
+
 function renderEstConsumo() {
   if (!EP) return;
   const cf = estConsumoComCadastros();
@@ -6800,6 +6876,24 @@ function ligarEventos() {
   });
   $('#btnImportarEq').onclick = importarEquip;
   const btnRelEquip = $('#btnRelEquip'); if (btnRelEquip) btnRelEquip.onclick = abrirRelEquipPopup;
+  const btnRelCons = $('#btnRelConsumo'); if (btnRelCons) btnRelCons.onclick = abrirRelConsumo;
+  const mrc = $('#modalRelCons');
+  if (mrc) {
+    mrc.querySelectorAll('[data-fechar-rel-cons]').forEach(x => x.addEventListener('click', fecharRelConsumo));
+    $('#btnGerarRelCons').onclick = gerarRelConsumo;
+    mrc.addEventListener('change', ev => {
+      const sm = ev.target.dataset.rcSem, it = ev.target.dataset.rcIt;
+      if (sm != null) { ev.target.checked ? relCons.sem.add(sm) : relCons.sem.delete(sm); }
+      if (it != null) { ev.target.checked ? relCons.it.add(it) : relCons.it.delete(it); relConsDesenhar(); }
+    });
+    $('#relConsBusca').addEventListener('input', relConsDesenhar);
+    $('#relConsSemTodas').onclick = () => { relCons.sem = new Set(estConsumoComCadastros().semanas); relConsDesenhar(); };
+    $('#relConsSemNenhuma').onclick = () => { relCons.sem = new Set(); relConsDesenhar(); };
+    const visiveis = () => { const f = ganNorm($('#relConsBusca').value || ''); return estConsumoComCadastros().itens.filter(m => !f || ganNorm(m.tag + ' ' + (m.produto || '')).includes(f)); };
+    $('#relConsItTodos').onclick = () => { visiveis().forEach(m => relCons.it.add(m.tag)); relConsDesenhar(); };
+    $('#relConsItNenhum').onclick = () => { visiveis().forEach(m => relCons.it.delete(m.tag)); relConsDesenhar(); };
+    $('#relConsItComConsumo').onclick = () => { relCons.it = new Set(estConsumoComCadastros().itens.filter(m => m.total_consumo > 0).map(m => m.tag)); relConsDesenhar(); };
+  }
   const btnGerarRelEquip = $('#btnGerarRelEquip'); if (btnGerarRelEquip) btnGerarRelEquip.onclick = gerarRelEquipPopup;
   const modalRelEquip = $('#modalRelEquip'); if (modalRelEquip) modalRelEquip.querySelectorAll('[data-fechar-rel-equip]').forEach(x => x.addEventListener('click', fecharRelEquipPopup));
   const _eqFE = $('#eqFiltroEmp'); if (_eqFE) _eqFE.addEventListener('change', e => { eqFiltroEmp = e.target.value; renderEquip(); });

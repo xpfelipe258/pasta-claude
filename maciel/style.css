@@ -910,3 +910,12 @@ td.col-nova { padding: 3px 6px; }
 .imp-cascata { background: var(--acento-suave); border: 1px solid var(--linha); border-radius: 8px; padding: 8px 12px; font-size: .88rem; line-height: 1.7; }
 .chip-casc { display: inline-block; background: var(--card); border: 1px solid var(--linha-forte); border-radius: 999px; padding: 1px 9px; margin: 2px 2px 2px 0; }
 .chip-casc small { color: var(--fg2); }
+
+/* Relatório de consumo (Consumo físico): listas selecionáveis de semanas e itens */
+.rel-cons-bloco{margin:10px 0}
+.rel-cons-cab{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.rel-cons-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px 12px;max-height:110px;overflow:auto;border:1px solid var(--linha);border-radius:8px;padding:6px 8px;background:var(--card)}
+.rel-cons-lista.alta{grid-template-columns:1fr;max-height:240px;margin-top:6px}
+.rel-cons-lista label{display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer}
+.rel-cons-lista label span.n{margin-left:auto;color:var(--fg3);font-variant-numeric:tabular-nums}
+

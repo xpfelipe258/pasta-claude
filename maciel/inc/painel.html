@@ -365,7 +365,28 @@
     <div class="barra-acoes">
       <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
       <div class="acoes">
+        <button class="btn" id="btnRelConsumo">Relatório de consumo</button>
         <button class="btn primario" id="btnNovoConsumo">+ Registrar consumo</button>
+      </div>
+    </div>
+    <div class="modal-admin" id="modalRelCons" hidden>
+      <div class="modal-admin-fundo" data-fechar-rel-cons></div>
+      <div class="modal-admin-caixa relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="tituloRelCons">
+        <div class="modal-admin-topo"><div><h2 id="tituloRelCons">Relatório de consumo</h2><p>Escolha a empresa, as semanas e os itens que entram no documento.</p></div><button type="button" class="modal-admin-x" data-fechar-rel-cons aria-label="Fechar">×</button></div>
+        <div class="grade-modal">
+          <label>Empresa<select id="relConsEmp"></select></label>
+          <label class="largo"><input type="checkbox" id="relConsSemZero" checked> Ocultar itens sem consumo no que foi escolhido</label>
+        </div>
+        <div class="rel-cons-bloco">
+          <div class="rel-cons-cab"><b>Semanas</b><span class="rel-cons-acoes"><button type="button" class="link" id="relConsSemTodas">Todas</button> · <button type="button" class="link" id="relConsSemNenhuma">Nenhuma</button></span></div>
+          <div class="rel-cons-lista" id="relConsSemanas"></div>
+        </div>
+        <div class="rel-cons-bloco">
+          <div class="rel-cons-cab"><b>Itens <span class="nota" id="relConsContagem"></span></b><span class="rel-cons-acoes"><button type="button" class="link" id="relConsItTodos">Todos</button> · <button type="button" class="link" id="relConsItNenhum">Nenhum</button> · <button type="button" class="link" id="relConsItComConsumo">Só com consumo</button></span></div>
+          <input type="search" id="relConsBusca" class="input-filtro" placeholder="Buscar TAG ou produto…" autocomplete="off">
+          <div class="rel-cons-lista alta" id="relConsItens"></div>
+        </div>
+        <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-cons>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelCons">Gerar relatório</button></div>
       </div>
     </div>
     <div class="ed-barra" id="estConsEd" hidden></div>
