@@ -1,8 +1,9 @@
 'use strict';
 // ------------------------------------------------------------------------------------------------
 // FILTRAR E ORDENAR TABELAS (todas as abas)
-// Acrescenta, sem mexer em cada tela, uma barra "Filtrar linhas / Filtrar na coluna / Ordenar por" acima de cada tabela das abas e
-// torna os cabeçalhos clicáveis (1º clique A→Z ou menor→maior, 2º clique inverte, 3º clique volta à ordem original).
+// Acrescenta, sem mexer em cada tela, uma barra "Filtrar linhas / Coluna / Ordem" acima de cada tabela das abas: escolhida a COLUNA, o filtro
+// passa a valer nela e a lista de ORDEM oferece crescente/decrescente (A→Z, menor→maior, data mais antiga…). Os cabeçalhos também são
+// clicáveis (1º clique crescente, 2º decrescente, 3º ordem original) e acompanham o que está escolhido na barra.
 // O tipo da coluna é reconhecido pelo conteúdo: data (dd/mm/aaaa, dd/mm, aaaa-mm-dd), número (pt-BR: 1.234,5 · R$ · % · unidades) ou texto.
 // As telas redesenham as tabelas o tempo todo: um MutationObserver reaplica filtro e ordem depois de cada redesenho (estado por tabela).
 // Ficam de fora: tabelas dentro de janelas (modais), grades de lançamento/semana/pessoal e tabelas com células mescladas (rowspan).
@@ -11,7 +12,7 @@
 (function () {
   const SECOES = 'main section[id^="aba-"]';
   const EXCLUI = '.tab-semana, .dp-matriz, #tabLanc, #tabSemana, #tabDP, [data-sem-ferramentas]';
-  const estado = new Map();                       // chave da tabela → { col, dir, filtro, colFiltro }
+  const estado = new Map();                       // chave da tabela → { col, dir, filtro }
   const colator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
   const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const limpo = s => String(s == null ? '' : s).replace(/[✎✓✗▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
@@ -105,10 +106,9 @@
     const b = document.createElement('div');
     b.className = 'tab-ferr';
     b.innerHTML = '<input type="search" class="tf-busca" placeholder="Filtrar linhas…" aria-label="Filtrar linhas da tabela" autocomplete="off">' +
-      '<select class="tf-col" aria-label="Filtrar na coluna"></select>' +
-      '<select class="tf-ord" aria-label="Ordenar por"></select>' +
-      '<button type="button" class="tf-dir" title="Inverter a ordem" aria-label="Inverter a ordem">▲</button>' +
-      '<button type="button" class="tf-limpar" title="Limpar filtro e ordem">Limpar</button>' +
+      '<select class="tf-col" aria-label="Coluna" title="Coluna: o filtro e a ordem valem para ela"></select>' +
+      '<select class="tf-ord" aria-label="Ordem" title="Ordem da coluna escolhida"></select>' +
+      '<button type="button" class="tf-limpar" title="Limpar filtro, coluna e ordem">Limpar</button>' +
       '<span class="tf-cont"></span>';
     const ancora = t.closest('.tabela-rolagem') && t.closest('.tabela-rolagem').querySelectorAll('table').length === 1 ? t.closest('.tabela-rolagem') : t;
     b.dataset.tfChave = t._tfChave;
@@ -116,16 +116,15 @@
     ancora.parentNode.insertBefore(b, ancora);
     const st = () => estado.get(t._tfChave);
     b.querySelector('.tf-busca').addEventListener('input', ev => { st().filtro = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-col').addEventListener('change', ev => { st().colFiltro = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-ord').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; aplicar(t); });
-    b.querySelector('.tf-dir').addEventListener('click', () => { const s = st(); s.dir = s.dir === 'asc' ? 'desc' : 'asc'; aplicar(t); });
-    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = 'asc'; s.filtro = ''; s.colFiltro = ''; aplicar(t); });
+    b.querySelector('.tf-col').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; if (s.col == null) s.dir = ''; aplicar(t); });
+    b.querySelector('.tf-ord').addEventListener('change', ev => { st().dir = ev.target.value; aplicar(t); });
+    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = ''; s.filtro = ''; aplicar(t); });
     return b;
   }
   function iniciar(t) {
     if (t._tfChave) return;
     t._tfChave = chaveDe(t);
-    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: 'asc', filtro: '', colFiltro: '' });
+    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '' });
     t.classList.add('tab-ord');
     t._tfBarra = criarBarra(t);
   }
@@ -143,19 +142,24 @@
     const n = numColunas(t), nomes = nomesColunas(t, n);
     barra.hidden = dados.length < 2 && !s.filtro && s.col == null;
 
-    // opções das listas (só redesenha quando os cabeçalhos mudam)
+    // opções da lista de colunas (só redesenha quando os cabeçalhos mudam)
     const assinatura = nomes.join('\u0001');
     if (barra._ass !== assinatura) {
       barra._ass = assinatura;
       const opc = nomes.map((nm, i) => nm ? `<option value="${i}">${nm.replace(/&/g, '&amp;').replace(/</g, '&lt;').slice(0, 48)}</option>` : '').join('');
       barra.querySelector('.tf-col').innerHTML = '<option value="">Todas as colunas</option>' + opc;
-      barra.querySelector('.tf-ord').innerHTML = '<option value="">Ordem original</option>' + opc;
     }
-    if (s.col != null && (s.col >= n || !nomes[s.col] && !dados.length)) s.col = null;
+    if (s.col != null && s.col >= n) { s.col = null; s.dir = ''; }
+    // lista de ordem: o texto acompanha o tipo da coluna escolhida (texto, número ou data)
+    const tipoCol = s.col == null ? null : tipoDaColuna(dados.map(r => valorCelula(r.cells[s.col])));
+    const rot = { texto: ['A → Z (crescente)', 'Z → A (decrescente)'], numero: ['Menor → maior (crescente)', 'Maior → menor (decrescente)'], data: ['Mais antigo → mais novo (crescente)', 'Mais novo → mais antigo (decrescente)'] }[tipoCol || 'texto'];
+    const selOrd = barra.querySelector('.tf-ord');
+    selOrd.innerHTML = s.col == null ? '<option value="">Escolha a coluna…</option>' : `<option value="">Ordem original</option><option value="asc">${rot[0]}</option><option value="desc">${rot[1]}</option>`;
+    selOrd.disabled = s.col == null;
     barra.querySelector('.tf-busca').value = s.filtro;
-    barra.querySelector('.tf-col').value = s.colFiltro;
-    barra.querySelector('.tf-ord').value = s.col == null ? '' : String(s.col);
-    const bd = barra.querySelector('.tf-dir'); bd.textContent = s.dir === 'asc' ? '▲' : '▼'; bd.disabled = s.col == null;
+    barra.querySelector('.tf-busca').placeholder = s.col == null ? 'Filtrar linhas…' : `Filtrar em “${(nomes[s.col] || '').slice(0, 24)}”…`;
+    barra.querySelector('.tf-col').value = s.col == null ? '' : String(s.col);
+    selOrd.value = s.col == null ? '' : s.dir;
 
     // 1) ordem (dentro de cada grupo; tbody por tbody)
     let mudou = false;
@@ -164,7 +168,7 @@
       let seg = [];
       const fecha = () => {
         if (!seg.length) return;
-        if (s.col == null) seg.sort((a, b) => a.dataset.tfIdx - b.dataset.tfIdx);
+        if (s.col == null || !s.dir) seg.sort((a, b) => a.dataset.tfIdx - b.dataset.tfIdx);
         else {
           const tipo = tipoDaColuna(seg.map(r => valorCelula(r.cells[s.col])));
           const chaves = new Map(seg.map(r => [r, chaveOrdem(valorCelula(r.cells[s.col]), tipo)]));
@@ -178,7 +182,7 @@
     });
 
     // 2) filtro (todas as palavras precisam aparecer; por coluna ou na linha toda)
-    const termos = norm(s.filtro).split(/\s+/).filter(Boolean), colF = s.colFiltro === '' ? null : +s.colFiltro;
+    const termos = norm(s.filtro).split(/\s+/).filter(Boolean), colF = s.col;
     let visiveis = 0;
     [...t.tBodies].forEach(tb => {
       const linhas = [...tb.rows];
@@ -204,7 +208,7 @@
       const ordenavel = (th.colSpan || 1) === 1 && n > 0 && colDoTh(th) < n;
       th.classList.toggle('th-ord', ordenavel);
       if (ordenavel && !th.title) th.title = 'Clique para ordenar';
-      if (ordenavel && s.col === colDoTh(th)) th.setAttribute('data-ord', s.dir); else th.removeAttribute('data-ord');
+      if (ordenavel && s.col === colDoTh(th) && s.dir) th.setAttribute('data-ord', s.dir); else th.removeAttribute('data-ord');
     });
     return mudou;
   }
@@ -216,7 +220,8 @@
     const t = th.closest('table.tab-ord');
     if (!t || !t._tfChave) return;
     const s = estado.get(t._tfChave), col = colDoTh(th);
-    if (s.col === col) { if (s.dir === 'asc') s.dir = 'desc'; else { s.col = null; s.dir = 'asc'; } }
+    if (s.col === col && s.dir === 'asc') s.dir = 'desc';
+    else if (s.col === col && s.dir === 'desc') s.dir = '';
     else { s.col = col; s.dir = 'asc'; }
     obs.disconnect(); aplicar(t); observar();
   });
