@@ -941,3 +941,15 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .tf-oculta{display:none !important}
 @media print{.tab-ferr{display:none !important}}
 
+/* Projeção físico-financeira */
+.pj-tab input.pj-preco{width:92px;text-align:right}
+.pj-tab input.pj-sem{border-color:var(--vermelho);background:color-mix(in srgb,var(--vermelho) 8%,var(--card))}
+.pj-matriz th,.pj-matriz td{white-space:nowrap}
+.pj-matriz td:first-child,.pj-matriz th:first-child{position:sticky;left:0;background:var(--card);z-index:1;min-width:170px}
+.pj-matriz td.pj-real,.pj-matriz th.pj-real{background:color-mix(in srgb,var(--verde) 12%,transparent)}
+.pj-matriz td.pj-proj,.pj-matriz th.pj-proj{background:color-mix(in srgb,var(--amarelo) 14%,transparent)}
+.pj-matriz td.pj-misto,.pj-matriz th.pj-misto{background:linear-gradient(90deg,color-mix(in srgb,var(--verde) 12%,transparent) 50%,color-mix(in srgb,var(--amarelo) 14%,transparent) 50%)}
+.pj-leg{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 3px 0 10px;vertical-align:middle}
+.pj-leg.pj-real{background:color-mix(in srgb,var(--verde) 45%,transparent)}
+.pj-leg.pj-proj{background:color-mix(in srgb,var(--amarelo) 55%,transparent)}
+

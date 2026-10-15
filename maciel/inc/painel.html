@@ -80,6 +80,7 @@
       </div>
       <div class="sidebar-itens aberto" id="grp-financeiro">
         <button data-aba="bm">Medição (BM)</button>
+        <button data-aba="proj">Projeção físico-financeira</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -665,6 +666,11 @@
     </div>
   </section>
 
+  <!-- PROJEÇÃO FÍSICO-FINANCEIRA (a partir do planejamento 5W2H) -->
+  <section id="aba-proj" hidden>
+    <div id="projCorpo"></div>
+  </section>
+
   <!-- CRONOGRAMA (GANTT) PREVISTO x REALIZADO -->
   <section id="aba-gantt" hidden>
     <div class="tiles" id="ganTiles"></div>
@@ -746,6 +752,7 @@
 <script src="app.js"></script>
 <script src="planos.js"></script>
 <script src="planos_doc.js"></script>
+<script src="projecao.js"></script>
 <script src="tabelas.js"></script>
 </body>
 </html>

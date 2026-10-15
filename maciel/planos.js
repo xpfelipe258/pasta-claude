@@ -826,7 +826,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz) 
 // O que foi planejado (planos 5W2H ativos que cruzam o período do Painel) × o que foi executado: curva S, % executado e situação por atividade.
 // Também alimenta a coluna "Plano 5W2H" do Farol do período e os pontos de atenção.
 PL.pp = { plano: '', atv: '' };
-const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio <= per.fim && p.fim >= per.ini);
+const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.inicio <= per.fim && p.fim >= per.ini);
 function plItemDaEmpresa(it, emp) {
   if (!emp) return true;
   const a = plAtivPorChave(it.chave);
