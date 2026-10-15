@@ -80,7 +80,7 @@ function plAtividades(forcar) {
   const f = faseFiltro;
   faseFiltro = '';
   let ls = [];
-  try { ls = ganLinhas(corte()); } finally { faseFiltro = f; }
+  try { ls = ganLinhas(plBase()); } finally { faseFiltro = f; }   // até a data de referência (não o fim do período da barra), senão lançamentos recentes ficam de fora
   PL._atv = ls.map(l => {
     let a;
     const base = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),

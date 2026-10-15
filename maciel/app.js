@@ -344,6 +344,7 @@ async function carregar() {
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
+  if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
@@ -489,6 +490,7 @@ function atualizarBotoesSegFase() {
 function definirRef(d) {
   if (!ehISO(d)) return;
   ref = d;
+  if (typeof PL !== 'undefined') PL._atv = null;
   $('#refData').value = d;
   const s = segunda(d);
   $('#semanaTxt').textContent = `Semana ${fdA(s)} a ${fdA(add(s, 6))}`;
