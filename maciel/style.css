@@ -926,3 +926,18 @@ td.col-nova { padding: 3px 6px; }
 .btn-col-edit:hover{color:var(--acento)}
 .somente-leitura .btn-col-edit{display:none !important}
 
+/* Filtrar e ordenar tabelas (tabelas.js) */
+.tab-ferr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:4px 0 6px;font-size:12px}
+.tab-ferr[hidden]{display:none !important}
+.tab-ferr input.tf-busca{flex:1 1 180px;min-width:140px;max-width:280px;padding:4px 8px;border:1px solid var(--linha);border-radius:6px;background:var(--card);color:var(--fg);font:inherit}
+.tab-ferr select{padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--card);color:var(--fg);font:inherit;max-width:190px}
+.tab-ferr button{padding:3px 9px;border:1px solid var(--linha);border-radius:6px;background:var(--card);color:var(--fg2);font:inherit;cursor:pointer}
+.tab-ferr button:disabled{opacity:.4;cursor:default}
+.tab-ferr .tf-cont{color:var(--fg3);margin-left:auto;font-variant-numeric:tabular-nums}
+table.tab-ord th.th-ord{cursor:pointer;user-select:none}
+table.tab-ord th.th-ord:hover{color:var(--acento)}
+table.tab-ord th[data-ord="asc"]::after{content:" ▲";font-size:.8em;color:var(--acento)}
+table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var(--acento)}
+.tf-oculta{display:none !important}
+@media print{.tab-ferr{display:none !important}}
+
