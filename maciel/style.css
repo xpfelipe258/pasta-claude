@@ -980,3 +980,4 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pl-chip-outra{display:inline-flex;align-items:center;gap:6px;font-size:13px}
 .pl-chip-outra input{width:150px}
 .pl-obrig{font-size:11px;color:var(--vermelho);font-weight:600}
+.pl-rascunho{margin:0 0 10px;padding:10px 14px;border-radius:8px}.pl-rascunho .btn{margin-left:8px}

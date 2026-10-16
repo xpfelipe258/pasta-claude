@@ -367,7 +367,7 @@ function renderSugestao(box) {
   const base = plBase(), acao = linhas.filter(l => l.s.precisa > 1e-9), atras = linhas.filter(l => !l.s.concluida && l.a.status === 'ATRASADO');
   const quems = new Set(); acao.forEach(l => (l.a.empresas.length ? l.a.empresas : [plQuem(l.a)]).forEach(e => quems.add(e)));
   const presets = [['semana', 'Semana da referência'], ['prox', 'Próxima semana'], ['duas', 'Esta + próxima'], ['mes', 'Até o fim do mês'], ['livre', 'Escolher datas']];
-  let h = `<div class="pl-topo"><div><h2 class="pl-titulo">Sugestão de planejamento</h2><p class="nota">Montada sozinha a partir do cronograma: o que estava previsto, o que já foi realizado, o que precisa ser realizado no período e quem executa. Confira, marque o que entra e crie o planejamento 5W2H.</p></div>
+  let h = plRascunhoBanner() + `<div class="pl-topo"><div><h2 class="pl-titulo">Sugestão de planejamento</h2><p class="nota">Montada sozinha a partir do cronograma: o que estava previsto, o que já foi realizado, o que precisa ser realizado no período e quem executa. Confira, marque o que entra e crie o planejamento 5W2H.</p></div>
     <button class="btn primario" data-pl-sug-criar ${g.sel.size ? '' : 'disabled'}>Criar planejamento com ${g.sel.size} selecionada(s)</button></div>
     <div class="bloco pl-sug-per"><div class="acoes"><b>Período</b><div class="seg" id="plSugPreset">${presets.map(([k, r]) => `<button data-pl-sug-preset="${k}" class="${g.preset === k ? 'ativa' : ''}">${r}</button>`).join('')}</div>
       <label class="rot-sel">de <input type="date" data-pl-sug-data="ini" value="${ini}"></label><label class="rot-sel">até <input type="date" data-pl-sug-data="fim" value="${fim}"></label>
@@ -417,6 +417,7 @@ function plCriarDaSugestao() {
 async function renderPlanejamento() {
   const box = $('#planoNovo');
   if (!box) return;
+  if (!PL._rascTentado) { PL._rascTentado = true; const r = plRascunhoLer(); if (r && Date.now() - r.ts < 6 * 3600 * 1000) setTimeout(() => plRascunhoRetomar(true), 200); }   // reabriu a página no meio da edição: retoma o rascunho
   $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['legado', 'Setores e impacto logístico']]
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
   $('#planoLegado').hidden = PL.sub !== 'legado';
@@ -428,7 +429,7 @@ async function renderPlanejamento() {
   const planos = PL.dados.planos.slice().sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
   if (PL.sel && !plPlano(PL.sel)) PL.sel = null;
   if (!PL.sel && planos.length) PL.sel = planos[0].id;
-  let h = `<div class="pl-topo"><div><h2 class="pl-titulo">Planejamento 5W2H</h2><p class="nota">Escolha o período, as atividades e preencha o 5W2H: o painel mostra a curva S planejado × realizado, o que falta, a divisão por dia, o Gantt e a linha do tempo.</p></div>
+  let h = plRascunhoBanner() + `<div class="pl-topo"><div><h2 class="pl-titulo">Planejamento 5W2H</h2><p class="nota">Escolha o período, as atividades e preencha o 5W2H: o painel mostra a curva S planejado × realizado, o que falta, a divisão por dia, o Gantt e a linha do tempo.</p></div>
     <button class="btn primario" data-pl-novo>+ Novo planejamento</button></div>`;
   if (!planos.length) {
     h += `<div class="bloco pl-vazio"><h3>Nenhum planejamento ainda</h3><p>Crie o primeiro: período da execução, atividades a executar e o 5W2H de cada uma.</p><button class="btn primario" data-pl-novo>+ Novo planejamento</button></div>`;
@@ -708,6 +709,7 @@ function plWizRender() {
       ${w.passo < 3 ? '<button class="btn primario" data-pl-proximo>Próximo</button>' : `<button class="btn primario" data-pl-criar>${w.id ? 'Salvar alterações' : 'Criar planejamento'}</button>`}</div></div></div>`;
   const alvo = m.querySelector('[data-pl-w="nome"]');
   if (alvo && !w.nome) alvo.focus();
+  plRascunhoSalvar();
 }
 // Taxa por dia do item: escolher entre a taxa NECESSÁRIA para fechar a quantidade no período, o RITMO REAL (semana anterior) e a META do cronograma.
 // Who — empresa(s) que executam a atividade (seleção obrigatória): uma ou mais das empresas da obra + "outra" (texto livre).
@@ -756,7 +758,47 @@ function plPrevTexto(it) {
     + (fecha ? 'Cabe no período.' : `<span class="pl-erro">Não fecha: faltam ${plFmt(it.qtd - meta * n, it.unidade)} ${un}; precisa de ${plFmt(it.qtd / n, it.unidade)} ${un}/dia.</span>`);
 }
 function plWizMsg(t, erro) { const el = document.getElementById('plWizMsg'); if (el) { el.textContent = t || ''; el.className = 'nota' + (erro ? ' pl-erro' : ''); } }
-function plWizFechar() { document.getElementById('plModal')?.remove(); PL.wiz = null; }
+// Rascunho do assistente: o que está sendo digitado fica guardado neste navegador até salvar ou descartar de propósito;
+// recarregar a página (ex.: versão nova do programa) não perde mais o trabalho.
+const PL_RASC = 'obra198_plano_rascunho';
+function plRascunhoSalvar() {
+  clearTimeout(plRascunhoSalvar._t);
+  plRascunhoSalvar._t = setTimeout(() => {
+    const w = PL.wiz;
+    if (!w) return;
+    try { localStorage.setItem(PL_RASC, JSON.stringify({ ts: Date.now(), w: { ...w, sel: [...w.sel.entries()] } })); } catch { /* sem armazenamento */ }
+  }, 300);
+}
+function plRascunhoLer() {
+  try {
+    const r = JSON.parse(localStorage.getItem(PL_RASC) || 'null');
+    if (!r || !r.w || !Array.isArray(r.w.sel) || !r.w.sel.length) return null;
+    return r;
+  } catch { return null; }
+}
+function plRascunhoLimpar() { clearTimeout(plRascunhoSalvar._t); try { localStorage.removeItem(PL_RASC); } catch { /* sem armazenamento */ } }
+function plRascunhoRetomar(auto) {
+  const r = plRascunhoLer();
+  if (!r || PL.wiz) return false;
+  PL.wiz = { ...r.w, sel: new Map(r.w.sel), _sujo: true };
+  plWizRender();
+  toast(auto ? 'Planejamento em edição retomado (rascunho não salvo).' : 'Rascunho retomado.', false, 5000);
+  return true;
+}
+function plRascunhoBanner() {
+  const r = plRascunhoLer();
+  if (!r || PL.wiz) return '';
+  return `<div class="faixa pl-rascunho"><b>Planejamento em edição não salvo</b> — “${esc(r.w.nome || 'sem nome')}”, ${r.w.sel.length} atividade(s), guardado em ${new Date(r.ts).toLocaleString('pt-BR')}.
+    <button class="btn" data-pl-rasc-retomar>Retomar</button> <button class="btn" data-pl-rasc-descartar>Descartar rascunho</button></div>`;
+}
+// fecha o assistente; com alterações pede confirmação (nunca perde o que foi digitado por clique acidental)
+function plWizFechar(forcar) {
+  const w = PL.wiz;
+  if (w && w._sujo && !forcar && !confirm('Fechar o planejamento sem salvar? O que você preencheu fica guardado como rascunho neste navegador.')) return false;
+  if (forcar || !(w && w._sujo)) plRascunhoLimpar();
+  document.getElementById('plModal')?.remove(); PL.wiz = null;
+  return true;
+}
 function plWizValidar(passo) {
   const w = PL.wiz;
   if (passo >= 1) {
@@ -783,7 +825,7 @@ async function plWizSalvar() {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);
     PL.sel = r.id || w.id; PL.vista = 'resumo'; PL.atv = ''; PL.sub = 'planos';
-    plWizFechar();
+    plWizFechar(true);
     toast('Planejamento salvo ' + ONDE);
     renderPlanejamento();
   } catch (e) { plWizMsg(e.message || 'Erro ao salvar.', true); }
@@ -845,19 +887,25 @@ document.addEventListener('click', async ev => {
     try { await postar(API + 'planos', { excluir: pl.id }); await plCarregar(true); PL.sel = null; toast('Planejamento excluído ' + ONDE); renderPlanejamento(); } catch (e) { toast(e.message, true); }
     return;
   }
+  if (t.closest('[data-pl-rasc-retomar]')) return plRascunhoRetomar(false);
+  if (t.closest('[data-pl-rasc-descartar]')) { plRascunhoLimpar(); return renderPlanejamento(); }
   // assistente
   const w = PL.wiz;
   if (!w) return;
-  if (t.classList?.contains('pl-modal-fundo') || t.closest('[data-pl-fechar]')) return plWizFechar();
+  if (t.classList?.contains('pl-modal-fundo')) {   // clique no fundo escuro: só fecha se começou E terminou nele e nada foi alterado
+    if (PL._md === t && !w._sujo && plWizFechar()) renderPlanejamento();
+    return;
+  }
+  if (t.closest('[data-pl-fechar]')) { if (plWizFechar()) renderPlanejamento(); return; }   // volta à tela já mostrando o banner do rascunho, se houver
   const passo = t.closest('[data-pl-passo]');
   if (passo) {
     const alvo = +passo.dataset.plPasso;
     const erro = alvo > w.passo ? plWizValidar(w.passo) : '';
     if (erro) return plWizMsg(erro, true);
     if (alvo === 3 && w.passo !== 3 && !plWizValidar(2)) plWizPrepararItens();
-    w.passo = alvo; return plWizRender();
+    w.passo = alvo; plRascunhoSalvar(); return plWizRender();
   }
-  if (t.closest('[data-pl-voltar]')) { w.passo = Math.max(1, w.passo - 1); return plWizRender(); }
+  if (t.closest('[data-pl-voltar]')) { w.passo = Math.max(1, w.passo - 1); plRascunhoSalvar(); return plWizRender(); }
   if (t.closest('[data-pl-proximo]')) {
     const erro = plWizValidar(w.passo);
     if (erro) return plWizMsg(erro, true);
@@ -893,6 +941,7 @@ function plWizPrepararItens() {   // itens novos recebem as datas dentro do per�
 document.addEventListener('input', ev => {
   const w = PL.wiz, t = ev.target;
   if (!w) return;
+  if (t.closest && t.closest('#plModal')) { w._sujo = true; plRascunhoSalvar(); }
   if (t.dataset.plQuemOutra !== undefined) {
     const it = w.sel.get(t.dataset.k);
     if (it) { const q = plQuemLista(it), antes = it.empresa || ''; it._outra = t.value; it.empresa = q.marcadas.join(' / '); plQuemAplicar(it, antes); }
@@ -910,6 +959,7 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   const w = PL.wiz, t = ev.target;
+  if (w && t.closest && t.closest('#plModal')) { w._sujo = true; plRascunhoSalvar(); }
   if (t.dataset.plQuem !== undefined && w) {   // marcar/desmarcar empresa que executa
     const it = w.sel.get(t.dataset.k);
     if (!it) return;
@@ -944,7 +994,8 @@ document.addEventListener('change', ev => {
   if (t.dataset.plFrente !== undefined) { w.frente = t.value; plWizRender(); }
   if (t.dataset.plW && (t.dataset.plW === 'inicio' || t.dataset.plW === 'fim')) plWizRender();
 });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz) plWizFechar(); });
+document.addEventListener('mousedown', ev => { PL._md = ev.target; }, true);
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz && !PL.wiz._sujo) plWizFechar(); });   // Esc não descarta o que já foi preenchido
 
 // ---------------------------------------------------------------- PLANEJAMENTO DENTRO DO PAINEL (dashboard)
 // O que foi planejado (planos 5W2H ativos que cruzam o período do Painel) × o que foi executado: curva S, % executado e situação por atividade.

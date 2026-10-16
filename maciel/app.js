@@ -437,6 +437,8 @@ async function verificarVersao() {
       else if (j.codigo !== CODIGO) {
         if (pend.size || metasPend.size || bmPend.size) {
           if (!avisouCodigo) { avisouCodigo = true; toast('Nova versão do programa instalada. Salve ou descarte as alterações pendentes para recarregar.', false, 12000); }
+        } else if (typeof PL !== 'undefined' && (PL.wiz || document.querySelector('.pl-modal-fundo, dialog[open]'))) {
+          if (!avisouCodigo) { avisouCodigo = true; toast('Nova versão do programa instalada. Termine ou feche a janela aberta; a página recarrega sozinha em seguida.', false, 12000); }   // nunca recarrega com janela de edição aberta
         } else { toast('Nova versão do programa instalada. Recarregando…', false, 3000); setTimeout(() => location.reload(), 800); return; }
       }
     }
