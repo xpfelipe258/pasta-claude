@@ -981,3 +981,5 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pl-chip-outra input{width:150px}
 .pl-obrig{font-size:11px;color:var(--vermelho);font-weight:600}
 .pl-rascunho{margin:0 0 10px;padding:10px 14px;border-radius:8px}.pl-rascunho .btn{margin-left:8px}
+.pl-audit-val { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+#plAudit h3 { margin: 0 0 8px; } #plAudit h4 { margin: 16px 0 6px; font-size: .95rem; }

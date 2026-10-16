@@ -333,7 +333,7 @@ function plSugLinhaHtml({ a, s }, g) {
   const st = s.concluida ? 'CONCLUÍDO' : a.status;
   return `<tr class="${marca ? 'marcada' : ''}"><td><input type="checkbox" data-pl-sug-marca="${esc(a.chave)}" ${marca ? 'checked' : ''} ${temAcao ? '' : 'disabled title="Nada a realizar neste período"'}></td>
     <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div></td><td>${esc(plQuem(a))}</td>
-    <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevPerRef, un)}</td><td class="n"><b>${plFmt(s.realPeriodo, un)}</b></td>
+    <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevPerRef, un)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${g.ini}" data-fim="${g.fim}" title="Ver de onde vem este número">${plFmt(s.realPeriodo, un)}</button></td>
     <td class="n ${s.desvioPer < -1e-9 ? 'valor-neg' : ''}">${s.desvioPer > 0 ? '+' : ''}${plFmt(s.desvioPer, un)}</td><td class="n">${plFmt(s.previstoPeriodo, un)}</td>
     <td class="n pl-precisa ${temAcao ? '' : 'ok'}" title="Saldo para cumprir o cronograma até ${fdA(PL.sug.fim)}: previsto acumulado ${plFmt(s.P1, un)} − realizado acumulado na obra ${plFmt(s.Rb, un)}${s.atraso > 1e-9 ? ' (inclui atraso anterior ao período: ' + plFmt(s.atraso, un) + ')' : ''}">${temAcao ? `<b>${plFmt(s.precisa, un)}</b> ${esc(un)}${s.atraso > 1e-9 ? `<div class="nota">inclui ${plFmt(s.atraso, un)} de atraso anterior</div>` : ''}` : '—'}</td>
     <td class="n">${s.porDia != null && temAcao ? plFmtTaxa(s.porDia) + ' ' + esc(un) + '/dia' : temAcao ? '<span class="valor-neg">prazo do período vencido</span>' : '—'}</td>
@@ -504,7 +504,7 @@ function plResumo(pl, c, box) {
     <div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Atividade</th><th>Frente</th><th class="n">Plano</th><th class="n" title="Produção lançada dentro do período do plano">Realizado no período</th><th class="n">Falta</th><th class="n">Dias úteis</th>
       <th class="n">Meta/dia</th><th class="n">Necessário/dia</th><th class="n">Ritmo atual/dia</th><th class="n">Fecha em (meta)</th><th class="n">Fecha em (ritmo)</th><th class="pl-prog">Avanço</th><th>Situação</th></tr></thead><tbody>` +
     c.itens.map(x => `<tr data-pl-linha="${esc(x.it.chave)}"><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}</div></td><td>${esc(cap(x.it.frente))}</td>
-      <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${plFmt(x.realAc, x.it.unidade)}</td><td class="n"><b>${plFmt(x.falta, x.it.unidade)}</b></td>
+      <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(x.it.chave)}" data-ini="${pl.inicio}" data-fim="${pl.fim}" title="Ver de onde vem este número">${plFmt(x.realAc, x.it.unidade)}</button></td><td class="n"><b>${plFmt(x.falta, x.it.unidade)}</b></td>
       <td class="n">${x.diasRest}</td><td class="n ${x.cabeNoPeriodo ? '' : 'valor-neg'}" title="${x.cabeNoPeriodo ? '' : 'A meta atual não fecha a quantidade do plano no período'}">${plFmtTaxa(x.meta)}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec == null ? '—' : plFmtTaxa(x.ritmoNec)}</td><td class="n">${plFmtTaxa(x.ritmoAtual)}</td>
       <td class="n ${x.terminaMeta && x.terminaMeta > x.it.fim ? 'valor-neg' : ''}">${x.terminaMeta ? fdA(x.terminaMeta) : '—'}</td><td class="n ${x.terminaRitmo && x.terminaRitmo > x.it.fim ? 'valor-neg' : ''}">${x.terminaRitmo ? fdA(x.terminaRitmo) : '—'}</td>
       <td class="pl-prog"><div class="pl-barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real f-${PL_COR_STATUS[x.status] || 'pendente'}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
@@ -866,9 +866,80 @@ function plCsv(pl) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+// ---------------------------------------------------------------- auditoria: de onde vem o realizado
+// Clicar no número "Realizado no período" abre uma janela com a origem dele: colunas lançadas na grade (empresa, coluna, frente), atividades e
+// apontamentos do catálogo do BM, os dias com lançamento e a regra que o sistema aplicou. Só mostra o que está DENTRO do período.
+function plOrigemRealizado(a, ini, fim) {
+  const it = a.it, base = plBase(), lim = minD(fim, base), dentro = d => d >= ini && d <= lim;
+  const fontes = ganServicosFonte(it), grade = [], bm = [];
+  M.empresas.forEach(e => {
+    const cols = it._eclusa || ehFrenteAnexa(it.frente) ? servicosDaFrente(e, it)
+      : (e.servicos || []).filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, it.frente)));
+    cols.forEach(s => {
+      const f = it._eclusa && eclusaTipoServico(s.nome) === 'junta' ? eclusaFracao(it._eclusa) : 1;
+      let per = 0, ac = 0;
+      const dias = [];
+      Object.keys(e.registros || {}).sort().forEach(d => {
+        const v = e.registros[d].v[s.col];
+        if (typeof v !== 'number' || !(v > 0) || d > base) return;
+        ac += v * f;
+        if (dentro(d)) { per += v * f; dias.push(d); }
+      });
+      if (per || ac) grade.push({ empresa: e.nome, coluna: s.nome, frente: s.frente, per, ac, dias, junta: f !== 1 });
+    });
+  });
+  const ats = it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
+    : ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);
+  ats.forEach(at => {
+    let per = 0, ac = 0;
+    const dias = [];
+    bmTab('bm_apontamentos').forEach(x => {
+      if (x.empresa !== at.empresa || x.codigo !== at.codigo || !x.data || x.data > base || !((Number(x.quantidade) || 0) > 0)) return;
+      ac += Number(x.quantidade);
+      if (dentro(x.data)) { per += Number(x.quantidade); dias.push(x.data); }
+    });
+    if (per || ac) bm.push({ empresa: at.empresa, codigo: at.codigo, atividade: `${at.item_desc || ''} — ${at.atividade || ''}`, un: at.unidade || '', per, ac, dias: dias.sort() });
+  });
+  const usado = soma0(plSerieReal(a).filter(([d]) => dentro(d)), ([, v]) => v);
+  const regra = it._eclusa ? 'Eclusa – vigas/joists: vale o MAIOR entre as colunas de vigas/joists lançadas na grade e os apontamentos do catálogo do BM (EJ-3.3.1-01 / -03); nunca a soma das duas fontes.'
+    : it.bm_percentual ? 'Item em %: vale o avanço das atividades do BM da frente (Eclusa), ponderado pelo peso de cada atividade.'
+    : ehFrenteAnexa(it.frente) ? 'Frente anexa: só contam colunas da própria frente (e atividades do BM dela). Produção do galpão ou de outro anexo com nome parecido NÃO entra.'
+    : 'Galpão: vale a maior fonte entre lançamentos da grade + BM por atividade, resumo do BM e apontamentos de montagem (nunca a soma entre fontes). Colunas e atividades do BM de anexos (Eclusa, Portaria, Marquise…) NÃO entram.';
+  return { a, ini, lim, grade, bm, usado, regra, gradeTot: soma0(grade, g => g.per), bmTot: soma0(bm, b => b.per) };
+}
+function plDiasTxt(dias) { return dias.length ? dias.slice(0, 10).map(fd).join(', ') + (dias.length > 10 ? ` … +${dias.length - 10}` : '') : '—'; }
+function plAuditoriaAbrir(chave, ini, fim) {
+  const a = plAtivPorChave(chave);
+  if (!a) return toast('Atividade não encontrada no cronograma.', true);
+  const o = plOrigemRealizado(a, ini, fim), un = a.unidade;
+  const tG = o.grade.length ? `<div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Empresa</th><th>Coluna lançada na grade</th><th>Frente</th><th class="n">No período</th><th class="n">Acumulado na obra</th><th>Dias com lançamento no período</th></tr></thead><tbody>` +
+      o.grade.map(g => `<tr><td>${esc(g.empresa)}</td><td>${esc(g.coluna)}${g.junta ? '<div class="nota">coluna única “Vigas e Joists”: parte proporcional ao contrato</div>' : ''}</td><td>${esc(cap(g.frente || ''))}</td><td class="n"><b>${plFmt(g.per, un)}</b></td><td class="n">${plFmt(g.ac, un)}</td><td class="nota">${plDiasTxt(g.dias)}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><th colspan="3">Total da grade</th><th class="n">${plFmt(o.gradeTot, un)}</th><th class="n">${plFmt(soma0(o.grade, g => g.ac), un)}</th><th></th></tr></tfoot></table></div>`
+    : '<p class="nota">Nenhuma coluna da grade de lançamentos alimenta esta atividade.</p>';
+  const tB = o.bm.length ? `<div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Empresa</th><th>Código</th><th>Atividade do catálogo do BM</th><th class="n">No período</th><th class="n">Acumulado na obra</th><th>Dias apontados no período</th></tr></thead><tbody>` +
+      o.bm.map(b => `<tr><td>${esc(b.empresa)}</td><td>${esc(b.codigo)}</td><td>${esc(b.atividade)}</td><td class="n"><b>${plFmt(b.per, b.un || un)}</b> ${esc(b.un)}</td><td class="n">${plFmt(b.ac, b.un || un)} ${esc(b.un)}</td><td class="nota">${plDiasTxt(b.dias)}</td></tr>`).join('') +
+      '</tbody></table></div><p class="nota">Quantidades do BM na unidade da própria atividade do catálogo.</p>'
+    : '<p class="nota">Nenhuma atividade do catálogo do BM está ligada a esta atividade (ou não há apontamentos).</p>';
+  let m = document.getElementById('plAudit');
+  if (!m) { m = document.createElement('div'); m.id = 'plAudit'; m.className = 'pl-modal-fundo'; document.body.appendChild(m); }
+  m.innerHTML = `<div class="pl-modal" role="dialog" aria-modal="true" aria-label="De onde vem o realizado"><div class="pl-modal-cab"><h2>De onde vem o realizado</h2><button class="btn" data-pl-audit-fechar>Fechar</button></div>
+    <div class="pl-modal-corpo"><h3>${esc(a.nome)} <span class="nota">${esc(cap(a.frente))}</span></h3>
+      <div class="tiles"><div class="tile" style="--c:var(--verde)"><div class="rot"><span>Realizado no período</span></div><div class="val">${plFmt(o.usado, un)} ${esc(un)}</div><div class="sub">${fdA(ini)} a ${fdA(o.lim)}${o.lim < fim ? ' (limitado à data de referência)' : ''}</div></div>
+        <div class="tile" style="--c:var(--fg3)"><div class="rot"><span>Contrato</span></div><div class="val">${plFmt(a.qtd, un)} ${esc(un)}</div><div class="sub">acumulado na obra: ${plFmt(a.realAc, un)} ${esc(un)}</div></div></div>
+      <p class="nota"><b>Regra aplicada:</b> ${esc(o.regra)}</p>
+      <h4>Lançamentos na grade — dentro do período</h4>${tG}
+      <h4>Catálogo de atividades do BM (Medição) — dentro do período</h4>${tB}
+      ${o.gradeTot > 0 && o.bmTot > 0 && Math.abs(o.usado - Math.max(o.gradeTot, o.bmTot)) > 1e-6 && Math.abs(o.usado - o.gradeTot - o.bmTot) > 1e-6 ? '<p class="nota">O número usado pelo sistema não é a soma das duas tabelas: ele toma a maior fonte e aplica os limites de fase/contrato.</p>' : ''}</div></div>`;
+}
+const plAuditoriaFechar = () => document.getElementById('plAudit')?.remove();
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') plAuditoriaFechar(); });
+
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', async ev => {
   const t = ev.target;
+  const au = t.closest('[data-pl-audit]');
+  if (au) return plAuditoriaAbrir(au.dataset.plAudit, au.dataset.ini, au.dataset.fim);
+  if (t.closest('[data-pl-audit-fechar]') || (t.id === 'plAudit' && PL._md === t)) return plAuditoriaFechar();
   const sub = t.closest('[data-pl-sub]');
   if (sub) { PL.sub = sub.dataset.plSub; return renderPlanejamento(); }
   const sp = t.closest('[data-pl-sug-preset]');
