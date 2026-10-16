@@ -265,6 +265,45 @@ function pjEquipHtml(r, c) {
   return h + '</div>';
 }
 
+
+// ---------------------------------------------------------------- estado automático da atividade (conforme a produção lançada)
+//   verde    = concluído conforme lançamento (executado ≥ quantidade do plano);
+//   amarelo  = em andamento (já há produção lançada, ainda não concluiu, prazo não venceu);
+//   vermelho = não feito (início já passou e nada lançado) ou atrasado (prazo vencido sem concluir);
+//   cinza    = a iniciar (início ainda não chegou).
+// Recalculado a cada abertura da aba e a cada lançamento salvo; nada é digitado à mão.
+function pjEstado(i, base) {
+  const x = i.x, feito = x.realAc >= i.qtd - 1e-9;
+  const pct = i.qtd ? Math.min(1, x.realAc / i.qtd) : 0;
+  if (feito) return { c: 'verde', rot: 'CONCLUÍDO', dica: 'Concluído conforme o lançamento de produção', pct };
+  if (base < x.it.inicio && x.realAc <= 0) return { c: 'pendente', rot: 'A INICIAR', dica: 'Início previsto em ' + fdA(x.it.inicio), pct };
+  if (x.realAc <= 0) return { c: 'vermelho', rot: 'NÃO FEITO', dica: 'Início previsto em ' + fdA(x.it.inicio) + ' e nenhuma produção lançada', pct };
+  if (base > x.it.fim) return { c: 'vermelho', rot: 'ATRASADO', dica: 'Prazo do plano (' + fdA(x.it.fim) + ') vencido sem concluir: ' + nf(pct * 100, 0) + '% lançado', pct };
+  const ritmo = x.status === 'ATRASADO' ? ' — abaixo do planejado até hoje' : x.status === 'NO LIMITE' ? ' — no limite do planejado' : '';
+  return { c: 'amarelo', rot: 'EM ANDAMENTO', dica: nf(pct * 100, 0) + '% lançado' + ritmo, pct };
+}
+// Mini-curva de execução da atividade: planejado (cinza tracejado), executado até a referência (cheio) e projeção (pontilhado), na cor do estado.
+function pjSpark(i, r, est) {
+  const W = 96, H = 28, n = r.eixo.length;
+  if (n < 2 || !(i.qtd > 0)) return '';
+  let pl = i.r0, re = i.r0, pr = Math.min(i.qtd, i.x.realAc);
+  const P = [], E = [], J = [];
+  r.eixo.forEach((d, k) => {
+    pl += i.plan.get(d) || 0;
+    const xx = (k / (n - 1)) * W, y = v => (H - 2 - Math.min(1, v / i.qtd) * (H - 4)).toFixed(1);
+    P.push(`${xx.toFixed(1)},${y(pl)}`);
+    if (d <= r.base) { re += i.real.get(d) || 0; E.push(`${xx.toFixed(1)},${y(re)}`); pr = re; }
+    else { pr += i.proj.get(d) || 0; if (!J.length && E.length) J.push(E[E.length - 1]); J.push(`${xx.toFixed(1)},${y(pr)}`); }
+  });
+  const cor = `var(--${est.c === 'pendente' ? 'fg3' : est.c})`;
+  const ib = r.eixo.filter(d => d <= r.base).length - 1, xb = ib >= 0 ? (ib / (n - 1)) * W : -1;
+  return `<svg class="pj-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(est.rot)}"><title>${esc(est.rot + ' — ' + est.dica)}</title>
+    <polyline points="${P.join(' ')}" fill="none" style="stroke:var(--fg3)" stroke-width="1" stroke-dasharray="3 2" opacity=".6"/>
+    ${xb >= 0 ? `<line x1="${xb.toFixed(1)}" x2="${xb.toFixed(1)}" y1="0" y2="${H}" style="stroke:var(--fg3)" stroke-width=".6" opacity=".5"/>` : ''}
+    ${J.length > 1 ? `<polyline points="${J.join(' ')}" fill="none" style="stroke:${cor}" stroke-width="2" stroke-dasharray="1.5 3" stroke-linecap="round" opacity=".75"/>` : ''}
+    ${E.length ? `<polyline points="${E.join(' ')}" fill="none" style="stroke:${cor}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>` : `<circle cx="1.5" cy="${H - 2}" r="2" style="fill:${cor}"/>`}</svg>`;
+}
+
 // ---------------------------------------------------------------- tela
 function pjPlanosAtivos() { return (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.itens.length); }
 async function renderProjecao() {
@@ -315,19 +354,20 @@ async function renderProjecao() {
   h += `<div class="bloco"><div class="bloco-cab"><h2>Curva S financeira (R$ acumulado)</h2><div class="legenda"><span class="nota">Linha cheia = executado · tracejada = planejado · pontilhada = projeção${sim ? ' (' + PJ.prod + '% do ritmo atual)' : ' no ritmo atual'} · cinza = necessário para fechar no prazo</span></div></div><div class="grafico pl-grafico"><canvas id="gProjecao"></canvas></div></div>`;
 
   // tabela por atividade
-  h += `<div class="bloco"><div class="bloco-cab"><h2>Por atividade</h2><span class="nota">Preço unit. = valor da atividade no BM ÷ quantidade do item no cronograma. Edite para simular outro preço.</span></div><div class="tabela-rolagem"><table class="pl-tab pj-tab" id="tabProjAtiv"><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Qtd do plano</th><th class="n">Preço unit. (R$)</th><th class="n">Valor do plano</th><th class="n">Planejado até hoje</th><th class="n">Executado</th><th class="n">% físico</th><th class="n">Projeção no fim do plano</th><th class="n">Termina em</th><th class="n">Saldo a faturar</th><th>Situação</th></tr></thead><tbody>`;
+  h += `<div class="bloco"><div class="bloco-cab"><h2>Por atividade</h2><span class="nota">Preço unit. = valor da atividade no BM ÷ quantidade do item no cronograma. Edite para simular outro preço.</span></div>
+    <p class="nota pj-legenda"><span class="farol f-verde">CONCLUÍDO</span> produção lançada ≥ quantidade do plano · <span class="farol f-amarelo">EM ANDAMENTO</span> há produção lançada e o prazo não venceu · <span class="farol f-vermelho">NÃO FEITO / ATRASADO</span> início já passou sem lançamento, ou prazo vencido sem concluir · <span class="farol f-pendente">A INICIAR</span> · mini-curva: cinza tracejada = planejado, cheia = executado até ${fdA(c.baseRef)}, pontilhada = projeção. Tudo atualizado sozinho a cada lançamento de produção salvo.</p><div class="tabela-rolagem"><table class="pl-tab pj-tab" id="tabProjAtiv"><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Qtd do plano</th><th class="n">Preço unit. (R$)</th><th class="n">Valor do plano</th><th class="n">Planejado até hoje</th><th class="n">Executado</th><th class="n">% físico</th><th class="n">Projeção no fim do plano</th><th class="n">Termina em</th><th class="n">Saldo a faturar</th><th>Situação</th></tr></thead><tbody>`;
   r.itens.forEach(i => {
     const x = i.x, un = x.it.unidade;
     const planoHoje = Math.min(x.planAc, i.qtd) * i.p, exec = Math.min(x.realAc, i.qtd) * i.p;
     let ac = Math.min(i.qtd, x.realAc);
     i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
     const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p;
-    const sit = i.termina && i.termina > x.it.fim ? 'ATRASADO' : x.status;
+    const est = pjEstado(i, r.base);
     h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc((x.ativ?.empresas || []).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, un)} ${esc(un)}</td>
       <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${i.p ? nf(i.p, 2) : ''}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}">${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
       <td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><b>${rs(exec)}</b></td><td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td>
-      <td class="n">${rs(noFim)}</td><td class="n ${i.termina && i.termina > x.it.fim ? 'valor-neg' : ''}">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td>${plFarol(sit)}</td></tr>`;
+      <td class="n pj-proj-cel"><div class="pj-proj-cab">${pjSpark(i, r, est)}<span>${rs(noFim)}</span></div></td><td class="n ${i.termina && i.termina > x.it.fim ? 'valor-neg' : ''}">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td title="${esc(est.dica)}"><span class="farol f-${est.c}">${esc(est.rot)}</span><div class="nota">${esc(est.dica)}</div></td></tr>`;
   });
   h += `</tbody><tfoot><tr><th colspan="4">Total</th><th class="n">${rs(r.totalPlano)}</th><th class="n">${rs(r.planoAteHoje)}</th><th class="n">${rs(r.exec)}</th><th class="n">${nf(pctFis, 0)}%</th><th class="n">${rs(aoFim)}</th><th class="n">${r.termina ? fdA(r.termina) : '—'}</th><th class="n">${rs(soma0(r.itens, i => Math.max(0, i.qtd - i.x.realAc) * i.p))}</th><th></th></tr></tfoot></table></div></div>`;
 
@@ -422,4 +462,9 @@ document.addEventListener('click', ev => {
   if (reset) { delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
   if (ev.target.closest && ev.target.closest('[data-pj-kit-auto]')) { delete pjCfg().kit; pjGravarCfg({ kit: null }).then(renderProjecao); return; }
   if (ev.target.id === 'pjCsv') pjCsv();
+});
+
+// volta para a aba depois de lançar produção em outra janela/aba do navegador: relê os dados para refletir o que foi salvo
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && typeof abaAtual !== 'undefined' && abaAtual === 'proj' && typeof carregar === 'function') carregar().catch(() => { /* sem rede: mantém a tela */ });
 });

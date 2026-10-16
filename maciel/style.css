@@ -957,3 +957,7 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 #projCorpo .faixa-info{background:color-mix(in srgb,var(--acento) 10%,var(--card));color:var(--fg2);font-weight:500}
 .pj-kit{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0 12px}
 .pj-kit-item{display:flex;align-items:center;gap:6px;font-size:13px}
+.pj-proj-cab{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.pj-spark{flex:none}
+.pj-legenda .farol{margin:0 2px}
+.pj-tab td .nota{white-space:normal}
