@@ -696,7 +696,7 @@ function plWizRender() {
             <button class="btn-link" data-pl-remover="${k}" title="Tirar do planejamento">remover</button></div>
           <div class="pl-form5">${campo('o_que', '<span><b>What</b> — O quê</span>')}${campo('por_que', '<span><b>Why</b> — Por quê</span>')}${campo('onde', '<span><b>Where</b> — Onde</span>')}
             <div class="pl-quando"><label><span><b>When</b> — Início</span><input type="date" data-pl-i="inicio" data-k="${k}" value="${it.inicio}"></label><label><span>Fim</span><input type="date" data-pl-i="fim" data-k="${k}" value="${it.fim}"></label></div>
-            ${campo('quem', '<span><b>Who</b> — Quem</span>')}${campo('como', '<span><b>How</b> — Como</span>')}
+            ${plQuemSelect(it, a, k)}${campo('como', '<span><b>How</b> — Como</span>')}
             <div class="pl-quanto"><label><span><b>How much</b> — Quantidade (${esc(it.unidade)})</span><input type="number" step="any" min="0" data-pl-i="qtd" data-k="${k}" value="${it.qtd}"></label>
               <label><span>Custo estimado (R$)</span><input type="number" step="any" min="0" data-pl-i="custo" data-k="${k}" value="${it.custo ?? ''}"></label><label><span>Meta/dia (${esc(it.unidade)}) <span class="nota">em branco = meta atual${a?.it?.meta_dia ? ': ' + plFmtTaxa(a.it.meta_dia) : ''}</span></span><input type="number" step="any" min="0" data-pl-i="meta_dia" data-k="${k}" value="${it.meta_dia ?? ''}"></label>${plTaxaSelect(it, a, k)}<label><span>Peso na curva S</span><input type="number" step="any" min="0.1" data-pl-i="peso" data-k="${k}" value="${it.peso ?? 1}"></label></div></div>
           <div class="pl-prev nota" data-pl-prev="${k}">${plPrevTexto(it)}</div></div>`; }).join('') + '</div>';
@@ -710,6 +710,26 @@ function plWizRender() {
   if (alvo && !w.nome) alvo.focus();
 }
 // Taxa por dia do item: escolher entre a taxa NECESSÁRIA para fechar a quantidade no período, o RITMO REAL (semana anterior) e a META do cronograma.
+// Who — empresa(s) que executam a atividade (seleção obrigatória): uma ou mais das empresas da obra + "outra" (texto livre).
+function plQuemLista(it) {
+  const todas = M.empresas.map(e => e.nome), txt = ganNorm(it.empresa || '');
+  const marcadas = todas.filter(n => txt.includes(ganNorm(n)));
+  let resto = String(it.empresa || '');
+  marcadas.forEach(n => { resto = resto.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ''); });
+  resto = resto.replace(/[\/,;+&]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return { todas, marcadas, outra: it._outra != null ? it._outra : resto };
+}
+function plQuemSelect(it, a, k) {
+  const q = plQuemLista(it), sugeridas = a?.empresas || [];
+  return `<div class="pl-quem" data-k="${k}"><span class="pl-quem-rot"><b>Who</b> — Empresa que executa <span class="pl-obrig">obrigatório</span></span>
+    <div class="pl-quem-chips">${q.todas.map(n => `<label class="pl-chip ${q.marcadas.includes(n) ? 'on' : ''}" title="${sugeridas.includes(n) ? 'Executa esta atividade na grade de lançamentos' : ''}"><input type="checkbox" data-pl-quem="${esc(n)}" data-k="${k}" ${q.marcadas.includes(n) ? 'checked' : ''}> ${esc(n)}${sugeridas.includes(n) ? ' <span class="nota">•</span>' : ''}</label>`).join('')}
+      <label class="pl-chip-outra">outra: <input type="text" maxlength="60" data-pl-quem-outra data-k="${k}" value="${esc(q.outra)}" placeholder="empresa/equipe"></label></div></div>`;
+}
+function plQuemAplicar(it, antes) {   // grava no item a escolha (empresa e quem); antes = valor anterior de empresa
+  const q = plQuemLista(it), nomes = [...q.marcadas, ...(it._outra ? [it._outra.trim()] : [])].filter(Boolean);
+  it.empresa = nomes.join(' / ');
+  if (!it.quem || it.quem === antes) it.quem = it.empresa;   // "quem" acompanha a empresa enquanto não foi personalizado
+}
 function plTaxasItem(it, a) {
   const n = it.inicio && it.fim && it.fim >= it.inicio ? plDias(it.inicio, it.fim).length : 0;
   const nec = n && it.qtd > 0 ? it.qtd / n : 0;
@@ -749,6 +769,7 @@ function plWizValidar(passo) {
     for (const it of w.sel.values()) {
       if (!(Number(it.qtd) > 0)) return `${it.atividade}: informe a quantidade (How much).`;
       if (!ehISO(it.inicio) || !ehISO(it.fim) || it.fim < it.inicio) return `${it.atividade}: confira o início e o fim (When).`;
+      if (!String(it.empresa || '').trim()) return `${it.atividade}: selecione a empresa que irá executar (Who).`;
     }
   }
   return '';
@@ -872,6 +893,11 @@ function plWizPrepararItens() {   // itens novos recebem as datas dentro do per�
 document.addEventListener('input', ev => {
   const w = PL.wiz, t = ev.target;
   if (!w) return;
+  if (t.dataset.plQuemOutra !== undefined) {
+    const it = w.sel.get(t.dataset.k);
+    if (it) { const q = plQuemLista(it), antes = it.empresa || ''; it._outra = t.value; it.empresa = q.marcadas.join(' / '); plQuemAplicar(it, antes); }
+    return;
+  }
   if (t.dataset.plW) { w[t.dataset.plW] = t.value; return; }
   if (t.dataset.plBusca !== undefined) { w.busca = t.value; clearTimeout(plWizRender._t); plWizRender._t = setTimeout(() => { plWizRender(); const i = document.querySelector('[data-pl-busca]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); return; }
   if (t.dataset.plI) {
@@ -884,6 +910,17 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   const w = PL.wiz, t = ev.target;
+  if (t.dataset.plQuem !== undefined && w) {   // marcar/desmarcar empresa que executa
+    const it = w.sel.get(t.dataset.k);
+    if (!it) return;
+    const q = plQuemLista(it), set = new Set(q.marcadas), antes = it.empresa || '';
+    t.checked ? set.add(t.dataset.plQuem) : set.delete(t.dataset.plQuem);
+    it._outra = q.outra;
+    it.empresa = [...set].join(' / ');
+    plQuemAplicar(it, antes);
+    const chip = t.closest('.pl-chip'); if (chip) chip.classList.toggle('on', t.checked);
+    return;
+  }
   if (t.dataset.plTaxa !== undefined && w) {   // escolher a taxa por dia do item no assistente 5W2H
     const it = w.sel.get(t.dataset.k);
     if (!it || !t.value) return;
@@ -914,10 +951,17 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz) 
 // Também alimenta a coluna "Plano 5W2H" do Farol do período e os pontos de atenção.
 PL.pp = { plano: '', atv: '' };
 const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.inicio <= per.fim && p.fim >= per.ini);
+// Empresas que executam o item NO PLANO (escolhidas no 5W2H, campo empresa); sem escolha, as da atividade na grade.
+function plEmpresasDoItem(it, a) {
+  const nomes = M.empresas.map(e => e.nome).filter(n => ganNorm(it.empresa || '').includes(ganNorm(n)));
+  if (nomes.length) return nomes;
+  const outras = empresasDe(it.empresa || '');   // empresa fora do cadastro (digitada em "outra")
+  return outras.length ? outras : (a?.empresas || []);
+}
 function plItemDaEmpresa(it, emp) {
   if (!emp) return true;
   const a = plAtivPorChave(it.chave);
-  return (a?.empresas || []).includes(emp) || ganNorm(it.empresa || '').includes(ganNorm(emp));
+  return plEmpresasDoItem(it, a).includes(emp);
 }
 function plPlanoCombinado(planos, emp) {
   const itens = planos.flatMap(p => p.itens.filter(it => plItemDaEmpresa(it, emp)).map(it => ({ ...it, _plano: { inicio: p.inicio, fim: p.fim }, _planoNome: p.nome })));
@@ -928,7 +972,7 @@ function plPlanoCombinado(planos, emp) {
 function plIndicePainel() {
   PL._atv = null;   // o cronograma depende do período/referência atuais
   const lista = [];
-  plPlanosPainel().forEach(p => { const c = plCalc(p); c.itens.forEach(x => lista.push({ p, x, emps: x.ativ?.empresas || [] })); });
+  plPlanosPainel().forEach(p => { const c = plCalc(p); c.itens.forEach(x => lista.push({ p, x, emps: plEmpresasDoItem(x.it, x.ativ) })); });
   PL._ix = lista;
   return lista;
 }
@@ -997,7 +1041,7 @@ async function renderPainelPlanos() {
   h += `<div class="grafico pl-grafico"><canvas id="gPainelPlano"></canvas></div>
     <p class="nota">Curva S: linha cheia = executado; tracejada = planejado (meta/dia de cada atividade); pontilhada = projeção no ritmo atual; cinza = ritmo necessário para fechar no prazo.</p>
     <div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Plano</th><th class="n">Previsto até hoje</th><th class="n">Executado</th><th class="pl-prog">% do plano executado</th><th class="n">Meta/dia</th><th class="n">Necessário/dia</th><th>Situação</th></tr></thead><tbody>` +
-    c.itens.map(x => `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${pl.id === 'combinado' && x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc((x.ativ?.empresas || []).join(' / ') || x.it.empresa || '—')}</td>
+    c.itens.map(x => `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${pl.id === 'combinado' && x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${plFmt(x.planAc, x.it.unidade)}</td><td class="n"><b>${plFmt(x.realAc, x.it.unidade)}</b></td>
       <td class="pl-prog"><div class="pl-barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real f-${PL_COR_STATUS[x.status] || 'pendente'}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div><div class="nota">${nf(x.pctReal * 100, 0)}% executado de ${nf(x.pctPlan * 100, 0)}% previsto</div></td>
       <td class="n">${plFmtTaxa(x.meta)}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec != null ? plFmtTaxa(x.ritmoNec) : '—'}</td><td>${plFarol(x.status)}</td></tr>`).join('') + '</tbody></table></div>';

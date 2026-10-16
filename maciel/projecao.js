@@ -70,7 +70,7 @@ function pjSerieEmpresa(a, emp) {
 }
 function pjDaEmpresa(c, emp, pl) {
   const itens = c.itens.map(x => {
-    const a = x.ativ, emps = a?.empresas || [], n = emps.includes(emp) && emps.length > 1 ? emps.length : 1, f = 1 / n;
+    const a = x.ativ, emps = plEmpresasDoItem(x.it, a), n = emps.includes(emp) && emps.length > 1 ? emps.length : 1, f = 1 / n;
     if (n === 1) return x;
     const jan = x.it._plano || { inicio: pl.inicio, fim: pl.fim }, base = c.base;
     const serie = pjSerieEmpresa(a, emp);
@@ -198,7 +198,7 @@ function pjSerieEquip(itens, qtyOf, K, ate, de) {
   itens.forEach(i => qtyOf(i).forEach((v, d) => { if (v > 0) dias.add(d); }));
   const lista = [...dias].sort();
   if (!lista.length) return out;
-  const div = PJ.emp ? Math.max(1, ...itens.map(i => (i.x.ativ?.empresas || []).length || 1)) : 1;
+  const div = PJ.emp ? Math.max(1, ...itens.map(i => plEmpresasDoItem(i.x.it, i.x.ativ).length || 1)) : 1;
   const ini = de || lista[0], fim = ate || lista[lista.length - 1];
   const calendario = [];
   if (PJ.cob === 'corridos') { for (let d = ini, n = 0; d <= fim && n < 800; d = add(d, 1), n++) calendario.push(d); } else calendario.push(...lista);
@@ -344,7 +344,7 @@ function pjPainelHtml(r, resumoEmp) {
   // por atividade
   h += `<div class="tabela-rolagem"><table class="pj-tab" data-sem-ferramentas><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Planejado até hoje</th><th class="n">Realizado</th><th class="n">Projetado no fim do plano</th><th style="min-width:180px">Realizado × projetado</th><th>Situação</th></tr></thead><tbody>` +
     r.itens.map(i => { const p = pjPcts(i, r), est = pjEstado(i, r.base);
-      return `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td>${esc((i.x.ativ?.empresas || []).join(' / ') || i.x.it.empresa || '—')}</td><td class="n">${pjPct(p.plan)}</td><td class="n"><b>${pjPct(p.real)}</b></td><td class="n">${pjPct(p.proj)}</td><td>${pjBarra(p, 12)}</td><td><span class="farol f-${est.c}" title="${esc(est.dica)}">${esc(est.rot)}</span></td></tr>`; }).join('') +
+      return `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td>${esc(plEmpresasDoItem(i.x.it, i.x.ativ).join(' / ') || i.x.it.empresa || '—')}</td><td class="n">${pjPct(p.plan)}</td><td class="n"><b>${pjPct(p.real)}</b></td><td class="n">${pjPct(p.proj)}</td><td>${pjBarra(p, 12)}</td><td><span class="farol f-${est.c}" title="${esc(est.dica)}">${esc(est.rot)}</span></td></tr>`; }).join('') +
     `</tbody><tfoot><tr><th colspan="2">Total (ponderado pelo valor)</th><th class="n">${pjPct(g.plan)}</th><th class="n">${pjPct(g.real)}</th><th class="n">${pjPct(g.proj)}</th><td>${pjBarra(g, 12)}</td><th></th></tr></tfoot></table></div>`;
   // por empresa
   if (resumoEmp && resumoEmp.length > 1) {
@@ -423,7 +423,7 @@ async function renderProjecao() {
     i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
     const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p;
     const est = pjEstado(i, r.base);
-    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc((x.ativ?.empresas || []).join(' / ') || x.it.empresa || '—')}</td>
+    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, un)} ${esc(un)}</td>
       <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${i.p ? nf(i.p, 2) : ''}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}">${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
       <td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><b>${rs(exec)}</b></td><td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td>

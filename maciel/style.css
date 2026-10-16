@@ -973,3 +973,10 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pj-painel .tiles{margin-top:12px}
 .pl-spark{display:block}
 .pl-sug td .nota{font-size:11px;white-space:normal}
+.pl-quem{grid-column:1/-1;display:flex;flex-direction:column;gap:4px}
+.pl-quem-chips{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.pl-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--borda,rgba(128,128,128,.4));border-radius:999px;cursor:pointer;font-size:13px}
+.pl-chip.on{background:color-mix(in srgb,var(--acento) 18%,transparent);border-color:var(--acento);font-weight:600}
+.pl-chip-outra{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.pl-chip-outra input{width:150px}
+.pl-obrig{font-size:11px;color:var(--vermelho);font-weight:600}
