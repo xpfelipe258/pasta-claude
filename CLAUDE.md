@@ -47,6 +47,7 @@ Módulos: Estoque, Produção (apontamentos), DP (ponto/efetivo), Materiais, Map
 - Sempre usar `DateTimeZone('America/Sao_Paulo')` em timestamps (horário de Brasília)
 - Prepared statements PDO em todas as queries — nunca concatenar SQL
 - Nunca gravar senhas ou tokens em código-fonte commitado
+- **Opções de como prosseguir (pedido do usuário):** ao fim de cada resposta, apresentar as opções SEMPRE em forma de seleção (ferramenta de perguntas com opções clicáveis), com a recomendada primeiro; agir como gestor de planejamento sênior e estruturador de dados
 
 ---
 
