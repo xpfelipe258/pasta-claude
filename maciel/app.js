@@ -1291,6 +1291,15 @@ function eclusaSerie(tipo, empNome) {
   });
   return ds.sort((a, b) => a[0].localeCompare(b[0]));
 }
+// Eclusa – Vigas / Joists também seguem o catálogo de atividades do BM (mesma atividade da medição): instalação das vigas EJ-3.3.1-01 e
+// instalação de joists EJ-3.3.1-03. O que for apontado nessas atividades (Medição) vale como executado, igual ao lançamento da grade;
+// o executado da atividade é o MAIOR dos dois (nunca a soma), como nas demais atividades interligadas ao catálogo.
+const eclusaCodigos = tipo => { const d = ECLUSA_VJ.find(x => x[0] === tipo); return d ? d[2] : []; };
+function eclusaBmSerie(tipo, ate) {
+  const cods = eclusaCodigos(tipo), ds = [];
+  bmTab('bm_apontamentos').forEach(x => { if (cods.includes(x.codigo) && x.data && (!ate || x.data <= ate) && (Number(x.quantidade) || 0) > 0) ds.push([x.data, Number(x.quantidade)]); });
+  return ds.sort((a, b) => a[0].localeCompare(b[0]));
+}
 function eclusaSepararCliente(lista) {
   const out = [];
   (lista || []).forEach(c => {
@@ -1322,6 +1331,7 @@ function realizadoAnexo(c, empresaNome, ini, fim) {
 }
 // Quantidade equivalente ao avanço (%) das atividades do BM da frente (Eclusa), no período
 function realizadoAnexoBm(c, ini, fim) {
+  if (c._eclusa) return soma0(eclusaBmSerie(c._eclusa, fim).filter(([d]) => !ini || d >= ini), ([, v]) => v);   // Eclusa vigas/joists: apontado no catálogo do BM, em unidades
   if (!(Number(c.qtd) > 0) || !ganBmAtividadesEspecificas(c).length) return 0;
   const a = ganBmPercentual(c, fim), b = ini && ini > '0000-01-01' ? ganBmPercentual(c, add(ini, -1)) : null;
   return Math.max(0, ((a ? a.pct : 0) - (b ? b.pct : 0)) * Number(c.qtd));
@@ -1333,6 +1343,7 @@ function realizadoItem(c, ate) {
   return realizadoFase(c.servico, faseItem(c.frente), ate);
 }
 function realizadoPeriodoItem(c, empresaNome, ini, fim) {
+  if (c._eclusa && (!empresaNome || normEmp(empresaNome) === 'EJ')) return Math.max(realizadoAnexo(c, empresaNome, ini, fim), realizadoAnexoBm(c, ini, fim));   // Eclusa: maior entre grade e catálogo do BM
   if (!c.fonte_catalogo && !c.fonte_pct && ehFrenteAnexa(c.frente)) return realizadoAnexo(c, empresaNome, ini, fim);
   if (c.fonte_pct) return (pctFechLat(fim, empresaNome) - pctFechLat(add(ini, -1), empresaNome)) * 100;
   if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, empresaNome, ini, fim), bmPorCodigos(clienteFonte(c).atividades, c.servico, empresaNome, ini, fim));
@@ -1836,7 +1847,7 @@ function ganLinhas(c) {
     const suprimirAvanco = ganSuprimirAvancoVisual(it), porBm = !!it.bm_percentual;
     const dsProd = suprimirAvanco || porBm ? [] : ganProducaoFase(it).filter(([d]) => d <= c);
     const bm = porBm ? ganBmPercentual(it, c) : suprimirAvanco ? null : ganBmResumo(it, c), ap = suprimirAvanco || porBm ? null : ganApontResumo(it, c);
-    const dsBm = suprimirAvanco ? [] : ganSerieFase(it, bm?.ds || []).filter(([d]) => d <= c);
+    const dsBm = suprimirAvanco ? [] : ganSerieFase(it, it._eclusa ? eclusaBmSerie(it._eclusa, c) : bm?.ds || []).filter(([d]) => d <= c);
     const dsAp = suprimirAvanco ? [] : ganSerieFase(it, ap?.ds || []).filter(([d]) => d <= c);
     const ds = [...dsProd, ...dsBm, ...dsAp].sort((a, b) => a[0].localeCompare(b[0]));
     const realProd = soma0(dsProd, ([, v]) => v), realBm = soma0(dsBm, ([, v]) => v), realAp = soma0(dsAp, ([, v]) => v), realAc = Math.max(realProd, realBm, realAp), prevAc = prevCliente(it, c);
@@ -1844,6 +1855,7 @@ function ganLinhas(c) {
     let acum = 0, concluiu = null;
     dsProd.forEach(([d, v]) => { acum += v; if (!concluiu && acum >= it.qtd) concluiu = d; });
     if (!concluiu && (bm?.pct >= 1 || ap?.pct >= 1) && ds.length) concluiu = ds[ds.length - 1][0];
+    if (!concluiu && it._eclusa && realBm >= it.qtd - 1e-9 && dsBm.length) concluiu = dsBm[dsBm.length - 1][0];
     const p = proj[it.servico] || {};
     const status = realAc >= it.qtd ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
     const porEmpProd = suprimirAvanco || porBm ? [] : M.empresas.map(e => ({ nome: e.nome, ds: ganProducaoFase(it, e.nome).filter(([d]) => d <= c) })).filter(x => x.ds.length);
