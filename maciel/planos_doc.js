@@ -353,10 +353,42 @@ function pldFluxoAtividade(x, c) {
       ${a.dias && prox.length ? pldSeta('', 'ruim') + pldNo('am', '🔗 EMPURRA', prox.map(({ y }) => `${esc(y.it.atividade)}: ${fdA(y.it.inicio)} → ${fdA(somarDiasUteis(y.it.inicio, a.dias))}`).join('<br>')) : ''}${need ? pldSeta('', 'ruim') + need : ''}</div>`;
   return `<div class="fc fc-atv"><div class="fc-linha fc-wrap">${gates ? gates + pldSeta() : ''}${principal}${pldSeta()}${pldDec('Fecha no prazo?')}${pldSeta(fecha ? 'SIM' : 'sim', fecha ? 'ok' : 'apagada')}${simNo}</div>${nao}</div>`;
 }
+// ---- empresas que executam cada serviço (escolhidas no 5W2H; sem escolha, as da grade de lançamentos)
+const pldEmpresas = x => { const l = plEmpresasDoItem(x.it, x.ativ); return l.length ? l : ['SEM EMPRESA DEFINIDA']; };
+const pldChipsEmp = x => pldEmpresas(x).map(n => `<span class="emp">${esc(n)}</span>`).join('');
+function pldListaEmpresas(c) {
+  const todas = [...new Set(c.itens.flatMap(pldEmpresas))];
+  const ordem = M.empresas.map(e => e.nome);
+  return todas.sort((a, b) => (ordem.indexOf(a) < 0 ? 99 : ordem.indexOf(a)) - (ordem.indexOf(b) < 0 ? 99 : ordem.indexOf(b)) || a.localeCompare(b));
+}
+// Serviços agrupados por empresa. Serviço dividido entre empresas (ex.: Pré-montagem EJ + CMM): quantidade e executado são a parte da empresa
+// (contrato ÷ nº de empresas, e o que ela lançou), a mesma regra da Projeção (pjDaEmpresa).
+function pldSecaoEmpresas(pl, c) {
+  const emps = pldListaEmpresas(c);
+  if (!emps.length) return '';
+  const blocos = emps.map(emp => {
+    const itens = c.itens.filter(x => pldEmpresas(x).includes(emp));
+    const ci = typeof pjDaEmpresa === 'function' && emp !== 'SEM EMPRESA DEFINIDA' ? pjDaEmpresa({ ...c, itens }, emp, pl).itens : itens;
+    const peso = soma0(ci, x => x.it.peso || 1) || 1;
+    const pctR = soma0(ci, x => (x.it.peso || 1) * x.pctReal) / peso * 100, pctP = soma0(ci, x => (x.it.peso || 1) * x.pctPlan) / peso * 100;
+    const atras = ci.filter(x => x.status === 'ATRASADO').length, concl = ci.filter(x => x.status === 'CONCLUÍDO').length;
+    const linhas = ci.sort((a, b) => a.it.frente.localeCompare(b.it.frente) || a.it.inicio.localeCompare(b.it.inicio)).map(x => {
+      const it = x.it, un = it.unidade, outras = pldEmpresas(x).filter(n => n !== emp), m = pldEtapasDe(x);
+      return `<tr><td><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))}${m.ids.length ? ' · ' + esc(pldEtapa(m.fluxo, m.ids[0]).nome) : ''}</div></td>
+        <td>${fdA(it.inicio)} a ${fdA(it.fim)}</td>
+        <td class="n">${plFmt(it.qtd, un)} ${esc(un)}${x._parte ? `<div class="mini">parte de ${esc(emp)} (÷ ${x._parte}${outras.length ? ' · com ' + esc(outras.join(', ')) : ''})</div>` : outras.length ? `<div class="mini">com ${esc(outras.join(', '))}</div>` : ''}</td>
+        <td class="n">${plFmt(x.realAc, un)} ${esc(un)}</td><td class="n">${nf(x.pctReal * 100, 0)}% / ${nf(x.pctPlan * 100, 0)}%</td><td class="n">${plFmt(x.falta, un)}</td>
+        <td><span class="sel st-${esc(PL_COR_STATUS[x.status] || 'pendente')}">${esc(x.status)}</span></td></tr>`;
+    }).join('');
+    return `<div class="emp-bloco"><div class="emp-cab"><span class="emp grande-emp">${esc(emp)}</span><span class="mini">${ci.length} serviço(s) · realizado <b>${nf(pctR, 0)}%</b> × planejado ${nf(pctP, 0)}% · ${concl} concluído(s)${atras ? ` · <b class="ruim-t">${atras} atrasado(s)</b>` : ''}</span></div>
+      <div class="rolagem"><table class="tab"><thead><tr><th>Serviço</th><th>Período</th><th class="n">Quantidade</th><th class="n">Executado</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+  }).join('');
+  return `<section class="por-empresa"><h2>Serviços por empresa</h2><p class="nota">Cada serviço do plano aparece sob a(s) empresa(s) escolhida(s) para executá-lo (campo Who do 5W2H). Serviço feito por mais de uma empresa mostra a parte de cada uma.</p>${blocos}</section>`;
+}
 function pldCartaoAtividade(x, c, etapas) {
   const it = x.it, un = it.unidade, stCls = PL_COR_STATUS[x.status] || 'pendente';
   return `<div class="atv">
-    <div class="atv-cab"><div><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))} · ${fdA(it.inicio)} a ${fdA(it.fim)} · ${plFmt(it.qtd, un)} ${esc(un)} · meta ${plFmtTaxa(x.meta)} ${esc(un)}/dia${it.quem || it.empresa ? ' · ' + esc(it.quem || it.empresa) : ''}</div></div>
+    <div class="atv-cab"><div><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))} · ${fdA(it.inicio)} a ${fdA(it.fim)} · ${plFmt(it.qtd, un)} ${esc(un)} · meta ${plFmtTaxa(x.meta)} ${esc(un)}/dia</div><div class="emp-linha">Empresa: ${pldChipsEmp(x)}</div></div>
       <span class="sel st-${esc(stCls)}">${esc(x.status)}</span></div>
     <div class="barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real st-${esc(stCls)}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
     ${it.o_que || it.por_que || it.como ? `<table class="w5"><tr>${it.o_que ? `<th>O quê</th><td>${esc(it.o_que)}</td>` : ''}${it.por_que ? `<th>Por quê</th><td>${esc(it.por_que)}</td>` : ''}</tr>
@@ -394,6 +426,7 @@ function pldBlocoEtapa(fluxo, e, indice, c, itensEtapa) {
   const casos = itensEtapa.map(x => pldCartaoAtividade(x, c, []));
   return `<section class="etapa" id="${esc(fluxo + '-' + e.id)}">
     <div class="etapa-cab"><span class="num">${indice}</span><h3>${esc(e.nome)}</h3><span class="sel ${st.cls}">${st.rot}</span></div>
+    ${itensEtapa.length ? `<div class="emp-linha">Empresa(s) nesta etapa: ${[...new Set(itensEtapa.flatMap(pldEmpresas))].map(n => `<span class="emp">${esc(n)}</span> <span class="mini">${itensEtapa.filter(x => pldEmpresas(x).includes(n)).map(x => esc(x.it.atividade)).join(', ')}</span>`).join(' · ')}</div>` : ''}
     ${pldFluxogramaEtapa(e, plano, indice - 1, {})}
     ${casos.join('')}
   </section>`;
@@ -468,7 +501,7 @@ function plDocHtml(pl) {
     fluxoPlano[fluxo].map((e, i) => pldBlocoEtapa(fluxo, e, i + 1, c, porEtapa(fluxo, e.id))).join('') : '');
   const tabela = c.itens.map(x => { const m = pldEtapasDe(x), a = pldAtraso(x, c.base); return { x, m, a }; })
     .sort((p, q) => (p.m.fluxo === q.m.fluxo ? 0 : p.m.fluxo === 'galpao' ? -1 : 1) || ((p.m.ids.length ? PLD_ORDEM[p.m.fluxo].indexOf(p.m.ids[0]) : 99) - (q.m.ids.length ? PLD_ORDEM[q.m.fluxo].indexOf(q.m.ids[0]) : 99)));
-  const linhasTab = tabela.map(({ x, m, a }) => `<tr><td>${m.ids.length ? esc(pldEtapa(m.fluxo, m.ids[0]).nome) : '—'}</td><td><b>${esc(x.it.atividade)}</b><div class="mini">${esc(cap(x.it.frente))}</div></td>
+  const linhasTab = tabela.map(({ x, m, a }) => `<tr><td>${m.ids.length ? esc(pldEtapa(m.fluxo, m.ids[0]).nome) : '—'}</td><td><b>${esc(x.it.atividade)}</b><div class="mini">${esc(cap(x.it.frente))}</div></td><td>${pldChipsEmp(x)}</td>
     <td>${fdA(x.it.inicio)} a ${fdA(x.it.fim)}</td><td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${nf(x.pctReal * 100, 0)}% / ${nf(x.pctPlan * 100, 0)}%</td>
     <td class="n">${plFmt(x.falta, x.it.unidade)}</td><td>${a.proj ? fdA(a.proj) : '—'}${a.dias ? `<div class="mini ruim-t">+${a.dias} d.u.</div>` : ''}</td><td><span class="sel st-${esc(PL_COR_STATUS[x.status] || 'pendente')}">${esc(x.status)}</span></td></tr>`).join('');
   const parecer = st === 'ATRASADO' || atrasoPlano
@@ -481,6 +514,7 @@ function plDocHtml(pl) {
   <h1>${esc(pl.nome)}</h1>
   <p class="sub">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s)${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''}</p>
   ${pl.objetivo ? `<p class="obj"><b>Objetivo:</b> ${esc(pl.objetivo)}</p>` : ''}
+  <p class="obj"><b>Empresas executoras:</b> ${pldListaEmpresas(c).map(n => `<span class="emp">${esc(n)}</span> <span class="mini">${c.itens.filter(x => pldEmpresas(x).includes(n)).length} serviço(s)</span>`).join(' ')}</p>
   <div class="tiles">
     <div><span>Planejado até a referência</span><b>${nf(c.pctPlan, 1)}%</b></div>
     <div><span>Realizado</span><b>${nf(c.pctReal, 1)}%</b></div>
@@ -491,6 +525,8 @@ function plDocHtml(pl) {
   <p class="parecer">${parecer}</p>${pldBloqueios(c)}${pldGargalo(c)}
 </header>
 
+${pldSecaoEmpresas(pl, c)}
+
 <section><h2>1. Fluxo de execução e situação de cada etapa</h2>
   <p class="nota">Fluxo montado a partir das <b>${c.itens.length} atividade(s) deste plano</b>, na ordem do fluxo de execução da obra: só entram as etapas que têm atividade no plano. Cada etapa só começa de verdade quando a anterior entrega. A cor mostra a situação da etapa (pior caso entre suas atividades); clique para ir à explicação. Chegada de material, descarregamento e checklist são perguntas de liberação feitas às atividades do plano (sim = prossegue; não = retorna).</p>
   ${pldFluxoVisual(c)}
@@ -499,7 +535,7 @@ function plDocHtml(pl) {
 <section><h2>2. Curva S — planejado × realizado</h2>${pldCurvaSvg(c)}
   <div class="legenda"><span class="lin plan"></span>planejado <span class="lin real"></span>realizado <span class="lin proj"></span>projeção no ritmo atual</div></section>
 
-<section><h2>3. Quadro das atividades</h2><div class="rolagem"><table class="tab"><thead><tr><th>Etapa do fluxo</th><th>Atividade</th><th>Período</th><th class="n">Quantidade</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Término projetado</th><th>Situação</th></tr></thead><tbody>${linhasTab}</tbody></table></div></section>
+<section><h2>3. Quadro das atividades</h2><div class="rolagem"><table class="tab"><thead><tr><th>Etapa do fluxo</th><th>Atividade</th><th>Empresa(s)</th><th>Período</th><th class="n">Quantidade</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Término projetado</th><th>Situação</th></tr></thead><tbody>${linhasTab}</tbody></table></div></section>
 
 <section><h2>4. Se o plano não for cumprido</h2>
   <div class="fc"><div class="fc-linha fc-wrap">${pldNo('vm fc-principal', 'PLANO NÃO CUMPRIDO', atrasoPlano ? `+${atrasoPlano} d.u. no ritmo atual (termina ${fdA(c.terminaEm)})` : 'atraso das etapas a montante')}${pldSeta('', 'ruim')}
@@ -529,6 +565,7 @@ p{margin:4px 0}.mini{font-size:12px;color:var(--fg2)}.nota{color:var(--fg2);font
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}.tiles div{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px}.tiles span{display:block;font-size:12px;color:var(--fg2)}.tiles b{font-size:20px}
 .parecer{margin:8px 0;font-size:15px}.obj{margin:6px 0}.ruim-t{color:var(--ru)}
 .alerta-box{border-left:5px solid var(--ru);padding:10px 14px;margin:10px 0;background:#fef2f2}
+.emp{display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;padding:1px 9px;font-size:11px;font-weight:700;margin:0 3px 2px 0;white-space:nowrap}.grande-emp{font-size:14px;padding:3px 14px}.emp-linha{margin:4px 0;font-size:12.5px;color:var(--fg2)}.emp-bloco{margin:14px 0;break-inside:avoid-page}.emp-cab{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}.por-empresa .rolagem{background:var(--card);border:1px solid var(--bd);border-radius:10px}
 .fluxo-linha{margin:10px 0}.chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .chip{display:inline-flex;flex-direction:column;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;text-decoration:none;color:#fff;min-width:96px;max-width:140px;position:relative}.chip span{font-size:10px;opacity:.85}.chip small{font-weight:400;font-size:10px;opacity:.9}
 .chip.ok{background:var(--ok)}.chip.alerta{background:var(--al)}.chip.ruim{background:var(--ru)}.chip.pend{background:#475569}.chip.nd{background:#94a3b8}
