@@ -5331,7 +5331,6 @@ function renderBMBoletim(box) {
     (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal manual cadastrado ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% automaticamente</span></td><td class="n">—</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : (!dd.sinalAuto && !(dd.equip - dd.mensalEquip) && !dd.mensalEquip && !dd.comb && !dd.sinalManualIgnorado ? '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>' : '')) +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
-  if (typeof bmCustoIcamentoHtml === 'function') h += bmCustoIcamentoHtml(emp, p, r);   // custo de guindaste + plataforma × içamento de joist e vigas (bm_custo.js)
   box.innerHTML = h;
 
   const ev = bmEvolucao(emp);
