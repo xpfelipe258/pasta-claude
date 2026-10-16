@@ -304,6 +304,65 @@ function pjSpark(i, r, est) {
     ${E.length ? `<polyline points="${E.join(' ')}" fill="none" style="stroke:${cor}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>` : `<circle cx="1.5" cy="${H - 2}" r="2" style="fill:${cor}"/>`}</svg>`;
 }
 
+
+// ---------------------------------------------------------------- painel: % realizado × projetado
+// Tudo em % do valor do plano (financeiro) e, por atividade, em % da quantidade do plano:
+//   planejado até hoje = o que o plano previa até a data de referência; realizado = lançado até a referência;
+//   projetado no fim do plano = realizado + o que o ritmo atual (× fator de produtividade) entrega até o último dia do plano;
+//   fora do prazo = o que, pelo ritmo, só termina depois do fim do plano.
+function pjPcts(i, r) {
+  const q = i.qtd || 0;
+  if (!(q > 0)) return { plan: 0, real: 0, proj: 0 };
+  let ac = Math.min(q, i.x.realAc);
+  i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
+  return { plan: Math.min(1, i.x.planAc / q), real: Math.min(1, i.x.realAc / q), proj: Math.min(1, ac / q) };
+}
+function pjTotaisPct(r) {
+  const T = r.totalPlano || 0;
+  return { plan: T ? r.planoAteHoje / T : 0, real: T ? r.exec / T : 0, proj: T ? Math.min(1, (r.aoFimPlano ?? 0) / T) : 0 };
+}
+const pjPct = v => nf(v * 100, 0) + '%';
+function pjBarra(p, alto) {   // verde = realizado, amarelo = projetado até o fim do plano, vermelho = fora do prazo; traço = planejado até hoje
+  const re = Math.min(1, p.real), pr = Math.max(p.proj, re), fora = Math.max(0, 1 - pr);
+  return `<div class="pj-barra" style="height:${alto || 14}px" title="Realizado ${pjPct(p.real)} · projetado no fim do plano ${pjPct(p.proj)} · planejado até hoje ${pjPct(p.plan)}">
+    <i class="pj-b-real" style="width:${(re * 100).toFixed(1)}%"></i><i class="pj-b-proj" style="width:${((pr - re) * 100).toFixed(1)}%"></i><i class="pj-b-fora" style="width:${(fora * 100).toFixed(1)}%"></i>
+    <b class="pj-b-plan" style="left:${(Math.min(1, p.plan) * 100).toFixed(1)}%"></b></div>`;
+}
+function pjPainelHtml(r, resumoEmp) {
+  const g = pjTotaisPct(r), desv = (g.real - g.plan) * 100, fora = Math.max(0, 1 - g.proj);
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  let h = `<div class="bloco pj-painel"><div class="bloco-cab"><h2>Painel — realizado × projetado${PJ.emp ? ' · ' + esc(PJ.emp) : ''}</h2>
+    <span class="nota">% do valor do plano até ${fdA(r.fimPlano)}${PJ.prod !== 100 ? ' · projeção a ' + PJ.prod + '% do ritmo atual' : ' · projeção no ritmo atual'}</span></div>
+    <div class="pj-legenda-barra"><span><i class="pj-b-real"></i> realizado</span><span><i class="pj-b-proj"></i> projetado até o fim do plano</span><span><i class="pj-b-fora"></i> fora do prazo</span><span><b class="pj-b-plan-leg"></b> planejado até hoje</span></div>
+    ${pjBarra({ plan: g.plan, real: g.real, proj: g.proj }, 26)}
+    <div class="tiles">` +
+    tile('Realizado', pjPct(g.real), `${rs(r.exec)} de ${rs(r.totalPlano)}`, 'var(--verde)') +
+    tile('Planejado até hoje', pjPct(g.plan), `${rs(r.planoAteHoje)}`, 'var(--fg3)') +
+    tile('Realizado − planejado', (desv >= 0 ? '+' : '−') + nf(Math.abs(desv), 1) + ' p.p.', desv >= -0.5 ? 'no planejado ou adiantado' : 'abaixo do planejado até hoje', desv < -5 ? 'var(--vermelho)' : desv < -0.5 ? 'var(--amarelo)' : 'var(--verde)') +
+    tile('Projetado no fim do plano', pjPct(g.proj), `${rs(r.aoFimPlano ?? 0)}${PJ.prod !== 100 ? ' (simulado)' : ''}`, 'var(--amarelo)') +
+    tile('Fora do prazo', pjPct(fora), fora > 0.005 ? `${rs(r.totalPlano * fora)} só terminam depois do plano${r.termina ? ' · fim projetado ' + fdA(r.termina) : ''}` : 'tudo fecha dentro do plano', fora > 0.005 ? 'var(--vermelho)' : 'var(--verde)') + '</div>';
+  // por atividade
+  h += `<div class="tabela-rolagem"><table class="pj-tab" data-sem-ferramentas><thead><tr><th>Atividade</th><th>Quem</th><th class="n">Planejado até hoje</th><th class="n">Realizado</th><th class="n">Projetado no fim do plano</th><th style="min-width:180px">Realizado × projetado</th><th>Situação</th></tr></thead><tbody>` +
+    r.itens.map(i => { const p = pjPcts(i, r), est = pjEstado(i, r.base);
+      return `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td>${esc((i.x.ativ?.empresas || []).join(' / ') || i.x.it.empresa || '—')}</td><td class="n">${pjPct(p.plan)}</td><td class="n"><b>${pjPct(p.real)}</b></td><td class="n">${pjPct(p.proj)}</td><td>${pjBarra(p, 12)}</td><td><span class="farol f-${est.c}" title="${esc(est.dica)}">${esc(est.rot)}</span></td></tr>`; }).join('') +
+    `</tbody><tfoot><tr><th colspan="2">Total (ponderado pelo valor)</th><th class="n">${pjPct(g.plan)}</th><th class="n">${pjPct(g.real)}</th><th class="n">${pjPct(g.proj)}</th><td>${pjBarra(g, 12)}</td><th></th></tr></tfoot></table></div>`;
+  // por empresa
+  if (resumoEmp && resumoEmp.length > 1) {
+    h += `<div class="tabela-rolagem"><table class="pj-tab" data-sem-ferramentas><thead><tr><th>Empresa</th><th class="n">Atividades</th><th class="n">Valor do plano</th><th class="n">Planejado até hoje</th><th class="n">Realizado</th><th class="n">Projetado no fim do plano</th><th style="min-width:180px">Realizado × projetado</th></tr></thead><tbody>` +
+      resumoEmp.map(e => `<tr><td><b>${esc(e.nome)}</b></td><td class="n">${e.n}</td><td class="n">${rs(e.total)}</td><td class="n">${pjPct(e.g.plan)}</td><td class="n"><b>${pjPct(e.g.real)}</b></td><td class="n">${pjPct(e.g.proj)}</td><td>${pjBarra(e.g, 12)}</td></tr>`).join('') +
+      `</tbody></table></div><p class="nota">Empresa: atividades divididas entre EJ e CMM entram pela parte de cada uma (contrato ÷ nº de empresas) e pelo que ela lançou.</p>`;
+  }
+  return h + '</div>';
+}
+function pjResumoEmpresas(sel, empresas, fator, R) {
+  return empresas.map(n => {
+    const pl = plPlanoCombinado(sel, n);
+    if (!pl) return null;
+    const c = pjDaEmpresa(plCalc(pl), n, pl), r = pjCalc(pl, c, fator, R);
+    return { nome: n, n: r.itens.length, total: r.totalPlano, g: pjTotaisPct(r) };
+  }).filter(Boolean);
+}
+
 // ---------------------------------------------------------------- tela
 function pjPlanosAtivos() { return (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.itens.length); }
 async function renderProjecao() {
@@ -351,6 +410,7 @@ async function renderProjecao() {
   const comParte = r.itens.filter(i => i.x._parte);
   if (PJ.emp && comParte.length) h += `<div class="faixa faixa-info">${esc(PJ.emp)}: ${comParte.map(i => esc(i.x.it.atividade)).join(', ')} ${comParte.length > 1 ? 'são feitas' : 'é feita'} por mais de uma empresa — a quantidade, o planejado e o valor de ${esc(PJ.emp)} são a parte dela (contrato ÷ nº de empresas) e o executado é o que ${esc(PJ.emp)} lançou.</div>`;
   if (r.semValor.length) h += `<div class="faixa">${r.semValor.length} atividade(s) sem valor no BM (R$ 0): ${r.semValor.map(i => esc(i.x.it.atividade)).join(', ')}. Digite o preço unitário na coluna “Preço unit.” para entrarem na projeção.</div>`;
+  h += pjPainelHtml(r, PJ.emp ? null : pjResumoEmpresas(sel, empresas, fator, R));
   h += `<div class="bloco"><div class="bloco-cab"><h2>Curva S financeira (R$ acumulado)</h2><div class="legenda"><span class="nota">Linha cheia = executado · tracejada = planejado · pontilhada = projeção${sim ? ' (' + PJ.prod + '% do ritmo atual)' : ' no ritmo atual'} · cinza = necessário para fechar no prazo</span></div></div><div class="grafico pl-grafico"><canvas id="gProjecao"></canvas></div></div>`;
 
   // tabela por atividade

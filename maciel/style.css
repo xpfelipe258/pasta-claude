@@ -961,3 +961,13 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pj-spark{flex:none}
 .pj-legenda .farol{margin:0 2px}
 .pj-tab td .nota{white-space:normal}
+.pj-barra{position:relative;display:flex;width:100%;border-radius:7px;overflow:hidden;background:var(--card2,rgba(128,128,128,.15));border:1px solid var(--borda,rgba(128,128,128,.3))}
+.pj-barra i{display:block;height:100%}
+.pj-b-real{background:var(--verde)}
+.pj-b-proj{background:var(--amarelo)}
+.pj-b-fora{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--vermelho) 55%,transparent) 0 5px,transparent 5px 10px)}
+.pj-b-plan{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1px;background:var(--fg);box-shadow:0 0 0 1px var(--card,#fff)}
+.pj-legenda-barra{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0 8px;font-size:12px;color:var(--fg2)}
+.pj-legenda-barra i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.pj-b-plan-leg{display:inline-block;width:3px;height:14px;background:var(--fg);vertical-align:-3px;margin-right:4px}
+.pj-painel .tiles{margin-top:12px}
