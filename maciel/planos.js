@@ -332,7 +332,7 @@ function plSugLinhaHtml({ a, s }, g) {
   const un = a.unidade, marca = g.sel.has(a.chave), temAcao = s.precisa > 1e-9;
   const st = s.concluida ? 'CONCLUÍDO' : a.status;
   return `<tr class="${marca ? 'marcada' : ''}"><td><input type="checkbox" data-pl-sug-marca="${esc(a.chave)}" ${marca ? 'checked' : ''} ${temAcao ? '' : 'disabled title="Nada a realizar neste período"'}></td>
-    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div></td><td>${esc(plQuem(a))}</td>
+    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div>${plExcessoHtml(a)}</td><td>${esc(plQuem(a))}</td>
     <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevPerRef, un)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${g.ini}" data-fim="${g.fim}" title="Ver de onde vem este número">${plFmt(s.realPeriodo, un)}</button></td>
     <td class="n ${s.desvioPer < -1e-9 ? 'valor-neg' : ''}">${s.desvioPer > 0 ? '+' : ''}${plFmt(s.desvioPer, un)}</td><td class="n">${plFmt(s.previstoPeriodo, un)}</td>
     <td class="n pl-precisa ${temAcao ? '' : 'ok'}" title="Saldo para cumprir o cronograma até ${fdA(PL.sug.fim)}: previsto acumulado ${plFmt(s.P1, un)} − realizado acumulado na obra ${plFmt(s.Rb, un)}${s.atraso > 1e-9 ? ' (inclui atraso anterior ao período: ' + plFmt(s.atraso, un) + ')' : ''}">${temAcao ? `<b>${plFmt(s.precisa, un)}</b> ${esc(un)}${s.atraso > 1e-9 ? `<div class="nota">inclui ${plFmt(s.atraso, un)} de atraso anterior</div>` : ''}` : '—'}</td>
@@ -503,7 +503,7 @@ function plResumo(pl, c, box) {
   h += `<div class="bloco"><div class="bloco-cab"><h2>O que falta executar</h2><span class="nota">Necessário/dia = falta ÷ dias úteis até o fim da atividade. “Fecha em” usa a meta atual desde o início planejado e o ritmo atual (média dos últimos 5 dias úteis; sem lançamentos, a meta) a partir de hoje. Vermelho = passa do prazo.</span></div>
     <div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Atividade</th><th>Frente</th><th class="n">Plano</th><th class="n" title="Produção lançada dentro do período do plano">Realizado no período</th><th class="n">Falta</th><th class="n">Dias úteis</th>
       <th class="n">Meta/dia</th><th class="n">Necessário/dia</th><th class="n">Ritmo atual/dia</th><th class="n">Fecha em (meta)</th><th class="n">Fecha em (ritmo)</th><th class="pl-prog">Avanço</th><th>Situação</th></tr></thead><tbody>` +
-    c.itens.map(x => `<tr data-pl-linha="${esc(x.it.chave)}"><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}</div></td><td>${esc(cap(x.it.frente))}</td>
+    c.itens.map(x => `<tr data-pl-linha="${esc(x.it.chave)}"><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}</div>${x.ativ ? plExcessoHtml(x.ativ) : ''}</td><td>${esc(cap(x.it.frente))}</td>
       <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(x.it.chave)}" data-ini="${pl.inicio}" data-fim="${pl.fim}" title="Ver de onde vem este número">${plFmt(x.realAc, x.it.unidade)}</button></td><td class="n"><b>${plFmt(x.falta, x.it.unidade)}</b></td>
       <td class="n">${x.diasRest}</td><td class="n ${x.cabeNoPeriodo ? '' : 'valor-neg'}" title="${x.cabeNoPeriodo ? '' : 'A meta atual não fecha a quantidade do plano no período'}">${plFmtTaxa(x.meta)}</td><td class="n ${x.ritmoNec != null && x.ritmoAtual < x.ritmoNec ? 'valor-neg' : ''}">${x.ritmoNec == null ? '—' : plFmtTaxa(x.ritmoNec)}</td><td class="n">${plFmtTaxa(x.ritmoAtual)}</td>
       <td class="n ${x.terminaMeta && x.terminaMeta > x.it.fim ? 'valor-neg' : ''}">${x.terminaMeta ? fdA(x.terminaMeta) : '—'}</td><td class="n ${x.terminaRitmo && x.terminaRitmo > x.it.fim ? 'valor-neg' : ''}">${x.terminaRitmo ? fdA(x.terminaRitmo) : '—'}</td>
@@ -889,7 +889,7 @@ function plOrigemRealizado(a, ini, fim) {
     });
   });
   const ats = it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
-    : ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);
+    : ehFrenteAnexa(it.frente) || ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);   // anexo: só as atividades do BM da própria frente (como plSerieReal)
   ats.forEach(at => {
     let per = 0, ac = 0;
     const dias = [];
@@ -907,6 +907,30 @@ function plOrigemRealizado(a, ini, fim) {
     : 'Galpão: vale a maior fonte entre lançamentos da grade + BM por atividade, resumo do BM e apontamentos de montagem (nunca a soma entre fontes). Colunas e atividades do BM de anexos (Eclusa, Portaria, Marquise…) NÃO entram.';
   return { a, ini, lim, grade, bm, usado, regra, gradeTot: soma0(grade, g => g.per), bmTot: soma0(bm, b => b.per) };
 }
+// Lançado acima do contrato: a série das fases corta no contrato (o excedente some), então o excesso só aparece olhando o lançamento bruto
+// (grade e BM) de toda a obra. Compara com o contrato somado das fases do mesmo serviço (fase 1 + fase 2); itens em % ficam de fora.
+function plExcessos() {
+  const ats = plAtividades();
+  if (PL._exc && PL._exc.atv === ats) return PL._exc.mapa;
+  const grupos = new Map(), mapa = new Map();
+  ats.filter(a => !a.it.bm_percentual).forEach(a => {
+    const k = (ehFrenteAnexa(a.it.frente) ? ganNorm(a.frente) + '|' : '') + ganNorm(a.it.servico);
+    const g = grupos.get(k) || { qtd: 0, itens: [] };
+    g.qtd += a.qtd; g.itens.push(a); grupos.set(k, g);
+  });
+  grupos.forEach(g => {
+    const os = g.itens.map(a => plOrigemRealizado(a, '2000-01-01', '2099-12-31'));
+    const grade = Math.max(...os.map(o => o.gradeTot)), bm = Math.max(...os.map(o => o.bmTot));
+    const lanc = Math.max(grade, bm);
+    if (g.qtd > 0 && lanc > g.qtd * 1.02 + 1e-9) g.itens.forEach(a => mapa.set(a.chave, { lancado: lanc, contrato: g.qtd, fonte: grade >= bm ? 'grade' : 'BM', fases: g.itens.length > 1 }));
+  });
+  PL._exc = { atv: ats, mapa };
+  return mapa;
+}
+const plExcessoHtml = (a, ini = '2000-01-01', fim = '2099-12-31') => {
+  const e = plExcessos().get(a.chave);
+  return e ? `<div class="nota valor-neg"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${ini}" data-fim="${fim}" title="Ver de onde vem o lançamento">⚠ lançado ${plFmt(e.lancado, a.unidade)} ${esc(a.unidade)} (${e.fonte}) > contrato ${plFmt(e.contrato, a.unidade)}${e.fases ? ' (fases somadas)' : ''}</button></div>` : '';
+};
 function plDiasTxt(dias) { return dias.length ? dias.slice(0, 10).map(fd).join(', ') + (dias.length > 10 ? ` … +${dias.length - 10}` : '') : '—'; }
 function plAuditoriaAbrir(chave, ini, fim) {
   const a = plAtivPorChave(chave);
@@ -927,6 +951,7 @@ function plAuditoriaAbrir(chave, ini, fim) {
       <div class="tiles"><div class="tile" style="--c:var(--verde)"><div class="rot"><span>Realizado no período</span></div><div class="val">${plFmt(o.usado, un)} ${esc(un)}</div><div class="sub">${fdA(ini)} a ${fdA(o.lim)}${o.lim < fim ? ' (limitado à data de referência)' : ''}</div></div>
         <div class="tile" style="--c:var(--fg3)"><div class="rot"><span>Contrato</span></div><div class="val">${plFmt(a.qtd, un)} ${esc(un)}</div><div class="sub">acumulado na obra: ${plFmt(a.realAc, un)} ${esc(un)}</div></div></div>
       <p class="nota"><b>Regra aplicada:</b> ${esc(o.regra)}</p>
+      ${plExcessoHtml(a, ini, fim) ? '<p class="nota valor-neg">Atenção: o lançamento total desta atividade (toda a obra) passa do contrato — o sistema corta no contrato. Confira lançamentos duplicados, unidade ou contrato desatualizado.</p>' : ''}
       <h4>Lançamentos na grade — dentro do período</h4>${tG}
       <h4>Catálogo de atividades do BM (Medição) — dentro do período</h4>${tB}
       ${o.gradeTot > 0 && o.bmTot > 0 && Math.abs(o.usado - Math.max(o.gradeTot, o.bmTot)) > 1e-6 && Math.abs(o.usado - o.gradeTot - o.bmTot) > 1e-6 ? '<p class="nota">O número usado pelo sistema não é a soma das duas tabelas: ele toma a maior fonte e aplica os limites de fase/contrato.</p>' : ''}</div></div>`;

@@ -1572,6 +1572,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
   const fontePerfil = b.includes('PERFILAG') || b.includes('PERFILAC');
   if (alvoPerfil) return fontePerfil;
   if (ehTelhar(a)) return !fontePerfil && !b.includes('PERFIL') && (b.includes('INSTALACAO DE TELH') || b.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || b.includes('FACEFELT') || b === 'TELHAS' || b.includes(' TELHAS'));
+  if (fontePerfil) return false;   // coluna de perfilagem só alimenta serviço de perfilagem (ex.: "Telhas" genérico não puxa "Perfilagem de telhas")
   return a === b || a.includes(b) || b.includes(a);
 }
 
