@@ -7,7 +7,7 @@
 // Depende de app.js: M, T, ref, ganLinhas, ganDataKey, ehFrenteAnexa, servicosDaFrente, ganBmPercentual,
 // ganBmAtividadesEspecificas, diaUtil, add, contarDiasUteis, trocarGrafico, eixos, cor, nf, fd, fdA, esc, cap, toast, postar.
 // ------------------------------------------------------------------------------------------------
-const PL = { dados: null, carregando: false, sub: 'sug', sug: { preset: 'semana', ini: null, fim: null, grupo: 'atividade', concl: false, sel: null }, sel: null, vista: 'resumo', atv: '', dia: 'original', wiz: null, _atv: null };
+const PL = { dados: null, carregando: false, sub: 'sug', qual: { tipo: '' }, sug: { preset: 'semana', ini: null, fim: null, grupo: 'atividade', concl: false, sel: null }, sel: null, vista: 'resumo', atv: '', dia: 'original', wiz: null, _atv: null };
 const PL_ABAS = [['resumo', 'Resumo'], ['dia', 'Dia a dia'], ['gantt', 'Gantt'], ['linha', 'Linha do tempo'], ['w5', '5W2H'], ['lib', 'Liberação do fluxo']];
 const PL_COR_STATUS = { 'CONCLUÍDO': 'verde', 'NO PRAZO': 'verde', 'ADIANTADO': 'verde', 'NO LIMITE': 'amarelo', 'ATRASADO': 'vermelho', 'A INICIAR': 'pendente' };
 const PL_HEX = { verde: '--verde', amarelo: '--amarelo', vermelho: '--vermelho', pendente: '--fg3' };
@@ -425,12 +425,13 @@ async function renderPlanejamento() {
   const box = $('#planoNovo');
   if (!box) return;
   if (!PL._rascTentado) { PL._rascTentado = true; const r = plRascunhoLer(); if (r && Date.now() - r.ts < 6 * 3600 * 1000) setTimeout(() => plRascunhoRetomar(true), 200); }   // reabriu a página no meio da edição: retoma o rascunho
-  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['legado', 'Setores e impacto logístico']]
+  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['legado', 'Setores e impacto logístico']]
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
   $('#planoLegado').hidden = PL.sub !== 'legado';
   box.hidden = PL.sub === 'legado';
   if (PL.sub === 'legado') return renderPlanejamentoLegado();
   if (PL.sub === 'sug') { await plCarregar(); return renderSugestao(box); }
+  if (PL.sub === 'qual') return renderQualidade(box);
   if (!PL.dados) { box.innerHTML = '<p class="vazio">Carregando planejamentos…</p>'; await plCarregar(); }
   PL._atv = null;
   const planos = PL.dados.planos.slice().sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
@@ -869,7 +870,7 @@ function plCsv(pl) {
 // ---------------------------------------------------------------- auditoria: de onde vem o realizado
 // Clicar no número "Realizado no período" abre uma janela com a origem dele: colunas lançadas na grade (empresa, coluna, frente), atividades e
 // apontamentos do catálogo do BM, os dias com lançamento e a regra que o sistema aplicou. Só mostra o que está DENTRO do período.
-function plOrigemRealizado(a, ini, fim) {
+function plOrigemRealizado(a, ini, fim, todas) {
   const it = a.it, base = plBase(), lim = minD(fim, base), dentro = d => d >= ini && d <= lim;
   const fontes = ganServicosFonte(it), grade = [], bm = [];
   M.empresas.forEach(e => {
@@ -885,7 +886,7 @@ function plOrigemRealizado(a, ini, fim) {
         ac += v * f;
         if (dentro(d)) { per += v * f; dias.push(d); }
       });
-      if (per || ac) grade.push({ empresa: e.nome, coluna: s.nome, frente: s.frente, per, ac, dias, junta: f !== 1 });
+      if (per || ac || todas) grade.push({ empresa: e.nome, coluna: s.nome, col: s.col, frente: s.frente, per, ac, dias, junta: f !== 1 });
     });
   });
   const ats = it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
@@ -898,7 +899,7 @@ function plOrigemRealizado(a, ini, fim) {
       ac += Number(x.quantidade);
       if (dentro(x.data)) { per += Number(x.quantidade); dias.push(x.data); }
     });
-    if (per || ac) bm.push({ empresa: at.empresa, codigo: at.codigo, atividade: `${at.item_desc || ''} — ${at.atividade || ''}`, un: at.unidade || '', per, ac, dias: dias.sort() });
+    if (per || ac || todas) bm.push({ empresa: at.empresa, codigo: at.codigo, atividade: `${at.item_desc || ''} — ${at.atividade || ''}`, un: at.unidade || '', per, ac, dias: dias.sort() });
   });
   const usado = soma0(plSerieReal(a).filter(([d]) => dentro(d)), ([, v]) => v);
   const regra = it._eclusa ? 'Eclusa – vigas/joists: vale o MAIOR entre as colunas de vigas/joists lançadas na grade e os apontamentos do catálogo do BM (EJ-3.3.1-01 / -03); nunca a soma das duas fontes.'
@@ -931,6 +932,61 @@ const plExcessoHtml = (a, ini = '2000-01-01', fim = '2099-12-31') => {
   const e = plExcessos().get(a.chave);
   return e ? `<div class="nota valor-neg"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${ini}" data-fim="${fim}" title="Ver de onde vem o lançamento">⚠ lançado ${plFmt(e.lancado, a.unidade)} ${esc(a.unidade)} (${e.fonte}) > contrato ${plFmt(e.contrato, a.unidade)}${e.fases ? ' (fases somadas)' : ''}</button></div>` : '';
 };
+// ---------------------------------------------------------------- qualidade dos dados
+// Reúne o que costuma quebrar o realizado: lançado acima do contrato, grade × BM divergentes, colunas lançadas que não alimentam nenhuma atividade,
+// atividades sem nenhuma fonte de lançamento ligada e apontamentos do BM sem atividade no cronograma.
+function plQualidade() {
+  const ats = plAtividades(), itens = [], usadasGrade = new Set(), usadasBm = new Set(), grupos = new Map();
+  const origens = ats.map(a => ({ a, o: plOrigemRealizado(a, '2000-01-01', '2099-12-31', true) }));
+  origens.forEach(({ a, o }) => {
+    o.grade.forEach(g => usadasGrade.add(g.empresa + '|' + g.col));
+    o.bm.forEach(b => usadasBm.add(b.empresa + '|' + b.codigo));
+    if (a.it.bm_percentual) return;
+    const k = (ehFrenteAnexa(a.it.frente) ? ganNorm(a.frente) + '|' : '') + ganNorm(a.it.servico);
+    const g = grupos.get(k) || { qtd: 0, grade: 0, bm: 0, itens: [] };
+    g.qtd += a.qtd; g.grade = Math.max(g.grade, o.gradeTot); g.bm = Math.max(g.bm, o.bmTot); g.itens.push(a); grupos.set(k, g);
+  });
+  const sev = { alta: 0, media: 1, baixa: 2 };
+  grupos.forEach(g => {
+    const a = g.itens[0], un = a.unidade, lanc = Math.max(g.grade, g.bm), nome = g.itens.map(x => x.nome + ' · ' + cap(x.frente)).join(' + ');
+    if (g.qtd > 0 && lanc > g.qtd * 1.02 + 1e-9)
+      itens.push({ sev: 'alta', tipo: 'Lançado acima do contrato', alvo: nome, chave: a.chave, det: `lançado ${plFmt(lanc, un)} ${un} (${g.grade >= g.bm ? 'grade' : 'BM'}) > contrato ${plFmt(g.qtd, un)} ${un}${g.itens.length > 1 ? ' (fases somadas)' : ''}; o sistema corta no contrato`, como: 'Conferir lançamentos duplicados, unidade (m² × telhas) ou o contrato do cronograma.' });
+    if (g.grade > 1e-9 && g.bm > 1e-9 && Math.abs(g.grade - g.bm) / Math.max(g.grade, g.bm) > .10)
+      itens.push({ sev: 'alta', tipo: 'Grade × BM divergentes', alvo: nome, chave: a.chave, det: `grade ${plFmt(g.grade, un)} ${un} × BM ${plFmt(g.bm, un)} ${un} (${nf(Math.abs(g.grade - g.bm) / Math.max(g.grade, g.bm) * 100, 0)}% de diferença); vale o maior, nunca a soma`, como: 'Alinhar o apontamento do BM com o lançamento da grade.' });
+  });
+  origens.forEach(({ a, o }) => {
+    if (!o.grade.length && !o.bm.length && !a.it.bm_percentual)
+      itens.push({ sev: 'baixa', tipo: 'Atividade sem fonte de lançamento', alvo: `${a.nome} · ${cap(a.frente)}`, chave: a.chave, det: 'nenhuma coluna da grade nem atividade do catálogo do BM está ligada: nunca receberá realizado', como: 'Criar/renomear a coluna da empresa ou ligar a atividade ao catálogo do BM.' });
+  });
+  const base = plBase();
+  M.empresas.forEach(e => (e.servicos || []).forEach(sv => {
+    if (usadasGrade.has(e.nome + '|' + sv.col)) return;
+    let t = 0;
+    Object.keys(e.registros || {}).forEach(d => { const v = e.registros[d].v[sv.col]; if (typeof v === 'number' && v > 0 && d <= base) t += v; });
+    if (t > 0) itens.push({ sev: 'media', tipo: 'Coluna lançada sem atividade', alvo: `${e.nome} · ${sv.nome}`, det: `${plFmt(t, '')} lançados na frente ${cap(sv.frente || '—')} não alimentam nenhuma atividade do cronograma`, como: 'Se for produção de cronograma, ligar à atividade (nome da coluna); se for apoio, ignorar.' });
+  }));
+  bmTab('bm_atividades').forEach(at => {
+    if (usadasBm.has(at.empresa + '|' + at.codigo)) return;
+    let t = 0;
+    bmTab('bm_apontamentos').forEach(x => { if (x.empresa === at.empresa && x.codigo === at.codigo && x.data && x.data <= base) t += Number(x.quantidade) || 0; });
+    if (t > 0) itens.push({ sev: 'media', tipo: 'Apontamento do BM sem atividade', alvo: `${at.empresa} · ${at.codigo} — ${at.item_desc || ''} ${at.atividade || ''}`, det: `${plFmt(t, '')} ${at.unidade || ''} apontados no BM não entram em nenhuma atividade do cronograma`, como: 'Ligar a atividade do catálogo ao cronograma (nome do serviço).' });
+  });
+  return itens.sort((x, y) => sev[x.sev] - sev[y.sev] || x.tipo.localeCompare(y.tipo) || x.alvo.localeCompare(y.alvo));
+}
+function renderQualidade(box) {
+  PL._atv = null;
+  const itens = plQualidade(), n = s => itens.filter(i => i.sev === s).length, tipos = [...new Set(itens.map(i => i.tipo))];
+  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const filtro = PL.qual.tipo, vis = itens.filter(i => !filtro || i.tipo === filtro);
+  box.innerHTML = plRascunhoBanner() + `<div class="pl-topo"><div><h2 class="pl-titulo">Qualidade dos dados</h2><p class="nota">Tudo que pode distorcer o realizado e o planejamento, reunido num lugar só. Corrija a origem (lançamento, BM ou cronograma) antes de decidir. Dados até ${fdA(plBase())} (data de referência).</p></div></div>
+    <div class="tiles">${tile('Gravidade alta', n('alta'), 'lançado acima do contrato e grade × BM', n('alta') ? 'var(--vermelho)' : 'var(--verde)')}${tile('Gravidade média', n('media'), 'colunas e apontamentos sem atividade', n('media') ? 'var(--amarelo)' : 'var(--verde)')}${tile('Gravidade baixa', n('baixa'), 'atividades sem fonte de lançamento', n('baixa') ? 'var(--fg3)' : 'var(--verde)')}</div>
+    <div class="bloco"><div class="bloco-cab"><h2>Pendências (${vis.length})</h2><label class="rot-sel">Tipo <select data-pl-qual-tipo><option value="">Todos</option>${tipos.map(t => `<option ${t === filtro ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div>` +
+    (vis.length ? `<div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Gravidade</th><th>Tipo</th><th>Onde</th><th>O que acontece</th><th>Como corrigir</th><th></th></tr></thead><tbody>` +
+      vis.map(i => `<tr><td><span class="farol f-${i.sev === 'alta' ? 'vermelho' : i.sev === 'media' ? 'amarelo' : 'pendente'}">${i.sev.toUpperCase()}</span></td><td>${esc(i.tipo)}</td><td><b>${esc(i.alvo)}</b></td><td>${esc(i.det)}</td><td class="nota">${esc(i.como)}</td>
+        <td>${i.chave ? `<button class="btn" data-pl-audit="${esc(i.chave)}" data-ini="2000-01-01" data-fim="2099-12-31">Ver origem</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>'
+      : '<p class="vazio">Nenhuma pendência. Os dados estão consistentes.</p>') + '</div>';
+}
+
 function plDiasTxt(dias) { return dias.length ? dias.slice(0, 10).map(fd).join(', ') + (dias.length > 10 ? ` … +${dias.length - 10}` : '') : '—'; }
 function plAuditoriaAbrir(chave, ini, fim) {
   const a = plAtivPorChave(chave);
@@ -1096,6 +1152,7 @@ document.addEventListener('change', ev => {
     if (prev) prev.innerHTML = plPrevTexto(it);
     return;
   }
+  if (t.dataset.plQualTipo !== undefined) { PL.qual.tipo = t.value; return renderPlanejamento(); }
   if (t.dataset.plSugData) {
     PL.sug.preset = 'livre'; PL.sug[t.dataset.plSugData] = t.value;
     if (ehISO(PL.sug.ini) && ehISO(PL.sug.fim) && PL.sug.fim >= PL.sug.ini) { PL.sug.sel = null; renderPlanejamento(); }
