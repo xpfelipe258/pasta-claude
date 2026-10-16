@@ -68,7 +68,7 @@ const plChaveNome = n => ganNorm(n).replace(/[^A-Z0-9]/g, '').replace(/PREMONTAG
 function plEmpresasDe(it) {
   const nomes = [], fr = ganNorm(it.frente), sv = plChaveNome(it.servico);
   M.empresas.forEach(e => {
-    let ok = ehFrenteAnexa(it.frente) ? servicosDaFrente(e, it).length > 0 : e.servicos.some(s => servicoCompat(s.nome, it.servico));
+    let ok = ehFrenteAnexa(it.frente) ? servicosDaFrente(e, it).length > 0 : e.servicos.some(s => servicoCompat(s.nome, it.servico) && servicoLancadoPermitido(s, it.servico, it.frente));
     if (!ok) ok = e.servicos.some(s => ganNorm(s.frente) === fr && (plChaveNome(s.nome) === sv || plChaveNome(s.nome).endsWith(sv) || sv.endsWith(plChaveNome(s.nome))));   // mesmo serviço com outro nome no cronograma
     if (ok) nomes.push(e.nome);
   });

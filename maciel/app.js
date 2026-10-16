@@ -166,6 +166,19 @@ function vigiarScrollTopo() {
 function empresa(nome) { return M.empresas.find(e => e.nome === nome); }
 // "Telhar" passou a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02). Aceita os dois nomes (texto já normalizado por ganNorm).
 function ehTelhar(n) { return n.includes('TELHAR') || n === 'INSTALACAO DE TELHAS'; }
+// "VIGAS" está contido em "ECLUSA – MONTAGEM DE VIGAS", "PORTARIA – VIGAS E TERÇAS"…: a comparação por trecho de texto fazia a produção (e a medição do BM)
+// dos ANEXOS (Eclusa, Portaria, Refeitório, Vestiário, Passarelas, Marquise…) entrar no serviço do galpão (ex.: Vigas do Galpão F1 com 18 un
+// quando o galpão montou 4). Serviço lançado em frente anexa só conta para um alvo de nome parecido se for do MESMO anexo ou tiver o MESMO nome.
+function servicoLancadoPermitido(s, alvoNome, frenteAlvo) {
+  if (!ehFrenteAnexa(s.frente)) return true;
+  if (frenteAlvo && ganNorm(s.frente) === ganNorm(frenteAlvo)) return true;
+  return ganNorm(s.nome) === ganNorm(alvoNome);
+}
+// Atividade do catálogo do BM que pertence a um anexo (item 3.3.x: eclusa, portaria, refeitório, vestiário, área de vivência, passarelas, QDF; marquises e HVAC).
+function bmAtividadeDeAnexo(a) {
+  return /ECLUSA|PORTARIA|REFEITORIO|VESTIARIO|VIVENCIA|PASSARELA|PEDESTRES|MARQUISE|QDF|HVAC|TESTEIRA|PLATIBANDA|ANEXOS|ESCADA/.test(ganNorm(`${a?.item_desc || ''} ${a?.atividade || ''}`));
+}
+const bmAtividadePermitida = (a, frenteAlvo) => (frenteAlvo && ehFrenteAnexa(frenteAlvo) ? true : !bmAtividadeDeAnexo(a));
 function servicoCompat(nomeFonte, nomeAlvo) {
   const f = ganNorm(nomeFonte), a = ganNorm(nomeAlvo);
   if (!f || !a) return false;
@@ -176,7 +189,7 @@ function servicoCompat(nomeFonte, nomeAlvo) {
   if (ehTelhar(a)) return !fontePerfil && !f.includes('PERFIL') && (f.includes('INSTALACAO DE TELH') || f.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || f.includes('FACEFELT') || f.includes('MONTAGEM TELH') || f === 'TELHAS' || f === 'TELHA' || f.includes(' TELHAS') || f.includes(' TELHA'));
   return f.includes(a) || a.includes(f);
 }
-function colDe(e, serv) { const s = e && e.servicos.find(x => servicoCompat(x.nome, serv)); return s ? s.col : null; }
+function colDe(e, serv) { const s = e && (e.servicos.find(x => servicoCompat(x.nome, serv) && servicoLancadoPermitido(x, serv, null)) || e.servicos.find(x => servicoCompat(x.nome, serv))); return s ? s.col : null; }
 function soma(e, col, ini, fim) {
   let t = 0;
   for (const d in e.registros) {
@@ -249,7 +262,7 @@ function bmApontamentoServicoValor(a, quantidade, servico) {
 }
 function prodServicoBm(servico, empresaNome, ini, fim) {
   if (!T || !Array.isArray(T.bm_atividades) || !Array.isArray(T.bm_apontamentos)) return 0;
-  const atividades = T.bm_atividades.filter(a => (!empresaNome || normEmp(a.empresa) === normEmp(empresaNome)) && bmAtividadeCompatServico(a, servico));
+  const atividades = T.bm_atividades.filter(a => (!empresaNome || normEmp(a.empresa) === normEmp(empresaNome)) && bmAtividadeCompatServico(a, servico) && bmAtividadePermitida(a, null));
   if (!atividades.length) return 0;
   const porCod = new Map(atividades.map(a => [String(a.codigo), a]));
   let t = 0;
@@ -264,7 +277,7 @@ function prodServico(servico, empresaNome, ini, fim) {
   let t = 0;
   M.empresas.forEach(e => {
     if (empresaNome && e.nome !== empresaNome) return;
-    e.servicos.filter(s => servicoCompat(s.nome, servico)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
+    e.servicos.filter(s => servicoCompat(s.nome, servico) && servicoLancadoPermitido(s, servico, null)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
   });
   return t + prodServicoBm(servico, empresaNome, ini, fim);
 }
@@ -1243,7 +1256,7 @@ function prodServicoGrade(servico, empresaNome, ini, fim) {
   let t = 0;
   M.empresas.forEach(e => {
     if (empresaNome && e.nome !== empresaNome) return;
-    e.servicos.filter(s => servicoCompat(s.nome, servico)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
+    e.servicos.filter(s => servicoCompat(s.nome, servico) && servicoLancadoPermitido(s, servico, null)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
   });
   return t;
 }
@@ -1564,11 +1577,11 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
 
 function ganProducao(itOuServico, empNome) {
   if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
-  const fontes = ganServicosFonte(itOuServico);
+  const fontes = ganServicosFonte(itOuServico), frenteAlvo = typeof itOuServico === 'string' ? null : itOuServico.frente;
   const ds = [];
   M.empresas.forEach(e => {
     if (empNome && e.nome !== empNome) return;
-    e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome))).forEach(s => Object.keys(e.registros).forEach(d => {
+    e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, frenteAlvo))).forEach(s => Object.keys(e.registros).forEach(d => {
       const v = e.registros[d].v[s.col];
       const ajustado = v;
       if (typeof ajustado === 'number' && ajustado > 0) ds.push([d, ajustado]);
@@ -1576,7 +1589,7 @@ function ganProducao(itOuServico, empNome) {
   });
   if (T && Array.isArray(T.bm_atividades) && Array.isArray(T.bm_apontamentos)) {
     fontes.forEach(f => {
-      const atividades = T.bm_atividades.filter(a => (!empNome || normEmp(a.empresa) === normEmp(empNome)) && bmAtividadeCompatServico(a, f));
+      const atividades = T.bm_atividades.filter(a => (!empNome || normEmp(a.empresa) === normEmp(empNome)) && bmAtividadeCompatServico(a, f) && bmAtividadePermitida(a, frenteAlvo));
       const porCod = new Map(atividades.map(a => [String(a.codigo), a]));
       T.bm_apontamentos.forEach(x => {
         const a = porCod.get(String(x.codigo));
@@ -1676,7 +1689,7 @@ function ganBmAtividades(it) {
     if (ehFechEstrutura) {
       return (emp === 'EJ' || emp === 'CMM') && item === 'FECHAMENTO LATERAL';
     }
-    return fontes.some(f => bmAtividadeCompatServico(a, f));
+    return fontes.some(f => bmAtividadeCompatServico(a, f)) && bmAtividadePermitida(a, it.frente);
   });
 }
 
