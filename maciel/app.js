@@ -1275,16 +1275,18 @@ function eclusaTipoServico(nome) {
   const n = ganNorm(nome);
   if (/PREMONT|PRE MONT/.test(n)) return null;
   const v = /VIGA/.test(n), j = /JOIST/.test(n);
-  return v && !j ? 'viga' : j && !v ? 'joist' : null;
+  return v && !j ? 'viga' : j && !v ? 'joist' : v && j ? 'junta' : null;   // 'junta' = coluna única "Vigas e Joists": o lançamento é dividido pelo contrato
 }
+// Parte de uma coluna "Vigas e Joists" (junta) que cabe a vigas ou a joists: contrato de cada um ÷ contrato total (9 + 18 → 1/3 e 2/3).
+function eclusaFracao(tipo) { const tot = soma0(ECLUSA_VJ, d => eclusaQtd(d[0])) || 1; return eclusaQtd(tipo) / tot; }
 const eclusaQtd = tipo => { const d = ECLUSA_VJ.find(x => x[0] === tipo); return d ? (catalogoQtd(d[2]) || d[3]) : 0; };
 function eclusaSerie(tipo, empNome) {
   const ds = [];
   M.empresas.forEach(e => {
     if (empNome && e.nome !== empNome) return;
-    (e.servicos || []).filter(sv => ganNorm(sv.frente) === 'ECLUSA' && eclusaTipoServico(sv.nome) === tipo).forEach(sv => Object.keys(e.registros || {}).forEach(d => {
-      const v = e.registros[d].v[sv.col];
-      if (typeof v === 'number' && v > 0) ds.push([d, v]);
+    (e.servicos || []).filter(sv => ganNorm(sv.frente) === 'ECLUSA' && [tipo, 'junta'].includes(eclusaTipoServico(sv.nome))).forEach(sv => Object.keys(e.registros || {}).forEach(d => {
+      const v = e.registros[d].v[sv.col], f = eclusaTipoServico(sv.nome) === 'junta' ? eclusaFracao(tipo) : 1;
+      if (typeof v === 'number' && v > 0) ds.push([d, v * f]);
     }));
   });
   return ds.sort((a, b) => a[0].localeCompare(b[0]));
@@ -1304,7 +1306,7 @@ function eclusaSepararCliente(lista) {
 // realizado ficava muito acima do que foi lançado.
 const ehFrenteAnexa = f => { const n = ganNorm(f); return !!n && (!n.startsWith('GALPAO') || n.includes('MARQUISE')); };
 function servicosDaFrente(e, c) {
-  if (c._eclusa) return (e.servicos || []).filter(s => ganNorm(s.frente) === 'ECLUSA' && eclusaTipoServico(s.nome) === c._eclusa);   // Eclusa: vigas ou joists
+  if (c._eclusa) return (e.servicos || []).filter(s => ganNorm(s.frente) === 'ECLUSA' && [c._eclusa, 'junta'].includes(eclusaTipoServico(s.nome)));   // Eclusa: vigas ou joists (e a coluna junta "Vigas e Joists")
   const fr = ganNorm(c.frente), sv = ganNorm(c.servico);
   const daFrente = (e.servicos || []).filter(s => ganNorm(s.frente) === fr);
   const exato = daFrente.filter(s => ganNorm(s.nome) === sv);
@@ -1314,7 +1316,7 @@ function realizadoAnexo(c, empresaNome, ini, fim) {
   let t = 0;
   M.empresas.forEach(e => {
     if (empresaNome && e.nome !== empresaNome) return;
-    servicosDaFrente(e, c).forEach(s => t += producaoServicoValor(e, s, ini, fim));
+    servicosDaFrente(e, c).forEach(s => t += producaoServicoValor(e, s, ini, fim) * (c._eclusa && eclusaTipoServico(s.nome) === 'junta' ? eclusaFracao(c._eclusa) : 1));
   });
   return t;
 }
