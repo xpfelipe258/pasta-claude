@@ -11,14 +11,30 @@
 // Depende de app.js e planos.js: M, T, ref, bmItens, bmPrecoAtividade, bmTab, ganBmAtividades, ganBmAtividadesEspecificas, clienteFonte,
 // ECLUSA_VJ, proxDiaUtil, plCarregar, plCalc, plPlanosPainel-like (planos ativos), plDistribuirTaxa, plInteiro, trocarGrafico, eixos, cor, rs, rs2, nf, fd, fdA.
 // ------------------------------------------------------------------------------------------------
-const PJ = { plano: '', emp: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false, kit: null, cob: 'uso' };
-const PJ_LS = 'obra198_proj_preco_manual';
+const PJ = { plano: '', emp: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false, cob: 'uso' };
+const PJ_LS = 'obra198_proj_preco_manual';   // antigo: preços digitados ficavam só no navegador (migrados para o servidor na primeira abertura)
+// Configuração compartilhada da obra (servidor, rota projecao-config): conjunto de equipamentos, dias cobrados e preços digitados.
+const pjCfg = () => (M.projecao_config ||= {});
 function pjManual() {
-  if (PJ.manual) return PJ.manual;
-  try { PJ.manual = JSON.parse(localStorage.getItem(PJ_LS) || '{}') || {}; } catch { PJ.manual = {}; }
-  return PJ.manual;
+  const c = pjCfg();
+  if (!c.precos || Array.isArray(c.precos) || typeof c.precos !== 'object') c.precos = {};
+  return c.precos;
 }
-function pjSalvarManual() { try { localStorage.setItem(PJ_LS, JSON.stringify(pjManual())); } catch { /* sem armazenamento */ } }
+async function pjGravarCfg(corpo) {
+  try {
+    const j = await postarBruto(API + 'projecao-config', corpo);
+    if (j.config) M.projecao_config = j.config;
+  } catch (e) { toast('Não foi possível salvar a configuração da Projeção: ' + e.message, true); }
+}
+async function pjMigrarLocal() {
+  if (PJ._migrou) return;
+  PJ._migrou = true;
+  let loc = null;
+  try { loc = JSON.parse(localStorage.getItem(PJ_LS) || 'null'); } catch { loc = null; }
+  if (!loc || typeof loc !== 'object' || !Object.keys(loc).length) return;
+  await pjGravarCfg({ precos_importar: loc });
+  try { localStorage.removeItem(PJ_LS); } catch { /* sem armazenamento */ }
+}
 
 // ---------------------------------------------------------------- preço da atividade
 function pjAtividadesBm(it) {
@@ -148,7 +164,6 @@ const pjRotPeriodo = (k, vista) => (vista === 'mes' ? k.slice(5) + '/' + k.slice
 //   dias cobrados = dias com içamento (planejado / executado / projetado) ou todos os dias corridos entre o primeiro e o último;
 //   o custo do dia é dividido entre joist e vigas pelo valor produzido (quantidade × preço do BM); com filtro de empresa, dividido entre
 //   as empresas que executam a atividade (EJ/CMM), a mesma regra de Equipamentos.
-const PJ_KIT_LS = 'obra198_proj_kit_icamento';
 const PJ_ICAMENTO = ['ICAMENTO JOIST', 'VIGAS'];
 const pjClasseEquip = nome => {
   const cad = (T.equipamentos || []).find(x => ganNorm(x.equipamento) === ganNorm(nome)), t = ganNorm(`${nome} ${cad?.tipo || ''}`);
@@ -170,8 +185,8 @@ function pjEquipDisponiveis() {
   return [...nomes.values()].map(n => ({ nome: n, classe: pjClasseEquip(n), dia: pjDiariaEquip(n) }));
 }
 function pjKitSelecionado(disp) {
-  if (PJ.kit === null) { try { const j = JSON.parse(localStorage.getItem(PJ_KIT_LS) || 'null'); PJ.kit = Array.isArray(j) ? j : undefined; } catch { PJ.kit = undefined; } }
-  if (Array.isArray(PJ.kit)) return PJ.kit.filter(n => disp.some(d => d.nome === n));
+  const salvo = pjCfg().kit;
+  if (Array.isArray(salvo)) return salvo.filter(n => disp.some(d => d.nome === n));
   // automático: um guindaste e uma plataforma — o mais usado nos últimos 30 dias (senão o primeiro com valor)
   const desde = add(ref, -30), dias = (n, de) => soma0((T.usos || []).filter(u => ganNorm(u.equipamento) === ganNorm(n) && u.data >= de && u.data <= ref && !ganNorm(u.uso).includes('ABASTECIMENTO') && !ganNorm(u.uso).includes('NAO USO')), u => (Number(u.quantidade) > 0 ? Number(u.quantidade) : 1));
   const uso = n => dias(n, desde) * 1000 + dias(n, '0000-01-01');   // mais usado nos últimos 30 dias; empate ou sem uso recente: o mais usado na obra
@@ -208,13 +223,21 @@ function pjEquipCalc(r) {
   return { disp, kit, K, itens, plan, real, proj, base, totPlan: soma(plan), totReal: soma(real), totProj: soma(proj), porItem,
     ocioso: soma0([...plan.values()], x => x.ocioso) };
 }
-function pjEquipHtml(r) {
-  const c = pjEquipCalc(r);
+function pjCurvaEquip(r, eq) {   // gasto acumulado com guindaste + plataforma (executado até a referência, projetado depois) sobre o eixo da curva S
+  const dias = [...eq.real.keys(), ...eq.proj.keys()].sort();
+  let ac = 0, k = 0;
+  return r.eixo.map(d => {
+    while (k < dias.length && dias[k] <= d) { ac += (eq.real.get(dias[k]) || eq.proj.get(dias[k])).custo; k++; }
+    return Math.round(ac);
+  });
+}
+function pjEquipHtml(r, c) {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   let h = `<div class="bloco pj-equip"><div class="bloco-cab"><h2>Gasto com equipamento — içamento de joist e vigas${PJ.emp ? ' · ' + esc(PJ.emp) : ''}</h2>
     <div class="acoes"><label class="rot-sel">Dias cobrados <select id="pjCob"><option value="uso" ${PJ.cob === 'uso' ? 'selected' : ''}>Só dias com içamento</option><option value="corridos" ${PJ.cob === 'corridos' ? 'selected' : ''}>Todos os dias corridos (inclui fim de semana)</option></select></label></div></div>
     <p class="nota">Quanto vai custar o guindaste + a plataforma nos períodos dos serviços de içamento de joist e de vigas do plano. Diária = valor mensal ÷ 30 (ou a diária cadastrada). O custo do dia é dividido entre joist e vigas pelo valor produzido${PJ.emp ? '; com a empresa filtrada, dividido entre as empresas que executam' : ''}. Não entra no faturamento da projeção.</p>
-    <div class="pj-kit">${c.disp.length ? c.disp.map(d => `<label class="pj-kit-item" title="${esc(d.dia.origem)}"><input type="checkbox" data-pj-kit="${esc(d.nome)}" ${c.kit.includes(d.nome) ? 'checked' : ''}> <b>${esc(d.nome)}</b> <span class="nota">${esc(d.classe)} · ${d.dia.v > 0 ? rs2(d.dia.v) + '/dia · ' + esc(d.dia.origem) : 'sem valor no cadastro'}</span></label>`).join('') : '<span class="nota">Nenhum guindaste ou plataforma cadastrado em Equipamentos.</span>'}</div>`;
+    <div class="pj-kit">${c.disp.length ? c.disp.map(d => `<label class="pj-kit-item" title="${esc(d.dia.origem)}"><input type="checkbox" data-pj-kit="${esc(d.nome)}" ${c.kit.includes(d.nome) ? 'checked' : ''}> <b>${esc(d.nome)}</b> <span class="nota">${esc(d.classe)} · ${d.dia.v > 0 ? rs2(d.dia.v) + '/dia · ' + esc(d.dia.origem) : 'sem valor no cadastro'}</span></label>`).join('') : '<span class="nota">Nenhum guindaste ou plataforma cadastrado em Equipamentos.</span>'}${Array.isArray(pjCfg().kit) ? ' <button type="button" class="link" data-pj-kit-auto title="Voltar a escolher sozinho o guindaste e a plataforma mais usados">↺ conjunto automático</button>' : ''}</div>
+    <p class="nota">A escolha do conjunto, dos dias cobrados e os preços digitados ficam gravados na obra: valem para todos os usuários.</p>`;
   if (!c.itens.length) return h + '<p class="vazio">O plano escolhido não tem atividades de içamento de joist ou de vigas do galpão.</p></div>';
   if (!(c.K > 0)) return h + '<p class="faixa">Marque ao menos um equipamento com valor (cadastro de Equipamentos: cobrança MENSAL ou DIÁRIA e valor) para calcular o gasto.</p></div>';
   const totalProj = c.totReal + c.totProj, fat = soma0(c.itens, i => Math.min(i.qtd, i.x.realAc) * i.p) + soma0(c.itens, i => { let q = 0; i.proj.forEach(v => { q += v; }); return Math.min(i.qtd - Math.min(i.qtd, i.x.realAc), q) * i.p; });
@@ -223,7 +246,8 @@ function pjEquipHtml(r) {
     tile('Gasto planejado no plano', rs(c.totPlan), `${PJ.cob === 'corridos' ? 'dias corridos' : 'dias com içamento'}`, 'var(--fg3)') +
     tile('Gasto até hoje', rs(c.totReal), `dias com içamento lançado até ${fdA(c.base)}`, 'var(--verde)') +
     tile(`Gasto projetado daqui para frente${PJ.prod !== 100 ? ' (' + PJ.prod + '% do ritmo)' : ''}`, rs(c.totProj), `total até concluir ${rs(totalProj)}`, 'var(--amarelo)') +
-    tile('Equipamento ÷ faturamento', fat > 0 ? nf(totalProj / fat * 100, 1) + '%' : '—', `faturamento das atividades de içamento ${rs(fat)}`, 'var(--vermelho)') + '</div>';
+    tile('Equipamento ÷ faturamento', fat > 0 ? nf(totalProj / fat * 100, 1) + '%' : '—', `faturamento das atividades de içamento ${rs(fat)}`, 'var(--vermelho)') +
+    tile('Margem bruta do içamento', rs(fat - totalProj), `faturamento − equipamento${fat > 0 ? ' · ' + nf((fat - totalProj) / fat * 100, 0) + '% do faturamento' : ''}`, fat - totalProj < 0 ? 'var(--vermelho)' : 'var(--verde)') + '</div>';
   h += `<div class="tabela-rolagem"><table class="pl-tab pj-tab" data-sem-ferramentas><thead><tr><th>Atividade</th><th class="n">Qtd do plano</th><th class="n">Gasto planejado</th><th class="n">Gasto até hoje</th><th class="n">Gasto projetado</th><th class="n">Total até concluir</th><th class="n">R$ por unidade</th></tr></thead><tbody>` +
     c.porItem.map(x => { const tot = x.exec + x.proj; return `<tr><td><b>${esc(x.i.x.it.atividade)}</b><div class="nota">${fd(x.i.x.it.inicio)} a ${fd(x.i.x.it.fim)}</div></td><td class="n">${plFmt(x.i.qtd, x.i.x.it.unidade)} ${esc(x.i.x.it.unidade)}</td><td class="n">${rs(x.plan)}</td><td class="n">${rs(x.exec)}</td><td class="n">${rs(x.proj)}</td><td class="n"><b>${rs(tot)}</b></td><td class="n">${x.i.qtd > 0 ? rs2(tot / x.i.qtd) : '—'}</td></tr>`; }).join('') +
     `</tbody><tfoot><tr><th>Total</th><th></th><th class="n">${rs(c.totPlan)}</th><th class="n">${rs(c.totReal)}</th><th class="n">${rs(c.totProj)}</th><th class="n">${rs(totalProj)}</th><th></th></tr></tfoot></table></div>`;
@@ -234,10 +258,10 @@ function pjEquipHtml(r) {
   const qtdPer = (k, nome) => soma0(c.itens.filter(i => ganNorm(i.ativ.it.servico) === nome), i => soma0([...i.real, ...i.proj].filter(([d]) => pjChavePeriodo(d, PJ.vista) === k), ([, v]) => v));
   const fatPer = k => soma0(c.itens, i => soma0([...i.real, ...i.proj].filter(([d]) => pjChavePeriodo(d, PJ.vista) === k), ([, v]) => v) * i.p);
   let ac = 0;
-  h += `<div class="tabela-rolagem"><table class="pj-tab" data-sem-ferramentas><thead><tr><th>${PJ.vista === 'mes' ? 'Mês' : 'Semana (segunda)'}</th><th class="n">Joists içados</th><th class="n">Vigas içadas</th><th class="n">Gasto planejado</th><th class="n">Executado + projetado</th><th class="n">Acumulado</th><th class="n">Faturamento do içamento</th><th class="n">Equipamento ÷ faturamento</th></tr></thead><tbody>` +
+  h += `<div class="tabela-rolagem"><table class="pj-tab" data-sem-ferramentas><thead><tr><th>${PJ.vista === 'mes' ? 'Mês' : 'Semana (segunda)'}</th><th class="n">Joists içados</th><th class="n">Vigas içadas</th><th class="n">Gasto planejado</th><th class="n">Executado + projetado</th><th class="n">Acumulado</th><th class="n">Faturamento do içamento</th><th class="n">Equipamento ÷ faturamento</th><th class="n">Margem bruta</th></tr></thead><tbody>` +
     chaves.map(k => { const e = somaPer(c.real, k) + somaPer(c.proj, k), f = fatPer(k); ac += e; const misto = (PJ.vista === 'mes' ? k + '-31' : add(k, 6)) <= c.base ? 'pj-real' : 'pj-proj';
-      return `<tr><td>${pjRotPeriodo(k, PJ.vista)}</td><td class="n">${nf(qtdPer(k, 'ICAMENTO JOIST'), 0)}</td><td class="n">${nf(qtdPer(k, 'VIGAS'), 0)}</td><td class="n">${rs(somaPer(c.plan, k))}</td><td class="n ${misto}"><b>${rs(e)}</b></td><td class="n">${rs(ac)}</td><td class="n">${rs(f)}</td><td class="n">${f > 0 ? nf(e / f * 100, 0) + '%' : '—'}</td></tr>`; }).join('') +
-    `</tbody><tfoot><tr><th>Total</th><th class="n">${nf(soma0(chaves, k => qtdPer(k, 'ICAMENTO JOIST')), 0)}</th><th class="n">${nf(soma0(chaves, k => qtdPer(k, 'VIGAS')), 0)}</th><th></th><th class="n">${rs(c.totPlan)}</th><th class="n">${rs(totalProj)}</th><th></th><th class="n">${rs(fat)}</th><th class="n">${fat > 0 ? nf(totalProj / fat * 100, 0) + '%' : '—'}</th></tr></tfoot></table></div>`;
+      return `<tr><td>${pjRotPeriodo(k, PJ.vista)}</td><td class="n">${nf(qtdPer(k, 'ICAMENTO JOIST'), 0)}</td><td class="n">${nf(qtdPer(k, 'VIGAS'), 0)}</td><td class="n">${rs(somaPer(c.plan, k))}</td><td class="n ${misto}"><b>${rs(e)}</b></td><td class="n">${rs(ac)}</td><td class="n">${rs(f)}</td><td class="n">${f > 0 ? nf(e / f * 100, 0) + '%' : '—'}</td><td class="n ${f - e < -0.5 ? 'valor-neg' : ''}">${rs(f - e)}</td></tr>`; }).join('') +
+    `</tbody><tfoot><tr><th>Total</th><th class="n">${nf(soma0(chaves, k => qtdPer(k, 'ICAMENTO JOIST')), 0)}</th><th class="n">${nf(soma0(chaves, k => qtdPer(k, 'VIGAS')), 0)}</th><th></th><th class="n">${rs(c.totPlan)}</th><th class="n">${rs(totalProj)}</th><th></th><th class="n">${rs(fat)}</th><th class="n">${fat > 0 ? nf(totalProj / fat * 100, 0) + '%' : '—'}</th><th class="n">${rs(fat - totalProj)}</th></tr></tfoot></table></div>`;
   return h + '</div>';
 }
 
@@ -248,6 +272,8 @@ async function renderProjecao() {
   if (!box) return;
   const tk = PJ._tk = (PJ._tk || 0) + 1;
   if (!PL.dados || Date.now() - (PL._ts || 0) > 60000) { await plCarregar(true); PL._ts = Date.now(); if (tk !== PJ._tk) return; }
+  await pjMigrarLocal();
+  if (!PJ._cfgOk) { PJ._cfgOk = true; PJ.cob = pjCfg().cob === 'corridos' ? 'corridos' : 'uso'; }
   PL._atv = null;
   const planos = pjPlanosAtivos();
   if (!planos.length) {
@@ -333,7 +359,8 @@ async function renderProjecao() {
     <tr><th>Desvio acumulado (projetado − planejado)</th><th></th>${acum.map(a => `<th class="n ${a.e - a.p < -0.5 ? 'valor-neg' : ''}">${(a.e - a.p >= 0 ? '+' : '−') + rs(Math.abs(a.e - a.p))}</th>`).join('')}<th></th></tr>
   </tfoot></table></div>
     <p class="nota">Executado = lançado até ${fdA(c.baseRef)}. Projetado = saldo de cada atividade distribuído por dia útil no ritmo atual (média dos últimos 5 dias úteis; sem lançamentos, na meta) × ${PJ.prod}%. Valores do BM em ${esc(R)}; é uma simulação, não substitui a medição.</p></div>`;
-  h += pjEquipHtml(r);
+  const eq = PJ._eq = pjEquipCalc(r);
+  h += pjEquipHtml(r, eq);
   box.innerHTML = h;
   PJ._csv = { per, r, matriz, totPer, acum };
 
@@ -345,6 +372,7 @@ async function renderProjecao() {
       { label: 'Planejado', data: r.planAc.map(n0), borderColor: cor('--acento'), backgroundColor: cor('--acento'), borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
       { label: 'Executado', data: r.realAc.map(n0), borderColor: cor('--verde'), backgroundColor: cor('--verde'), borderWidth: 3, pointRadius: 2, tension: .2 },
       { label: sim ? `Projeção (${PJ.prod}% do ritmo)` : 'Projeção (ritmo atual)', data: r.projAc.map((v, k) => (k >= Math.max(r.iBase, 0) ? n0(v) : null)), borderColor: cor('--amarelo'), backgroundColor: cor('--amarelo'), borderDash: [2, 3], borderWidth: 2.5, pointRadius: 0, tension: .2 },
+      ...(eq.itens.length && eq.K > 0 ? [{ label: 'Gasto com equipamento do içamento (acumulado)', data: pjCurvaEquip(r, eq), borderColor: cor('--vermelho'), backgroundColor: cor('--vermelho'), borderWidth: 2.5, pointRadius: 0, tension: .2 }] : []),
       { label: 'Necessário para fechar no prazo', data: r.nec.map(n0), borderColor: cor('--fg3'), backgroundColor: cor('--fg3'), borderDash: [1, 4], borderWidth: 1.5, pointRadius: 0, tension: 0 },
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -372,24 +400,26 @@ document.addEventListener('change', ev => {
   if (t.id === 'pjPlano') { PJ.plano = t.value; renderProjecao(); }
   else if (t.id === 'pjEmp') { PJ.emp = t.value; renderProjecao(); }
   else if (t.id === 'pjContrato') { PJ.contrato = t.value; renderProjecao(); }
-  else if (t.id === 'pjCob') { PJ.cob = t.value; renderProjecao(); }
+  else if (t.id === 'pjCob') { PJ.cob = t.value; pjCfg().cob = PJ.cob; pjGravarCfg({ cob: PJ.cob }).then(renderProjecao); }
   else if (t.dataset && t.dataset.pjKit !== undefined) {
     const marcados = [...document.querySelectorAll('[data-pj-kit]')].filter(x => x.checked).map(x => x.dataset.pjKit);
-    PJ.kit = marcados; try { localStorage.setItem(PJ_KIT_LS, JSON.stringify(marcados)); } catch { /* sem armazenamento */ }
-    renderProjecao();
+    pjCfg().kit = marcados;
+    pjGravarCfg({ kit: marcados }).then(renderProjecao);
   }
   else if (t.id === 'pjVista') { PJ.vista = t.value; renderProjecao(); }
   else if (t.id === 'pjProd') { PJ.prod = +t.value; renderProjecao(); }
   else if (t.classList && t.classList.contains('pj-preco')) {
     const chave = t.dataset.pjChave, bm = Number(t.dataset.pjBm) || 0, txt = t.value.trim(), v = txt === '' ? 0 : edNum(txt);
     const m = pjManual();
-    if (!(v > 0) || (bm && Math.abs(v - bm) < 0.005)) delete m[chave]; else m[chave] = v;
-    pjSalvarManual(); renderProjecao();
+    const novo = !(v > 0) || (bm && Math.abs(v - bm) < 0.005) ? null : v;
+    if (novo === null) delete m[chave]; else m[chave] = novo;
+    pjGravarCfg({ preco: { chave, valor: novo } }).then(renderProjecao);
   }
 });
 document.addEventListener('input', ev => { if (ev.target.id === 'pjProd') { const s = document.getElementById('pjProdTxt'); if (s) s.textContent = ev.target.value + '%'; } });
 document.addEventListener('click', ev => {
   const reset = ev.target.closest && ev.target.closest('[data-pj-reset]');
-  if (reset) { delete pjManual()[reset.dataset.pjReset]; pjSalvarManual(); renderProjecao(); return; }
+  if (reset) { delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
+  if (ev.target.closest && ev.target.closest('[data-pj-kit-auto]')) { delete pjCfg().kit; pjGravarCfg({ kit: null }).then(renderProjecao); return; }
   if (ev.target.id === 'pjCsv') pjCsv();
 });

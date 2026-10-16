@@ -104,7 +104,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -122,7 +122,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1688,6 +1688,67 @@ function acao_cliente_contrato(array $corpo)
     sistema_gravar('contratos_cliente', json_encode($d, JSON_UNESCAPED_UNICODE));
     registrar_alteracao('contrato_cliente', ['chave' => $chave, 'qtd' => $d[$chave] ?? null]);
     return ['salvos' => 1];
+}
+
+// Configuração da aba Projeção físico-financeira (compartilhada por todos os usuários da obra):
+//   kit   = equipamentos do conjunto guindaste + plataforma (lista de nomes; null = automático);
+//   cob   = dias cobrados do equipamento ('uso' ou 'corridos');
+//   precos = preço unitário digitado por atividade ({ chave: R$/un }).
+function projecao_config_ler()
+{
+    $d = json_decode((string)sistema_ler('projecao_config', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+
+function acao_projecao_config(array $corpo)
+{
+    $d = projecao_config_ler();
+    if (array_key_exists('kit', $corpo)) {
+        if ($corpo['kit'] === null) {
+            unset($d['kit']);
+        } else {
+            if (!is_array($corpo['kit']) || count($corpo['kit']) > 30) {
+                throw new ErroValidacao('Lista de equipamentos inválida.');
+            }
+            $d['kit'] = array_values(array_unique(array_filter(array_map(function ($n) {
+                return plano_texto($n, 120);
+            }, $corpo['kit']), function ($n) {
+                return $n !== '';
+            })));
+        }
+    }
+    if (isset($corpo['cob'])) {
+        if (!in_array($corpo['cob'], ['uso', 'corridos'], true)) {
+            throw new ErroValidacao('Forma de cobrança dos dias inválida.');
+        }
+        $d['cob'] = $corpo['cob'];
+    }
+    $precos = isset($d['precos']) && is_array($d['precos']) ? $d['precos'] : [];
+    if (isset($corpo['preco']) && is_array($corpo['preco'])) {
+        $chave = plano_texto($corpo['preco']['chave'] ?? '', 300);
+        if ($chave === '') {
+            throw new ErroValidacao('Atividade sem identificação. Recarregue a tela.');
+        }
+        $v = numero($corpo['preco']['valor'] ?? null);
+        if ($v === null || $v <= 0) {
+            unset($precos[$chave]);
+        } else {
+            $precos[$chave] = $v;
+        }
+    }
+    if (isset($corpo['precos_importar']) && is_array($corpo['precos_importar'])) {   // migração única do que estava só no navegador
+        foreach (array_slice($corpo['precos_importar'], 0, 300, true) as $chave => $valor) {
+            $chave = plano_texto((string)$chave, 300);
+            $v = numero($valor);
+            if ($chave !== '' && $v !== null && $v > 0 && !isset($precos[$chave])) {
+                $precos[$chave] = $v;
+            }
+        }
+    }
+    $d['precos'] = (object)$precos;
+    sistema_gravar('projecao_config', json_encode($d, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('projecao_config', ['kit' => $d['kit'] ?? null, 'cob' => $d['cob'] ?? null, 'precos' => count($precos)]);
+    return ['salvos' => 1, 'config' => $d];
 }
 
 function planos_ler()
