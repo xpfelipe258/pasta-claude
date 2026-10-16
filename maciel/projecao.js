@@ -364,7 +364,7 @@ function pjResumoEmpresas(sel, empresas, fator, R) {
 }
 
 // ---------------------------------------------------------------- tela
-function pjPlanosAtivos() { return (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.itens.length); }
+function pjPlanosAtivos() { return (PL.dados?.planos || []).filter(p => !['concluido', 'rascunho', 'arquivado'].includes(p.status) && p.inicio && p.fim && Array.isArray(p.itens) && p.itens.length); }
 async function renderProjecao() {
   const box = document.getElementById('projCorpo');
   if (!box) return;

@@ -1845,10 +1845,15 @@ function acao_planos(array $corpo, array $usuario)
             }
         }
     }
+    $rasc = (($p['status'] ?? '') === 'rascunho');   // rascunho: guarda o que já foi preenchido (sem quantidade/atividades obrigatórias) para continuar depois
     $itens = [];
     foreach (($p['itens'] ?? []) as $k => $it) {
         if (!is_array($it)) {
             continue;
+        }
+        if ($rasc) {
+            if (trim((string)($it['inicio'] ?? '')) === '') { $it['inicio'] = $ini; }
+            if (trim((string)($it['fim'] ?? '')) === '') { $it['fim'] = $fim; }
         }
         $n = $k + 1;
         $chave = plano_texto($it['chave'] ?? '', 200);
@@ -1857,7 +1862,9 @@ function acao_planos(array $corpo, array $usuario)
         }
         $qtd = numero($it['qtd'] ?? null);
         $peso = numero($it['peso'] ?? null);
-        if ($qtd === null || $qtd <= 0) {
+        if ($rasc) {
+            $qtd = ($qtd !== null && $qtd > 0) ? $qtd : 0;
+        } elseif ($qtd === null || $qtd <= 0) {
             throw new ErroValidacao('Atividade ' . plano_texto($it['atividade'] ?? $chave, 80) . ': informe a quantidade a executar no período (maior que zero).');
         }
         $iIni = plano_data($it['inicio'] ?? '', 'o início da atividade ' . $n, true);
@@ -1879,14 +1886,14 @@ function acao_planos(array $corpo, array $usuario)
             throw new ErroValidacao('Máximo de 300 atividades por plano.');
         }
     }
-    if (!$itens) {
+    if (!$itens && !$rasc) {
         throw new ErroValidacao('Escolha ao menos uma atividade para o planejamento.');
     }
     $id = plano_texto($p['id'] ?? '', 40);
     $agora = date('c');
     $quem = (string)($usuario['nome'] ?? $usuario['login'] ?? '');
     $novo = ['id' => $id, 'nome' => $nome, 'inicio' => $ini, 'fim' => $fim, 'responsavel' => plano_texto($p['responsavel'] ?? '', 120),
-        'objetivo' => plano_texto($p['objetivo'] ?? '', 800), 'status' => in_array(($p['status'] ?? ''), ['ativo', 'concluido', 'arquivado'], true) ? $p['status'] : 'ativo',
+        'objetivo' => plano_texto($p['objetivo'] ?? '', 800), 'status' => in_array(($p['status'] ?? ''), ['ativo', 'concluido', 'arquivado', 'rascunho'], true) ? $p['status'] : 'ativo',
         'itens' => $itens, 'atualizado_em' => $agora, 'atualizado_por' => $quem];
     $achou = false;
     if ($id !== '') {

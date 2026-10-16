@@ -437,6 +437,7 @@ async function renderPlanejamento() {
     return;
   }
   h += '<div class="pl-cartoes">' + planos.map(p => {
+    if (p.status === 'rascunho' || !p.inicio || !p.fim || !Array.isArray(p.itens)) return `<button class="pl-cartao ${p.id === PL.sel ? 'sel' : ''}" data-pl-abrir="${esc(p.id)}"><div class="pl-cartao-topo"><b>${esc(p.nome)}</b><span class="farol f-pendente">RASCUNHO</span></div><div class="nota">${p.inicio ? fdA(p.inicio) : '—'} a ${p.fim ? fdA(p.fim) : '—'} · ${(p.itens || []).length} atividade(s)</div><div class="nota">Não entra nos painéis até ser publicado.</div></button>`;
     const c = plCalc(p), st = plStatusPlano(c);
     return `<button class="pl-cartao ${p.id === PL.sel ? 'sel' : ''}" data-pl-abrir="${esc(p.id)}">
       <div class="pl-cartao-topo"><b>${esc(p.nome)}</b>${plFarol(st)}</div>
@@ -452,6 +453,12 @@ async function renderPlanejamento() {
 function plRenderPainel() {
   const pl = plPlano(PL.sel), box = $('#plPainel');
   if (!pl || !box) return;
+  if (pl.status === 'rascunho' || !pl.inicio || !pl.fim || !Array.isArray(pl.itens)) {
+    box.innerHTML = `<div class="bloco pl-cab"><div><h3>${esc(pl.nome)} <span class="farol f-pendente">RASCUNHO</span></h3><p class="nota">${pl.inicio ? fdA(pl.inicio) : '—'} a ${pl.fim ? fdA(pl.fim) : '—'} · ${(pl.itens || []).length} atividade(s)${pl.atualizado_em ? ' · salvo em ' + new Date(pl.atualizado_em).toLocaleString('pt-BR') : ''}${pl.atualizado_por ? ' por ' + esc(pl.atualizado_por) : ''}</p>
+      <p class="nota">Planejamento ainda em preparo: não aparece no Painel nem na Projeção e não calcula curva S. Continue a edição e publique quando estiver pronto.</p></div>
+      <div class="acoes"><button class="btn primario" data-pl-editar>Continuar editando</button><button class="btn perigo" data-pl-excluir>Excluir</button></div></div>`;
+    return;
+  }
   const c = plCalc(pl), st = plStatusPlano(c);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const dRest = c.diasRest;
@@ -706,7 +713,8 @@ function plWizRender() {
     <div class="pl-passos">${passos.map((p, i) => `<button data-pl-passo="${i + 1}" class="${w.passo === i + 1 ? 'ativo' : ''} ${w.passo > i + 1 ? 'feito' : ''}"><span>${i + 1}</span> ${p}</button>`).join('')}</div>
     <div class="pl-modal-corpo">${corpo}</div>
     <div class="pl-modal-pe"><span class="nota" id="plWizMsg"></span><div class="acoes">${w.passo > 1 ? '<button class="btn" data-pl-voltar>Voltar</button>' : ''}
-      ${w.passo < 3 ? '<button class="btn primario" data-pl-proximo>Próximo</button>' : `<button class="btn primario" data-pl-criar>${w.id ? 'Salvar alterações' : 'Criar planejamento'}</button>`}</div></div></div>`;
+      <button class="btn" data-pl-rascunho-salvar title="Guarda o que já foi preenchido no sistema, sem exigir quantidades e empresas; não entra nos painéis até ser publicado">Salvar como rascunho</button>
+      ${w.passo < 3 ? '<button class="btn primario" data-pl-proximo>Próximo</button>' : `<button class="btn primario" data-pl-criar>${w.status === 'rascunho' ? 'Publicar planejamento' : w.id ? 'Salvar alterações' : 'Criar planejamento'}</button>`}</div></div></div>`;
   const alvo = m.querySelector('[data-pl-w="nome"]');
   if (alvo && !w.nome) alvo.focus();
   plRascunhoSalvar();
@@ -816,17 +824,19 @@ function plWizValidar(passo) {
   }
   return '';
 }
-async function plWizSalvar() {
-  const w = PL.wiz, erro = plWizValidar(3);
+// rascunho = true: salva no sistema o que já foi preenchido (só nome e período são obrigatórios) com status "rascunho"; fora dos painéis até ser publicado.
+async function plWizSalvar(rascunho) {
+  const w = PL.wiz, erro = rascunho ? plWizValidar(1) : plWizValidar(3);
   if (erro) return plWizMsg(erro, true);
-  const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status: w.status,
-    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd), peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null })) };
+  const status = rascunho ? 'rascunho' : (w.status === 'rascunho' ? 'ativo' : w.status);   // publicar um rascunho o torna ativo
+  const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status,
+    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd) || 0, peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null })) };
   try {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);
     PL.sel = r.id || w.id; PL.vista = 'resumo'; PL.atv = ''; PL.sub = 'planos';
     plWizFechar(true);
-    toast('Planejamento salvo ' + ONDE);
+    toast(rascunho ? 'Rascunho salvo ' + ONDE + ' — continue quando quiser em Planos 5W2H.' : 'Planejamento salvo ' + ONDE);
     renderPlanejamento();
   } catch (e) { plWizMsg(e.message || 'Erro ao salvar.', true); }
 }
@@ -914,6 +924,7 @@ document.addEventListener('click', async ev => {
     if (w.passo === 3) plWizPrepararItens();
     return plWizRender();
   }
+  if (t.closest('[data-pl-rascunho-salvar]')) return plWizSalvar(true);
   if (t.closest('[data-pl-criar]')) return plWizSalvar();
   const marca = t.closest('[data-pl-marca]');
   if (marca) { const a = plAtivPorChave(marca.dataset.plMarca); if (marca.checked) { if (a && !w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); } else w.sel.delete(marca.dataset.plMarca); return plWizRender(); }
@@ -1001,7 +1012,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && PL.wiz &
 // O que foi planejado (planos 5W2H ativos que cruzam o período do Painel) × o que foi executado: curva S, % executado e situação por atividade.
 // Também alimenta a coluna "Plano 5W2H" do Farol do período e os pontos de atenção.
 PL.pp = { plano: '', atv: '' };
-const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => p.status !== 'concluido' && p.inicio && p.fim && Array.isArray(p.itens) && p.inicio <= per.fim && p.fim >= per.ini);
+const plPlanosPainel = () => (PL.dados?.planos || []).filter(p => !['concluido', 'rascunho', 'arquivado'].includes(p.status) && p.inicio && p.fim && Array.isArray(p.itens) && p.inicio <= per.fim && p.fim >= per.ini);
 // Empresas que executam o item NO PLANO (escolhidas no 5W2H, campo empresa); sem escolha, as da atividade na grade.
 function plEmpresasDoItem(it, a) {
   const nomes = M.empresas.map(e => e.nome).filter(n => ganNorm(it.empresa || '').includes(ganNorm(n)));
