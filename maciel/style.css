@@ -971,3 +971,5 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pj-legenda-barra i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
 .pj-b-plan-leg{display:inline-block;width:3px;height:14px;background:var(--fg);vertical-align:-3px;margin-right:4px}
 .pj-painel .tiles{margin-top:12px}
+.pl-spark{display:block}
+.pl-sug td .nota{font-size:11px;white-space:normal}
