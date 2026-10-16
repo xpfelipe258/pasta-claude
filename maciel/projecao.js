@@ -77,9 +77,8 @@ function pjDaEmpresa(c, emp, pl) {
     const mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
     const it = { ...x.it, qtd: (Number(x.it.qtd) || 0) * f, meta_dia: Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia };
     const real = new Map();
-    let r0 = x.r0 * f;
+    const r0 = 0;   // só o produzido dentro do período do plano
     if (serie) {
-      if (a.acumulado) r0 = soma0(serie.filter(([d]) => d < jan.inicio && d <= base), ([, v]) => v);
       serie.forEach(([d, v]) => { if (d >= jan.inicio && d <= jan.fim && d <= base) real.set(d, (real.get(d) || 0) + v); });
     } else x.real.forEach((v, d) => real.set(d, v * f));   // sem lançamentos por empresa: parte igual da produção da atividade
     const realAc = r0 + soma0([...real.values()], v => v);
