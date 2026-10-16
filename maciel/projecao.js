@@ -11,7 +11,7 @@
 // Depende de app.js e planos.js: M, T, ref, bmItens, bmPrecoAtividade, bmTab, ganBmAtividades, ganBmAtividadesEspecificas, clienteFonte,
 // ECLUSA_VJ, proxDiaUtil, plCarregar, plCalc, plPlanosPainel-like (planos ativos), plDistribuirTaxa, plInteiro, trocarGrafico, eixos, cor, rs, rs2, nf, fd, fdA.
 // ------------------------------------------------------------------------------------------------
-const PJ = { plano: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false };
+const PJ = { plano: '', emp: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false };
 const PJ_LS = 'obra198_proj_preco_manual';
 function pjManual() {
   if (PJ.manual) return PJ.manual;
@@ -39,6 +39,52 @@ function pjPreco(ativ, R, cache) {
   });
   const base = Number(it.qtd) || 0, bm = base > 0 && total > 0 ? total / base : 0, man = Number(pjManual()[ativ.chave]) || 0;
   return { unit: man > 0 ? man : bm, bm, manual: man > 0, origem: man > 0 ? 'manual' : bm > 0 ? 'BM' : 'sem', codigos: ats.map(a => a.codigo) };
+}
+
+// ---------------------------------------------------------------- recorte por empresa
+// Atividade feita por mais de uma empresa (ex.: Pré-montagem = EJ e CMM): a quantidade e o planejado da empresa são a parte dela
+// (contrato ÷ nº de empresas que executam, a mesma regra do relatório de impactos) e o executado é o que ELA lançou.
+function pjSerieEmpresa(a, emp) {
+  const pe = a.linha?.porEmp || [];
+  if (!pe.length) return null;
+  const meu = pe.find(x => ganNorm(x.nome) === ganNorm(emp));
+  const somaPe = soma0(pe, x => soma0(x.ds, ([, v]) => v)), tot = soma0(plSerieReal(a), ([, v]) => v);
+  const k = somaPe > 0 ? Math.min(1, tot / somaPe) : 1;   // lançamento + BM do mesmo trabalho não contam em dobro
+  return (meu ? meu.ds : []).map(([d, v]) => [d, v * k]);
+}
+function pjDaEmpresa(c, emp, pl) {
+  const itens = c.itens.map(x => {
+    const a = x.ativ, emps = a?.empresas || [], n = emps.includes(emp) && emps.length > 1 ? emps.length : 1, f = 1 / n;
+    if (n === 1) return x;
+    const jan = x.it._plano || { inicio: pl.inicio, fim: pl.fim }, base = c.base;
+    const serie = pjSerieEmpresa(a, emp);
+    const mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
+    const it = { ...x.it, qtd: (Number(x.it.qtd) || 0) * f, meta_dia: Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia };
+    const real = new Map();
+    let r0 = x.r0 * f;
+    if (serie) {
+      if (a.acumulado) r0 = soma0(serie.filter(([d]) => d < jan.inicio && d <= base), ([, v]) => v);
+      serie.forEach(([d, v]) => { if (d >= jan.inicio && d <= jan.fim && d <= base) real.set(d, (real.get(d) || 0) + v); });
+    } else x.real.forEach((v, d) => real.set(d, v * f));   // sem lançamentos por empresa: parte igual da produção da atividade
+    const realAc = r0 + soma0([...real.values()], v => v);
+    let planAc = r0;
+    mapaPlan.forEach((v, d) => { if (d <= base) planAc += v; });
+    const ultimos = [];
+    for (let d = base, k = 0; k < 5 && d >= jan.inicio; d = add(d, -1)) if (diaUtil(d)) { ultimos.push(d); k++; }
+    const ritmo = ultimos.length ? soma0(ultimos, d => real.get(d) || 0) / ultimos.length : 0;
+    const taxaProj = ritmo > 0 ? ritmo : x.meta * f;
+    let acum = r0, concluiu = null;
+    [...real.keys()].sort().forEach(d => { acum += real.get(d); if (!concluiu && acum >= it.qtd - 1e-9) concluiu = d; });
+    const ratio = planAc > 0 ? realAc / planAc : null;
+    let status;
+    if (realAc >= it.qtd - 1e-9) status = 'CONCLUÍDO';
+    else if (base < it.inicio && realAc <= 0) status = 'A INICIAR';
+    else if (ratio === null) status = realAc > 0 ? 'ADIANTADO' : 'A INICIAR';
+    else status = ratio >= 1.05 ? 'ADIANTADO' : ratio >= 1 ? 'NO PRAZO' : ratio >= .95 ? 'NO LIMITE' : 'ATRASADO';
+    if (status === 'NO PRAZO' && base > it.fim && it.qtd - realAc > 0) status = 'ATRASADO';
+    return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: x.meta * f, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n };
+  });
+  return { ...c, itens };
 }
 
 // ---------------------------------------------------------------- cálculo
@@ -110,9 +156,11 @@ async function renderProjecao() {
   }
   if (PJ.plano && !planos.some(p => p.id === PJ.plano)) PJ.plano = '';
   const sel = PJ.plano ? planos.filter(p => p.id === PJ.plano) : planos;
-  const pl = plPlanoCombinado(sel, '');
+  const empresas = M.empresas.map(e => e.nome).filter(n => plPlanoCombinado(sel, n));
+  if (PJ.emp && !empresas.includes(PJ.emp)) PJ.emp = '';
+  const pl = plPlanoCombinado(sel, PJ.emp);
   if (!pl) { box.innerHTML = '<p class="nota">O plano escolhido não tem atividades.</p>'; return; }
-  const c = plCalc(pl), R = PJ.contrato, fator = PJ.prod / 100;
+  const c = PJ.emp ? pjDaEmpresa(plCalc(pl), PJ.emp, pl) : plCalc(pl), R = PJ.contrato, fator = PJ.prod / 100;
   const r = pjCalc(pl, c, fator, R);
   const sim = fator !== 1;
 
@@ -120,9 +168,10 @@ async function renderProjecao() {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const desv = r.exec - r.planoAteHoje, pctFis = r.totalPlano ? r.exec / r.totalPlano * 100 : 0, pctPrev = r.totalPlano ? r.planoAteHoje / r.totalPlano * 100 : 0;
   const aoFim = r.aoFimPlano ?? 0, foraPrazo = Math.max(0, r.totalPlano - aoFim);
-  let h = `<div class="bloco"><div class="bloco-cab"><h2>Projeção físico-financeira</h2><span class="nota">Simulação a partir do planejamento 5W2H + o que já foi executado (até ${fdA(c.baseRef)}).</span></div>
+  let h = `<div class="bloco"><div class="bloco-cab"><h2>Projeção físico-financeira${PJ.emp ? ' — ' + esc(PJ.emp) : ''}</h2><span class="nota">Simulação a partir do planejamento 5W2H + o que já foi executado (até ${fdA(c.baseRef)}).</span></div>
     <div class="barra-acoes">
       <label class="rot-sel">Plano <select id="pjPlano">${optPl}</select></label>
+      <label class="rot-sel">Empresa <select id="pjEmp"><option value="">Todas as empresas</option>${empresas.map(n => `<option value="${esc(n)}" ${n === PJ.emp ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="rot-sel">Contrato do BM <select id="pjContrato"><option ${R === 'RÓTULA' ? 'selected' : ''}>RÓTULA</option><option ${R === 'QPC' ? 'selected' : ''}>QPC</option></select></label>
       <label class="rot-sel">Produtividade daqui para frente <input type="range" id="pjProd" min="40" max="200" step="5" value="${PJ.prod}" style="vertical-align:middle"> <b id="pjProdTxt">${PJ.prod}%</b> <span class="nota">do ritmo atual</span></label>
       <label class="rot-sel">Colunas <select id="pjVista"><option value="semana" ${PJ.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${PJ.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
@@ -134,6 +183,8 @@ async function renderProjecao() {
     tile('Executado até hoje', rs(r.exec), `${nf(pctFis, 1)}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(r.planoAteHoje, 1) ? 'var(--vermelho)' : desv < 0 ? 'var(--amarelo)' : 'var(--verde)') +
     tile(`Projeção no fim do plano${sim ? ' (simulada)' : ''}`, rs(aoFim), `${r.totalPlano ? nf(aoFim / r.totalPlano * 100, 0) : 0}% do plano${foraPrazo > 0.5 ? ' · ' + rs(foraPrazo) + ' ficam para depois' : ' · fecha no prazo'}`, foraPrazo > 0.5 ? 'var(--vermelho)' : 'var(--verde)') +
     tile('Término projetado', r.termina ? fdA(r.termina) : '—', r.termina && r.termina > r.fimPlano ? `${contarDiasUteis(r.fimPlano, r.termina)} dias úteis depois do fim do plano (${fdA(r.fimPlano)})` : `plano termina em ${fdA(r.fimPlano)}`, r.termina && r.termina > r.fimPlano ? 'var(--amarelo)' : 'var(--verde)') + '</div>';
+  const comParte = r.itens.filter(i => i.x._parte);
+  if (PJ.emp && comParte.length) h += `<div class="faixa faixa-info">${esc(PJ.emp)}: ${comParte.map(i => esc(i.x.it.atividade)).join(', ')} ${comParte.length > 1 ? 'são feitas' : 'é feita'} por mais de uma empresa — a quantidade, o planejado e o valor de ${esc(PJ.emp)} são a parte dela (contrato ÷ nº de empresas) e o executado é o que ${esc(PJ.emp)} lançou.</div>`;
   if (r.semValor.length) h += `<div class="faixa">${r.semValor.length} atividade(s) sem valor no BM (R$ 0): ${r.semValor.map(i => esc(i.x.it.atividade)).join(', ')}. Digite o preço unitário na coluna “Preço unit.” para entrarem na projeção.</div>`;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Curva S financeira (R$ acumulado)</h2><div class="legenda"><span class="nota">Linha cheia = executado · tracejada = planejado · pontilhada = projeção${sim ? ' (' + PJ.prod + '% do ritmo atual)' : ' no ritmo atual'} · cinza = necessário para fechar no prazo</span></div></div><div class="grafico pl-grafico"><canvas id="gProjecao"></canvas></div></div>`;
 
@@ -210,7 +261,7 @@ function pjCsv() {
   linhas.push([q('Executado + projetado no período'), '', '', ...d.totPer.map(t => num(t.ex + t.pj)), num(soma0(d.totPer, t => t.ex + t.pj))].join(';'));
   const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = `projecao_fisico_financeira_${hoje()}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  a.href = url; a.download = `projecao_fisico_financeira${PJ.emp ? '_' + PJ.emp.replace(/[^A-Za-z0-9]+/g, '_') : ''}_${hoje()}.csv`; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
@@ -218,6 +269,7 @@ function pjCsv() {
 document.addEventListener('change', ev => {
   const t = ev.target;
   if (t.id === 'pjPlano') { PJ.plano = t.value; renderProjecao(); }
+  else if (t.id === 'pjEmp') { PJ.emp = t.value; renderProjecao(); }
   else if (t.id === 'pjContrato') { PJ.contrato = t.value; renderProjecao(); }
   else if (t.id === 'pjVista') { PJ.vista = t.value; renderProjecao(); }
   else if (t.id === 'pjProd') { PJ.prod = +t.value; renderProjecao(); }

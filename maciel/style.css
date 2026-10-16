@@ -953,3 +953,5 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pj-leg.pj-real{background:color-mix(in srgb,var(--verde) 45%,transparent)}
 .pj-leg.pj-proj{background:color-mix(in srgb,var(--amarelo) 55%,transparent)}
 
+#projCorpo .faixa{margin-left:0;margin-bottom:10px;border-radius:8px;padding:8px 14px}
+#projCorpo .faixa-info{background:color-mix(in srgb,var(--acento) 10%,var(--card));color:var(--fg2);font-weight:500}
