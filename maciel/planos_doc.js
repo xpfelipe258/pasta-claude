@@ -356,6 +356,13 @@ function pldFluxoAtividade(x, c) {
 // ---- empresas que executam cada serviço (escolhidas no 5W2H; sem escolha, as da grade de lançamentos)
 const pldEmpresas = x => { const l = plEmpresasDoItem(x.it, x.ativ); return l.length ? l : ['SEM EMPRESA DEFINIDA']; };
 const pldChipsEmp = x => pldEmpresas(x).map(n => `<span class="emp">${esc(n)}</span>`).join('');
+// Selo de qualidade dos dados na capa: as pendências que afetam as atividades do plano (as de gravidade alta ficam listadas)
+function pldQualidade(pl) {
+  const itens = plQualidadeDosPlanos([pl]), altas = itens.filter(i => i.sev === 'alta');
+  if (!itens.length) return '<p class="obj"><b>Qualidade dos dados:</b> <span class="emp">sem pendências nas atividades deste plano</span></p>';
+  return `<p class="obj"><b>Qualidade dos dados:</b> <span class="emp" style="background:${altas.length ? '#fde2e2' : '#fff3cd'}">${itens.length} pendência(s) nas atividades deste plano (${altas.length} alta(s))</span> <span class="mini">confira os números abaixo com a área de Planejamento → Qualidade dos dados</span></p>`
+    + (altas.length ? `<ul class="mini">${altas.map(i => `<li><b>${esc(i.tipo)}:</b> ${esc(i.alvo)} — ${esc(i.det)}</li>`).join('')}</ul>` : '');
+}
 function pldListaEmpresas(c) {
   const todas = [...new Set(c.itens.flatMap(pldEmpresas))];
   const ordem = M.empresas.map(e => e.nome);
@@ -515,6 +522,7 @@ function plDocHtml(pl) {
   <p class="sub">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s)${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''}</p>
   ${pl.objetivo ? `<p class="obj"><b>Objetivo:</b> ${esc(pl.objetivo)}</p>` : ''}
   <p class="obj"><b>Empresas executoras:</b> ${pldListaEmpresas(c).map(n => `<span class="emp">${esc(n)}</span> <span class="mini">${c.itens.filter(x => pldEmpresas(x).includes(n)).length} serviço(s)</span>`).join(' ')}</p>
+  ${pldQualidade(pl)}
   <div class="tiles">
     <div><span>Planejado até a referência</span><b>${nf(c.pctPlan, 1)}%</b></div>
     <div><span>Realizado</span><b>${nf(c.pctReal, 1)}%</b></div>

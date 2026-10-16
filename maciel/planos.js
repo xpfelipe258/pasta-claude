@@ -950,13 +950,13 @@ function plQualidade() {
   grupos.forEach(g => {
     const a = g.itens[0], un = a.unidade, lanc = Math.max(g.grade, g.bm), nome = g.itens.map(x => x.nome + ' · ' + cap(x.frente)).join(' + ');
     if (g.qtd > 0 && lanc > g.qtd * 1.02 + 1e-9)
-      itens.push({ sev: 'alta', tipo: 'Lançado acima do contrato', alvo: nome, chave: a.chave, det: `lançado ${plFmt(lanc, un)} ${un} (${g.grade >= g.bm ? 'grade' : 'BM'}) > contrato ${plFmt(g.qtd, un)} ${un}${g.itens.length > 1 ? ' (fases somadas)' : ''}; o sistema corta no contrato`, como: 'Conferir lançamentos duplicados, unidade (m² × telhas) ou o contrato do cronograma.' });
+      itens.push({ sev: 'alta', tipo: 'Lançado acima do contrato', alvo: nome, chave: a.chave, chaves: g.itens.map(x => x.chave), det: `lançado ${plFmt(lanc, un)} ${un} (${g.grade >= g.bm ? 'grade' : 'BM'}) > contrato ${plFmt(g.qtd, un)} ${un}${g.itens.length > 1 ? ' (fases somadas)' : ''}; o sistema corta no contrato`, como: 'Conferir lançamentos duplicados, unidade (m² × telhas) ou o contrato do cronograma.' });
     if (g.grade > 1e-9 && g.bm > 1e-9 && Math.abs(g.grade - g.bm) / Math.max(g.grade, g.bm) > .10)
-      itens.push({ sev: 'alta', tipo: 'Grade × BM divergentes', alvo: nome, chave: a.chave, det: `grade ${plFmt(g.grade, un)} ${un} × BM ${plFmt(g.bm, un)} ${un} (${nf(Math.abs(g.grade - g.bm) / Math.max(g.grade, g.bm) * 100, 0)}% de diferença); vale o maior, nunca a soma`, como: 'Alinhar o apontamento do BM com o lançamento da grade.' });
+      itens.push({ sev: 'alta', tipo: 'Grade × BM divergentes', alvo: nome, chave: a.chave, chaves: g.itens.map(x => x.chave), det: `grade ${plFmt(g.grade, un)} ${un} × BM ${plFmt(g.bm, un)} ${un} (${nf(Math.abs(g.grade - g.bm) / Math.max(g.grade, g.bm) * 100, 0)}% de diferença); vale o maior, nunca a soma`, como: 'Alinhar o apontamento do BM com o lançamento da grade.' });
   });
   origens.forEach(({ a, o }) => {
     if (!o.grade.length && !o.bm.length && !a.it.bm_percentual)
-      itens.push({ sev: 'baixa', tipo: 'Atividade sem fonte de lançamento', alvo: `${a.nome} · ${cap(a.frente)}`, chave: a.chave, det: 'nenhuma coluna da grade nem atividade do catálogo do BM está ligada: nunca receberá realizado', como: 'Criar/renomear a coluna da empresa ou ligar a atividade ao catálogo do BM.' });
+      itens.push({ sev: 'baixa', tipo: 'Atividade sem fonte de lançamento', alvo: `${a.nome} · ${cap(a.frente)}`, chave: a.chave, chaves: [a.chave], det: 'nenhuma coluna da grade nem atividade do catálogo do BM está ligada: nunca receberá realizado', como: 'Criar/renomear a coluna da empresa ou ligar a atividade ao catálogo do BM.' });
   });
   const base = plBase();
   M.empresas.forEach(e => (e.servicos || []).forEach(sv => {
@@ -972,6 +972,17 @@ function plQualidade() {
     if (t > 0) itens.push({ sev: 'media', tipo: 'Apontamento do BM sem atividade', alvo: `${at.empresa} · ${at.codigo} — ${at.item_desc || ''} ${at.atividade || ''}`, det: `${plFmt(t, '')} ${at.unidade || ''} apontados no BM não entram em nenhuma atividade do cronograma`, como: 'Ligar a atividade do catálogo ao cronograma (nome do serviço).' });
   });
   return itens.sort((x, y) => sev[x.sev] - sev[y.sev] || x.tipo.localeCompare(y.tipo) || x.alvo.localeCompare(y.alvo));
+}
+// Pendências que afetam as atividades dos planos informados (as de coluna/apontamento sem atividade não têm chave e ficam de fora)
+function plQualidadeDosPlanos(planos) {
+  const ch = new Set((planos || []).flatMap(p => (p.itens || []).map(i => i.chave)));
+  return plQualidade().filter(i => (i.chaves || []).some(k => ch.has(k)));
+}
+function plSeloQualidade(itens, comLink) {
+  const n = s => itens.filter(i => i.sev === s).length;
+  const ver = comLink ? ' <button class="btn-link pl-audit-val" data-pl-ir-qual>ver pendências</button>' : '';
+  if (!itens.length) return `<span class="farol f-verde" title="Nenhuma pendência de dados nas atividades deste plano">DADOS CONSISTENTES</span>${comLink ? ver : ''}`;
+  return `<span class="farol f-${n('alta') ? 'vermelho' : n('media') ? 'amarelo' : 'pendente'}" title="Pendências de dados que afetam estas atividades">${itens.length} PENDÊNCIA(S) DE DADOS</span> <span class="nota">${n('alta')} alta(s) · ${n('media')} média(s) · ${n('baixa')} baixa(s)</span>${ver}`;
 }
 function renderQualidade(box) {
   PL._atv = null;
@@ -1018,6 +1029,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape') plAuditori
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', async ev => {
   const t = ev.target;
+  if (t.closest('[data-pl-ir-qual]')) { PL.sub = 'qual'; return mudarAba('plan'); }
   const au = t.closest('[data-pl-audit]');
   if (au) return plAuditoriaAbrir(au.dataset.plAudit, au.dataset.ini, au.dataset.fim);
   if (t.closest('[data-pl-audit-fechar]') || (t.id === 'plAudit' && PL._md === t)) return plAuditoriaFechar();
@@ -1234,7 +1246,8 @@ async function renderPainelPlanos() {
     if (JSON.stringify(PL.dados.planos) !== antes) { renderPainel(); return; }   // planos mudaram: refaz Farol e alertas também
   }
   const planos = plPlanosPainel(), emp = painelEmpFiltro || '';
-  const cab = `<div class="bloco-cab"><h2>Planejamento 5W2H — planejado × executado</h2><button class="btn" data-ir-aba="plan">Abrir Planejamento</button></div>`;
+  const selo = planos.length ? `<div class="nota">Qualidade dos dados dos planos: ${plSeloQualidade(plQualidadeDosPlanos(PL.pp.plano ? planos.filter(p => p.id === PL.pp.plano) : planos), true)}</div>` : '';
+  const cab = `<div class="bloco-cab"><h2>Planejamento 5W2H — planejado × executado</h2><button class="btn" data-ir-aba="plan">Abrir Planejamento</button></div>${selo}`;
   if (!planos.length) {
     box.innerHTML = `${cab}<p class="nota">Nenhum planejamento 5W2H ativo no período de ${fdA(per.ini)} a ${fdA(per.fim)}. Crie em Planejamento → Sugestão do cronograma → “Criar planejamento”: a curva S e o % executado aparecem aqui.</p>`;
     return;
