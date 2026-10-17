@@ -1309,20 +1309,44 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
 // com os trechos vindos do mapa extraído do IFC.
 function tipos_frente()
 {
-    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento'];
+    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha'];
+}
+
+// Telhas da cobertura (Globo Aços): cada telha corre do eixo A ao H (177,32 m) e ocupa 0,485 m entre eixos ao longo do comprimento do galpão
+// (eixo 01 ao 20). Uma "célula" do mapa = uma telha, numerada de 0001 em diante a partir do eixo 01; apontar = +1 em "Instalação de telhas".
+function frente_telhas(array $malha)
+{
+    $comp = (int)($malha['comprimento_mm'] ?? 0) ?: 427500;
+    $larg = 485;
+    $n = (int)ceil($comp / $larg);
+    $cel = [];
+    for ($i = 1; $i <= $n; $i++) {
+        $cel[] = ['trecho' => sprintf('%04d', $i), 'pecas' => ['TELHA' => 1], 'total' => 1];
+    }
+    return ['titulo' => 'Instalação de telhas — Globo Aços', 'servico' => 'Instalação de telhas', 'empresa' => 'GLOBO AÇOS',
+        'telha' => ['comprimento_m' => 177.32, 'largura_mm' => $larg, 'n' => $n, 'comprimento_galpao_mm' => $comp],
+        'partes' => [['id' => 'GLOBO', 'nome' => 'Telhas do galpão (eixo A ao H)', 'celulas' => $cel, 'total' => $n]],
+        'total' => $n, 'familias' => ['TELHA']];
 }
 
 function frentes_montagem()
 {
+    $d = null;
     $salvo = json_decode((string)sistema_ler('frentes_montagem', 'null'), true);
-    if (is_array($salvo)) { return $salvo; }
-    if (sistema_ler('dados_legados', '0') !== '1') { return null; }
-    $p = __DIR__ . '/inc/frentes_montagem.json';
-    if (!is_file($p)) {
-        return null;
+    if (is_array($salvo)) {
+        $d = $salvo;
+    } elseif (sistema_ler('dados_legados', '0') === '1') {
+        $p = __DIR__ . '/inc/frentes_montagem.json';
+        if (is_file($p)) {
+            $lido = json_decode(file_get_contents($p), true);
+            $d = is_array($lido) ? $lido : null;
+        }
     }
-    $d = json_decode(file_get_contents($p), true);
-    return is_array($d) ? $d : null;
+    $d = $d ?? ['frentes' => [], 'malha' => []];
+    if (empty($d['frentes']['telha'])) {   // as telhas da Globo são geradas da malha (não vêm do IFC)
+        $d['frentes']['telha'] = frente_telhas($d['malha'] ?? []);
+    }
+    return $d;
 }
 
 function frente_item(array $item, array $frentes, array &$ja, array $base, $data)
@@ -1554,7 +1578,7 @@ function acao_apontamento(array $corpo, array $usuario)
             // Determina fase pelo eixo: eixo < 11 → GALPÃO F2, senão F1
             $frente = frente_galpao($eixo);
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE ou CONTRAVENTAMENTO).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO ou TELHA).');
         }
         $novas = array_merge($novas, $doItem);
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');

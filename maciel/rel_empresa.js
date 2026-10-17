@@ -509,23 +509,52 @@ function reMapaContrav(emp, ini, cores, feitas) {
   return { svg: o.join('') + '</svg>', n, total: el.paineis.filter(p => comCth.has(p.rua)).length };
 }
 
+// Telhas da Globo Aços: uma faixa por telha (0,485 m de largura, do eixo A ao H), do eixo 01 ao 20, pintada pelo apontamento (tipo TELHA).
+function reMapaTelhas(emp, ini, cores, ate) {
+  const fr = ((window._frentes || {}).frentes || {}).telha;
+  if (!fr) return null;
+  const t = fr.telha || {}, n = fr.total, lar = t.largura_mm || 485, malha = (window._frentes || {}).malha || {}, em = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {};
+  const px = 2, mEsq = 52, mTop = 40, alto = 190, largMm = malha.largura_mm || 175980, W = mEsq + n * px + 20, H = mTop + alto + 36;
+  const feitas = new Map(ate.filter(a => (a.tipo || '').toUpperCase() === 'TELHA').map(a => [String(a.rua), a]));
+  const o = [`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Mapa pintado das telhas">`], cont = { per: 0, ant: 0, outra: 0, pend: 0 };
+  Object.entries(estMm).filter(([l]) => /^[A-H]$/.test(l)).forEach(([l, y]) => { const yy = mTop + y / largMm * alto; o.push(`<line x1="${mEsq}" x2="${mEsq + n * px}" y1="${yy}" y2="${yy}" stroke="#e5eaf0" stroke-width=".6" stroke-dasharray="3 3"/>`, reTxt(mEsq - 6, yy + 3, l, 'text-anchor="end"')); });
+  for (let i = 1; i <= n; i++) {
+    const st = reEstadoPeca(feitas.get(String(i).padStart(4, '0')), emp, ini); cont[st]++;
+    o.push(`<rect x="${mEsq + (i - 1) * px}" y="${mTop}" width="${px - .4}" height="${alto}" ${rePinta(st, cores)} stroke-width=".2" shape-rendering="crispEdges"/>`);
+  }
+  const eixos = Object.keys(em).filter(k => k.length === 2).sort();
+  eixos.forEach(e => { const x = mEsq + em[e] / lar * px; o.push(`<line x1="${x}" x2="${x}" y1="${mTop - 8}" y2="${mTop + alto + 4}" stroke="#94a3b8" stroke-width=".8"/>`, reTxt(x, mTop - 12, e, 'text-anchor="middle" font-weight="700"')); });
+  return { svg: o.join('') + '</svg>', n: cont, total: n, m2: (t.comprimento_m || 177.32) * lar / 1000 };
+}
+
 function reMapa(emp, ini, c) {
-  const regras = window._regras_baixa;
-  if (!regras || !regras.apontamento) return { sem: 'As regras de montagem (mapa de apontamento) não estão disponíveis.' };
+  const regras = window._regras_baixa, e = empresa(emp);
+  const cfgAp = (regras && regras.apontamento) || {};
+  const temJoist = !!(e && regras && e.servicos.some(s => s.nome === cfgAp.servico_joist || s.nome === cfgAp.servico_viga));
+  const temTelha = !!(e && e.servicos.some(s => ehTelhar(ganNorm(s.nome))));
+  if (!temJoist && !temTelha) return null;   // sem montagem em mapa no catálogo da empresa: a seção não aparece
   const todos = T.apontamentos || [], ate = todos.filter(a => !a.data || a.data <= c);
-  let ctx;
-  T.apontamentos = ate;   // o mapa mostra só o que foi apontado até a data de corte
-  try { ctx = apContexto(regras); } finally { T.apontamentos = todos; }
-  const forte = corEmpHex(emp) || '#2563eb', cores = { forte };
+  const forte = corEmpHex(emp) || '#2563eb', cores = { forte }, out = { cores };
   const tipo = t => ate.filter(a => (a.tipo || '').toUpperCase() === t);
-  const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
-  const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
   const meus = (t, de) => tipo(t).filter(a => a.empresa === emp && (de ? a.data >= ini : a.data < ini));
   const qJ = lista => soma0(lista, a => a.qtd || 0);
-  return { cores, planta: pl, contrav: cv, ctx,
-    joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipo('JOIST')) },
-    viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, e => ctx.letrasEixo(e).length), feitas: tipo('VIGA').length },
-    cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipo('CONTRAVENTAMENTO').length } };
+  if (temJoist) {   // joists, vigas e contraventamentos (catálogo da EJ e da CMM)
+    if (!regras.apontamento) return { sem: 'As regras de montagem (mapa de apontamento) não estão disponíveis.' };
+    let ctx;
+    T.apontamentos = ate;   // o mapa mostra só o que foi apontado até a data de corte
+    try { ctx = apContexto(regras); } finally { T.apontamentos = todos; }
+    const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
+    const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
+    Object.assign(out, { planta: pl, contrav: cv, ctx,
+      joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipo('JOIST')) },
+      viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipo('VIGA').length },
+      cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipo('CONTRAVENTAMENTO').length } });
+  }
+  if (temTelha) {   // telhas (catálogo da Globo Aços)
+    const tl = reMapaTelhas(emp, ini, cores, ate);
+    if (tl) out.telha = { ...tl, per: meus('TELHA', true).length, ant: meus('TELHA', false).length, feitas: tipo('TELHA').length };
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- montagem dos dados e do documento
@@ -578,17 +607,23 @@ function reMapaHtml(d) {
   if (!m) return '';
   if (m.erro) return reErro(m);
   if (m.sem) return `<p class="nota">${esc(m.sem)}</p>`;
-  const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' ? 'as' : 'os'} por ${esc(d.emp)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
+  const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' || un === 'telhas' ? 'as' : 'os'} por ${esc(d.emp)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
   const leg = (cor, txt, st = '') => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px"><i style="width:14px;height:10px;border-radius:2px;display:inline-block;background:${cor};border:1px solid #6b7886;${st}"></i>${txt}</span>`;
   const f = m.cores.forte;
-  return `<h3>Mapa de montagem — o que foi montado</h3>
-    <div class="cards">${card('Joists', m.joist, 'joists')}${card('Vigas', m.viga, 'vigas')}${card('Contraventamentos (kits)', m.cont, 'kits')}</div>
-    <p class="nota mapa-leg">${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}</p>
-    <h3>Joists e vigas (planta do galpão)</h3>
-    <div class="mapa-fig">${m.planta.svg}</div>
+  let h = `<h3>Mapa de montagem — o que foi montado</h3><div class="cards">${m.planta ? card('Joists', m.joist, 'joists') + card('Vigas', m.viga, 'vigas') + card('Contraventamentos (kits)', m.cont, 'kits') : ''}${m.telha ? card('Telhas', { per: m.telha.per, ant: m.telha.ant, feitas: m.telha.feitas, total: m.telha.total }, 'telhas') : ''}</div>
+    <p class="nota mapa-leg">${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}</p>`;
+  if (m.planta) {
+    h += `<h3>Joists e vigas (planta do galpão)</h3><div class="mapa-fig">${m.planta.svg}</div>
     <p class="nota">Cada retângulo é uma joist (43 por rua, da estação A no topo à H na base); os quadrados nos eixos são as vigas. Embaixo de cada rua: joists apontadas/${m.ctx.limRua}. Peças deste período: ${nf(m.planta.nJ.per, 0)} joists e ${nf(m.planta.nV.per, 0)} vigas desta empresa.</p>
     ${m.contrav ? `<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div>
     <p class="nota">Cada X é um kit de contraventamento; ${nf(m.contrav.n.per, 0)} kit(s) montado(s) por esta empresa no período, ${nf(m.contrav.n.ant, 0)} antes, ${nf(m.contrav.n.outra, 0)} por outra empresa e ${nf(m.contrav.n.pend, 0)} pendente(s). Fonte: apontamentos de montagem.</p>` : ''}`;
+  }
+  if (m.telha) {
+    const t = m.telha;
+    h += `<h3>Telhas da cobertura (do eixo 01 ao 20)</h3><div class="mapa-fig">${t.svg}</div>
+    <p class="nota">Cada faixa é uma telha (177,32 m do eixo A ao H × 0,485 m de largura), numerada a partir do eixo 01: ${nf(t.n.per, 0)} montada(s) por esta empresa no período (≈ ${nf(t.n.per * t.m2, 0)} m²), ${nf(t.n.ant, 0)} antes, ${nf(t.n.outra, 0)} por outra empresa e ${nf(t.n.pend, 0)} pendente(s) de ${nf(t.total, 0)}. Fonte: apontamentos de montagem de telhas.</p>`;
+  }
+  return h;
 }
 function reSecSemanas(d) {
   const s = d.semanas;

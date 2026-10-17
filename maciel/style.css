@@ -998,3 +998,17 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 .re-previa-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; border-bottom: 1px solid var(--borda, #d3dbe4); }
 .re-previa-acoes { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
 .re-previa-quadro { flex: 1; width: 100%; border: 0; background: #fff; }
+
+/* mapa das telhas (Apontar montagem · Globo Aços) */
+.apt { display: block; user-select: none; -webkit-user-select: none; font-family: inherit; }
+.apt-t { cursor: pointer; shape-rendering: crispEdges; }
+.apt-t.pend { fill: var(--pend-bg); stroke: var(--linha); stroke-width: .3; }
+.apt-t.sel { fill: var(--sel, var(--acento)); opacity: .75; stroke: none; }
+.apt-t.feita { fill: var(--sel, #f5c518); cursor: default; }
+.apt-t:hover { stroke: var(--acento); stroke-width: 1; }
+.apt-est { stroke: var(--linha-forte); stroke-width: .5; stroke-dasharray: 3 3; pointer-events: none; }
+.apt-lin { stroke: var(--linha-forte); stroke-width: .8; }
+.apt-rot { font-size: 10px; fill: var(--fg3); }
+.apt-rot.b { font-weight: 700; fill: var(--fg2); }
+.apt-eixo { cursor: pointer; }
+.apt-eixo:hover .apt-rot { fill: var(--acento); }

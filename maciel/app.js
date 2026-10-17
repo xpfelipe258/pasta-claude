@@ -3591,7 +3591,7 @@ function derivarInventario(base, cv, cf) {
 // Consumo virtual por TAG. PREMONTAGEM = produção x composição. Montagem (joists e vigas) = apontamento por quadrante/tipo
 // de viga (exato); joists içadas ainda sem quadrante usam a divisão média (estimada). Vigas sem tipo apontado ainda não
 // têm consumo contabilizado. Itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
-const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' };
+const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento', TELHA: 'telha' };
 
 // Fixadores que um trecho de frente consome: kit de cada família (do projeto) x peças daquele trecho no IFC.
 // O contraventamento não tem baixa. Devolve [] quando o mapa do IFC ainda não foi carregado.
@@ -3853,7 +3853,7 @@ const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Se
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
   frente: new Map(), etapa: '' };   // frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
-const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO' };
+const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA' };
 function frentesMontagem(refazer) {
   if (window._frentes) return window._frentes.frentes ? window._frentes : null;
   if (!window._frentes_pend) {
@@ -3865,7 +3865,7 @@ function frentesMontagem(refazer) {
 }
 const apFrenteAtual = () => {
   const f = window._frentes && window._frentes.frentes;
-  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento' }[apEst.modo]] : null;
+  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento', telha: 'telha' }[apEst.modo]] : null;
 };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01', VIGA_OITAO_MONTADA: 'Oitão' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
@@ -3912,12 +3912,15 @@ function apContexto(regras) {
     evento: cod => (regras.eventos || []).find(e => e.codigo === cod) || {} };
 }
 
-const apEmpresas = ctx => apEmpresasDe(ctx.cfg.servico_joist);
+// Telhas: a empresa que monta é a que tem o serviço de instalação de telhas (Globo Aços); joists, vigas e as demais frentes: quem tem o içamento de joist
+const telhaEmpresas = () => M.empresas.filter(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome))));
+const apEmpresas = ctx => (apEst.modo === 'telha' ? telhaEmpresas() : apEmpresasDe(ctx.cfg.servico_joist));
 const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));
 
 function apGarantirEstado(ctx) {
   if (!apEst.data) apEst.data = M.datas.includes(ref) ? ref : (M.datas.filter(d => d <= hoje()).pop() || M.datas[0]);
   if (!apEmpresas(ctx).some(e => e.nome === apEst.empresa)) apEst.empresa = null;
+  if (!apEst.empresa && apEst.modo === 'telha' && apEmpresas(ctx).length === 1) apEst.empresa = apEmpresas(ctx)[0].nome;   // só a Globo monta telhas
   if (!ctx.cfg.eixos.includes(apEst.eixo)) apEst.eixo = ctx.cfg.eixos[0];
 }
 
@@ -3964,7 +3967,7 @@ function apSelecao(ctx) {
   const fs = (window._frentes || {}).frentes || {};
   const regras = window._regras_baixa || {};
   frente.forEach(f => {
-    const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento' }[f.tipo];
+    const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento', TELHA: 'telha' }[f.tipo];
     const cfgF = fs[chaveF] || {};
     // no contraventamento a "etapa" guarda o trecho do kit, não um serviço
     grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += 1;
@@ -4051,7 +4054,7 @@ function apFormHtml(regras, ctx) {
   if (s.modo in AP_FRENTE) {
     const fr = apFrenteAtual();
     h += `<div class="ap-linha">${data}</div>
-      <p class="nota">Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.</p>
+      <p class="nota">${s.modo === 'telha' ? `Escolha a empresa na barra do topo e marque as telhas montadas no mapa abaixo: ${fr ? nf(fr.total) : '—'} telhas ao longo do galpão.` : `Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.`}</p>
       <div class="ap-linha">${rodape}</div>`;
   } else if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
@@ -4225,8 +4228,62 @@ function apContravSvg() {
   return s + '</svg>';
 }
 
+// ---- telhas da cobertura (Globo Aços): uma faixa vertical por telha, do eixo A (topo) ao H (base), 0,485 m de largura, do eixo 01 ao 20
+const AP_TELHA_PX = { compacto: 2, normal: 3, grande: 5 };
+const apTelhaN = fr => (fr && fr.total) || 0;
+function apTelhaRuas(fr) {   // telhas (índices 1..n) de cada vão entre eixos principais
+  const malha = (window._frentes || {}).malha || {}, em = malha.eixos_mm || {}, lar = (fr.telha || {}).largura_mm || 485, n = apTelhaN(fr);
+  const eixos = (malha.eixos || Object.keys(em).filter(k => k.length === 2)).filter(e => e in em);
+  return eixos.slice(0, -1).map((e, i) => ({ rua: `${e}-${eixos[i + 1]}`, de: Math.floor(em[e] / lar) + 1, ate: Math.min(n, Math.ceil(em[eixos[i + 1]] / lar)) }));
+}
+function apTelhaSvg(fr) {
+  const t = fr.telha || {}, n = apTelhaN(fr), lar = t.largura_mm || 485, malha = (window._frentes || {}).malha || {};
+  const em = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {}, px = AP_TELHA_PX[apEst.zoom] || 3, mEsq = 58, mTop = 52, alto = 300, H = mTop + alto + 46;
+  const W = mEsq + n * px + 24, parte = fr.partes[0], tipo = 'TELHA';
+  const feitas = new Map();
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === tipo).forEach(a => feitas.set(String(a.rua), a));
+  const ruas = apTelhaRuas(fr), ruaDe = i => ruas.find(r => i >= r.de && i <= r.ate);
+  const o = [`<svg class="apt" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Mapa das telhas do galpão: ${n} telhas do eixo A ao H">`];
+  const largMm = malha.largura_mm || 175980;
+  Object.entries(estMm).filter(([l]) => /^[A-H]$/.test(l)).forEach(([l, y]) => {
+    const yy = mTop + y / largMm * alto;
+    o.push(`<line x1="${mEsq}" x2="${mEsq + n * px}" y1="${yy}" y2="${yy}" class="apt-est"/><text x="${mEsq - 8}" y="${yy + 3}" text-anchor="end" class="apt-rot">${l}</text>`);
+  });
+  const nFeitasRua = new Map();
+  for (let i = 1; i <= n; i++) {
+    const num = String(i).padStart(4, '0'), k = `${parte.id}|${num}|`, ap = feitas.get(num), emp = apEst.frente.get(`TELHA|${k}`);
+    const cls = ap ? 'feita' : emp ? 'sel' : 'pend', cor = ap && ap.empresa ? corSelEmp(ap.empresa) : emp ? corSelEmp(emp) : '';
+    const info = `Telha ${i} de ${n} · ${nf((i - 1) * lar / 1000, 1)} a ${nf(Math.min(i * lar, t.comprimento_galpao_mm || i * lar) / 1000, 1)} m do eixo 01 · ${nf(t.comprimento_m || 177.32, 2)} m (A→H)` + (ap ? ` · montada em ${fdA(ap.data)} (${ap.empresa || ''})` : emp ? ` · selecionada (${emp})` : ' · pendente');
+    if (ap) { const r = ruaDe(i); if (r) nFeitasRua.set(r.rua, (nFeitasRua.get(r.rua) || 0) + 1); }
+    o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${mEsq + (i - 1) * px}" y="${mTop}" width="${Math.max(px - .6, 1)}" height="${alto}" data-ap-telha="${k}" data-ap-info="${esc(info)}"/>`);
+  }
+  ruas.forEach(r => {
+    const x0 = mEsq + (r.de - 1) * px, x1 = mEsq + r.ate * px, tot = r.ate - r.de + 1;
+    o.push(`<g class="apt-eixo" data-ap-telha-faixa="${r.de}-${r.ate}"><title>Vão ${r.rua}: ${tot} telhas — clique para marcar todas as pendentes</title><line x1="${x0}" x2="${x0}" y1="${mTop - 10}" y2="${mTop + alto + 6}" class="apt-lin"/><text x="${x0}" y="${mTop - 16}" text-anchor="middle" class="apt-rot b">${r.rua.split('-')[0]}</text>` +
+      `<text x="${(x0 + x1) / 2}" y="${mTop + alto + 24}" text-anchor="middle" class="apt-rot">${nFeitasRua.get(r.rua) || 0}/${tot}</text></g>`);
+  });
+  if (ruas.length) { const u = ruas[ruas.length - 1], x = mEsq + u.ate * px; o.push(`<line x1="${x}" x2="${x}" y1="${mTop - 10}" y2="${mTop + alto + 6}" class="apt-lin"/><text x="${x}" y="${mTop - 16}" text-anchor="middle" class="apt-rot b">${u.rua.split('-')[1]}</text>`); }
+  return o.join('') + '</svg>';
+}
+function apTelhaHtml(ctx, fr) {
+  const t = fr.telha || {}, n = apTelhaN(fr), m2 = (t.comprimento_m || 177.32) * (t.largura_mm || 485) / 1000;
+  const feitas = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHA').length, sel = [...apEst.frente.keys()].filter(k => k.startsWith('TELHA|')).length;
+  const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
+  const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
+  const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
+  return `<div class="ap-linha ap-mapa-barra">${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
+      <span class="nota"><b>${nf(feitas)} de ${nf(n)} telhas</b> montadas (${nf(feitas * m2, 0)} m² de ${nf(n * m2, 0)} m²) · ${nf(sel)} selecionada(s)</span>
+      <div class="ap-legenda">${leg('joist feita', 'montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
+    <div class="ap-linha"><label class="rot-sel">Marcar telhas de <input type="number" id="apTelDe" min="1" max="${n}" value="1" style="width:84px"> até <input type="number" id="apTelAte" min="1" max="${n}" value="${n}" style="width:84px"></label>
+      <button class="btn" id="apTelMarcar">Marcar intervalo (só pendentes)</button><span class="nota">ou arraste o mouse sobre as telhas; o número do eixo marca o vão inteiro.</span></div>
+    <div id="apMapaInfo" class="ap-info">Passe o mouse sobre uma telha para ver o número e a posição no galpão.</div>
+    <div class="tabela-rolagem apm-caixa">${apTelhaSvg(fr)}</div>
+    <p class="nota">Cada faixa é uma telha de ${nf(t.comprimento_m || 177.32, 2)} m que corre do eixo A (topo) ao H (base), com ${nf((t.largura_mm || 485) / 1000, 3)} m de largura entre eixos, numerada de 0001 a ${String(n).padStart(4, '0')} a partir do eixo 01 (${nf((t.comprimento_galpao_mm || 0) / 1000, 1)} m de galpão). Cada telha apontada soma +1 und em <b>${esc(cap(fr.servico))}</b> da empresa no controle de produção (base do BM da Globo Aços).</p>`;
+}
+
 function apFrenteHtml(ctx) {
   const fr = apFrenteAtual();
+  if (fr && apEst.modo === 'telha') return apTelhaHtml(ctx, fr);
   if (!fr) return window._frentes
     ? '<p class="vazio">O mapa desta frente ainda não chegou no programa. Ele vem junto com a atualização automática: aguarde alguns minutos ou clique em "Verificar atualização" no topo da tela.</p>'
     : '<p class="vazio">Carregando o mapa do IFC…</p>';
@@ -4437,7 +4494,7 @@ function renderApont() {
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
   $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
-    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento']]
+    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)']]
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
@@ -4455,7 +4512,7 @@ function renderApont() {
     (hist.length ? hist.map(a => {
       const tipo = (a.tipo || '').toUpperCase(), joist = tipo === 'JOIST';
       const c = ctx.crit[a.letra] || {};
-      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.' }[tipo];
+      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha' }[tipo];
       return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
         <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
@@ -4530,7 +4587,18 @@ function apMarcarSlot(ctx, chave, modo) {
   remover ? apEst.mapaJ.delete(chave) : apEst.mapaJ.set(chave, apEst.empresa);
   return true;
 }
-let apArraste = null, apUltimo = null;
+let apArraste = null, apUltimo = null, apArrasteT = null;
+function apPintarTelha(el, modo) {   // só a faixa muda (redesenhar as 882 trocaria o elemento sob o mouse)
+  const k = `TELHA|${el.dataset.apTelha}`;
+  if (modo === 'add') { apEst.frente.set(k, apEst.empresa); el.setAttribute('class', 'apt-t sel'); el.style.setProperty('--sel', corSelEmp(apEst.empresa)); }
+  else { apEst.frente.delete(k); el.setAttribute('class', 'apt-t pend'); el.style.removeProperty('--sel'); }
+}
+function apTelhasMarcar(de, ate) {   // marca (ou, se todas já estavam marcadas, desmarca) as telhas pendentes do intervalo
+  const fr = apFrenteAtual(), id = fr.partes[0].id, feitas = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHA').map(a => String(a.rua)));
+  const ks = []; for (let i = de; i <= ate; i++) { const num = String(i).padStart(4, '0'); if (!feitas.has(num)) ks.push(`TELHA|${id}|${num}|`); }
+  const todas = ks.length && ks.every(k => apEst.frente.get(k) === apEst.empresa);
+  ks.forEach(k => (todas ? apEst.frente.delete(k) : apEst.frente.set(k, apEst.empresa)));
+}
 // Arraste: marca todos os retângulos entre o último marcado e o atual (mouse rápido não pula joists), na mesma rua.
 function apArrastarAte(ctx, chave) {
   const [rua, slot] = chave.split('|'), [ruaU, slotU] = (apUltimo || chave).split('|');
@@ -4599,6 +4667,20 @@ function ligarApontamento() {
     }
     const etapa = ev.target.closest('[data-ap-etapa]');
     if (etapa) { apEst.etapa = etapa.dataset.apEtapa; return renderApont(); }
+    const faixaT = ev.target.closest('[data-ap-telha-faixa]');
+    if (faixaT && apFrenteAtual()) {
+      if (!apExigirEmpresa()) return;
+      const [a, b] = faixaT.dataset.apTelhaFaixa.split('-').map(Number);
+      apTelhasMarcar(a, b);
+      return renderApont();
+    }
+    if (ev.target.id === 'apTelMarcar' && apFrenteAtual()) {
+      if (!apExigirEmpresa()) return;
+      const n = apTelhaN(apFrenteAtual()), a = Math.max(1, Math.min(n, +$('#apTelDe').value || 1)), b = Math.max(1, Math.min(n, +$('#apTelAte').value || n));
+      apTelhasMarcar(Math.min(a, b), Math.max(a, b));
+      return renderApont();
+    }
+    if (ev.target.closest('[data-ap-telha]')) return;   // telhas são tratadas em mousedown/arraste
     const cel = ev.target.closest('[data-ap-frente]');
     if (cel) {
       if (!apExigirEmpresa()) return;
@@ -4666,6 +4748,26 @@ function ligarApontamento() {
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
+  });
+  // telhas: clique e arraste pintam várias faixas; a primeira decide se está marcando ou desmarcando
+  sec.addEventListener('mousedown', ev => {
+    const tel = ev.target.closest('[data-ap-telha]');
+    if (!tel || ev.button) return;
+    ev.preventDefault();
+    if (!apExigirEmpresa()) return;
+    if (tel.classList.contains('feita')) { toast('Essa telha já está apontada. Para corrigir, exclua o apontamento no histórico.'); return; }
+    const k = `TELHA|${tel.dataset.apTelha}`;
+    apArrasteT = apEst.frente.get(k) === apEst.empresa ? 'remove' : 'add';
+    apPintarTelha(tel, apArrasteT);
+  });
+  sec.addEventListener('mouseover', ev => {
+    const tel = ev.target.closest('[data-ap-telha]');
+    if (apArrasteT && tel && !tel.classList.contains('feita')) apPintarTelha(tel, apArrasteT);
+  });
+  document.addEventListener('mouseup', () => {
+    if (!apArrasteT) return;
+    apArrasteT = null;
+    if (regras()) apAtualizarSelecao(false);
   });
   // joists: clique e arraste pintam vários retângulos; o primeiro decide se está marcando ou desmarcando
   sec.addEventListener('mousedown', ev => {
