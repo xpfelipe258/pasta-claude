@@ -3454,10 +3454,8 @@ function gerarRelConsumo() {
   if (!relCons.it.size) return toast('Marque pelo menos um item.', true);
   const html = relConsHtml(modo, relCons.sem, relCons.it, $('#relConsSemZero').checked);
   const nome = `relatorio_consumo_${modo === 'cada' ? 'por_empresa' : modo.toLowerCase()}_${hoje()}.html`;
-  const url = URL.createObjectURL(new Blob([(typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html)], { type: 'text/html;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
   fecharRelConsumo();
+  reAbrirPrevia(html, nome, 'Relatório de consumo físico');   // visualização antes de baixar
 }
 
 // ------------------------------------------------------------ EDITAR COLUNA (semana) DO CONSUMO FÍSICO
@@ -4753,7 +4751,10 @@ async function baixarMapa() {
     await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src=src; });
     const canvas = document.createElement('canvas'); canvas.width=w*2; canvas.height=h*2;
     const ctx=canvas.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,w*2,h*2); URL.revokeObjectURL(src);
-    const a=document.createElement('a'); a.download=`mapa-montagem-${ref}.png`; a.href=canvas.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove(); toast('Mapa baixado em PNG.');
+    const png = canvas.toDataURL('image/png');
+    const baixarPng = () => { const a=document.createElement('a'); a.download=`mapa-montagem-${ref}.png`; a.href=png; document.body.appendChild(a); a.click(); a.remove(); toast('Mapa baixado em PNG.'); };
+    reAbrirPrevia(`<!doctype html><html><head><meta charset="utf-8"><title>Mapa de montagem</title></head><body style="margin:0;background:#fff"><img src="${png}" style="max-width:100%;display:block;margin:0 auto" alt="Mapa de montagem"></body></html>`,
+      `mapa-montagem-${ref}.html`, `Mapa de montagem · ${fdA(ref)}`, { rotuloBaixar: 'Baixar mapa (PNG)', baixar: baixarPng });   // visualização antes de baixar;
   } catch (err) { console.error(err); toast('Erro ao gerar mapa: '+(err?.message||err), true); }
 }
 
@@ -5015,10 +5016,7 @@ function baixarRelEquip(tipo = 'geral', ini = per.ini, fim = per.fim, usoFiltro 
   const html = relEquipHtml(tipo, ini, fim, usoFiltro);
   const usoNome = usoFiltro === 'todos' ? 'todos' : usoFiltro;
   const nome = `relatorio_equipamentos_${tipo === 'geral' ? 'geral' : tipo.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'_').toLowerCase()}_${usoNome}_${ini}_${fim}.html`;
-  const blob = new Blob([(typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html)], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  reAbrirPrevia(html, nome, `Relatório de equipamentos · ${tipo === 'geral' ? 'geral' : tipo} · ${fdA(ini)} a ${fdA(fim)}`);   // visualização antes de baixar
 }
 function abrirRelEquipPopup() {
   const pop = $('#modalRelEquip');
@@ -5518,11 +5516,15 @@ function bmImprimir(r, emp, p) {
     <div class="rodape">Gerado pelo sistema de controle de obra · ${esc(obraNome)} · BM${p.n} · ${esc(emp)} · ${new Date().toLocaleString('pt-BR')}</div>
   </body></html>`;
 
-  const f = document.createElement('form');
-  f.method='post'; f.action='pdf_html.php'; f.target='_blank'; f.style.display='none';
-  const campos = {csrf: window.CSRF_TOKEN || '', html, nome: `BM${p.n}-${emp}`};
-  Object.entries(campos).forEach(([k,v]) => { const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
-  document.body.appendChild(f); f.submit(); f.remove();
+  // visualização antes de baixar; o PDF (gerado no servidor) só sai quando se clica em "Baixar PDF"
+  const enviarPdf = () => {
+    const f = document.createElement('form');
+    f.method='post'; f.action='pdf_html.php'; f.target='_blank'; f.style.display='none';
+    const campos = {csrf: window.CSRF_TOKEN || '', html, nome: `BM${p.n}-${emp}`};
+    Object.entries(campos).forEach(([k,v]) => { const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
+    document.body.appendChild(f); f.submit(); f.remove();
+  };
+  reAbrirPrevia(html, `BM${p.n}-${emp}.html`, `Boletim de medição · BM${p.n} · ${emp}`, { rotuloBaixar: 'Baixar PDF', baixar: enviarPdf });
 }
 
 function renderBM() {
@@ -6375,7 +6377,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
     <tr><th>Média por dia lançado</th>${empsDP.map(e => { const ds = diasDP.filter(d => efDiaEmp(d, e)); return `<th class="n">${ds.length ? nf(soma0(ds, d => efDiaEmp(d, e)) / ds.length, 1) : '—'}</th>`; }).join('')}<th class="n">${nf(soma0(diasDP, totDia) / diasDP.length, 1)}</th><th></th></tr>
     <tr><th>Pico no período</th>${empsDP.map(e => `<th class="n">${nf(Math.max(0, ...diasDP.map(d => efDiaEmp(d, e))), 0)}</th>`).join('')}<th class="n">${nf(Math.max(0, ...diasDP.map(totDia)), 0)}</th><th></th></tr></tfoot>` : '';
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro, { ini, fim: minD(fim, ref) })}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th class="n">Dias úteis no período</th><th>Efetivo no dia</th><th>Efeito</th><th>Efeito cascata</th><th>Situação</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias corridos</th><th class="n">Dias úteis (impacto)</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Dias úteis do período com remessa em atraso (sem repetir o mesmo dia)</th><th class="n">—</th><th class="n">${nf(somaMapa(mapaImpactos(remAtr.map(impactoDeRemessa), limRel)),0)}</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p></body></html>`;
-  baixarHtml(`relatorio_impactos_${ini}_${fim}.html`, html);
+  reAbrirPrevia(html, `relatorio_impactos_${ini}_${fim}.html`, `Relatório de impactos · ${fdA(ini)} a ${fdA(fim)}`);   // visualização antes de baixar
 }
 function dpEmpresas() {
   const nomes = new Set((M.empresas || []).map(e => e.nome).filter(Boolean));
@@ -6564,7 +6566,7 @@ function baixarRelDP(ini, fim, empFiltro = []) {
   ${resumoHtml}
   ${tabelasEmp || '<p>Nenhum lançamento no período para as empresas selecionadas.</p>'}
   </body></html>`;
-  baixarHtml(`efetivo_${ini}_${fim}.html`, html);
+  reAbrirPrevia(html, `efetivo_${ini}_${fim}.html`, `Relatório de efetivo · ${fdA(ini)} a ${fdA(fim)}`);   // visualização antes de baixar
 }
 function datasIntervalo(ini, fim) {
   const out = [];

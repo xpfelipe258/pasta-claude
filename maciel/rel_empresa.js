@@ -841,16 +841,16 @@ function reSincronizarBarra() {   // chamada a cada desenho do Painel: as datas 
 }
 // Antes de baixar, abre uma janela com a visualização do relatório (o próprio HTML, rolável); dali se baixa, imprime/salva em PDF ou fecha.
 let reUltimo = null;
-function reAbrirPrevia(html, nomeArq, titulo) {
+function reAbrirPrevia(html, nomeArq, titulo, opcoes = {}) {   // opcoes: { rotuloBaixar, baixar: fn } — baixar personalizado (PDF no servidor, PNG do mapa…)
   document.getElementById('reDlgPrevia')?.remove();
   const dlg = document.createElement('dialog');
   dlg.id = 'reDlgPrevia'; dlg.className = 're-previa';
   dlg.innerHTML = `<div class="re-previa-topo"><b>${esc(titulo)}</b><span class="nota">Visualização do relatório — confira antes de baixar</span>
-      <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>Baixar relatório</button><button type="button" class="btn" data-re-imprimir>Imprimir / salvar em PDF</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
+      <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>${esc(opcoes.rotuloBaixar || 'Baixar relatório')}</button><button type="button" class="btn" data-re-imprimir>Imprimir / salvar em PDF</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
     <iframe class="re-previa-quadro" title="Visualização do relatório"></iframe>`;
   document.body.appendChild(dlg);
   dlg.querySelector('iframe').srcdoc = typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html;
-  reUltimo = { html, nomeArq };
+  reUltimo = { html, nomeArq, baixar: opcoes.baixar || null };
   dlg.addEventListener('close', () => dlg.remove());
   dlg.showModal();
 }
@@ -869,7 +869,7 @@ async function reGerar() {
 document.addEventListener('click', ev => {
   const t = ev.target;
   if (t.closest && t.closest('#btnRelEmpresas')) return reGerar();
-  if (t.closest && t.closest('[data-re-baixar]') && reUltimo) { baixarHtml(reUltimo.nomeArq, reUltimo.html); return toast('Relatório baixado.'); }
+  if (t.closest && t.closest('[data-re-baixar]') && reUltimo) { if (reUltimo.baixar) { reUltimo.baixar(); return; } baixarHtml(reUltimo.nomeArq, reUltimo.html); return toast('Relatório baixado.'); }
   if (t.closest && t.closest('[data-re-imprimir]')) { const f = document.querySelector('#reDlgPrevia iframe'); return f && f.contentWindow && f.contentWindow.print(); }
   if (t.closest && t.closest('#reDlgPrevia [data-re-fechar]')) return document.getElementById('reDlgPrevia')?.close();
 });
