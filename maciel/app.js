@@ -4399,7 +4399,7 @@ function apMapaHtml(ctx) {
       <div class="ap-legenda">${leg('joist feita', 'joist montada')}${leg('viga feita', 'viga montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
       <div id="apMapaInfo" class="ap-info">${AP_INFO_PADRAO}</div>
       <div class="ap-mapa-grid">
-        <div id="apMapaSvg" class="tabela-rolagem apm-caixa">${apMapaSvg(ctx)}</div>
+        <div class="ap-mapa-col"><div id="apMapaSvg" class="tabela-rolagem apm-caixa">${apMapaSvg(ctx)}</div></div>
         <div id="apSelLog" class="ap-sel-log">${apSelLogHtml(ctx)}</div>
       </div>
       <p class="nota">Cada retângulo é uma joist: são ${ctx.layout.length} por rua, da estação A (topo) à H (base); a posição do retângulo define a viga de apoio e o tipo de parafuso. Quadrados nos eixos: vigas (maior = apoio/VC01, menor = intermediária). Embaixo de cada rua: joists apontadas/${ctx.limRua}. Clique no número do eixo para marcar todas as vigas pendentes dele.</p>`;
