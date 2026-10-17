@@ -11,6 +11,8 @@
 const RE_PESSOAS_POR_ATIVIDADE = 4, RE_PESSOAS_PREMONTAGEM = 8;   // efetivo médio por atividade em execução; pré-montagem exige no mínimo 8
 const RE_PERDA_VERDE = 3, RE_PERDA_AMARELO = 6;                    // perda de material: até 3% verde · 3 a 6% amarelo · acima de 6% vermelho
 
+// atividades que usam guindaste/plataforma (custo de equipamento por unidade produzida)
+const RE_RELAC_EQUIP = /ICAMENTO|VIGA|MONTAGEM|TELHA|FECHAMENTO|MARQUISE|CALHA|PERFILAGEM/;
 const reMediana = xs => { const v = xs.filter(Number.isFinite).sort((a, b) => a - b); if (!v.length) return 0; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 const reTry = (fn, rot) => { try { return fn(); } catch (e) { console.error('Relatório das empresas —', rot, e); return { erro: `${rot}: ${e.message || e}` }; } };
 const reSm = (cls, txt) => `<span class="sm ${cls}"><i></i>${txt}</span>`;
@@ -164,27 +166,31 @@ function reAbastecimento(emp, c, horizonteSemanas) {
   const litrosSemana = litrosMedio * porSemana, custoSemana = litrosSemana * preco;
   return { dias, validos, descartados, litrosMedio, preco, porSemana, litrosSemana, custoSemana, quatro: custoSemana * 4, horizonte: custoSemana * horizonteSemanas, horizonteSemanas };
 }
+// Histórico dos últimos BMs: custo de equipamento por dia útil (o BM mais recente pesa mais) e por unidade produzida nas atividades relacionadas a equipamento.
+function reHistoricoEquip(emp, c, iniPadrao) {
+  const relac = RE_RELAC_EQUIP;
+  const e = empresa(emp), servRel = [...new Map((e?.servicos || []).filter(s => relac.test(ganNorm(s.nome))).map(s => [ganNorm(s.nome), s.nome])).values()];
+  const primeiroUso = (T.usos || []).filter(u => empresasDe(u.empresa).includes(emp) && u.data).map(u => u.data).sort()[0] || iniPadrao || c;
+  const bms = bmPeriodos(emp).slice(-3).map(p => {
+    const pIni = p.ini === '0000-01-01' ? primeiroUso : p.ini, pFim = minD(p.fim, c);
+    if (pFim < pIni) return null;
+    const dd = bmDeducoes(emp, { ...p, ini: p.ini }, 0), du = Math.max(1, contarDiasUteis(add(pIni, -1), pFim));
+    const un = soma0(servRel, s => prodServico(s, emp, pIni, pFim));
+    return { p, equip: dd.equip, comb: dd.comb, litros: dd.litros, du, un, ini: pIni, fim: pFim };
+  }).filter(Boolean);
+  const pesos = bms.map((_, k) => k + 1), sp = soma0(pesos, w => w) || 1;
+  const diaEquip = bms.length ? bms.reduce((s, b, k) => s + (b.equip / b.du) * pesos[k], 0) / sp : null;
+  const comUn = bms.filter(b => b.un > 0 && b.equip > 0);
+  const porUn = comUn.length ? soma0(comUn, b => b.equip) / soma0(comUn, b => b.un) : null;
+  return { relac, bms, diaEquip, porUn };
+}
 function reEquipamentos(emp, ini, fim, c, atv) {
   const dados = relEquipDados(emp, ini, fim, 'todos'), tot = dados.empresas.find(x => x.empresa === emp) || { custo: 0, litros: 0, comb: 0, total: 0, dias: new Set() };
   // semanas até o fim das atividades da empresa (máx. 26) para o horizonte da projeção
   const fimAtv = atv.linhas.filter(x => x.status !== 'CONCLUÍDO' && x.prazo).map(x => x.prazo).sort().pop();
   const horizonteSemanas = Math.min(26, Math.max(4, fimAtv && fimAtv > c ? Math.ceil((diasEntre(c, fimAtv) + 1) / 7) : 4));
   const abast = reAbastecimento(emp, c, horizonteSemanas);
-  // histórico dos últimos BMs: custo de equipamento por dia útil e por unidade produzida nas atividades relacionadas a equipamento
-  const relac = /ICAMENTO|VIGA|MONTAGEM|TELHA|FECHAMENTO|MARQUISE|CALHA|PERFILAGEM/;
-  const e = empresa(emp), servRel = [...new Map((e?.servicos || []).filter(s => relac.test(ganNorm(s.nome))).map(s => [ganNorm(s.nome), s.nome])).values()];
-  const primeiroUso = (T.usos || []).filter(u => empresasDe(u.empresa).includes(emp) && u.data).map(u => u.data).sort()[0] || ini;
-  const bms = bmPeriodos(emp).slice(-3).map(p => {
-    const pIni = p.ini === '0000-01-01' ? primeiroUso : p.ini, pFim = minD(p.fim, c);
-    if (pFim < pIni) return null;
-    const dd = bmDeducoes(emp, { ...p, ini: p.ini }, 0), du = Math.max(1, contarDiasUteis(add(pIni, -1), pFim));
-    const un = soma0(servRel, s => { const k = prodServico(s, emp, pIni, pFim); return k; });
-    return { p, equip: dd.equip, comb: dd.comb, litros: dd.litros, du, un, ini: pIni, fim: pFim };
-  }).filter(Boolean);
-  const pesos = bms.map((_, k) => k + 1), sp = soma0(pesos, w => w) || 1;
-  const diaEquip = bms.length ? bms.reduce((s, b, k) => s + (b.equip / b.du) * pesos[k], 0) / sp : null;   // R$ por dia útil, recente pesa mais
-  const comUn = bms.filter(b => b.un > 0 && b.equip > 0);
-  const porUn = comUn.length ? soma0(comUn, b => b.equip) / soma0(comUn, b => b.un) : null;
+  const { relac, bms, diaEquip, porUn } = reHistoricoEquip(emp, c, ini);
   const saldoUn = soma0(atv.linhas.filter(x => x.status !== 'CONCLUÍDO' && relac.test(ganNorm(x.nome))), x => Math.max(0, x.qtd / x.n - x.ate));
   const duRestantes = fimAtv && fimAtv > c ? contarDiasUteis(c, fimAtv) : 0;
   const porAtividade = porUn != null && saldoUn > 0 ? porUn * saldoUn : null, porTempo = diaEquip != null && duRestantes > 0 ? diaEquip * duRestantes : null;
