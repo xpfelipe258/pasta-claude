@@ -730,10 +730,11 @@ function plLiberacao(pl, c, box) {
     <p class="nota"><b>${n.liberada}</b> liberada(s) · <b>${n.pendente}</b> a confirmar · <b class="${n.retorna ? 'valor-neg' : ''}">${n.retorna}</b> retornando</p>
     <div class="tabela-rolagem"><table class="pl-tab pl-lib"><thead><tr><th>Atividade</th><th>Etapa do fluxo</th>${PLD_PORTOES.map(g => `<th>${g.rot}</th>`).join('')}<th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
 }
+// Obs.: item sem respostas volta do servidor com portoes = [] (array vazio do PHP); gravar propriedades num array as perderia
 async function plLibGravar(chave, mut) {
   const pl = plPlano(PL.sel);
   if (!pl) return;
-  const itens = pl.itens.map(i => (i.chave === chave ? { ...i, portoes: mut(JSON.parse(JSON.stringify(i.portoes || {}))) } : i));
+  const itens = pl.itens.map(i => (i.chave === chave ? { ...i, portoes: mut(Array.isArray(i.portoes) ? {} : JSON.parse(JSON.stringify(i.portoes || {}))) } : i));
   try {
     await postar(API + 'planos', { plano: { ...pl, itens } });
     await plCarregar(true);
