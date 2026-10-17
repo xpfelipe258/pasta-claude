@@ -3870,7 +3870,7 @@ function renderEstCriticos() {
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
-  frente: new Map(), etapa: '' };   // frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
+  frente: new Map(), etapa: '', histSel: new Set(), histTodos: false };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
 const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM' };
 function frentesMontagem(refazer) {
@@ -4550,20 +4550,50 @@ function renderApont() {
   $('#tabApConc').innerHTML = seguro('a conciliação', () => apConciliacaoHtml(ctx));
   $('#apDefEmp').innerHTML = seguro('a definição de empresa', () => apDefHtml(ctx));
 
-  const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
-  $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
+  const histTodas = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  const hist = apEst.histTodos ? histTodas : histTodas.slice(0, 40);
+  const linhasHist = new Set(histTodas.map(a => String(a.linha)));
+  apEst.histSel = new Set([...apEst.histSel].filter(l => linhasHist.has(l)));   // some o que já foi excluído
+  $('#tabApHist').innerHTML = `<thead><tr><th><input type="checkbox" id="apHistTodos" title="Selecionar todos os apontamentos da lista" aria-label="Selecionar todos"></th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
     (hist.length ? hist.map(a => {
       const tipo = (a.tipo || '').toUpperCase(), joist = tipo === 'JOIST';
       const c = ctx.crit[a.letra] || {};
       const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem' }[tipo];
-      return `<tr><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
+      return `<tr class="${apEst.histSel.has(String(a.linha)) ? 'ap-hist-sel' : ''}"><td><input type="checkbox" data-ap-hist-sel="${a.linha}" ${apEst.histSel.has(String(a.linha)) ? 'checked' : ''} aria-label="Selecionar apontamento"></td><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
         <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
-    }).join('') : '<tr><td colspan="8" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
+    }).join('') : '<tr><td colspan="9" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
+  apHistBarra(histTodas.length, hist.length);
   patchDatas();
   requestAnimationFrame(syncScrollTopo);
+}
+
+// "Últimos apontamentos": seleção em lote (todos / por linha) e exclusão dos marcados.
+const apHistLinhasVisiveis = () => [...document.querySelectorAll('#tabApHist [data-ap-hist-sel]')].filter(c => !c.closest('tr').classList.contains('tf-oculta'));
+function apHistBarra(total, mostrando) {
+  const el = $('#apHistBarra');
+  if (!el) return;
+  const n = apEst.histSel.size;
+  const vis = apHistLinhasVisiveis(), marcadas = vis.filter(c => c.checked).length;
+  const cab = $('#apHistTodos');
+  if (cab) { cab.checked = vis.length > 0 && marcadas === vis.length; cab.indeterminate = marcadas > 0 && marcadas < vis.length; }
+  el.innerHTML = `<button class="btn" id="apHistSelTodos">${vis.length && marcadas === vis.length ? 'Desmarcar todos' : 'Selecionar todos'}${vis.length ? ` (${vis.length})` : ''}</button>
+    ${total > 40 || apEst.histTodos ? `<button class="btn" id="apHistVerTodos">${apEst.histTodos ? 'Ver só os últimos 40' : `Ver todos os ${nf(total)} apontamentos`}</button>` : ''}
+    <span class="nota">${n ? `<b>${nf(n)}</b> selecionado(s)` : `Mostrando ${nf(mostrando)} de ${nf(total)} apontamentos`}</span>
+    <button class="btn perigo" id="apHistExcluir" ${n ? '' : 'disabled'}>Excluir selecionados${n ? ` (${nf(n)})` : ''}</button>`;
+}
+function apHistMarcar(linhas, marcar) {
+  linhas.forEach(c => { c.checked = marcar; c.closest('tr').classList.toggle('ap-hist-sel', marcar); if (marcar) apEst.histSel.add(c.dataset.apHistSel); else apEst.histSel.delete(c.dataset.apHistSel); });
+  apHistBarra((T.apontamentos || []).length, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
+}
+async function apHistExcluir(btn) {
+  const linhas = [...apEst.histSel].map(Number);
+  if (!linhas.length) return;
+  if (!btn.dataset.confirmar) { btn.dataset.confirmar = '1'; btn.textContent = `Confirmar exclusão de ${nf(linhas.length)}`; return; }
+  try { await postar(API + 'apontamento', { excluir: true, linhas }); apEst.histSel = new Set(); await carregar(); toast(`${nf(linhas.length)} apontamento(s) excluído(s) e produção ajustada`); }
+  catch (err) { toast(err.message, true); }
 }
 
 // Atualiza só o que depende da seleção (mantém a rolagem do mapa).
@@ -4781,6 +4811,9 @@ function ligarApontamento() {
     if (ev.target.id === 'apLimpar') { apEst.sel = new Set(); apEst.mapaJ = new Map(); apEst.mapaV = new Map(); apEst.frente = new Map(); return renderApont(); }
     if (ev.target.id === 'apSalvar') return salvarApontamento();
     if (ev.target.id === 'btnBaixarMapa') return baixarMapa();
+    if (ev.target.id === 'apHistSelTodos') { const vis = apHistLinhasVisiveis(); return apHistMarcar(vis, !(vis.length && vis.every(c => c.checked))); }
+    if (ev.target.id === 'apHistVerTodos') { apEst.histTodos = !apEst.histTodos; return renderApont(); }
+    if (ev.target.id === 'apHistExcluir') return apHistExcluir(ev.target);
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
       if (!ex.dataset.confirmar) { ex.dataset.confirmar = '1'; ex.textContent = 'Confirmar exclusão'; return; }
@@ -4799,6 +4832,8 @@ function ligarApontamento() {
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
+    if (id === 'apHistTodos') return apHistMarcar(apHistLinhasVisiveis(), ev.target.checked);
+    if (ev.target.dataset.apHistSel !== undefined) return apHistMarcar([ev.target], ev.target.checked);
   });
   // telhas: clique e arraste pintam várias faixas; a primeira decide se está marcando ou desmarcando
   sec.addEventListener('mousedown', ev => {
