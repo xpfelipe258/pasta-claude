@@ -411,6 +411,7 @@ async function mostrarAtualizacao() {
     const r = await fetch(API + 'atualizacao', { cache: 'no-store' });
     if (!r.ok) return;
     const e = await r.json(), el = $('#atualiz');
+    if (e.online) { el.hidden = true; return; }   // sistema online: sempre na versão publicada, sem texto na tela
     el.hidden = false;
     const ver = e.codigo ? e.codigo.slice(0, 7) : '—';
     const quando = e.verificado_em ? Math.max(0, Math.round((e.agora - e.verificado_em) / 60)) : null;
@@ -438,33 +439,39 @@ async function verificarAtualizacaoAgora() {
   b.disabled = false; b.textContent = 'Verificar atualização';
 }
 let CODIGO = null, avisouCodigo = false;   // versão do código carregada nesta página
+// Uso simultâneo: quando outro usuário grava, esta tela se atualiza SOZINHA e em silêncio, só quando quem está usando não está no meio de nada
+// (sem aviso, sem recarregar por cima do que está sendo digitado, selecionado ou aberto).
+let ultimaInteracao = 0;
+function usuarioOcupado(ociosoMs = 15000) {
+  if (pend.size || metasPend.size || bmPend.size) return true;                       // lançamentos digitados e ainda não salvos
+  if (Date.now() - ultimaInteracao < ociosoMs) return true;                            // digitou/clicou há pouco
+  if (document.querySelector('dialog[open], .modal-fundo.aberto, .pl-modal-fundo')) return true;   // janela de edição aberta
+  if (typeof PL !== 'undefined' && PL.wiz) return true;                                // assistente de planejamento
+  if (typeof apEst !== 'undefined' && (apEst.sel.size || apEst.mapaJ.size || apEst.mapaV.size || apEst.frente.size || apEst.histSel.size)) return true;   // peças marcadas no apontamento
+  const a = document.activeElement;
+  return !!(a && /^(TEXTAREA)$/.test(a.tagName)) || !!(a && a.isContentEditable);
+}
 async function verificarVersao() {
   if (salvando || !D) return;
   try {
     const r = await fetch(API + 'versao', { cache: 'no-store' });
     const j = await r.json();
     $('#pontoSync').className = 'ponto ok';
-    // versão nova do programa instalada (automática): recarrega a página sem precisar fechar e abrir de novo
+    $('#arquivo').classList.remove('sem-conexao');
+    // versão nova do programa instalada: recarrega em silêncio, só depois de 1 minuto sem uso e sem nada pendente/aberto
     if (j.codigo) {
       if (!CODIGO) CODIGO = j.codigo;
-      else if (j.codigo !== CODIGO) {
-        if (pend.size || metasPend.size || bmPend.size) {
-          if (!avisouCodigo) { avisouCodigo = true; toast('Nova versão do programa instalada. Salve ou descarte as alterações pendentes para recarregar.', false, 12000); }
-        } else if (typeof PL !== 'undefined' && (PL.wiz || document.querySelector('.pl-modal-fundo, dialog[open]'))) {
-          if (!avisouCodigo) { avisouCodigo = true; toast('Nova versão do programa instalada. Termine ou feche a janela aberta; a página recarrega sozinha em seguida.', false, 12000); }   // nunca recarrega com janela de edição aberta
-        } else { toast('Nova versão do programa instalada. Recarregando…', false, 3000); setTimeout(() => location.reload(), 800); return; }
-      }
+      else if (j.codigo !== CODIGO && !usuarioOcupado(60000)) { location.reload(); return; }
     }
-    if (j.versao !== D.versao) {
-      if (pend.size || metasPend.size) { $('#faixaExterna').hidden = false; return; }
-      await carregar();
-      toast('Planilha atualizada automaticamente');
-    }
+    // dados gravados por outro usuário: atualiza em silêncio quando a pessoa estiver livre (senão tenta de novo no próximo ciclo)
+    if (j.versao !== D.versao && !usuarioOcupado()) await carregar();
   } catch {
     $('#pontoSync').className = 'ponto erro';
     $('#arquivoTxt').textContent = 'Sem conexão com o programa. Verifique se a janela do servidor está aberta.';
+    $('#arquivo').classList.add('sem-conexao');
   }
 }
+['keydown', 'input', 'pointerdown', 'paste'].forEach(ev => document.addEventListener(ev, () => { ultimaInteracao = Date.now(); }, true));
 
 function preencherListas() {
   const serv = new Set(), emps = new Set(['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM']);

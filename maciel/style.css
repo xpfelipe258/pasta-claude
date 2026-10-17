@@ -1022,3 +1022,7 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 .ap-hist-barra .btn:disabled { opacity: .45; cursor: default; }
 #tabApHist tr.ap-hist-sel td { background: color-mix(in srgb, var(--acento) 10%, transparent); }
 #tabApHist input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+/* topo: a linha de status da planilha/versão fica oculta; só aparece se perder a conexão */
+#arquivo { display: none; }
+#arquivo.sem-conexao { display: flex; color: var(--vermelho); }
