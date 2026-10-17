@@ -564,6 +564,7 @@ function renderPainel() {
   const emps = [...new Set(ksAll.map(k => k.emp))];
   // reseta filtro se empresa sumiu dos dados
   if (painelEmpFiltro && !emps.includes(painelEmpFiltro)) painelEmpFiltro = null;
+  if (typeof reSincronizarBarra === 'function') setTimeout(reSincronizarBarra, 0);   // período e empresa do botão de relatório
   $('#segPainelEmp').innerHTML =
     `<button data-painel-emp="" class="${!painelEmpFiltro ? 'ativa' : ''}">Geral</button>` +
     emps.map(n => `<button data-painel-emp="${esc(n)}" class="${n === painelEmpFiltro ? 'ativa' : ''}" style="--c:${corEmp(n)}">${esc(n)}</button>`).join('');

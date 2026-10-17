@@ -987,3 +987,7 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pl-fluxo td { vertical-align: top; }
 .pl-chip input[disabled] { cursor: not-allowed; }
 .pl-chip:has(input[disabled]) { opacity: .45; cursor: not-allowed; }
+
+.re-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.re-barra label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg2); }
+.re-barra input[type="date"] { padding: 4px 6px; border: 1px solid var(--borda, #d3dbe4); border-radius: 6px; background: var(--bg-card, #fff); color: var(--fg1, inherit); font-size: 12px; }

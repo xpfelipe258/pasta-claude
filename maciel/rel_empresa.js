@@ -44,7 +44,11 @@ function rePlanoItens(emp, ini, fim) {
   });
   return out;
 }
-const reChaveItem = x => x.it.chave || ganNorm(x.it.atividade);
+// Fase 1 e Fase 2 não são mais referência: o mesmo serviço do galpão (ou do mesmo anexo) vira UMA linha com o somatório.
+const reFrenteBase = f => (ehFrenteAnexa(f) ? ganNorm(f) : /FECHAMENTO/.test(ganNorm(f)) ? 'GALPAO FECHAMENTO' : 'GALPAO');
+const reChaveItem = x => `${ganNorm(x.ativ?.it?.servico || x.it.atividade)}|${reFrenteBase(x.it.frente || x.ativ?.it?.frente || '')}`;
+const reFrenteTxt = f => cap(String(f || '').replace(/\s*\bF[12]\b\s*/i, ' ').replace(/\s+/g, ' ').trim());
+const reStatusPior = sts => ['ATRASADO', 'NO LIMITE', 'NO PRAZO', 'ADIANTADO', 'A INICIAR', 'CONCLUÍDO'].find(st => sts.includes(st)) || sts[0] || '';
 
 // ---------------------------------------------------------------- 1. produção do período
 // Meta do período = o planejado no 5W2H entre a data inicial e a final; previsto até o corte = do início do período até a última data
@@ -52,7 +56,7 @@ const reChaveItem = x => x.it.chave || ganNorm(x.it.atividade);
 function reProducao(emp, ini, fim, c, ls) {
   const its = rePlanoItens(emp, ini, fim), porChave = new Map();
   its.forEach(({ x }) => {
-    const meta = reSomaJan(x.mapaPlan, ini, fim), prev = reSomaJan(x.mapaPlan, ini, c), real = reSomaJan(x.real, ini, c);
+    const meta = reSomaJan(x.mapaPlan, ini, fim), prev = reSomaJan(x.mapaPlan, ini, c), real = Math.min(reSomaJan(x.real, ini, c), Number(x.it.qtd) || Infinity);   // nunca passa de 100% do que o plano prevê
     if (!(meta > 0 || prev > 0 || real > 0)) return;
     const k = reChaveItem(x), o = porChave.get(k) || { serv: x.it.atividade, un: x.it.unidade, fonte: 'plano 5W2H', servNorm: ganNorm(x.ativ?.it?.servico || x.it.atividade), meta: 0, prev: 0, real: 0 };
     o.meta += meta; o.prev += prev; o.real += real; porChave.set(k, o);
@@ -97,7 +101,7 @@ function reMetaSemanal(emp, ini, fim, c) {
         const meta = reSomaJan(x.mapaPlan, w.ini, w.fim);
         if (!(meta > 0)) return;
         const k = reChaveItem(x), o = m.get(k) || { serv: cap(x.it.atividade), un: x.it.unidade, prevTotal: 0, real: 0 };
-        o.prevTotal += meta; o.real += reSomaJan(x.real, w.ini, minD(w.fim, c)); m.set(k, o);
+        o.prevTotal += meta; o.real += Math.min(reSomaJan(x.real, w.ini, minD(w.fim, c)), Number(x.it.qtd) || Infinity); m.set(k, o);
       });
       ks = [...m.values()];
     } else ks = pares.map(([e, sv]) => kpiPer(e, sv, w.ini, w.fim, c)).filter(k => k.prevTotal > 0);
@@ -127,16 +131,8 @@ function reBmDaLinha(emp, it, ate) {
   const misto = unidades.length > 1;   // atividades em unidades diferentes (vão, un, checklist…) não se somam: fica só o % da medição
   return { qtd: misto ? null : soma0(ats, a => Number(a.qtd) || 0), real: misto ? null : soma0(itens, i => soma0(i.ats, x => x.real)), pct: pct * 100, un: unidades.join(' / '), cods: ats.map(a => a.codigo), n: ats.length };
 }
-// Fase 2 do galpão só entra depois que o saldo da Fase 1 do mesmo serviço terminou (a menos que já tenha produção lançada)
-function reFase2Aguarda(l, ls) {
-  const it = l.it;
-  if (String(ganFaseNumero(it)) !== '2' || ehFrenteAnexa(it.frente)) return false;
-  const serv = ganNorm(it.servico_exib || it.servico);
-  const f1 = ls.filter(x => x !== l && !ehFrenteAnexa(x.it.frente) && String(ganFaseNumero(x.it)) === '1' && ganNorm(x.it.servico_exib || x.it.servico) === serv);
-  return f1.length > 0 && f1.some(x => x.status !== 'CONCLUÍDO');
-}
 function reAtividades(emp, ini, fim, c, ls) {
-  const linhas = [];
+  const brutas = [];
   ls.forEach(l => {
     const it = l.it, emps = plEmpresasDe(it), meu = (l.porEmp || []).find(x => x.nome === emp);
     if (!emps.includes(emp) && !meu) return;
@@ -144,11 +140,19 @@ function reAtividades(emp, ini, fim, c, ls) {
     if (l.status === 'CONCLUÍDO' && l.rf && l.rf < ini) return;       // já encerrada antes do período
     const bm = reBmDaLinha(emp, it, c);
     if (!bm && !it._eclusa && ganBmAtividades(it).length) return;      // o catálogo existe, mas é de outra empresa (ex.: telhas da Globo no relatório da EJ)
-    const ds = meu ? meu.ds : [], ate = soma0(ds.filter(([d]) => d <= c), ([, v]) => v), per = soma0(ds.filter(([d]) => d >= ini && d <= fim && d <= c), ([, v]) => v);
-    if (!(ate > 0) && reFase2Aguarda(l, ls)) return;   // (o catálogo do BM cobre o galpão inteiro: não serve para saber se a Fase 2 começou)
-    const bmIniciou = !!(bm && bm.pct > 0 && String(ganFaseNumero(it)) !== '2');
-    linhas.push({ nome: cap(it.servico_exib || it.servico), frente: it.frente, ini: l.ini, prazo: l.prazo, un: plUnidade(it), qtd: Number(it.qtd) || 0, bm,
-      ate, per, primeira: ds.length ? ds[0][0] : null, iniciada: ate > 0 || bmIniciou, noPeriodo: l.ini >= ini, status: l.status, atrasadaDeInicio: l.ini < c && !(ate > 0 || bmIniciou) });
+    const ds = meu ? meu.ds : [];
+    brutas.push({ l, it, bm, ate: soma0(ds.filter(([d]) => d <= c), ([, v]) => v), per: soma0(ds.filter(([d]) => d >= ini && d <= fim && d <= c), ([, v]) => v), primeira: ds.length ? ds[0][0] : null });
+  });
+  // Fase 1 + Fase 2 do mesmo serviço = uma linha só (somatório); o catálogo do BM cobre o galpão inteiro, então é lido uma vez
+  const grupos = new Map();
+  brutas.forEach(b => { const k = `${ganNorm(b.it.servico_exib || b.it.servico)}|${reFrenteBase(b.it.frente)}`; (grupos.get(k) || grupos.set(k, []).get(k)).push(b); });
+  const linhas = [...grupos.values()].map(g => {
+    const p = g[0], bm = (g.find(x => x.bm) || {}).bm || null, primeiras = g.map(x => x.primeira).filter(Boolean).sort();
+    const iniG = g.map(x => x.l.ini).sort()[0], prazoG = g.map(x => x.l.prazo).filter(Boolean).sort().pop() || null, ate = soma0(g, x => x.ate);
+    const bmIniciou = !!(bm && bm.pct > 0);
+    return { nome: cap(p.it.servico_exib || p.it.servico), frente: reFrenteTxt(p.it.frente), ini: iniG, prazo: prazoG, un: plUnidade(p.it), qtd: soma0(g, x => Number(x.it.qtd) || 0), bm,
+      ate, per: soma0(g, x => x.per), primeira: primeiras[0] || null, iniciada: ate > 0 || bmIniciou, noPeriodo: iniG >= ini,
+      status: reStatusPior(g.map(x => x.l.status)), atrasadaDeInicio: iniG < c && !(ate > 0 || bmIniciou) };
   });
   linhas.sort((a, b) => (a.iniciada - b.iniciada) || a.ini.localeCompare(b.ini) || a.nome.localeCompare(b.nome));
   return { linhas, naoIniciadas: linhas.filter(x => !x.iniciada).length, iniciadas: linhas.filter(x => x.iniciada).length };
@@ -226,11 +230,18 @@ function reProjecao(emp, bm) {
     const c0 = plCalc(pl), c = pjDaEmpresa(c0, emp, pl), r = pjCalc(pl, c, 1, 'RÓTULA');
     const semanas = new Map();
     r.itens.forEach(i => i.proj.forEach((v, d) => { if (d > r.base) semanas.set(segunda(d), (semanas.get(segunda(d)) || 0) + v * i.p); }));
-    const linhas = r.itens.map(i => {
+    const brutas = r.itens.map(i => {
       let ac = Math.min(i.qtd, i.x.realAc);
       i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
-      return { atividade: i.x.it.atividade, un: i.x.it.unidade, qtd: i.qtd, preco: i.p, valor: i.valor, exec: Math.min(i.x.realAc, i.qtd) * i.p, pctFis: i.qtd ? Math.min(1, i.x.realAc / i.qtd) * 100 : 0,
+      return { chave: reChaveItem(i.x), atividade: i.x.it.atividade, un: i.x.it.unidade, qtd: i.qtd, preco: i.p, valor: i.valor, exec: Math.min(i.x.realAc, i.qtd) * i.p, fis: Math.min(i.x.realAc, i.qtd),
         noFim: Math.min(ac, i.qtd) * i.p, saldo: Math.max(0, i.qtd - i.x.realAc) * i.p, termina: i.termina, fim: i.x.it.fim, semValor: i.pr.origem === 'sem' };
+    });
+    const gr = new Map();
+    brutas.forEach(b => (gr.get(b.chave) || gr.set(b.chave, []).get(b.chave)).push(b));
+    const linhas = [...gr.values()].map(bs => {   // Fase 1 + Fase 2 = uma linha
+      const qtd = soma0(bs, b => b.qtd), valor = soma0(bs, b => b.valor);
+      return { atividade: bs[0].atividade, un: bs[0].un, qtd, preco: qtd ? valor / qtd : bs[0].preco, valor, exec: soma0(bs, b => b.exec), pctFis: qtd ? soma0(bs, b => b.fis) / qtd * 100 : 0,
+        noFim: soma0(bs, b => b.noFim), saldo: soma0(bs, b => b.saldo), termina: bs.map(b => b.termina).filter(Boolean).sort().pop() || null, fim: bs.map(b => b.fim).sort().pop(), semValor: bs.some(b => b.semValor) };
     });
     return { base: 'planos', totalPlano: r.totalPlano, planoAteHoje: r.planoAteHoje, exec: r.exec, aoFim: r.aoFimPlano, termina: r.termina, fimPlano: r.fimPlano,
       semanas: [...semanas.entries()].sort().slice(0, 8), linhas, semValor: r.semValor.length };
@@ -317,19 +328,30 @@ function reEquipamentos(emp, ini, fim, c, atv, ls) {
 }
 
 // ---------------------------------------------------------------- 9. impactos gerados e sofridos
-// GERADO: o setor responsável é "Fornecedor — {a própria empresa}" (montagem + empresa + fornecedor mencionado = impacto gerado, nunca sofrido).
-// SOFRIDO: a empresa está entre as afetadas e o setor não é ela como fornecedor.
+// Fornecedor mencionado no impacto: o nome do setor ("Fornecedor — EJ") ou, quando o setor é só "Fornecedor", as empresas citadas no texto do registro.
+function reFornecedorMencionado(i) {
+  const f = fornecedorDeSetor(impactoSetor(i));
+  if (!f.isForn) return [];
+  const nomes = fornecedoresImpacto(), acha = txt => nomes.filter(n => { const b = ganNorm(n); return b && new RegExp(`(^| )${b}( |$)`).test(ganNorm(txt)); });
+  if (f.nome) { const a = acha(f.nome); return a.length ? a : [f.nome]; }
+  return acha([i.motivo, i.paralisacao, i.obs, i.descricao, i.quando].filter(Boolean).join(' '));
+}
+// REGRA: setor Fornecedor + fornecedor mencionado = o impacto é GERADO pelo fornecedor mencionado (para a empresa citada é GERADO e NUNCA sofrido,
+// mesmo quando ela própria é a afetada na montagem). Impacto de outro setor que atinge a empresa = SOFRIDO; com fornecedor de outra empresa, SOFRIDO por quem foi afetado.
 function reImpactos(emp, ini, fim, c) {
   const lim = { ini, fim: c };
   const todos = impactosComAutomaticos().filter(i => { const p = periodoImpacto(i); return p.ini <= fim && p.fim >= ini; });
-  const gerou = i => { const f = fornecedorDeSetor(impactoSetor(i)); return f.isForn && ganNorm(f.nome) === ganNorm(emp); };
+  const forn = new Map(todos.map(i => [i, reFornecedorMencionado(i)]));
+  const gerou = i => forn.get(i).some(n => ganNorm(n) === ganNorm(emp));
   const gerados = todos.filter(gerou);
   const sofridos = todos.filter(i => impactoEmpresas(i).includes(emp) && !gerou(i));
   const semEmpresa = todos.filter(i => !impactoEmpresas(i).length).length;
   const rk = rankingImpactos(sofridos, [emp], lim), me = rk.empresas.find(x => x.nome === emp);
-  const linha = (i, tipo) => ({ tipo, i, dias: somaMapa(diasPorImpacto(i, lim)) });
+  const linha = (i, tipo) => ({ tipo, i, forn: forn.get(i), dias: somaMapa(diasPorImpacto(i, lim)) });
   const linhas = [...sofridos.map(i => linha(i, 'SOFRIDO')), ...gerados.map(i => linha(i, 'GERADO'))].sort((a, b) => String(a.i.data).localeCompare(String(b.i.data)));
-  return { linhas, sofridos: sofridos.length, gerados: gerados.length, diasDiretos: me ? me.dias : 0, diasCascata: me ? me.indireto : 0, diasGerados: somaMapa(mapaImpactos(gerados, lim)), semEmpresa, lim };
+  const comForn = todos.filter(i => fornecedorDeSetor(impactoSetor(i)).isForn);
+  return { linhas, sofridos: sofridos.length, gerados: gerados.length, diasDiretos: me ? me.dias : 0, diasCascata: me ? me.indireto : 0, diasGerados: somaMapa(mapaImpactos(gerados, lim)), semEmpresa, lim,
+    fornTotal: comForn.length, fornOutra: comForn.filter(i => forn.get(i).length && !gerou(i)).length, fornSemNome: comForn.filter(i => !forn.get(i).length).length };
 }
 
 // ---------------------------------------------------------------- 10. tendência de efetivo
@@ -370,18 +392,27 @@ function reSuprimentos(emp, c) {
   const mats = new Map(estMateriaisComCadastros().map(m => [ganNorm(m.tag), m]));
   const prodCache = new Map(), prod = nome => { if (!prodCache.has(nome)) prodCache.set(nome, prodServico(nome, emp, '0000-01-01', c)); return prodCache.get(nome); };
   const temServ = nome => !nome.startsWith('_') && M.empresas.some(e => e.nome === emp && e.servicos.some(s => s.nome === nome));
+  // Ø1/2": 8 parafusos + 8 porcas + 8 arruelas por joist içada; o parafuso (FG005/FG006/FG007) é o específico da posição da joist (criterio_por_letra) e vem do apontamento
+  const crit = (window._regras_baixa || {}).criterio_por_letra || regras.criterio_por_letra || {};
+  const apJ = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'JOIST' && a.empresa === emp && (!a.data || a.data <= c));
+  const joistsAp = soma0(apJ, a => a.qtd || 0), parafusoAp = new Map();
+  apJ.forEach(a => { const cod = (crit[String(a.letra || '').toUpperCase()] || {}).parafuso; if (cod) parafusoAp.set(cod, (parafusoAp.get(cod) || 0) + 8 * (a.qtd || 0)); });
   const itens = [];
   (cf.itens || []).forEach(m => {
     const retirado = soma0(Object.values(m.consumo_semanas || {}), d => Number(d?.[emp]) || 0);
     if (!(retirado > 0)) return;
     const refs = Object.entries(servs).filter(([nome, conf]) => temServ(nome) && (conf.itens || []).some(x => ganNorm(x.codigo) === ganNorm(m.tag)))
       .map(([nome, conf]) => ({ nome, por: Number(conf.itens.find(x => ganNorm(x.codigo) === ganNorm(m.tag)).por_unidade) || 0, real: prod(nome) })).filter(x => x.por > 0);
-    const esperado = soma0(refs, x => x.por * x.real), realizadas = soma0(refs, x => x.real);
+    let esperado = soma0(refs, x => x.por * x.real), exato = false;
+    const realizadas = soma0(refs, x => x.real), refIc = refs.find(x => /ICAMENTO/.test(ganNorm(x.nome)));
+    if (refIc && joistsAp > 0 && /^FG00[567]$/i.test(m.tag)) {   // parafuso específico: apontado por posição + o que passou do apontamento pela média do serviço
+      esperado = (parafusoAp.get(String(m.tag).toUpperCase()) || 0) + Math.max(0, refIc.real - joistsAp) * refIc.por; exato = true;
+    }
     const previstas = refs.length ? (esperado > 0 ? retirado * realizadas / esperado : retirado / refs[0].por) : null;   // unidades do serviço que o material retirado permitiria montar
     const perda = refs.length ? (retirado - esperado) / retirado * 100 : null;
     const sem = perda == null ? ['nd', 'SEM REFERÊNCIA'] : perda < 0 ? ['am', 'ATENÇÃO — retirada abaixo do necessário'] : perda <= RE_PERDA_VERDE ? ['vd', 'CONFORME — perda até 3%'] : perda <= RE_PERDA_AMARELO ? ['am', 'ATENÇÃO — perda de 3 a 6%'] : ['vm', 'NÃO CONFORME — perda acima de 6%'];
     const mat = mats.get(ganNorm(m.tag));
-    itens.push({ tag: m.tag, produto: m.produto || mat?.produto || m.tag, material: mat?.material || '', retirado, refs, esperado, previstas, realizadas, perda, sem });
+    itens.push({ tag: m.tag, produto: m.produto || mat?.produto || m.tag, material: mat?.material || '', retirado, refs, esperado, previstas, realizadas, perda, sem, exato });
   });
   itens.sort((a, b) => (b.perda ?? -999) - (a.perda ?? -999));
   const conta = cls => itens.filter(i => i.sem[0] === cls).length;
@@ -576,13 +607,23 @@ function reSecAtividades(d) {
   });
   return `<p>${a.naoIniciadas ? `<b class="neg">${a.naoIniciadas} atividade(s) que a empresa deveria ter iniciado ainda não foi(ram) iniciada(s).</b>` : '<b class="pos">Todas as atividades previstas para iniciar já foram iniciadas.</b>'} ${a.iniciadas} iniciada(s).</p>`
     + reTab(['Atividade', 'Início previsto', 'Prazo', 'Situação', '#nRealizado no período', '#nAcumulado (catálogo de atividades)', '#n% acumulada (medição)'], linhas)
-    + '<p class="nota">Acumulado, quantidade contratada e % acumulada vêm do catálogo de atividades do BM (Financeiro › Medição) da própria empresa. A Fase 2 do galpão só aparece depois que o saldo da Fase 1 do mesmo serviço termina.</p>';
+    + '<p class="nota">Acumulado, quantidade contratada e % acumulada vêm do catálogo de atividades do BM (Financeiro › Medição) da própria empresa. Fase 1 e Fase 2 do mesmo serviço aparecem somadas numa única linha (a Fase 2 só começa depois do saldo da Fase 1).</p>';
 }
 function reSecPrevisto(d) {
   const p = d.previstoReal;
   if (p.erro) return reErro(p);
-  const linhas = p.rows.map(r => { const f = reFarolPct(r.pct, !r.previsto); return `<tr><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto, 1)}${r.un ? ' ' + r.un : ''}${r.n > 1 ? `<div class="nota">cronograma do cliente ÷ ${r.n} empresas</div>` : `<div class="nota">${esc(r.base)}</div>`}</td><td class="n"><b>${nf(r.real, 1)}${r.un ? ' ' + r.un : ''}</b></td><td class="n">${rePct(r.pct)}</td><td>${reSm(f[0], f[1].replace('meta ', ''))}</td><td class="n">${nf(r.acum, 1)}${r.un ? ' ' + r.un : ''}</td></tr>`; });
+  const linhas = p.rows.map(r => { const f = reFarolPct(r.pct, !r.previsto); return `<tr><td>${esc(cap(r.serv))}</td><td class="n">${nf(r.previsto, 1)}${r.un ? ' ' + r.un : ''}</td><td class="n"><b>${nf(r.real, 1)}${r.un ? ' ' + r.un : ''}</b></td><td class="n">${rePct(r.pct)}</td><td>${reSm(f[0], f[1].replace('meta ', ''))}</td><td class="n">${nf(r.acum, 1)}${r.un ? ' ' + r.un : ''}</td></tr>`; });
   return reTab(['Atividade', '#nPrevisto no período', '#nRealizado no período', '#n% atingido', 'Situação', '#nAcumulado da obra'], linhas);
+}
+// itens do plano com o mesmo serviço (Fase 1 + Fase 2) somados numa linha: quantidade, planejado, realizado (limitado ao plano) e falta
+function reItensSomados(itens) {
+  const g = new Map();
+  itens.forEach(x => { const k = reChaveItem(x); (g.get(k) || g.set(k, []).get(k)).push(x); });
+  return [...g.values()].map(xs => {
+    const qtd = soma0(xs, x => Number(x.it.qtd) || 0), realAc = soma0(xs, x => Math.min(x.realAc, Number(x.it.qtd) || Infinity));
+    return { nome: xs[0].it.atividade, un: xs[0].it.unidade, qtd, planAc: soma0(xs, x => x.planAc), realAc, falta: Math.max(0, qtd - realAc),
+      status: realAc >= qtd - 1e-9 ? 'CONCLUÍDO' : reStatusPior(xs.map(x => x.status)) };
+  });
 }
 function reSecPlanos(d) {
   const p = d.planos;
@@ -592,7 +633,7 @@ function reSecPlanos(d) {
   return `<p><b>Resumo dos planos da empresa:</b> ${reSm(g.veredito[0], g.veredito[1])} — realizado ${rePct(g.pctReal, 1)} × planejado até hoje ${rePct(g.pctPlan, 1)} (desvio ${g.desvio >= 0 ? '+' : ''}${nf(g.desvio, 1)} p.p.) em ${g.atividades} atividade(s) de ${g.n} plano(s).</p>`
     + p.rows.map(r => `<h3>${esc(r.plano.nome)} <span class="nota">${fdA(r.plano.inicio)} a ${fdA(r.plano.fim)}</span> ${reSm(r.veredito[0], r.veredito[1])}</h3>
     <p class="nota">Realizado ${rePct(r.c.pctReal, 1)} × planejado até hoje ${rePct(r.c.pctPlan, 1)} (desvio ${r.c.desvio >= 0 ? '+' : ''}${nf(r.c.desvio, 1)} p.p.) · situação ${esc(r.st)}${r.c.terminaEm ? ` · no ritmo atual termina em ${fdA(r.c.terminaEm)}` : ''}.</p>`
-    + reTab(['Atividade', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], r.itens.map(x => `<tr><td>${esc(x.it.atividade)}</td><td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${esc(x.it.unidade)}</td><td class="n">${plFmt(x.planAc, x.it.unidade)}</td><td class="n"><b>${plFmt(x.realAc, x.it.unidade)}</b></td><td class="n">${plFmt(x.falta, x.it.unidade)}</td><td>${plFarol ? `<span class="nota">${esc(x.status)}</span>` : esc(x.status)}</td></tr>`))).join('');
+    + reTab(['Atividade', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
 }
 function reSecBM(d) {
   const b = d.bm;
@@ -658,10 +699,10 @@ function reSecEquip(d) {
 function reSecImpactos(d) {
   const m = d.impactos;
   if (m.erro) return reErro(m);
-  const linhas = m.linhas.map(x => `<tr><td>${fdA(x.i.data)}</td><td>${reSm(x.tipo === 'GERADO' ? 'am' : 'vm', x.tipo)}</td><td>${esc(x.i.servico || '—')}</td><td>${esc(impactoSetor(x.i))}</td><td>${esc(impactoEmpresasTexto(x.i))}</td><td>${esc(x.i.motivo || '')}</td><td class="n"><b>${fmtD(x.dias)}</b></td><td>${x.i.solucionado ? 'solucionado ' + fdA(x.i.solucionado) : '<b class="neg">em aberto</b>'}</td></tr>`);
-  return `<p><b>${m.sofridos}</b> impacto(s) sofrido(s) e <b>${m.gerados}</b> gerado(s) pela empresa (setor “Fornecedor — ${esc(d.emp)}”) no período. Dias úteis sofridos: <b>${fmtD(m.diasDiretos)}</b> direto${m.diasCascata ? ` + <b>${fmtD(m.diasCascata)}</b> por efeito cascata (atividades anteriores do fluxo atrasaram o início)` : ''}; dias úteis gerados: <b>${fmtD(m.diasGerados)}</b>.${m.semEmpresa ? ` Há ${m.semEmpresa} impacto(s) sem empresa definida (não entram nesta lista).` : ''}</p>`
+  const linhas = m.linhas.map(x => `<tr><td>${fdA(x.i.data)}</td><td>${reSm(x.tipo === 'GERADO' ? 'am' : 'vm', x.tipo)}</td><td>${esc(x.i.servico || '—')}</td><td>${esc(impactoSetor(x.i))}${x.forn.length ? `<div class="nota">fornecedor mencionado: ${esc(x.forn.join(' / '))}</div>` : ''}</td><td>${esc(impactoEmpresasTexto(x.i))}</td><td>${esc(x.i.motivo || '')}</td><td class="n"><b>${fmtD(x.dias)}</b></td><td>${x.i.solucionado ? 'solucionado ' + fdA(x.i.solucionado) : '<b class="neg">em aberto</b>'}</td></tr>`);
+  return `<p><b>${m.sofridos}</b> impacto(s) sofrido(s) e <b>${m.gerados}</b> gerado(s) pela empresa (setor “Fornecedor — ${esc(d.emp)}”) no período. Dias úteis sofridos: <b>${fmtD(m.diasDiretos)}</b> direto${m.diasCascata ? ` + <b>${fmtD(m.diasCascata)}</b> por efeito cascata (atividades anteriores do fluxo atrasaram o início)` : ''}; dias úteis gerados: <b>${fmtD(m.diasGerados)}</b>.${m.semEmpresa ? ` Há ${m.semEmpresa} impacto(s) sem empresa definida (não entram nesta lista).` : ''} Impactos do período com setor Fornecedor: ${m.fornTotal} (${m.gerados} mencionando ${esc(d.emp)}, ${m.fornOutra} mencionando outra empresa${m.fornSemNome ? `, ${m.fornSemNome} sem fornecedor identificado` : ''}).</p>`
     + reTab(['Data', 'Tipo', 'Atividade', 'Setor responsável', 'Empresa(s) afetada(s)', 'Motivo', '#nDias úteis no período', 'Situação'], linhas)
-    + `<p class="nota">Critério: impacto com setor “Fornecedor — ${esc(d.emp)}” é GERADO pela empresa (e não sofrido, mesmo quando a própria empresa é a afetada); os demais impactos que atingem a empresa são SOFRIDOS. Dias úteis reais do calendário dentro de ${fdA(m.lim.ini)} a ${fdA(m.lim.fim)}; cada dia conta uma vez, mesmo com vários impactos.</p>`;
+    + `<p class="nota">Regra: setor Fornecedor + fornecedor mencionado = impacto GERADO pela empresa mencionada (e não sofrido, mesmo quando ela própria é a afetada na montagem); o fornecedor vem do setor (“Fornecedor — ${esc(d.emp)}”) ou, se o setor for só “Fornecedor”, do nome da empresa citado no motivo; os demais impactos que atingem a empresa são SOFRIDOS. Dias úteis reais do calendário dentro de ${fdA(m.lim.ini)} a ${fdA(m.lim.fim)}; cada dia conta uma vez, mesmo com vários impactos.</p>`;
 }
 function reSecEfetivo(d) {
   const e = d.efetivo;
@@ -678,7 +719,7 @@ function reSecSuprimentos(d) {
   const s = d.sup;
   if (s.erro) return reErro(s);
   if (s.sem) return `<p class="nota">${esc(s.sem)}</p>`;
-  const linhas = s.itens.map(i => `<tr><td><b>${esc(i.tag)}</b><div class="nota">${esc(i.produto)}</div></td><td class="n">${nf(i.retirado, 1)}</td><td class="n">${i.refs.length ? nf(i.esperado, 1) : '—'}</td><td class="n">${i.previstas != null ? nf(i.previstas, 1) : '—'}</td><td class="n"><b>${i.refs.length ? nf(i.realizadas, 1) : '—'}</b></td><td class="n">${i.perda != null ? (i.perda > 0 ? '+' : '') + nf(i.perda, 1) + '%' : '—'}</td><td>${reSm(i.sem[0], i.sem[1])}</td><td class="nota">${i.refs.map(r => `${esc(cap(r.nome))}: ${nf(r.por, 2)}/un`).join(' · ') || '—'}</td></tr>`);
+  const linhas = s.itens.map(i => `<tr><td><b>${esc(i.tag)}</b><div class="nota">${esc(i.produto)}</div></td><td class="n">${nf(i.retirado, 1)}</td><td class="n">${i.refs.length ? nf(i.esperado, 1) : '—'}</td><td class="n">${i.previstas != null ? nf(i.previstas, 1) : '—'}</td><td class="n"><b>${i.refs.length ? nf(i.realizadas, 1) : '—'}</b></td><td class="n">${i.perda != null ? (i.perda > 0 ? '+' : '') + nf(i.perda, 1) + '%' : '—'}</td><td>${reSm(i.sem[0], i.sem[1])}</td><td class="nota">${i.exato ? 'por apontamento: 8 por joist, parafuso da posição' : i.refs.map(r => `${esc(cap(r.nome))}: ${nf(r.por, 2)}/un`).join(' · ') || '—'}</td></tr>`);
   return `<p>Material retirado do estoque pela empresa (consumo físico) comparado com o que as unidades realizadas exigiriam. <b>${s.verdes}</b> conforme(s) · <b>${s.amarelos}</b> em atenção · <b>${s.vermelhos}</b> não conforme(s)${s.semBase ? ` · ${s.semBase} sem referência de consumo por unidade` : ''}.</p>`
     + reTab(['Material (TAG)', '#nRetirado', '#nNecessário p/ o realizado', '#nUnidades previstas pelo material retirado', '#nUnidades realizadas', '#nPerda', 'Situação', 'Consumo por unidade'], linhas)
     + `<p class="nota">Unidades previstas = quanto o material retirado permitiria montar (retirado ÷ consumo por unidade do serviço); realizadas = produção lançada da empresa (acumulada até ${fdA(d.corte)}). Perda = (retirado − necessário) ÷ retirado. Situação: <b>CONFORME</b> até ${RE_PERDA_VERDE}% de perda · <b>ATENÇÃO</b> de ${RE_PERDA_VERDE} a ${RE_PERDA_AMARELO}% (ou retirada menor que o necessário — conferir lançamentos) · <b>NÃO CONFORME</b> acima de ${RE_PERDA_AMARELO}%; “sem referência” = serviço sem consumo por unidade cadastrado. O consumo físico é lançado por semana e acumulado — não é separado por período.</p>`;
@@ -736,38 +777,30 @@ async function reHtml(ini, fim, emps) {
     ${dados.map(reHtmlEmpresa).join('')}</body></html>`;
 }
 
-// ---------------------------------------------------------------- tela: botão do Painel e janela de escolha
-function reAbrirModal() {
-  let m = document.getElementById('modalRelEmpresas');
-  if (m) m.remove();
-  const nomes = (M.empresas || []).map(e => e.nome).filter(Boolean);
-  m = document.createElement('div');
-  m.className = 'modal-admin'; m.id = 'modalRelEmpresas';
-  m.innerHTML = `<div class="modal-admin-fundo" data-re-fechar></div><div class="modal-admin-caixa relatorio-modal" role="dialog" aria-modal="true">
-    <div class="modal-admin-topo"><div><h2>Relatório das empresas</h2><p>Produção, metas, plano, avanço físico, financeiro, equipamentos, impactos, efetivo e suprimentos.</p></div><button type="button" class="modal-admin-x" data-re-fechar aria-label="Fechar">×</button></div>
-    <div class="grade-modal"><label>Data inicial<input type="date" id="reIni" value="${per.ini}"></label><label>Data final<input type="date" id="reFim" value="${per.fim}"></label>
-      <label class="largo">Empresas<select id="reEmps" multiple size="${Math.min(6, Math.max(3, nomes.length))}">${nomes.map(n => `<option value="${esc(n)}" ${!painelEmpFiltro || painelEmpFiltro === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select><span class="nota">Ctrl marca mais de uma. Sem seleção, sai com todas. O período começa igual ao do Painel.</span></label></div>
-    <p class="nota" id="reMsg"></p>
-    <div class="modal-admin-acoes"><button type="button" class="btn" data-re-fechar>Cancelar</button><button type="button" class="btn primario" id="reGerar">Gerar relatório</button></div></div>`;
-  document.body.appendChild(m);
-  m.hidden = false;
+// ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)
+// O botão vale para o painel escolhido (Geral = todas as empresas; EJ, CMM… = só a empresa) e para o período das caixas de data ao lado dele.
+let reBarPer = '';
+function reSincronizarBarra() {   // chamada a cada desenho do Painel: as datas acompanham o período do Painel até serem editadas
+  const a = document.getElementById('reBarIni'), b = document.getElementById('reBarFim');
+  if (!a || !b) return;
+  const k = `${per.ini}|${per.fim}`;
+  if (reBarPer !== k) { reBarPer = k; a.value = per.ini; b.value = per.fim; }
+  const btn = document.getElementById('btnRelEmpresas');
+  if (btn) btn.textContent = painelEmpFiltro ? `Relatório · ${painelEmpFiltro}` : 'Relatório das empresas';
 }
 async function reGerar() {
-  const ini = document.getElementById('reIni').value, fim = document.getElementById('reFim').value, msg = document.getElementById('reMsg');
-  if (!ehISO(ini) || !ehISO(fim) || fim < ini) { msg.textContent = 'Informe um período válido.'; return; }
-  const sel = [...document.getElementById('reEmps').selectedOptions].map(o => o.value);
-  const emps = sel.length ? sel : (M.empresas || []).map(e => e.nome).filter(Boolean);
-  msg.textContent = 'Montando o relatório…';
+  const ini = document.getElementById('reBarIni').value, fim = document.getElementById('reBarFim').value, btn = document.getElementById('btnRelEmpresas');
+  if (!ehISO(ini) || !ehISO(fim) || fim < ini) { toast('Informe um período válido ao lado do botão.', true); return; }
+  const emps = painelEmpFiltro ? [painelEmpFiltro] : (M.empresas || []).map(e => e.nome).filter(Boolean);
+  const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
     const html = await reHtml(ini, fim, emps);
-    baixarHtml(`relatorio-empresas-${ini}_a_${fim}.html`, html);
-    document.getElementById('modalRelEmpresas')?.remove();
-    toast('Relatório das empresas gerado.');
-  } catch (e) { console.error(e); msg.textContent = 'Não foi possível gerar: ' + (e.message || e); }
+    baixarHtml(`relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'empresas'}-${ini}_a_${fim}.html`, html);
+    toast('Relatório gerado.');
+  } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }
+  finally { btn.disabled = false; btn.textContent = rot; }
 }
 document.addEventListener('click', ev => {
   const t = ev.target;
-  if (t.closest && t.closest('#btnRelEmpresas')) return reAbrirModal();
-  if (t.closest && t.closest('[data-re-fechar]')) return document.getElementById('modalRelEmpresas')?.remove();
-  if (t.closest && t.closest('#reGerar')) return reGerar();
+  if (t.closest && t.closest('#btnRelEmpresas')) return reGerar();
 });

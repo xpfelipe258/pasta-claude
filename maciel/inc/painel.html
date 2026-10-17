@@ -141,7 +141,10 @@
   <section id="aba-painel">
     <div class="barra-acoes" id="painelFiltroBar">
       <div class="seg" id="segPainelEmp"></div>
-      <button class="btn" id="btnRelEmpresas" title="Baixar o relatório das empresas no período escolhido">Relatório das empresas</button>
+      <div class="re-barra" title="Relatório do painel escolhido (Geral = todas as empresas) no período ao lado">
+        <label>De <input type="date" id="reBarIni"></label><label>até <input type="date" id="reBarFim"></label>
+        <button class="btn" id="btnRelEmpresas">Relatório das empresas</button>
+      </div>
     </div>
     <div class="tiles" id="tiles"></div>
     <div class="bloco" id="painelPlanos"></div>
