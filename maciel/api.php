@@ -1008,6 +1008,29 @@ function semana_consumo_data_valida($v)
     return $v;
 }
 
+// Período do consumo (data inicial e final em que o material foi retirado). Guardado em consumo_fisico.semanas_periodos[semana] = {ini, fim};
+// semanas_datas[semana] acompanha a data inicial (os relatórios leem por ela).
+function semana_consumo_periodo($ini, $fim)
+{
+    $ini = semana_consumo_data_valida($ini);
+    $fim = trim((string)$fim) === '' ? $ini : semana_consumo_data_valida($fim);
+    if ($fim < $ini) {
+        throw new ErroValidacao('O fim do período do consumo não pode ser anterior ao início.');
+    }
+    return ['ini' => $ini, 'fim' => $fim];
+}
+function semana_consumo_gravar_periodo(array &$dados, $semana, array $per)
+{
+    $ps = $dados['consumo_fisico']['semanas_periodos'] ?? [];
+    $ps = is_array($ps) ? $ps : [];
+    $ps[$semana] = $per;
+    $dados['consumo_fisico']['semanas_periodos'] = $ps;
+    $ds = $dados['consumo_fisico']['semanas_datas'] ?? [];
+    $ds = is_array($ds) ? $ds : [];
+    $ds[$semana] = $per['ini'];
+    $dados['consumo_fisico']['semanas_datas'] = $ds;
+}
+
 function acao_estoque_consumo(array $corpo)
 {
     $dados = estoque_planilha_ler();
@@ -1050,14 +1073,17 @@ function acao_estoque_consumo(array $corpo)
         $chave = "$tag|$empresa";
         $lancamentos[$chave] = ($lancamentos[$chave] ?? 0) + qtd_positiva($it, $n);
     }
-    if (!in_array($semana, $dados['consumo_fisico']['semanas'], true)) {
+    $semanaNova = !in_array($semana, $dados['consumo_fisico']['semanas'], true);
+    $iniP = trim((string)($corpo['periodo_ini'] ?? $corpo['data_semana'] ?? ''));
+    if ($semanaNova && $iniP === '') {
+        throw new ErroValidacao('Informe o período do consumo (data inicial e final) da semana.');
+    }
+    $periodo = $iniP !== '' ? semana_consumo_periodo($iniP, $corpo['periodo_fim'] ?? '') : null;
+    if ($semanaNova) {
         $dados['consumo_fisico']['semanas'][] = $semana;
     }
-    if (trim((string)($corpo['data_semana'] ?? '')) !== '') {
-        $datas = $dados['consumo_fisico']['semanas_datas'] ?? [];
-        $datas = is_array($datas) ? $datas : [];
-        $datas[$semana] = semana_consumo_data_valida($corpo['data_semana']);
-        $dados['consumo_fisico']['semanas_datas'] = $datas;
+    if ($periodo) {
+        semana_consumo_gravar_periodo($dados, $semana, $periodo);
     }
     foreach ($lancamentos as $chave => $qtd) {
         list($tag, $empresa) = explode('|', $chave);
@@ -1238,22 +1264,35 @@ function acao_estoque_consumo_semana(array $corpo)
     $dados['consumo_fisico']['semanas'] = array_values($semanas);
     $datas = $dados['consumo_fisico']['semanas_datas'] ?? [];
     $datas = is_array($datas) ? $datas : [];
+    $pers = $dados['consumo_fisico']['semanas_periodos'] ?? [];
+    $pers = is_array($pers) ? $pers : [];
     if ($excluir) {
-        unset($datas[$semana]);
+        unset($datas[$semana], $pers[$semana]);
     } else {
-        if ($novo !== $semana && isset($datas[$semana])) {
-            $datas[$novo] = $datas[$semana];
-            unset($datas[$semana]);
+        if ($novo !== $semana) {
+            if (isset($datas[$semana])) {
+                $datas[$novo] = $datas[$semana];
+                unset($datas[$semana]);
+            }
+            if (isset($pers[$semana])) {
+                $pers[$novo] = $pers[$semana];
+                unset($pers[$semana]);
+            }
         }
-        if (array_key_exists('data_semana', $corpo)) {
-            if (trim((string)$corpo['data_semana']) === '') {
-                unset($datas[$novo]);
+        $temP = array_key_exists('periodo_ini', $corpo);
+        if ($temP || array_key_exists('data_semana', $corpo)) {
+            $ini = trim((string)($temP ? $corpo['periodo_ini'] : $corpo['data_semana']));
+            if ($ini === '') {
+                unset($datas[$novo], $pers[$novo]);
             } else {
-                $datas[$novo] = semana_consumo_data_valida($corpo['data_semana']);
+                $per = semana_consumo_periodo($ini, $temP ? ($corpo['periodo_fim'] ?? '') : ($pers[$novo]['fim'] ?? ''));
+                $datas[$novo] = $per['ini'];
+                $pers[$novo] = $per;
             }
         }
     }
     $dados['consumo_fisico']['semanas_datas'] = $datas;
+    $dados['consumo_fisico']['semanas_periodos'] = $pers;
     estoque_planilha_gravar($dados);
     return ['semana' => $excluir ? null : $novo, 'excluida' => $excluir, 'itens_ajustados' => count($valores)];
 }

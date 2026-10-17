@@ -3198,7 +3198,7 @@ function edBarra(k) {
         + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
     box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
       + datasHtml
-      + (k === 'cons' ? `<span class="ed-datas"><label>Semana de (qualquer dia)<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="dataSemana" value="${esc(ed.dataSemana || '')}"></label></span>` : '')
+      + (k === 'cons' ? `<span class="ed-datas"><label>Período do consumo — de<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoIni" value="${esc(ed.periodoIni || '')}"></label><label>até<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoFim" value="${esc(ed.periodoFim || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
       + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
       + `<button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
@@ -3209,7 +3209,7 @@ function edAbrir(k) {
   if (!EP) return;
   if (!estEdit[k]) estEdit[k] = k === 'rem'
     ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false }
-    : { nome: '', val: new Map(), dataSemana: '' };
+    : { nome: '', val: new Map(), periodoIni: '', periodoFim: '' };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
   const cab = $(ED[k].tabela).querySelector('.ed-cab');
@@ -3241,10 +3241,14 @@ async function edSalvar(k) {
   const { itens, erro } = edItens(k);
   if (erro) { toast(erro, true); return; }
   if (!itens.length) { toast('Digite ao menos uma quantidade.', true); return; }
+  if (k === 'cons') {
+    if (!ehISO(ed.periodoIni)) { toast('Informe a data inicial do período do consumo.', true); $(ED[k].barra).querySelector('[data-ed-dat="periodoIni"]')?.focus(); return; }
+    if (ed.periodoFim && ed.periodoFim < ed.periodoIni) { toast('O fim do período não pode ser anterior ao início.', true); return; }
+  }
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
     const corpo = { [ED[k].campo]: nome, itens };
-    if (k === 'cons' && ed.dataSemana) corpo.data_semana = ed.dataSemana;
+    if (k === 'cons') { corpo.periodo_ini = ed.periodoIni; corpo.periodo_fim = ed.periodoFim || ed.periodoIni; }
     if (k === 'rem') {
       if (ed.substituir) { corpo.substituir = true; corpo.original_remessa = ed.original || nome; }
       if (ed.prevista || ed.emissaoNf || ed.chegadaObra || ed.substituir) corpo.datas = { prevista_chegada: ed.prevista, emissao_nota: ed.emissaoNf, chegada_obra: ed.chegadaObra };
@@ -3437,8 +3441,14 @@ function gerarRelConsumo() {
 // Cada semana do consumo é um nome livre ("SEMANA 6 SET 12 a 19"); a data da semana (gravada em consumo_fisico.semanas_datas) liga o consumo ao
 // calendário nos relatórios. Sem data gravada, tenta-se ler o intervalo do nome (dd a dd + mês, ou o mês da semana anterior).
 const ABR_MES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const consSemanasPeriodos = cf => (cf.semanas_periodos && !Array.isArray(cf.semanas_periodos) ? cf.semanas_periodos : {});
+function consPeriodoTxt(cf, nome) {   // "dd/mm a dd/mm" do período gravado (ou vazio)
+  const p = consSemanasPeriodos(cf)[nome];
+  return p && ehISO(p.ini) ? `${fd(p.ini)}${p.fim && p.fim !== p.ini ? ' a ' + fd(p.fim) : ''}` : '';
+}
 function consSemanasDatas(cf) {
-  const salvas = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas : {};
+  const salvas = { ...(cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas : {}) };
+  Object.entries(consSemanasPeriodos(cf)).forEach(([n, p]) => { if (p && ehISO(p.ini)) salvas[n] = p.ini; });
   const ano = Number(String((M && M.datas && M.datas[0]) || hoje()).slice(0, 4)), out = new Map();
   let mesAnt = null;
   (cf.semanas || []).forEach(nome => {
@@ -3448,8 +3458,8 @@ function consSemanasDatas(cf) {
     if (mes >= 0) mesAnt = mes;
     if (ehISO(salvas[nome])) { out.set(nome, { data: segunda(salvas[nome]), origem: 'cadastrada', bruta: salvas[nome] }); return; }
     if (m && mesUsado != null) {
-      const d = `${ano}-${String(mesUsado + 1).padStart(2, '0')}-${String(Math.min(31, Number(m[1]))).padStart(2, '0')}`;
-      if (ehISO(d)) out.set(nome, { data: segunda(d), origem: 'inferida do nome', bruta: d });
+      const mk = dia => `${ano}-${String(mesUsado + 1).padStart(2, '0')}-${String(Math.min(31, Number(dia))).padStart(2, '0')}`, d = mk(m[1]), f = mk(m[2]);
+      if (ehISO(d)) out.set(nome, { data: segunda(d), origem: 'inferida do nome', bruta: d, fim: ehISO(f) && f >= d ? f : d });
     }
   });
   return out;
@@ -3461,10 +3471,11 @@ function abrirConsSemana(semana) {
   cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, { EJ: Number(d.EJ) || 0, CMM: Number(d.CMM) || 0 }); });
   $('#tituloConsSemana').textContent = `Editar coluna — ${semana}`;
   $('#consSemNome').value = semana; $('#consSemBusca').value = '';
-  const dt = consSemanasDatas(cf).get(semana), salva = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas[semana] : '';
-  consSem.dataOrig = salva || '';
+  const dt = consSemanasDatas(cf).get(semana), per = consSemanasPeriodos(cf)[semana], salva = (per && per.ini) || (cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas[semana] : '') || '';
+  consSem.dataOrig = salva ? `${salva}|${(per && per.fim) || ''}` : '|';
   $('#consSemData').value = salva || (dt ? dt.bruta : '');
-  $('#consSemDataDica').textContent = salva ? '' : dt ? 'sugerida pelo nome da semana — confirme e salve' : 'informe qualquer dia da semana em que o material foi retirado';
+  $('#consSemFim').value = (per && per.fim) || (salva ? '' : (dt && dt.fim) || '');
+  $('#consSemDataDica').textContent = salva ? '' : dt ? 'sugerido pelo nome da semana — confirme e salve' : 'informe de quando a quando o material foi retirado';
   const ex = $('#btnConsSemExcluir'); ex.dataset.confirmar = ''; ex.textContent = 'Excluir coluna';
   consSemDesenhar();
   $('#modalConsSemana').hidden = false; document.body.classList.add('modal-aberto');
@@ -3488,10 +3499,11 @@ async function salvarConsSemana() {
     ['EJ', 'CMM'].forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
     if (Object.keys(v).length > 1) valores.push(v);
   });
-  const dataNova = $('#consSemData').value || '';
-  if (novo === semana && !valores.length && dataNova === consSem.dataOrig) { fecharConsSemana(); return toast('Nada foi alterado.'); }
+  const dataNova = $('#consSemData').value || '', fimNovo = $('#consSemFim').value || '';
+  if (dataNova && fimNovo && fimNovo < dataNova) return toast('O fim do período não pode ser anterior ao início.', true);
+  if (novo === semana && !valores.length && `${dataNova}|${fimNovo}` === consSem.dataOrig) { fecharConsSemana(); return toast('Nada foi alterado.'); }
   try {
-    await postar(API + 'estoque-planilha/consumo-semana', { semana, novo_nome: novo, valores, data_semana: dataNova });
+    await postar(API + 'estoque-planilha/consumo-semana', { semana, novo_nome: novo, valores, periodo_ini: dataNova, periodo_fim: fimNovo || dataNova });
     fecharConsSemana(); await recarregarEstoquePlanilha();
     toast(`Coluna ${novo} salva ${ONDE}`);
   } catch (err) { toast(err.message || 'Erro ao salvar.', true); }
@@ -3507,21 +3519,28 @@ async function excluirConsSemana() {
 }
 // "Datar semanas": uma tabela com todas as semanas do consumo e a data de cada uma (gravada ou sugerida pelo nome)
 function abrirConsDatas() {
-  const cf = estConsumoComCadastros(), datas = consSemanasDatas(cf), salvas = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas : {};
-  $('#tabConsDatas').innerHTML = '<thead><tr><th>Semana</th><th>Semana de (qualquer dia)</th><th>Origem</th></tr></thead><tbody>' +
-    ((cf.semanas || []).map(n => { const d = datas.get(n), v = salvas[n] || (d ? d.bruta : '');
-      return `<tr><td><b>${esc(n)}</b></td><td><input type="date" data-cd-sem="${esc(n)}" data-cd-orig="${esc(salvas[n] || '')}" value="${esc(v)}"></td><td class="nota">${salvas[n] ? 'cadastrada' : d ? 'sugerida pelo nome — confirme' : 'sem data'}</td></tr>`; }).join('')
-      || '<tr><td colspan="3" class="vazio">Sem semanas registradas.</td></tr>') + '</tbody>';
+  const cf = estConsumoComCadastros(), datas = consSemanasDatas(cf), pers = consSemanasPeriodos(cf);
+  $('#tabConsDatas').innerHTML = '<thead><tr><th>Semana</th><th>Período — de</th><th>até</th><th>Origem</th></tr></thead><tbody>' +
+    ((cf.semanas || []).map(n => { const d = datas.get(n), p = pers[n], ini = (p && p.ini) || (d ? d.bruta : ''), fim = (p && p.fim) || (!p && d && d.fim) || '', salva = !!(p && p.ini) || (d && d.origem === 'cadastrada');
+      return `<tr><td><b>${esc(n)}</b></td><td><input type="date" data-cd-sem="${esc(n)}" data-cd-campo="ini" data-cd-orig="${esc(salva ? ini : '')}" value="${esc(ini)}"></td><td><input type="date" data-cd-sem="${esc(n)}" data-cd-campo="fim" data-cd-orig="${esc(salva ? fim : '')}" value="${esc(fim)}"></td><td class="nota">${salva ? 'cadastrado' : d ? 'sugerido pelo nome — confirme' : 'sem período'}</td></tr>`; }).join('')
+      || '<tr><td colspan="4" class="vazio">Sem semanas registradas.</td></tr>') + '</tbody>';
   $('#modalConsDatas').hidden = false; document.body.classList.add('modal-aberto');
 }
 function fecharConsDatas() { const m = $('#modalConsDatas'); if (m) m.hidden = true; document.body.classList.remove('modal-aberto'); }
 async function salvarConsDatas() {
-  const mudou = [...document.querySelectorAll('#tabConsDatas [data-cd-sem]')].filter(i => i.value !== i.dataset.cdOrig);
-  if (!mudou.length) { fecharConsDatas(); return toast('Nenhuma data alterada.'); }
+  const por = new Map();   // semana → {ini, fim, mudou}
+  document.querySelectorAll('#tabConsDatas [data-cd-sem]').forEach(i => {
+    const o = por.get(i.dataset.cdSem) || { ini: '', fim: '', mudou: false };
+    o[i.dataset.cdCampo] = i.value; if (i.value !== i.dataset.cdOrig) o.mudou = true; por.set(i.dataset.cdSem, o);
+  });
+  const mudou = [...por].filter(([, o]) => o.mudou);
+  if (!mudou.length) { fecharConsDatas(); return toast('Nenhum período alterado.'); }
+  const ruim = mudou.find(([, o]) => o.fim && o.ini && o.fim < o.ini);
+  if (ruim) return toast(`${ruim[0]}: o fim do período não pode ser anterior ao início.`, true);
   try {
-    for (const i of mudou) await postar(API + 'estoque-planilha/consumo-semana', { semana: i.dataset.cdSem, novo_nome: i.dataset.cdSem, valores: [], data_semana: i.value });
+    for (const [nome, o] of mudou) await postar(API + 'estoque-planilha/consumo-semana', { semana: nome, novo_nome: nome, valores: [], periodo_ini: o.ini, periodo_fim: o.fim || o.ini });
     fecharConsDatas(); await recarregarEstoquePlanilha();
-    toast(`${mudou.length} semana(s) datada(s) ${ONDE}`);
+    toast(`${mudou.length} semana(s) com período salvo ${ONDE}`);
   } catch (err) { toast(err.message || 'Erro ao salvar as datas.', true); }
 }
 async function recarregarEstoquePlanilha() {
@@ -3550,7 +3569,7 @@ function renderEstConsumo() {
   const ed = estEdit.cons, cxC = $('#tabEstCons').closest('.tabela-rolagem'), sxC = cxC.scrollLeft;
   const inp = (m, emp) => `<td class="col-nova"><input class="ed-in" data-ed="cons" data-tag="${esc(m.tag)}" data-emp="${emp}" inputmode="decimal" value="${esc(ed.val.get(m.tag + '|' + emp) || '')}" aria-label="${esc(m.tag)} ${emp}"></td>`;
   $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
-    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}">${esc(abrevS(s))} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
+    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}${consPeriodoTxt(cf, s) ? ' · período ' + esc(consPeriodoTxt(cf, s)) : ''}">${esc(abrevS(s))}${consPeriodoTxt(cf, s) ? `<div class="nota">${esc(consPeriodoTxt(cf, s))}</div>` : ''} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
     (ed ? `<th class="n col-nova" colspan="2"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
     `<th class="n">Total</th></tr><tr><th></th><th></th>` +
     sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
@@ -4444,10 +4463,11 @@ function apSelLogHtml(ctx) {
 }
 
 // Conciliação: o que foi lançado na produção (grade, base do BM) x o que foi apontado no mapa, por empresa.
+const apDeTelha = a => ['TELHA', 'PERFILAGEM'].includes((a.tipo || '').toUpperCase());   // telhas e perfilagem são da Globo Aços: fora da conciliação das joists/vigas
 function apConciliacaoHtml(ctx) {
-  const nomes = apEmpresas(ctx).map(e => e.nome);
+  const nomes = apEmpresasDe(ctx.cfg.servico_joist).map(e => e.nome);
   const vazia = x => !nomes.includes(x);
-  const semEmp = (T.apontamentos || []).filter(a => vazia(a.empresa));
+  const semEmp = (T.apontamentos || []).filter(a => !apDeTelha(a) && vazia(a.empresa));
   const linhas = nomes.map(n => ({ n, lj: prodServico(ctx.cfg.servico_joist, n, '0000-01-01', '9999-12-31'), lv: prodServico(ctx.cfg.servico_viga, n, '0000-01-01', '9999-12-31'),
     aj: soma0(ctx.joists.filter(a => a.empresa === n), a => a.qtd), av: ctx.vigas.filter(a => a.empresa === n).length }));
   if (semEmp.length) linhas.push({ n: 'A DEFINIR', lj: 0, lv: 0, aj: soma0(semEmp.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd), av: semEmp.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length, semEmp: true });
@@ -4466,7 +4486,7 @@ function apConciliacaoHtml(ctx) {
 
 const apDef = { tipo: 'VIGA', emp: '', e0: '', e1: '', l0: 'A', l1: 'H' };
 function apDefLinhas(ctx) {
-  const nomes = apEmpresas(ctx).map(e => e.nome);
+  const nomes = apEmpresasDe(ctx.cfg.servico_joist).map(e => e.nome);
   const i0 = ctx.letras.indexOf(apDef.l0), i1 = ctx.letras.indexOf(apDef.l1);
   return (T.apontamentos || []).filter(a => !nomes.includes(a.empresa) && (a.lanca_producao || '').toUpperCase() !== 'SIM' && (a.tipo || '').toUpperCase() === apDef.tipo).filter(a => {
     const eixo = apDef.tipo === 'VIGA' ? a.eixo : (a.rua || '').split('-')[0], i = ctx.letras.indexOf(ctx.crit[a.letra]?.oitao ? ctx.crit[a.letra].faixa[0] : a.letra);
@@ -4474,8 +4494,8 @@ function apDefLinhas(ctx) {
   });
 }
 function apDefHtml(ctx) {
-  const nomes = apEmpresas(ctx).map(e => e.nome);
-  const pend = (T.apontamentos || []).filter(a => !nomes.includes(a.empresa));
+  const nomes = apEmpresasDe(ctx.cfg.servico_joist).map(e => e.nome);
+  const pend = (T.apontamentos || []).filter(a => !apDeTelha(a) && !nomes.includes(a.empresa));
   if (!pend.length) return '';
   const tem = t => pend.some(a => (a.tipo || '').toUpperCase() === t);
   if (!tem(apDef.tipo)) apDef.tipo = tem('VIGA') ? 'VIGA' : 'JOIST';
@@ -4524,10 +4544,11 @@ function renderApont() {
   $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
     : apEst.modo === 'viga' ? 'Situação das vigas (eixo × letra)'
     : (fr ? fr.titulo + ' (clique para selecionar)' : 'Carregando o mapa do IFC…');
-  $('#apMapa').innerHTML = apMapaHtml(ctx);
-  $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
-  $('#tabApConc').innerHTML = apConciliacaoHtml(ctx);
-  $('#apDefEmp').innerHTML = apDefHtml(ctx);
+  const seguro = (rot, fn) => { try { return fn(); } catch (e) { console.error('Apontar montagem —', rot, e); return `<p class="aviso">Não foi possível montar ${rot}: ${esc(e.message || e)}</p>`; } };
+  $('#apMapa').innerHTML = seguro('o mapa', () => apMapaHtml(ctx));
+  $('#apEfeitos').innerHTML = seguro('os efeitos do apontamento', () => apEfeitosHtml(regras, ctx));
+  $('#tabApConc').innerHTML = seguro('a conciliação', () => apConciliacaoHtml(ctx));
+  $('#apDefEmp').innerHTML = seguro('a definição de empresa', () => apDefHtml(ctx));
 
   const hist = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 40);
   $('#tabApHist').innerHTML = `<thead><tr><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
