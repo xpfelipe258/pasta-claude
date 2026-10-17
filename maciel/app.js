@@ -197,7 +197,7 @@ function soma(e, col, ini, fim) {
   }
   return t;
 }
-const GLOBO_M2_POR_UN = 177.32 * 0.475; // 84,23 m² por unidade de telha/fechamento
+const GLOBO_M2_POR_UN = 177.32 * 0.485; // 86,00 m² por telha (177,32 m do eixo A ao H × 0,485 m de largura entre eixos)
 function precisaConverterGloboM2(e, servico) {
   return false;
 }
@@ -4274,7 +4274,7 @@ function apTelhaResumoHtml(fr) {
   const feitas = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHA').length, sel = [...apEst.frente.keys()].filter(k => k.startsWith('TELHA|')).length;
   const pend = Math.max(0, n - feitas - sel);
   const tile = (rot, q, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${nf(q)} <small>telhas</small></div><div class="sub"><b>${nf(q * m2, 1)} m²</b> · ${sub}</div></div>`;
-  return `<div class="tiles ap-telha-tiles">${tile('Apontadas', feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, sel ? 'entram na produção ao salvar o apontamento' : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do galpão', n, `${nf(apTelhaM2(fr) * n, 0)} m² (${nf(apTelhaM2(fr), 2)} m² por telha)`, 'var(--amarelo)')}</div>`;
+  return `<div class="tiles ap-telha-tiles">${tile('Apontadas', feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, sel ? 'ao salvar: +' + nf(sel) + ' und na produção e ' + nf(sel * m2, 1) + ' m² no BM (Instalação de telhas)' : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do galpão', n, `${nf(apTelhaM2(fr) * n, 0)} m² (${nf(apTelhaM2(fr), 2)} m² por telha)`, 'var(--amarelo)')}</div>`;
 }
 function apTelhaHtml(ctx, fr) {
   const t = fr.telha || {}, n = apTelhaN(fr);
@@ -4288,7 +4288,7 @@ function apTelhaHtml(ctx, fr) {
       <button class="btn" id="apTelMarcar">Marcar intervalo (só pendentes)</button><span class="nota">ou arraste o mouse sobre as telhas; o número do eixo marca o vão inteiro.</span></div>
     <div id="apMapaInfo" class="ap-info">Passe o mouse sobre uma telha para ver o número e a posição no galpão.</div>
     <div class="tabela-rolagem apm-caixa">${apTelhaSvg(fr)}</div>
-    <p class="nota">Cada faixa é uma telha de ${nf(t.comprimento_m || 177.32, 2)} m que corre do eixo A (topo) ao H (base), com ${nf((t.largura_mm || 485) / 1000, 3)} m de largura entre eixos, numerada de 0001 a ${String(n).padStart(4, '0')} a partir do eixo 01 (${nf((t.comprimento_galpao_mm || 0) / 1000, 1)} m de galpão). Cada telha apontada soma +1 und em <b>${esc(cap(fr.servico))}</b> da empresa no controle de produção (base do BM da Globo Aços).</p>`;
+    <p class="nota">Cada faixa é uma telha de ${nf(t.comprimento_m || 177.32, 2)} m que corre do eixo A (topo) ao H (base), com ${nf((t.largura_mm || 485) / 1000, 3)} m de largura entre eixos, numerada de 0001 a ${String(n).padStart(4, '0')} a partir do eixo 01 (${nf((t.comprimento_galpao_mm || 0) / 1000, 1)} m de galpão). Cada telha apontada soma +1 und em <b>${esc(cap(fr.servico))}</b> da empresa no controle de produção e ${nf(apTelhaM2(fr), 2)} m² na atividade <b>${esc(t.codigo_bm || 'GLO-3.2.1-02')}</b> do catálogo do BM (medição da Globo Aços); excluir o apontamento devolve os dois.</p>`;
 }
 
 function apFrenteHtml(ctx) {
@@ -4575,8 +4575,10 @@ async function salvarApontamento() {
     s.sel = new Set(); s.mapaJ = new Map(); s.mapaV = new Map(); s.frente = new Map(); s.obs = '';
     await carregar();
     const lanc = (r.lancamentos || []).map(l => `${l.empresa} · ${l.servico} +${nf(l.delta)} (dia fecha em ${nf(l.total)})`).join(' · ');
+    const bmT = (r.bm_telhas || []).map(t => `${t.empresa} · ${nf(t.telhas)} telha(s) = ${nf(t.delta_m2, 1)} m² em ${t.codigo} (dia fecha em ${nf(t.total_m2, 1)} m²)`).join(' · ');
     toast(`${r.salvos} apontamento(s) salvo(s)`
       + (lanc ? `. Lançado em produção: ${lanc}` : (s.regular ? '. Regularização: não somou em Lançamentos.' : ''))
+      + (bmT ? `. Medição (BM): ${bmT}` : '')
       + (r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''),
       !!r.avisos?.length, (r.avisos?.length || lanc) ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
@@ -5087,7 +5089,7 @@ const bmUnProducao = a => a.controle && !bmAtividadeUsaBaseFinanceira(a) ? 'und'
 const bmUnFinanceira = a => a.unidade || '';
 const BM_GLOBO_TELHA_M2_POR_UND = GLOBO_M2_POR_UN;
 const BM_GLOBO_TELHA_COMP = 177.32;
-const BM_GLOBO_TELHA_LARG_UTIL = 0.475;
+const BM_GLOBO_TELHA_LARG_UTIL = 0.485;
 function bmEhGloboTelha(a) {
   const emp = ganNorm(a.empresa), txt = ganNorm(`${a.item_desc || ''} ${a.atividade || ''} ${a.controle || ''}`);
   return emp === 'GLOBO ACOS' && (txt.includes('TELHA') || txt.includes('FECHAMENTO'));

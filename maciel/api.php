@@ -1324,7 +1324,8 @@ function frente_telhas(array $malha)
         $cel[] = ['trecho' => sprintf('%04d', $i), 'pecas' => ['TELHA' => 1], 'total' => 1];
     }
     return ['titulo' => 'Instalação de telhas — Globo Aços', 'servico' => 'Instalação de telhas', 'empresa' => 'GLOBO AÇOS',
-        'telha' => ['comprimento_m' => 177.32, 'largura_mm' => $larg, 'n' => $n, 'comprimento_galpao_mm' => $comp],
+        'telha' => ['comprimento_m' => 177.32, 'largura_mm' => $larg, 'n' => $n, 'comprimento_galpao_mm' => $comp, 'm2_por_telha' => round(177.32 * $larg / 1000, 4),
+            'codigo_bm' => 'GLO-3.2.1-02'],
         'partes' => [['id' => 'GLOBO', 'nome' => 'Telhas do galpão (eixo A ao H)', 'celulas' => $cel, 'total' => $n]],
         'total' => $n, 'familias' => ['TELHA']];
 }
@@ -1347,6 +1348,34 @@ function frentes_montagem()
         $d['frentes']['telha'] = frente_telhas($d['malha'] ?? []);
     }
     return $d;
+}
+
+// Medição (BM) da Globo Aços: a atividade "Instalação de telhas" do catálogo é medida em m² pelos apontamentos do BM (bm_apontamentos, uma linha por
+// empresa + atividade + dia). Cada telha apontada no mapa soma m² (comprimento × largura) nessa linha; excluir o apontamento devolve.
+function telha_cfg()
+{
+    $t = ((frentes_montagem()['frentes'] ?? [])['telha']['telha'] ?? []);
+    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? 'GLO-3.2.1-02')];
+}
+function bm_telhas_ajustar($empresa, $data, $deltaM2)
+{
+    $cod = telha_cfg()['codigo'];
+    $atv = q('SELECT controle FROM bm_atividades WHERE empresa = ? AND codigo = ?', [$empresa, $cod])->fetch();
+    if (!$atv || !empty($atv['controle']) || abs($deltaM2) < 1e-9) {
+        return null;   // a empresa não tem essa atividade no catálogo (ou ela vem da grade): só a produção é lançada
+    }
+    $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$empresa, $cod, $data])->fetch();
+    $novo = round(max(0, (float)($ex['quantidade'] ?? 0) + $deltaM2), 4);
+    if ($ex) {
+        if ($novo > 0) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+        } else {
+            q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+        }
+    } elseif ($novo > 0) {
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, 'telhas apontadas no mapa de montagem']);
+    }
+    return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
 
 function frente_item(array $item, array $frentes, array &$ja, array $base, $data)
@@ -1486,6 +1515,7 @@ function acao_apontamento(array $corpo, array $usuario)
     }
     $novas = [];
     $grupos = [];
+    $telhasEmp = [];
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
@@ -1581,6 +1611,9 @@ function acao_apontamento(array $corpo, array $usuario)
             throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO ou TELHA).');
         }
         $novas = array_merge($novas, $doItem);
+        if ($tipo === 'TELHA') {
+            $telhasEmp[$empNome] = ($telhasEmp[$empNome] ?? 0) + count($doItem);
+        }
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'frente' => $frente, 'delta' => 0];
@@ -1607,8 +1640,17 @@ function acao_apontamento(array $corpo, array $usuario)
             }
         }
     }
+    $bmTelhas = [];
+    if ($lanca) {
+        foreach ($telhasEmp as $emp => $qtd) {
+            $r = bm_telhas_ajustar($emp, $data, $qtd * telha_cfg()['m2']);
+            if ($r) {
+                $bmTelhas[] = $r + ['empresa' => $emp, 'telhas' => $qtd];
+            }
+        }
+    }
     return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [],
-            'linhas' => $ids, 'lancamentos' => $lancamentos];
+            'linhas' => $ids, 'lancamentos' => $lancamentos, 'bm_telhas' => $bmTelhas];
 }
 
 function rua_valida($rua, array $eixos)
@@ -1630,6 +1672,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     }
     $somas = [];
     $lancamentos = [];
+    $bmTelhas = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -1653,6 +1696,10 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                     $frente = frente_galpao((string)$r['eixo']);
                 }
             }
+            if ($t === 'TELHA') {
+                $kt = $r['empresa'] . '|' . $r['data'];
+                $bmTelhas[$kt] = ($bmTelhas[$kt] ?? 0) - (float)($r['qtd'] ?? 1);
+            }
             $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'] . '|' . ($frente ?? '');
             if (!isset($somas[$chave])) {
                 $somas[$chave] = ['nome' => $r['empresa'], 'servico' => $servico, 'dia' => $r['data'], 'frente' => $frente, 'delta' => 0];
@@ -1662,6 +1709,10 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     }
     foreach ($somas as $g) {
         $lancamentos[] = soma_producao($g['nome'], $g['servico'], $g['dia'], $g['delta'], $usuario, $g['frente']);
+    }
+    foreach ($bmTelhas as $kt => $nTelhas) {
+        list($emp, $dia) = explode('|', $kt);
+        bm_telhas_ajustar($emp, $dia, $nTelhas * telha_cfg()['m2']);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
