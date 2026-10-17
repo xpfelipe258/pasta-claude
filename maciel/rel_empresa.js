@@ -388,10 +388,113 @@ function reSuprimentos(emp, c) {
   return { itens, verdes: conta('vd'), amarelos: conta('am'), vermelhos: conta('vm'), semBase: conta('nd') };
 }
 
+// ---------------------------------------------------------------- mapa pintado da montagem (joists, vigas e contraventamentos)
+// Mesma planta dos apontamentos de montagem, em SVG estático: cada peça é pintada pelo que foi apontado até a data de corte —
+// cor forte da empresa = montada por ela NO PERÍODO; cor clara = montada por ela antes do período; cinza = montada por outra empresa; branco = pendente.
+const RE_COR_OUTRA = '#b8c2cc';
+const reEstadoPeca = (row, emp, ini) => (!row ? 'pend' : row.empresa === emp ? (row.data >= ini ? 'per' : 'ant') : 'outra');
+const rePinta = (est, cores) => ({ pend: 'fill="#ffffff" stroke="#c4cdd8"', ant: `fill="${cores.forte}" fill-opacity=".35" stroke="${cores.forte}" stroke-opacity=".6"`,
+  per: `fill="${cores.forte}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est];
+const reTxt = (x, y, t, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="#51606f" font-family="Arial,Helvetica,sans-serif" ${o}>${esc(t)}</text>`;
+
+function reMapaPlanta(ctx, emp, ini, cores) {
+  const eixos = ctx.cfg.eixos, passo = 10, mEsq = 70, mTop = 44, pad = 5, n = ctx.layout.length, colW = passo * 7 + 6, barH = passo - 2;
+  const posL = {};
+  let acum = 0;
+  Object.entries(ctx.pos).forEach(([f, ps]) => {
+    const qtd = ctx.layout.filter(q => q.faixa === f).length;
+    posL[ps[0]] = acum; posL[ps[ps.length - 1]] = acum + qtd;
+    ps.slice(1, -1).forEach(l => { posL[l] = acum + qtd / 2; });
+    acum += qtd;
+  });
+  const yEst = l => mTop + posL[l] * passo;
+  const ANC = [['A', 0], ['B', 4], ['C', 7], ['D', 10], ['E', 13], ['F', 16], ['G', 19], ['H', 23]];
+  const yOitao = m => { for (let i = 1; i < ANC.length; i++) if (m <= ANC[i][1]) { const [l0, i0] = ANC[i - 1], [l1, i1] = ANC[i]; return yEst(l0) + (yEst(l1) - yEst(l0)) * (m - i0) / (i1 - i0); } return yEst('H'); };
+  const xEixo = e => mEsq + eixos.indexOf(e) * colW, yFim = mTop + n * passo;
+  const larg = mEsq + (eixos.length - 1) * colW + 24, alt = yFim + 40;
+  const out = [`<svg viewBox="0 0 ${larg} ${alt}" style="width:100%;height:auto" role="img" aria-label="Mapa pintado de joists e vigas">`];
+  Object.entries(ctx.pos).forEach(([f, ps]) => {
+    const y0 = yEst(ps[0]), y1 = yEst(ps[ps.length - 1]);
+    out.push(`<rect x="${mEsq}" y="${y0}" width="${(eixos.length - 1) * colW}" height="${y1 - y0}" fill="#f4f7fb"/>`, reTxt(10, (y0 + y1) / 2 + 3, f, 'font-weight="700"'));
+  });
+  eixos.forEach(e => { const x = xEixo(e); out.push(`<line x1="${x}" x2="${x}" y1="${mTop}" y2="${yFim}" stroke="#d3dbe4" stroke-width=".8"/>`, reTxt(x, mTop - 14, e, 'text-anchor="middle" font-weight="700"')); });
+  ctx.letras.forEach(l => out.push(reTxt(mEsq - 8, yEst(l) + 3, l, 'text-anchor="end"')));
+  const nJ = { per: 0, ant: 0, outra: 0, pend: 0 }, nV = { per: 0, ant: 0, outra: 0, pend: 0 };
+  eixos.slice(0, -1).forEach((e, i) => {
+    const rua = `${e}-${eixos[i + 1]}`, xl = xEixo(e) + pad, xr = xEixo(eixos[i + 1]) - pad;
+    for (let k = 1; k <= n; k++) {
+      const st = reEstadoPeca(ctx.slotRow.get(`${rua}|${k}`), emp, ini); nJ[st]++;
+      out.push(`<rect x="${xl}" y="${mTop + (k - 1) * passo + 1}" width="${xr - xl}" height="${barH}" rx="2" ${rePinta(st, cores)} stroke-width=".7"/>`);
+    }
+    out.push(reTxt((xEixo(e) + xEixo(eixos[i + 1])) / 2, yFim + 18, `${ctx.totalRua.get(rua) || 0}/${ctx.limRua}`, 'text-anchor="middle"'));
+  });
+  out.push(reTxt(mEsq - 8, yFim + 18, 'joists/rua', 'text-anchor="end"'));
+  eixos.forEach(e => ctx.letrasEixo(e).forEach(l => {
+    const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(e, l)), st = reEstadoPeca(m, emp, ini); nV[st]++;
+    const yv = c.oitao ? yOitao(c.posicao_estacao) : yEst(l), tam = c.oitao || c.evento_viga === 'VIGA_INTERM_MONTADA' ? 7 : 11;
+    out.push(`<rect x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="1.5" ${rePinta(st, cores)} stroke-width="1"/>`);
+  }));
+  return { svg: out.join('') + '</svg>', nJ, nV };
+}
+
+function reMapaContrav(emp, ini, cores, feitas) {
+  const fr = ((window._frentes || {}).frentes || {}).contraventamento, el = fr && fr.elevacao;
+  if (!el) return null;
+  const malha = (window._frentes || {}).malha || {}, eixosMm = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {}, temMalha = Object.keys(eixosMm).length > 0;
+  const mmPx = APC_MM_PX.grande, mEsq = 54, mTop = 40, mBase = 28;
+  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas, comCth = new Set(el.ruas), est = el.estacoes;
+  const eixos = [...new Set(ruas.flatMap(r => r.split('-')))].sort();
+  const xEixo = e => (temMalha ? mEsq + (eixosMm[e] || 0) / mmPx : mEsq + eixos.indexOf(e) * (560 / mmPx) * 14);
+  const yEst = e => (temMalha ? mTop + (estMm[e] || 0) / mmPx : mTop + est.indexOf(e) * (560 / mmPx) * 14);
+  const larg = xEixo(eixos[eixos.length - 1]) - mEsq, alt = yEst(est[est.length - 1]) - mTop, W = mEsq + larg + 24, H = mTop + alt + mBase;
+  const o = [`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Mapa pintado do contraventamento">`];
+  let ultimoY = -99;
+  est.forEach(e => { const y = yEst(e); o.push(`<line x1="${mEsq}" y1="${y}" x2="${mEsq + larg}" y2="${y}" stroke="#e5eaf0" stroke-width=".6"/>`); if (y - ultimoY >= 9 || /^[A-H]$/.test(e)) { o.push(reTxt(mEsq - 7, y + 3, e, 'text-anchor="end"')); ultimoY = y; } });
+  let ultimoX = -99;
+  ruas.forEach(r => {
+    const [a, b] = r.split('-'), x0 = xEixo(a), x1 = xEixo(b), tem = comCth.has(r);
+    if (tem) o.push(`<rect x="${x0}" y="${mTop}" width="${x1 - x0}" height="${alt}" fill="#f4f7fb"/>`);
+    o.push(`<line x1="${x0}" y1="${mTop}" x2="${x0}" y2="${mTop + alt}" stroke="#d3dbe4" stroke-width=".8"/>`);
+    if (tem || x0 - ultimoX >= 22) { o.push(reTxt(x0, mTop - 8, a, `text-anchor="middle"${tem ? ' font-weight="700"' : ''}`)); ultimoX = x0; }
+  });
+  const fimX = xEixo(eixos[eixos.length - 1]);
+  o.push(`<line x1="${fimX}" y1="${mTop}" x2="${fimX}" y2="${mTop + alt}" stroke="#d3dbe4" stroke-width=".8"/>`, reTxt(fimX, mTop - 8, eixos[eixos.length - 1], 'text-anchor="middle"'));
+  const n = { per: 0, ant: 0, outra: 0, pend: 0 };
+  el.paineis.forEach(p => {
+    if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
+    const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b), y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
+    const st = reEstadoPeca(feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), emp, ini); n[st]++;
+    const traco = st === 'pend' ? '#c4cdd8' : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : cores.forte;
+    o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores)} stroke-width=".6"/>`,
+      `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/>`);
+  });
+  return { svg: o.join('') + '</svg>', n, total: el.paineis.filter(p => comCth.has(p.rua)).length };
+}
+
+function reMapa(emp, ini, c) {
+  const regras = window._regras_baixa;
+  if (!regras || !regras.apontamento) return { sem: 'As regras de montagem (mapa de apontamento) não estão disponíveis.' };
+  const todos = T.apontamentos || [], ate = todos.filter(a => !a.data || a.data <= c);
+  let ctx;
+  T.apontamentos = ate;   // o mapa mostra só o que foi apontado até a data de corte
+  try { ctx = apContexto(regras); } finally { T.apontamentos = todos; }
+  const forte = corEmpHex(emp) || '#2563eb', cores = { forte };
+  const tipo = t => ate.filter(a => (a.tipo || '').toUpperCase() === t);
+  const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
+  const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
+  const meus = (t, de) => tipo(t).filter(a => a.empresa === emp && (de ? a.data >= ini : a.data < ini));
+  const qJ = lista => soma0(lista, a => a.qtd || 0);
+  return { cores, planta: pl, contrav: cv, ctx,
+    joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipo('JOIST')) },
+    viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, e => ctx.letrasEixo(e).length), feitas: tipo('VIGA').length },
+    cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipo('CONTRAVENTAMENTO').length } };
+}
+
 // ---------------------------------------------------------------- montagem dos dados e do documento
 function reDados(emp, ini, fim, ls) {
   const c = minD(fim, ref), d = { emp, ini, fim, corte: c };
   d.producao = reTry(() => reProducao(emp, ini, fim, c, ls), 'produção');
+  d.mapa = reTry(() => reMapa(emp, ini, c), 'mapa de montagem');
   d.semanas = reTry(() => reMetaSemanal(emp, ini, fim, c), 'meta semanal');
   d.atividades = reTry(() => reAtividades(emp, ini, fim, c, ls), 'atividades');
   d.previstoReal = reTry(() => rePrevistoRealizado(emp, ini, fim, c), 'previsto × realizado');
@@ -430,7 +533,24 @@ function reSecProducao(d) {
   if (p.erro) return reErro(p);
   const linhas = p.linhas.map(k => { const f = reFarolPct(k.pct, !(k.prev > 0)); return `<tr><td>${esc(cap(k.serv))}${k.un ? ` <span class="nota">(${esc(k.un)})</span>` : ''}<div class="nota">${esc(k.fonte)}</div></td><td class="n">${k.meta == null ? '—' : nf(k.meta, 1)}</td><td class="n">${k.prev == null ? '—' : nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td><td class="n ${k.desvio != null && k.desvio < 0 ? 'neg' : 'pos'}">${k.desvio == null ? '—' : (k.desvio > 0 ? '+' : '') + nf(k.desvio, 1)}</td><td class="n">${rePct(k.pct)}</td><td>${reSm(f[0], f[1])}</td></tr>`; });
   return reTab(['Atividade', `#nMeta do período (${fd(d.ini)} a ${fd(d.fim)})`, `#nPrevisto de ${fd(d.ini)} a ${fd(d.corte)}`, '#nRealizado', '#nDesvio', '#n% do previsto', 'Situação'], linhas)
-    + `<p class="nota">Total das atividades com meta: ${nf(p.real, 1)} realizados de ${nf(p.prev, 1)} previstos até ${fdA(d.corte)} (${rePct(p.pct)}); ${p.atingidas} de ${p.comMeta} atividade(s) com a meta do período atingida. Base da meta: ${esc(p.base)}; atividades executadas fora do plano aparecem com a meta cadastrada (ou “sem meta”).</p>`;
+    + `<p class="nota">Total das atividades com meta: ${nf(p.real, 1)} realizados de ${nf(p.prev, 1)} previstos até ${fdA(d.corte)} (${rePct(p.pct)}); ${p.atingidas} de ${p.comMeta} atividade(s) com a meta do período atingida. Base da meta: ${esc(p.base)}; atividades executadas fora do plano aparecem com a meta cadastrada (ou “sem meta”).</p>` + reMapaHtml(d);
+}
+function reMapaHtml(d) {
+  const m = d.mapa;
+  if (!m) return '';
+  if (m.erro) return reErro(m);
+  if (m.sem) return `<p class="nota">${esc(m.sem)}</p>`;
+  const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' ? 'as' : 'os'} por ${esc(d.emp)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
+  const leg = (cor, txt, st = '') => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px"><i style="width:14px;height:10px;border-radius:2px;display:inline-block;background:${cor};border:1px solid #6b7886;${st}"></i>${txt}</span>`;
+  const f = m.cores.forte;
+  return `<h3>Mapa de montagem — o que foi montado</h3>
+    <div class="cards">${card('Joists', m.joist, 'joists')}${card('Vigas', m.viga, 'vigas')}${card('Contraventamentos (kits)', m.cont, 'kits')}</div>
+    <p class="nota mapa-leg">${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}</p>
+    <h3>Joists e vigas (planta do galpão)</h3>
+    <div class="mapa-fig">${m.planta.svg}</div>
+    <p class="nota">Cada retângulo é uma joist (43 por rua, da estação A no topo à H na base); os quadrados nos eixos são as vigas. Embaixo de cada rua: joists apontadas/${m.ctx.limRua}. Peças deste período: ${nf(m.planta.nJ.per, 0)} joists e ${nf(m.planta.nV.per, 0)} vigas desta empresa.</p>
+    ${m.contrav ? `<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div>
+    <p class="nota">Cada X é um kit de contraventamento; ${nf(m.contrav.n.per, 0)} kit(s) montado(s) por esta empresa no período, ${nf(m.contrav.n.ant, 0)} antes, ${nf(m.contrav.n.outra, 0)} por outra empresa e ${nf(m.contrav.n.pend, 0)} pendente(s). Fonte: apontamentos de montagem.</p>` : ''}`;
 }
 function reSecSemanas(d) {
   const s = d.semanas;
@@ -578,6 +698,7 @@ th{background:#eef2f7}td.n,th.n{text-align:right;white-space:nowrap}tr.grupo td{
 .card.vd{border-left-color:#16a34a}.card.am{border-left-color:#eab308}.card.vm{border-left-color:#dc2626}.card.az{border-left-color:#2563eb}.card.nd{border-left-color:#94a3b8}
 .sm{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:10.5px;white-space:nowrap}.sm i{width:11px;height:11px;border-radius:50%;background:#94a3b8;display:inline-block}
 .sm.vd i{background:#16a34a}.sm.am i{background:#eab308}.sm.vm i{background:#dc2626}
+.mapa-fig{border:1px solid #d3dbe4;border-radius:4px;padding:6px;background:#fff;margin:6px 0;break-inside:avoid}.mapa-leg{margin:6px 0}
 .bg{background:#e5eaf0;border-radius:3px;height:8px;min-width:80px}.bar{background:#2563eb;height:8px;border-radius:3px}
 .emp-sec{page-break-before:always}.emp-sec:first-of-type{page-break-before:auto}
 .topo-acoes{position:sticky;top:0;background:#fff;padding:8px 28px;border-bottom:1px solid #d3dbe4}.topo-acoes button{padding:6px 14px;border:0;background:#1f3a5f;color:#fff;border-radius:4px;cursor:pointer}
@@ -605,6 +726,8 @@ function reHtmlEmpresa(d) {
 async function reHtml(ini, fim, emps) {
   if (typeof PL !== 'undefined') PL._atv = null;
   await plCarregar(true).catch(() => {});
+  if (!window._regras_baixa) { regrasBaixa(() => {}); await window._regras_pend; }   // regras e IFC do mapa de montagem
+  if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
   const c = minD(fim, ref), ls = reLinhas(c);
   const dados = emps.map(emp => reDados(emp, ini, fim, ls));
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
