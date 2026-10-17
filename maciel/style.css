@@ -924,7 +924,7 @@ td.col-nova { padding: 3px 6px; }
 .cons-sem-tab input{width:84px;text-align:right}
 .btn-col-edit{border:0;background:transparent;cursor:pointer;color:var(--fg3);font-size:13px;padding:0 3px;line-height:1}
 .btn-col-edit:hover{color:var(--acento)}
-.somente-leitura .btn-col-edit{display:none !important}
+.somente-leitura .btn-col-edit,.somente-leitura #btnConsDatas{display:none !important}
 
 /* Filtrar e ordenar tabelas (tabelas.js) */
 .tab-ferr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:4px 0 6px;font-size:12px}

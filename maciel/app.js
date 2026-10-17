@@ -3505,6 +3505,25 @@ async function excluirConsSemana() {
     toast(`Coluna ${consSem.semana} excluída ${ONDE}`);
   } catch (err) { toast(err.message || 'Erro ao excluir.', true); }
 }
+// "Datar semanas": uma tabela com todas as semanas do consumo e a data de cada uma (gravada ou sugerida pelo nome)
+function abrirConsDatas() {
+  const cf = estConsumoComCadastros(), datas = consSemanasDatas(cf), salvas = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas : {};
+  $('#tabConsDatas').innerHTML = '<thead><tr><th>Semana</th><th>Semana de (qualquer dia)</th><th>Origem</th></tr></thead><tbody>' +
+    ((cf.semanas || []).map(n => { const d = datas.get(n), v = salvas[n] || (d ? d.bruta : '');
+      return `<tr><td><b>${esc(n)}</b></td><td><input type="date" data-cd-sem="${esc(n)}" data-cd-orig="${esc(salvas[n] || '')}" value="${esc(v)}"></td><td class="nota">${salvas[n] ? 'cadastrada' : d ? 'sugerida pelo nome — confirme' : 'sem data'}</td></tr>`; }).join('')
+      || '<tr><td colspan="3" class="vazio">Sem semanas registradas.</td></tr>') + '</tbody>';
+  $('#modalConsDatas').hidden = false; document.body.classList.add('modal-aberto');
+}
+function fecharConsDatas() { const m = $('#modalConsDatas'); if (m) m.hidden = true; document.body.classList.remove('modal-aberto'); }
+async function salvarConsDatas() {
+  const mudou = [...document.querySelectorAll('#tabConsDatas [data-cd-sem]')].filter(i => i.value !== i.dataset.cdOrig);
+  if (!mudou.length) { fecharConsDatas(); return toast('Nenhuma data alterada.'); }
+  try {
+    for (const i of mudou) await postar(API + 'estoque-planilha/consumo-semana', { semana: i.dataset.cdSem, novo_nome: i.dataset.cdSem, valores: [], data_semana: i.value });
+    fecharConsDatas(); await recarregarEstoquePlanilha();
+    toast(`${mudou.length} semana(s) datada(s) ${ONDE}`);
+  } catch (err) { toast(err.message || 'Erro ao salvar as datas.', true); }
+}
 async function recarregarEstoquePlanilha() {
   const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
   if (j) EP = j;
@@ -6991,6 +7010,9 @@ function ligarEventos() {
   $('#btnImportarEq').onclick = importarEquip;
   const btnRelEquip = $('#btnRelEquip'); if (btnRelEquip) btnRelEquip.onclick = abrirRelEquipPopup;
   const btnRelCons = $('#btnRelConsumo'); if (btnRelCons) btnRelCons.onclick = abrirRelConsumo;
+  const btnDatas = $('#btnConsDatas'); if (btnDatas) btnDatas.onclick = abrirConsDatas;
+  const mcd = $('#modalConsDatas');
+  if (mcd) { mcd.querySelectorAll('[data-fechar-cons-datas]').forEach(x => x.addEventListener('click', fecharConsDatas)); $('#btnConsDatasSalvar').onclick = salvarConsDatas; }
   const tabCons = $('#tabEstCons'); if (tabCons) tabCons.addEventListener('click', ev => { const b = ev.target.closest('[data-cons-col]'); if (b) abrirConsSemana(b.dataset.consCol); });
   const mcs = $('#modalConsSemana');
   if (mcs) {
