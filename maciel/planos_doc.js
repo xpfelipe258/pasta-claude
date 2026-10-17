@@ -68,7 +68,7 @@ const PLD_FLUXOS = {
         impacto: ['<b>Prazo/contrato:</b> marco contratual da cobertura; atraso gera multa, pressão do cliente e atrasa as disciplinas internas.',
           '<b>Qualidade:</b> obra exposta à chuva danifica pisos e equipamentos e gera infiltração.', '<b>Cascata:</b> calhas, rufos e acabamentos dependem das telhas.'],
         recupera: ['Aumentar equipes e frentes de telhamento, mantendo a perfilação adiantada.', 'Trabalhar por água completa para entregar trechos já estanques.', 'Planejar janelas de clima e plano de contingência contra chuva.'] },
-      { id: 'g10', nome: 'Estrutura do fechamento lateral', ramo: true, libera: ['g12'],
+      { id: 'g10', nome: 'Estrutura do fechamento lateral', ramo: 'fecha', libera: ['g12'],
         ramoTxt: 'Ramo independente: depende somente da Chegada de material e do Descarregamento; não espera cobertura, telhas nem checklist.',
         oque: 'Estrutura que recebe as telhas das fachadas, montada em sequência: suporte de terças › terças › espaçadores › frechais. Não depende de nenhuma outra atividade da obra, apenas da chegada e da descarga do material.',
         importa: 'O alinhamento dos suportes define o prumo de todo o fechamento e as terças/frechais são a fixação das telhas laterais: erro aqui aparece na fachada inteira. Por ser independente, pode (e deve) andar em paralelo à cobertura.',
@@ -76,46 +76,56 @@ const PLD_FLUXOS = {
           '<b>Qualidade:</b> suportes fora de prumo, terças desalinhadas ou frechais mal fixados geram fachada ondulada, retrabalho nas telhas e infiltração.',
           '<b>Custo:</b> refazer suporte já com terça e frechal montados é caro e lento; fachada aberta expõe o interior ao vento e à chuva.'],
         recupera: ['Conferir se o material (suportes, terças, espaçadores, frechais) chegou e foi descarregado: é a única dependência.', 'Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa na sequência suporte › terça › espaçador › frechal, conferindo prumo a cada trecho.', 'Reforçar a equipe de fechamento lateral em paralelo à cobertura se houver atraso.'] },
-      { id: 'g11', nome: 'Vigas das marquises',
+      { id: 'g11', nome: 'Vigas das marquises', ramo: 'marq', libera: ['g14'], ramoTxt: 'Ramo independente da marquise: depende somente da Chegada de material e do Descarregamento; não espera a cobertura principal nem o checklist.',
         oque: 'Montagem das vigas principais das marquises (em balanço), que recebem as terças e as telhas da marquise.',
         importa: 'É o apoio de toda a marquise; estrutura em balanço exige travamento e fixação corretos.',
         impacto: ['<b>Prazo:</b> terças e telhas da marquise não podem começar.', '<b>Segurança/qualidade:</b> viga em balanço sem os travamentos completos é instável.',
           '<b>Contrato:</b> a marquise costuma ser marco de fachada/entrada visto pelo cliente.'],
         recupera: ['Programar o equipamento de içamento específico para as marquises.', 'Concluir travamento e torque logo após o posicionamento.'] },
-      { id: 'g12', nome: 'Telhas do fechamento lateral',
+      { id: 'g12', nome: 'Telhas do fechamento lateral', tambem: ['g10'],
         oque: 'Instalação das telhas das fachadas laterais, em m².',
         importa: 'Fecha o galpão lateralmente, dá estanqueidade e define a imagem final da fachada.',
         impacto: ['<b>Prazo/contrato:</b> marco de fechamento; atraso mantém a obra aberta e libera tarde as disciplinas internas.', '<b>Qualidade:</b> exposição ao tempo e ao vento antes do fechamento.',
           '<b>Custo:</b> permanência prolongada de andaimes/plataformas e equipes.'],
         recupera: ['Concentrar equipes por fachada completa.', 'Manter perfilação e entrega de telhas laterais adiantadas.'] },
-      { id: 'g13', nome: 'Calha da cobertura',
+      { id: 'g13s', nome: 'Suportes de calha', tambem: ['g12'],
+        oque: 'Montagem dos suportes (ganchos/mãos-francesas) que sustentam a calha, nivelados com o caimento de projeto, depois das telhas da cobertura e do fechamento lateral.',
+        importa: 'O nível e o espaçamento dos suportes definem o caimento da calha: erro aqui compromete o escoamento de toda a água da cobertura.',
+        impacto: ['<b>Prazo:</b> a calha da cobertura não pode ser instalada; rufos e acabamentos também esperam.', '<b>Qualidade:</b> suporte fora de nível gera empoçamento, transbordo e infiltração.', '<b>Custo:</b> refazer suporte com calha instalada exige desmontagem.'],
+        recupera: ['Conferir o caimento de projeto antes de fixar os suportes.', 'Instalar por trecho logo após as telhas daquele trecho.', 'Garantir o material de suporte no Estoque antes de iniciar.'] },
+      { id: 'g13', nome: 'Calha da cobertura', tambem: ['g12', 'g13s'],
         oque: 'Instalação das calhas da cobertura principal, conectadas às descidas de água pluvial.',
         importa: 'Garante o escoamento da água e a estanqueidade da cobertura; é condição para entregar a obra sem pendências.',
         impacto: ['<b>Qualidade:</b> água sem destino correto causa infiltração, manchas e corrosão.', '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega do trecho coberto.',
           '<b>Cascata:</b> rufos e arremates dependem das calhas posicionadas.'],
         recupera: ['Instalar as calhas logo após cada trecho de telhas.', 'Confirmar material (calha, suporte, vedação) no Estoque antes de iniciar.'] },
-      { id: 'g14', nome: 'Montagem de terças da marquise',
+      { id: 'g14', nome: 'Montagem de terças da marquise', ramo: 'marq', antes: 'g11', libera: ['g15'], ramoTxt: 'Ramo independente da marquise: segue as vigas da própria marquise.',
         oque: 'Pré-montagem e montagem das terças da marquise sobre as vigas, que recebem as telhas.',
         importa: 'Estrutura secundária da marquise; define alinhamento e caimento da cobertura da marquise.',
         impacto: ['<b>Prazo:</b> impede a montagem das telhas da marquise.', '<b>Qualidade:</b> terças fora de nível comprometem o caimento e a drenagem.', '<b>Cascata:</b> telhas, calha e testeira da marquise também ficam travadas.'],
         recupera: ['Pré-montar as terças em solo enquanto as vigas são instaladas.', 'Liberar a marquise por trechos completos.'] },
-      { id: 'g15', nome: 'Montagem de telhas da marquise',
+      { id: 'g15', nome: 'Montagem de telhas da marquise', ramo: 'marq', antes: 'g14', libera: ['g16'], ramoTxt: 'Ramo independente da marquise: segue as terças da própria marquise.',
         oque: 'Instalação das telhas da marquise, em m².',
         importa: 'Conclui a cobertura da marquise, protegendo entradas e acessos.',
         impacto: ['<b>Prazo/contrato:</b> acesso e fachada principais ficam sem proteção e sem fechamento.', '<b>Qualidade:</b> infiltração nas interfaces com a fachada.', '<b>Cascata:</b> impede a calha, a testeira e os rufos da marquise.'],
         recupera: ['Antecipar perfilação das telhas da marquise.', 'Usar a equipe de telhas da cobertura assim que liberada.'] },
-      { id: 'g16', nome: 'Calha da marquise',
+      { id: 'g16', nome: 'Calha da marquise', ramo: 'marq', antes: 'g15', libera: ['g18'], ramoTxt: 'Ramo independente da marquise: segue as telhas da própria marquise.',
         oque: 'Instalação da calha da marquise e da descida de água pluvial correspondente, depois de montadas as telhas da marquise.',
         importa: 'Dá destino à água da marquise, que cobre acessos e circulação de pessoas; sem calha a água cai sobre a entrada.',
         impacto: ['<b>Qualidade:</b> água descendo sem controle na entrada/fachada, manchas, corrosão e infiltração na interface com a parede.', '<b>Segurança:</b> piso molhado e escorregadio em área de circulação.',
           '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega da marquise; testeira e rufos dependem da calha posicionada.'],
         recupera: ['Instalar a calha logo após cada trecho de telhas da marquise.', 'Conferir antes o material (calha, suportes, descida) e a declividade.', 'Alinhar com o acabamento da fachada para fechar a interface de uma vez.'] },
-      { id: 'g17', nome: 'Rufos e acabamentos',
-        oque: 'Instalação de rufos, arremates, testeiras e calafetação — o acabamento que fecha todas as interfaces e garante a estanqueidade final.',
+      { id: 'g17', nome: 'Rufos e acabamentos', tambem: ['g12', 'g13', 'g13s'],
+        oque: 'Instalação de rufos, arremates e calafetação da cobertura e do fechamento — o acabamento que fecha as interfaces e garante a estanqueidade final. Depende das telhas da cobertura, das telhas do fechamento lateral e da calha com seus suportes.',
         importa: 'É a última etapa e a que segura o aceite: reúne as pendências finais e a vedação das interfaces.',
         impacto: ['<b>Qualidade:</b> infiltrações pelas interfaces e reclamações no recebimento.', '<b>Contrato/BM:</b> aceite e medição final retidos enquanto houver pendências.',
           '<b>Custo:</b> equipes mobilizadas só para acabamento prolongam a obra.'],
         recupera: ['Antecipar a compra e o recebimento de rufos e acessórios.', 'Fazer os arremates por trecho, junto com a entrega parcial.', 'Manter uma lista de pendências (punch list) atualizada.'] },
+      { id: 'g18', nome: 'Testeira e rufos da marquise', ramo: 'marq', antes: 'g16', libera: [], ramoTxt: 'Ramo independente da marquise: fecha a sequência da própria marquise.',
+        oque: 'Instalação da testeira, rufos e arremates da marquise, depois das telhas e da calha da marquise.',
+        importa: 'Fecha as interfaces da marquise com a fachada e dá o acabamento visível na entrada.',
+        impacto: ['<b>Qualidade:</b> infiltração na interface da marquise com a fachada e acabamento inacabado na entrada.', '<b>Contrato/BM:</b> retém o aceite da marquise.', '<b>Prazo:</b> última etapa da marquise; atrasa a entrega do trecho de entrada.'],
+        recupera: ['Antecipar rufos e testeiras no Estoque.', 'Fazer os arremates por trecho assim que a calha da marquise for liberada.'] },
     ],
   },
   anexo: {
@@ -170,11 +180,11 @@ const PLD_ORDEM = { galpao: PLD_FLUXOS.galpao.etapas.map(e => e.id), anexo: PLD_
 const PLD_REGRAS = {
   galpao: [
     [/MARQUISE.*VIGAS/, ['g11']], [/MARQUISE.*TERCAS/, ['g14']], [/MARQUISE.*TELHAS/, ['g15']], [/MARQUISE.*CALHAS/, ['g16']],
-    [/MARQUISE.*(TESTEIRA|RUFO|ARREMATE)/, ['g17']],
+    [/MARQUISE.*(TESTEIRA|RUFO|ARREMATE)/, ['g18']],
     [/FECH.*LATERAL.*(ESTRUTURA|TERCAS|SUPORTE|ESPACADOR|FRECHAL)/, ['g10']], [/^FECHAMENTO|FECH.*LATERAL/, ['g12']],
     [/CONTRAVENT/, ['g6']], [/CHECKLIST|CHECK LIST/, ['g7']],
     [/PREMONT|PRE MONT/, ['g3']], [/VIGAS/, ['g4']], [/ICAMENTO|JOIST/, ['g5']],
-    [/PERFILACAO/, ['g8']], [/TELHAR|TELHAS/, ['g9']], [/CALHAS/, ['g13']], [/ARREMATES|RUFOS/, ['g17']],
+    [/PERFILACAO/, ['g8']], [/TELHAR|TELHAS/, ['g9']], [/SUPORTE.*CALHA/, ['g13s']], [/CALHAS/, ['g13']], [/ARREMATES|RUFOS/, ['g17']],
   ],
   anexo: [
     [/PLATIBANDA.*TELHAS|FECHAMENTO ACM/, ['a6']], [/PLATIBANDA/, ['a5']],
@@ -193,8 +203,15 @@ const pldEtapa = (fluxo, id) => PLD_FLUXOS[fluxo].etapas.find(e => e.id === id);
 // Ramo independente: etapa que depende só da chegada e da descarga do material (ex.: estrutura do fechamento lateral). Não entra na
 // cadeia principal: não espera checklist/cobertura, não empurra a cobertura e só libera as etapas listadas em `libera`.
 const pldRamo = id => !!PLD_FLUXOS.galpao.etapas.find(e => e.id === id)?.ramo;
+const pldRamoDe = id => PLD_FLUXOS.galpao.etapas.find(e => e.id === id)?.ramo || '';
 const pldEhRamo = x => { const m = pldEtapasDe(x); return m.ids.length > 0 && m.ids.every(pldRamo); };
-const pldLibera = ids => ids.flatMap(id => pldEtapa('galpao', id)?.libera || []);
+// etapas liberadas (direta e indiretamente) pelo ramo: ex.: vigas da marquise › terças › telhas › calha › testeira
+function pldLibera(ids) {
+  const vistos = new Set(), fila = [...ids];
+  while (fila.length) { const id = fila.shift(); (pldEtapa('galpao', id)?.libera || []).forEach(l => { if (!vistos.has(l)) { vistos.add(l); fila.push(l); } }); }
+  return [...vistos];
+}
+const PLD_RAMOS = { fecha: 'Ramo independente — estrutura do fechamento lateral', marq: 'Ramo independente — marquise' };
 
 // ---------------------------------------------------------------- portões do fluxo (perguntas de liberação)
 // Chegada de material, descarregamento e checklist não têm linha no cronograma: viram perguntas feitas a cada atividade.
@@ -307,10 +324,11 @@ function pldImpactoCaixas(lista) {
 }
 // fluxograma de uma etapa: anterior ▶ etapa ▶ decisão ─SIM▶ libera a próxima | ─NÃO▼ impactos ▼ recuperação ↩ volta à decisão
 function pldFluxogramaEtapa(e, plano, i, o) {
-  const ramo = !!e.ramo;   // ramo independente: antes dele só chegada/descarga; depois, só o que ele libera
-  const ant = ramo ? [...plano].reverse().find(q => q.id === 'g2' || q.id === 'g1') : plano.slice(0, i).reverse().find(q => !q.ramo);
+  const ramo = !!e.ramo;   // ramo independente: antes dele só chegada/descarga (ou a etapa anterior do próprio ramo); depois, só o que ele libera
+  const ant = ramo ? (plano.find(q => q.id === e.antes) || [...plano].reverse().find(q => q.id === 'g2' || q.id === 'g1')) : plano.slice(0, i).reverse().find(q => !q.ramo);
   const prox = ramo ? plano.find(q => (e.libera || []).includes(q.id)) : plano.slice(i + 1).find(q => !q.ramo);
-  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : ramo ? 'Concluído: estrutura pronta para receber as telhas' : 'Concluído: entrega e aceite');
+  const tambem = (e.tambem || []).map(id => plano.find(q => q.id === id)).filter(q => q && q !== ant);
+  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : ramo ? (e.ramo === 'fecha' ? 'Concluído: estrutura pronta para receber as telhas' : 'Concluído: etapa da marquise pronta') : 'Concluído: entrega e aceite');
   return `<div class="fc">
     <div class="fc-linha">
       ${pldNo('cz', ant ? esc(ant.nome) : 'Início do plano', ant ? 'etapa anterior' : '')}${pldSeta()}
@@ -319,6 +337,7 @@ function pldFluxogramaEtapa(e, plano, i, o) {
       ${pldNo('vd', sim, o.simDet || '')}
     </div>
     ${ramo && e.ramoTxt ? `<p class="mini"><b>↔ ${esc(e.ramoTxt)}</b></p>` : ''}
+    ${tambem.length ? `<p class="mini"><b>Depende também de:</b> ${tambem.map(q => esc(q.nome)).join(' · ')}</p>` : ''}
     ${pldSetaV(o.nao || 'NÃO', 'ruim')}
     <div class="fc-rot">IMPACTOS</div><div class="fc-linha fc-wrap">${pldImpactoCaixas(e.impacto)}</div>
     ${pldSetaV('ação')}
@@ -486,12 +505,15 @@ function pldFluxoVisual(c) {
         ${d > 0 ? `${pldSetaV('', 'ruim')}${pldNo('vm fc-peq', `+${d} d.u.`, prox ? 'empurra ' + esc(prox.nome) : 'atrasa a entrega')}` : ''}</div>`;
     };
     const cadeia = principais.map((o, i) => caixa(o, principais[i + 1]?.e) + (i < principais.length - 1 ? pldSeta() : '')).join('');
-    // ramo independente: Chegada de material › Descarregamento › ramo › (só o que ele libera); não passa pela cobertura nem pelo checklist
-    const ramoHtml = ramos.map(r => {
+    // ramos independentes (um por grupo): Chegada de material › Descarregamento › etapas do ramo em sequência › (só o que o ramo libera fora dele)
+    const grupos = [...new Set(ramos.map(r => r.e.ramo))];
+    const ramoHtml = grupos.map(gr => {
+      const seq = ramos.filter(r => r.e.ramo === gr);
       const base = et.map((e, k) => ({ e, k })).filter(o => o.e.id === 'g1' || o.e.id === 'g2');
-      const libera = et.map((e, k) => ({ e, k })).filter(o => (r.e.libera || []).includes(o.e.id));
-      return `<div class="fc-linha fc-cascata" style="margin-top:10px"><span class="mini"><b>↔ Ramo independente</b> (depende só de chegada e descarga):</span>`
-        + base.map(o => caixa(o) + pldSeta()).join('') + caixa(r, libera[0]?.e) + libera.map(o => pldSeta('libera') + `<div class="fc-col"><a href="#${esc(fluxo + '-' + o.e.id)}" class="fc-no cz fc-link"><b>${o.k + 1} · ${esc(o.e.nome)}</b></a></div>`).join('') + '</div>';
+      const fora = et.map((e, k) => ({ e, k })).filter(o => seq.some(r => (r.e.libera || []).includes(o.e.id)) && !o.e.ramo);
+      return `<div class="fc-linha fc-cascata" style="margin-top:10px"><span class="mini"><b>↔ ${esc(PLD_RAMOS[gr] || 'Ramo independente')}</b> (depende só de chegada e descarga):</span>`
+        + base.map(o => caixa(o) + pldSeta()).join('') + seq.map((r, n) => caixa(r, seq[n + 1]?.e || fora[0]?.e) + (n < seq.length - 1 ? pldSeta() : '')).join('')
+        + fora.map(o => pldSeta('libera') + `<div class="fc-col"><a href="#${esc(fluxo + '-' + o.e.id)}" class="fc-no cz fc-link"><b>${o.k + 1} · ${esc(o.e.nome)}</b></a></div>`).join('') + '</div>';
     }).join('');
     return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="fc-linha fc-cascata">${cadeia}</div>${ramoHtml}</div>`;
   };
