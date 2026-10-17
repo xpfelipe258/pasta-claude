@@ -1286,6 +1286,9 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
     if (!$col) {
         $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
     }
+    if (!$col && stripos((string)$servico, 'PERFILAGEM') === 0) {   // o banco guarda "PERFILAÇÃO"; a tela mostra "PERFILAGEM DE TELHAS" (modelo.php)
+        $col = q("SELECT col FROM servicos WHERE empresa_id = ? AND nome LIKE 'PERFILA%'", [$emp['id']])->fetchColumn();
+    }
     if (!$col) {
         throw new ErroValidacao("{$emp['nome']} não tem o serviço $servico no controle de produção.");
     }
@@ -1309,25 +1312,27 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
 // com os trechos vindos do mapa extraído do IFC.
 function tipos_frente()
 {
-    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha'];
+    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha', 'PERFILAGEM' => 'perfilagem'];
 }
 
 // Telhas da cobertura (Globo Aços): cada telha corre do eixo A ao H (177,32 m) e ocupa 0,485 m entre eixos ao longo do comprimento do galpão
 // (eixo 01 ao 20). Uma "célula" do mapa = uma telha, numerada de 0001 em diante a partir do eixo 01; apontar = +1 em "Instalação de telhas".
-function frente_telhas(array $malha)
+function frente_telhas(array $malha, $kind = 'telha')
 {
     $comp = (int)($malha['comprimento_mm'] ?? 0) ?: 427500;
     $larg = 485;
     $n = (int)ceil($comp / $larg);
+    $perfil = $kind === 'perfilagem';
     $cel = [];
     for ($i = 1; $i <= $n; $i++) {
-        $cel[] = ['trecho' => sprintf('%04d', $i), 'pecas' => ['TELHA' => 1], 'total' => 1];
+        $cel[] = ['trecho' => sprintf('%04d', $i), 'pecas' => [$perfil ? 'PERFILAGEM' : 'TELHA' => 1], 'total' => 1];
     }
-    return ['titulo' => 'Instalação de telhas — Globo Aços', 'servico' => 'Instalação de telhas', 'empresa' => 'GLOBO AÇOS',
+    return ['titulo' => $perfil ? 'Perfilagem de telhas — Globo Aços' : 'Instalação de telhas — Globo Aços',
+        'servico' => $perfil ? 'PERFILAGEM DE TELHAS' : 'Instalação de telhas', 'empresa' => 'GLOBO AÇOS',
         'telha' => ['comprimento_m' => 177.32, 'largura_mm' => $larg, 'n' => $n, 'comprimento_galpao_mm' => $comp, 'm2_por_telha' => round(177.32 * $larg / 1000, 4),
-            'codigo_bm' => 'GLO-3.2.1-02'],
-        'partes' => [['id' => 'GLOBO', 'nome' => 'Telhas do galpão (eixo A ao H)', 'celulas' => $cel, 'total' => $n]],
-        'total' => $n, 'familias' => ['TELHA']];
+            'codigo_bm' => $perfil ? 'GLO-3.2.1-01' : 'GLO-3.2.1-02', 'fase1_ini_mm' => (int)(($malha['eixos_mm'] ?? [])['11'] ?? 225000)],
+        'partes' => [['id' => 'GLOBO', 'nome' => ($perfil ? 'Perfilagem' : 'Telhas') . ' do galpão (eixo A ao H)', 'celulas' => $cel, 'total' => $n]],
+        'total' => $n, 'familias' => [$perfil ? 'PERFILAGEM' : 'TELHA']];
 }
 
 function frentes_montagem()
@@ -1344,22 +1349,25 @@ function frentes_montagem()
         }
     }
     $d = $d ?? ['frentes' => [], 'malha' => []];
-    if (empty($d['frentes']['telha'])) {   // as telhas da Globo são geradas da malha (não vêm do IFC)
-        $d['frentes']['telha'] = frente_telhas($d['malha'] ?? []);
+    foreach (['telha', 'perfilagem'] as $k) {   // telhas e perfilagem da Globo são geradas da malha (não vêm do IFC)
+        if (empty($d['frentes'][$k])) {
+            $d['frentes'][$k] = frente_telhas($d['malha'] ?? [], $k);
+        }
     }
     return $d;
 }
 
 // Medição (BM) da Globo Aços: a atividade "Instalação de telhas" do catálogo é medida em m² pelos apontamentos do BM (bm_apontamentos, uma linha por
 // empresa + atividade + dia). Cada telha apontada no mapa soma m² (comprimento × largura) nessa linha; excluir o apontamento devolve.
-function telha_cfg()
+function telha_cfg($tipo = 'TELHA')
 {
-    $t = ((frentes_montagem()['frentes'] ?? [])['telha']['telha'] ?? []);
-    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? 'GLO-3.2.1-02')];
+    $k = tipos_frente()[$tipo] ?? 'telha';
+    $t = ((frentes_montagem()['frentes'] ?? [])[$k]['telha'] ?? []);
+    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? ($tipo === 'PERFILAGEM' ? 'GLO-3.2.1-01' : 'GLO-3.2.1-02'))];
 }
-function bm_telhas_ajustar($empresa, $data, $deltaM2)
+function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
 {
-    $cod = telha_cfg()['codigo'];
+    $cod = telha_cfg($tipo)['codigo'];
     $atv = q('SELECT controle FROM bm_atividades WHERE empresa = ? AND codigo = ?', [$empresa, $cod])->fetch();
     if (!$atv || !empty($atv['controle']) || abs($deltaM2) < 1e-9) {
         return null;   // a empresa não tem essa atividade no catálogo (ou ela vem da grade): só a produção é lançada
@@ -1373,7 +1381,7 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2)
             q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
         }
     } elseif ($novo > 0) {
-        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, 'telhas apontadas no mapa de montagem']);
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : 'telhas') . ' apontadas no mapa de montagem']);
     }
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
@@ -1608,17 +1616,19 @@ function acao_apontamento(array $corpo, array $usuario)
             // Determina fase pelo eixo: eixo < 11 → GALPÃO F2, senão F1
             $frente = frente_galpao($eixo);
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO ou TELHA).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA ou PERFILAGEM).');
         }
         $novas = array_merge($novas, $doItem);
-        if ($tipo === 'TELHA') {
-            $telhasEmp[$empNome] = ($telhasEmp[$empNome] ?? 0) + count($doItem);
+        $fator = 1;
+        if ($tipo === 'TELHA' || $tipo === 'PERFILAGEM') {   // lançamento em m²: telhas × (177,32 × 0,485)
+            $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + count($doItem);
+            $fator = telha_cfg($tipo)['m2'];
         }
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'frente' => $frente, 'delta' => 0];
         }
-        $grupos[$chave]['delta'] += count($doItem);
+        $grupos[$chave]['delta'] += count($doItem) * $fator;
     }
     if (!$novas) {
         throw new ErroValidacao('Nada selecionado para apontar.');
@@ -1642,10 +1652,12 @@ function acao_apontamento(array $corpo, array $usuario)
     }
     $bmTelhas = [];
     if ($lanca) {
-        foreach ($telhasEmp as $emp => $qtd) {
-            $r = bm_telhas_ajustar($emp, $data, $qtd * telha_cfg()['m2']);
-            if ($r) {
-                $bmTelhas[] = $r + ['empresa' => $emp, 'telhas' => $qtd];
+        foreach ($telhasEmp as $tp => $porEmp) {
+            foreach ($porEmp as $emp => $qtd) {
+                $r = bm_telhas_ajustar($emp, $data, $qtd * telha_cfg($tp)['m2'], $tp);
+                if ($r) {
+                    $bmTelhas[] = $r + ['empresa' => $emp, 'telhas' => $qtd, 'tipo' => $tp];
+                }
             }
         }
     }
@@ -1696,23 +1708,25 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                     $frente = frente_galpao((string)$r['eixo']);
                 }
             }
-            if ($t === 'TELHA') {
-                $kt = $r['empresa'] . '|' . $r['data'];
+            $fatorR = 1;
+            if ($t === 'TELHA' || $t === 'PERFILAGEM') {
+                $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
                 $bmTelhas[$kt] = ($bmTelhas[$kt] ?? 0) - (float)($r['qtd'] ?? 1);
+                $fatorR = telha_cfg($t)['m2'];
             }
             $chave = $r['empresa'] . '|' . $servico . '|' . $r['data'] . '|' . ($frente ?? '');
             if (!isset($somas[$chave])) {
                 $somas[$chave] = ['nome' => $r['empresa'], 'servico' => $servico, 'dia' => $r['data'], 'frente' => $frente, 'delta' => 0];
             }
-            $somas[$chave]['delta'] -= (float)($r['qtd'] ?? 0);
+            $somas[$chave]['delta'] -= (float)($r['qtd'] ?? 0) * $fatorR;
         }
     }
     foreach ($somas as $g) {
         $lancamentos[] = soma_producao($g['nome'], $g['servico'], $g['dia'], $g['delta'], $usuario, $g['frente']);
     }
     foreach ($bmTelhas as $kt => $nTelhas) {
-        list($emp, $dia) = explode('|', $kt);
-        bm_telhas_ajustar($emp, $dia, $nTelhas * telha_cfg()['m2']);
+        list($tp, $emp, $dia) = explode('|', $kt);
+        bm_telhas_ajustar($emp, $dia, $nTelhas * telha_cfg($tp)['m2'], $tp);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
