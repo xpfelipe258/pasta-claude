@@ -44,7 +44,7 @@ function lcHtmlEmpresa(d) {
     linhas += `<tr class="grupo"><td colspan="5"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td><td class="n"><b>+${pc(x.avanco)}</b> no período</td><td class="n">${pc(x.it.pct)}</td><td></td><td class="n"><b>${rs2(x.valor)}</b></td></tr>`;
     x.ats.forEach(t => {
       const a = t.a, ds = t.dias.map(z => z[0]).sort(), nDias = new Set(ds).size;
-      linhas += `<tr><td>${esc(a.atividade)}</td><td>${esc(bmLegendaUnidade(a))}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, a.controle ? bmQtdContratadaUnd(a) : null)}</td>
+      linhas += `<tr><td>${esc(a.atividade)}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, a.controle ? bmQtdContratadaUnd(a) : null)}</td>
         <td class="n"><b>${bmFmtQtdFinanceira(a, t.per, t.und)}</b></td><td class="n">${bmFmtQtdFinanceira(a, t.real, t.undAc)}</td>
         <td class="n">+${pc(a.qtd ? t.per / a.qtd : 0)}</td><td class="n">${pc(t.pct)}</td>
         <td class="nota">${nDias} dia(s)${ds.length ? ` · ${fdA(ds[0])}${ds[ds.length - 1] !== ds[0] ? ' a ' + fdA(ds[ds.length - 1]) : ''}` : ''}</td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
