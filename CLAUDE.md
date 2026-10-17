@@ -157,7 +157,8 @@ Obra ativa: **OBRA 198** (id=1)
 - **Realizado limitado ao contratado do item do plano** (corrige a Eclusa em 150%: o período já contém os 100% do escopo; nada passa disso). **Previsto × realizado:** sem a nota "cronograma do cliente ÷ N empresas".
 - **Impactos:** `reFornecedorMencionado(i)` = nome do setor ("Fornecedor — EJ") ou, se o setor for só "Fornecedor", a empresa citada no motivo/paralisação/obs; setor Fornecedor + fornecedor mencionado = **GERADO** pela empresa mencionada (e nunca sofrido, mesmo sendo ela a afetada na montagem); demais que atingem a empresa = SOFRIDO. A tabela mostra "fornecedor mencionado" e o texto traz a contagem de impactos com setor Fornecedor (mencionando a empresa / outra / sem fornecedor identificado).
 - **Fixadores Ø1/2" no relatório de suprimentos:** 8 parafusos + 8 porcas (FG015) + 8 arruelas (FG018) por joist içada; o parafuso (FG005/FG006/FG007) é o específico da posição (`criterio_por_letra`) e a necessidade vem dos APONTAMENTOS da empresa (o que passou do apontamento usa a média do serviço). A baixa do estoque pelo apontamento (`consumo_evento`, `apSelecao`) já registrava 8/8/8 com o parafuso da letra.
-- Testes: `scratchpad/t/relemp3_run.js` (fora do repo).
+- **Visualização antes de baixar:** o botão abre um pop-up (`<dialog id="reDlgPrevia">`, `reAbrirPrevia` em `rel_empresa.js`; CSS `.re-previa`) com o relatório inteiro em um quadro rolável; dali: **Baixar relatório**, **Imprimir / salvar em PDF** ou **Fechar**. Só baixa quando o usuário pedir.
+- Testes: `scratchpad/t/relemp3_run.js` e `previa_run.js` (fora do repo).
 
 ### 2026-10-14 (2)
 **"Telhar" → "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os lugares; KPI removido; Tendências em m²; impactos da mesma atividade consolidados:**

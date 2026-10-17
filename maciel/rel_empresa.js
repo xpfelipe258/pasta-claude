@@ -788,6 +788,21 @@ function reSincronizarBarra() {   // chamada a cada desenho do Painel: as datas 
   const btn = document.getElementById('btnRelEmpresas');
   if (btn) btn.textContent = painelEmpFiltro ? `Relatório · ${painelEmpFiltro}` : 'Relatório das empresas';
 }
+// Antes de baixar, abre uma janela com a visualização do relatório (o próprio HTML, rolável); dali se baixa, imprime/salva em PDF ou fecha.
+let reUltimo = null;
+function reAbrirPrevia(html, nomeArq, titulo) {
+  document.getElementById('reDlgPrevia')?.remove();
+  const dlg = document.createElement('dialog');
+  dlg.id = 'reDlgPrevia'; dlg.className = 're-previa';
+  dlg.innerHTML = `<div class="re-previa-topo"><b>${esc(titulo)}</b><span class="nota">Visualização do relatório — confira antes de baixar</span>
+      <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>Baixar relatório</button><button type="button" class="btn" data-re-imprimir>Imprimir / salvar em PDF</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
+    <iframe class="re-previa-quadro" title="Visualização do relatório"></iframe>`;
+  document.body.appendChild(dlg);
+  dlg.querySelector('iframe').srcdoc = html;
+  reUltimo = { html, nomeArq };
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.showModal();
+}
 async function reGerar() {
   const ini = document.getElementById('reBarIni').value, fim = document.getElementById('reBarFim').value, btn = document.getElementById('btnRelEmpresas');
   if (!ehISO(ini) || !ehISO(fim) || fim < ini) { toast('Informe um período válido ao lado do botão.', true); return; }
@@ -795,12 +810,15 @@ async function reGerar() {
   const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
     const html = await reHtml(ini, fim, emps);
-    baixarHtml(`relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'empresas'}-${ini}_a_${fim}.html`, html);
-    toast('Relatório gerado.');
+    reAbrirPrevia(html, `relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'empresas'}-${ini}_a_${fim}.html`,
+      `${painelEmpFiltro || 'Todas as empresas'} · ${fdA(ini)} a ${fdA(fim)}`);
   } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }
   finally { btn.disabled = false; btn.textContent = rot; }
 }
 document.addEventListener('click', ev => {
   const t = ev.target;
   if (t.closest && t.closest('#btnRelEmpresas')) return reGerar();
+  if (t.closest && t.closest('[data-re-baixar]') && reUltimo) { baixarHtml(reUltimo.nomeArq, reUltimo.html); return toast('Relatório baixado.'); }
+  if (t.closest && t.closest('[data-re-imprimir]')) { const f = document.querySelector('#reDlgPrevia iframe'); return f && f.contentWindow && f.contentWindow.print(); }
+  if (t.closest && t.closest('#reDlgPrevia [data-re-fechar]')) return document.getElementById('reDlgPrevia')?.close();
 });
