@@ -42,6 +42,7 @@ try {
             responder_json(200, [
                 'versao' => sistema_ler('versao', '0'),
                 'arquivo' => obra_info()['nome'] . ' · sistema online',
+                'obra' => obra_ficha(),
                 'modificado' => sistema_ler('modificado', date('c')),
                 'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
                 'recursos' => ['importar_mensal' => false, 'exportar' => false, 'online' => true],

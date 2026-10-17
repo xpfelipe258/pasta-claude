@@ -52,6 +52,9 @@ body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:
 .tpl-titulos p{margin:0;font-size:13px;opacity:.95}
 .tpl-meta{position:relative;margin-top:11px;font-size:10.5px;opacity:.88}
 .tpl-corpo{padding:0 12mm 6mm}
+.tpl-ficha{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px 18px;margin:0 12mm 6px;padding:10px 16px;background:linear-gradient(145deg,#fff,#f1f5fb);border-radius:4px 14px 4px 14px;border-left:6px solid var(--tv);box-shadow:0 3px 12px rgba(10,44,87,.14);break-inside:avoid}
+.tpl-ficha small{display:block;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:#51606f;font-weight:700}
+.tpl-ficha b{display:block;font-size:11.5px;color:var(--tae);font-weight:700}
 /* conteúdo dos relatórios (mesmos nomes de classe do relatório das empresas) */
 .tpl-corpo .pag{max-width:none;padding:0 0 8px}
 h1{font-size:23px;margin:0 0 4px;color:var(--tae)}
@@ -92,6 +95,21 @@ td.n,th.n{text-align:right;white-space:nowrap}
 }
 </style>`;
 
+// Ficha da obra (cadastro do portal: responsável, cliente, local, contrato, prazo…) logo abaixo da capa; só mostra o que foi preenchido.
+function tplFichaObra() {
+  const o = (typeof D !== 'undefined' && D && D.obra) || null;
+  if (!o) return '';
+  const brl = v => (v == null || v === '' ? '' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const dt = s => (/^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s.split('-').reverse().join('/') : '');
+  const prazo = [dt(o.data_inicio), dt(o.data_fim)].filter(Boolean).join(' a ') + (o.duracao_meses ? ` (${Number(o.duracao_meses).toLocaleString('pt-BR')} meses)` : '');
+  const campos = [['Obra', [o.nome, o.codigo].filter(Boolean).join(' · ')], ['Responsável da obra', o.responsavel], ['Encarregado', o.encarregado],
+    ['Cliente', o.cliente], ['Responsável do cliente', o.responsavel_cliente], ['Local', [o.cidade, o.endereco].filter(Boolean).join(' — ')],
+    ['Valor de contrato', brl(o.valor_contrato)], ['Nº do contrato', o.contrato_numero], ['Prazo', prazo], ['Área', o.area_m2 ? Number(o.area_m2).toLocaleString('pt-BR') + ' m²' : ''], ['ART / CREA', o.art]]
+    .filter(([, v]) => v && String(v).trim());
+  if (campos.length < 2) return '';
+  return `<section class="tpl-ficha">${campos.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(String(v))}</b></div>`).join('')}</section>`;
+}
+
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
 function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '' }) {
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -107,6 +125,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
         <div class="tpl-titulos"><h1>${esc(titulo)}</h1>${subtitulo ? `<p>${esc(subtitulo)}</p>` : ''}</div>
         ${meta ? `<div class="tpl-meta">${esc(meta)}</div>` : ''}
       </div></header>
+      ${tplFichaObra()}
       <div class="tpl-corpo">${corpo}</div>
     </div>
     <div class="tpl-rodape"><span>RÓTULA · GESTÃO</span><span>${esc(titulo)} · QPC ENGENHARIA · ${esc(quando)}</span></div>

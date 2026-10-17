@@ -27,6 +27,27 @@ function obra_info()
     ];
 }
 
+// Ficha cadastral da obra aberta (tabela obras, editada no portal): vai em /dados como `obra` e aparece na capa dos relatórios.
+function obra_ficha()
+{
+    $o = obra_info();
+    $f = ['nome' => $o['nome'], 'data_inicio' => $o['data_inicio'], 'data_fim' => $o['data_fim']];
+    try {
+        $r = q_global('SELECT * FROM obras WHERE id = ?', [obra_atual_id()])->fetch();
+    } catch (Throwable $e) {
+        $r = null;
+    }
+    if ($r) {
+        foreach (['codigo', 'responsavel', 'cliente', 'responsavel_cliente', 'cidade', 'endereco', 'encarregado', 'contrato_numero', 'art', 'telefone', 'email'] as $c) {
+            $f[$c] = (string)($r[$c] ?? '');
+        }
+        foreach (['valor_contrato', 'duracao_meses', 'area_m2'] as $c) {
+            $f[$c] = isset($r[$c]) && $r[$c] !== '' ? (float)$r[$c] : null;
+        }
+    }
+    return $f;
+}
+
 function datas_obra()
 {
     $o = obra_info();
