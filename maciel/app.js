@@ -988,6 +988,7 @@ function textoSalvo(e, d, c) {
 }
 
 function renderLanc() {
+  if (typeof lcSincronizarBarra === 'function') lcSincronizarBarra();
   $('#segEmpresas').innerHTML = M.empresas.map(e => {
     const n = [...pend.keys()].filter(k => k.startsWith(e.aba + '|')).length + [...bmPend.keys()].filter(k => k.startsWith(e.nome + '|')).length;
     return `<button data-emp="${esc(e.aba)}" class="${e.aba === empSel ? 'ativa' : ''}">${esc(e.nome)}${n ? ` <span class="contador">${n}</span>` : ''}</button>`;

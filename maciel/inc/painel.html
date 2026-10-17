@@ -199,6 +199,10 @@
   <section id="aba-lanc" hidden>
     <div class="barra-acoes">
       <div class="seg" id="segEmpresas"></div>
+      <div class="re-barra" title="Produção do período das atividades que tiveram avanço — empresa do painel (Geral = todas) e período ao lado">
+        <label>De <input type="date" id="lcBarIni"></label><label>até <input type="date" id="lcBarFim"></label>
+        <button class="btn" id="btnRelLanc">Relatório de produção</button>
+      </div>
       <div class="acoes">
         <span class="nota" id="pendTxt"></span>
         <button class="btn" id="btnDescartar" disabled>Descartar</button>
@@ -769,6 +773,7 @@
 <script src="planos.js"></script>
 <script src="planos_doc.js"></script>
 <script src="rel_empresa.js"></script>
+<script src="rel_lanc.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="tabelas.js"></script>
