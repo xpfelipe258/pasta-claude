@@ -136,7 +136,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 15;
+const ESQUEMA_VERSAO = 16;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -271,6 +271,7 @@ function criar_esquema(PDO $pdo, $driver)
     }
     garantir_multiobra($pdo, $driver);
     garantir_autenticacao_estendida($pdo, $driver);
+    garantir_obras_detalhes($pdo, $driver);
     if (!in_array('empresas', colunas_tabela($pdo, $driver, 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN empresas VARCHAR(255) NULL");
     }
@@ -297,6 +298,24 @@ function criar_esquema(PDO $pdo, $driver)
     }
 }
 
+
+// Dados cadastrais da obra (todos opcionais no banco; nome e responsável são exigidos na tela/rota de obras.php).
+function obras_colunas_detalhe()
+{
+    return ['responsavel' => 'VARCHAR(150) NULL', 'responsavel_cliente' => 'VARCHAR(150) NULL', 'encarregado' => 'VARCHAR(150) NULL',
+        'endereco' => 'VARCHAR(255) NULL', 'valor_contrato' => 'DOUBLE NULL', 'duracao_meses' => 'DOUBLE NULL', 'contrato_numero' => 'VARCHAR(80) NULL',
+        'art' => 'VARCHAR(80) NULL', 'area_m2' => 'DOUBLE NULL', 'telefone' => 'VARCHAR(50) NULL', 'email' => 'VARCHAR(150) NULL', 'observacoes' => 'TEXT NULL'];
+}
+
+function garantir_obras_detalhes(PDO $pdo, $driver)
+{
+    $existentes = colunas_tabela($pdo, $driver, 'obras');
+    foreach (obras_colunas_detalhe() as $col => $tipo) {
+        if (!in_array($col, $existentes, true)) {
+            $pdo->exec("ALTER TABLE obras ADD COLUMN $col $tipo");
+        }
+    }
+}
 
 function garantir_autenticacao_estendida(PDO $pdo, $driver)
 {

@@ -297,3 +297,19 @@ body:has(.portal-shell) h3 { margin: 0; text-transform: none; letter-spacing: no
   .obra-insights { grid-template-columns:1fr 1fr; }
   .login-form h2 { font-size:1.9rem!important; }
 }
+
+/* Dados cadastrais da obra: lista no cartão e janela de edição */
+.obra-info { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:5px; font-size:.78rem; color:#344054; }
+.obra-info li { display:flex; gap:8px; align-items:baseline; }
+.obra-info b { flex:0 0 96px; color:#98a2b3; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.obra-info .falta { color:#b42318; font-style:normal; }
+.obra-card > .btn.ghost.largura { margin-top:9px; background:transparent!important; color:var(--obra-cor)!important; border:1px solid var(--obra-cor); justify-content:center; }
+.obra-dialog { width:min(760px,calc(100vw - 24px)); max-height:92vh; padding:0; border:0; border-radius:18px; box-shadow:0 24px 70px rgba(16,24,40,.35); overflow:auto; }
+.obra-dialog::backdrop { background:rgba(16,24,40,.55); }
+.obra-dialog .painel-form { border:0; box-shadow:none; }
+.obra-grupo { margin:0 0 16px; padding:14px 16px 16px; border:1px solid var(--portal-line); border-radius:12px; }
+.obra-grupo legend { padding:0 6px; color:#344054; font-size:.8rem; font-weight:750; }
+.obra-grupo legend small { color:#98a2b3; font-weight:600; }
+.obra-grupo textarea { width:100%; margin-top:5px; padding:9px 11px; border:1px solid var(--portal-line); border-radius:10px; font:inherit; resize:vertical; }
+.obra-dialog-acoes { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; position:sticky; bottom:0; padding:10px 0; background:#fff; }
+@media (max-width:640px){ .painel-form .campos { grid-template-columns:1fr!important; } }

@@ -112,7 +112,7 @@ Testar em mtecengenharia.net/claude/maciel/
 
 ---
 
-## Estado atual do banco (esquema v15)
+## Estado atual do banco (esquema v16)
 
 Tabelas presentes: `usuarios`, `obras`, `obras_dados`, `sistema`, `historico`,
 `estoque_materiais`, `estoque_remessas`, `estoque_remessas_itens`,
@@ -139,6 +139,8 @@ Obra ativa: **OBRA 198** (id=1)
 ## Histórico de sessões
 
 ### 2026-10-17
+**Portal de obras — dados cadastrais da obra editáveis no cartão (2026-10-17, 7; `maciel/obras.php`, `inc/nucleo.php`, `portal.css`):** novas colunas em `obras` (**ESQUEMA_VERSAO = 16**, `garantir_obras_detalhes()`; `obras.php` também a chama por segurança): `responsavel`, `responsavel_cliente`, `encarregado`, `endereco`, `valor_contrato`, `duracao_meses`, `contrato_numero`, `art`, `area_m2`, `telefone`, `email`, `observacoes` (+ cliente, cidade/local, datas e código que já existiam). **Obrigatórios: só nome da obra e responsável da obra** (validação no servidor em `dados_obra_do_post()`, para criar e editar; o resto é opcional, valor aceita `12.345,67`, e-mail e datas são validados). Cada cartão mostra responsável, encarregado, responsável do cliente, valor de contrato e tempo de obra, e o admin tem o botão **✎ Editar dados da obra** (`<dialog class="obra-dialog">` com os campos em três grupos: Identificação, Cliente e local, Contrato e prazo; cores e logo continuam ali). O mesmo conjunto de campos (`campos_obra()`) vale em "Nova obra"; "Editar obras" (administração) ficou só com Arquivar/Reativar. Obras antigas sem responsável aparecem com "não informado" (em vermelho) até serem editadas. Teste: `scratchpad/t/obra_run.py` + `obra_ui.js` (fora do repo): banco v15 sem as colunas → migração → validações → salvar mínimo e completo → diálogo no Chromium.
+
 **Relatório das empresas (`maciel/rel_empresa.js`) — correções após teste com o relatório da EJ:**
 - **Base = planos 5W2H:** `rePlanoItens()` calcula as atividades dos planos ativos que cruzam o período já na PARTE DA EMPRESA (`pjDaEmpresa`). **1. Resumo de produção:** todas as atividades do plano e as executadas fora dele; *Meta do período* = planejado entre a data inicial e a final; *Previsto de {início} a {corte}*; realizado, desvio, % e situação (atividade executada fora do plano usa a meta cadastrada ou "sem meta"). **2. Meta da semana:** por semana, as atividades do plano com meta naquela semana (realizado/meta, "Atingimento"). **4. Plano 5W2H:** o cartão do resumo junta TODOS os planos da empresa (`rePlanos().geral`) — antes pegava um único plano e mostrava 0% — e cada plano usa o realizado da própria empresa.
 - **Sem interrogações:** títulos "Meta da semana — atingimento" e "Plano 5W2H — atingimento".
