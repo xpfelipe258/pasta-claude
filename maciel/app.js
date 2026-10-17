@@ -4754,7 +4754,7 @@ async function baixarMapa() {
     const png = canvas.toDataURL('image/png');
     const baixarPng = () => { const a=document.createElement('a'); a.download=`mapa-montagem-${ref}.png`; a.href=png; document.body.appendChild(a); a.click(); a.remove(); toast('Mapa baixado em PNG.'); };
     reAbrirPrevia(`<!doctype html><html><head><meta charset="utf-8"><title>Mapa de montagem</title></head><body style="margin:0;background:#fff"><img src="${png}" style="max-width:100%;display:block;margin:0 auto" alt="Mapa de montagem"></body></html>`,
-      `mapa-montagem-${ref}.html`, `Mapa de montagem · ${fdA(ref)}`, { rotuloBaixar: 'Baixar mapa (PNG)', baixar: baixarPng });   // visualização antes de baixar;
+      `mapa-montagem-${ref}.html`, `Mapa de montagem · ${fdA(ref)}`, { rotuloBaixar: 'Baixar mapa (PNG)', baixar: baixarPng, semTemplate: true });   // visualização antes de baixar;
   } catch (err) { console.error(err); toast('Erro ao gerar mapa: '+(err?.message||err), true); }
 }
 
@@ -5524,7 +5524,7 @@ function bmImprimir(r, emp, p) {
     Object.entries(campos).forEach(([k,v]) => { const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
     document.body.appendChild(f); f.submit(); f.remove();
   };
-  reAbrirPrevia(html, `BM${p.n}-${emp}.html`, `Boletim de medição · BM${p.n} · ${emp}`, { rotuloBaixar: 'Baixar PDF', baixar: enviarPdf });
+  reAbrirPrevia(html, `BM${p.n}-${emp}.html`, `Boletim de medição · BM${p.n} · ${emp}`, { rotuloBaixar: 'Baixar PDF', baixar: enviarPdf, semTemplate: true });   // o PDF vem do servidor (TCPDF): a visualização é o próprio boletim
 }
 
 function renderBM() {

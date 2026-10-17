@@ -34,7 +34,7 @@ const TPL_CSS = `<style>
 :root{--tv:${TPL_COR.vermelho};--tve:${TPL_COR.vermelhoEsc};--ta:${TPL_COR.azul};--tae:${TPL_COR.azulEsc}}
 @page{margin:0}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:#eef1f6}
+body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:#eef1f6;margin:0;padding:0;max-width:none;font-size:12.5px}
 .tpl-folha{width:100%;border-collapse:collapse}
 .tpl-folha > thead > tr > td,.tpl-folha > tbody > tr > td,.tpl-folha > tfoot > tr > td{border:0!important;padding:0!important;background:none!important}
 .tpl-pagina{max-width:1100px;margin:0 auto;background:#fff;box-shadow:0 10px 40px rgba(10,44,87,.18)}
@@ -93,10 +93,10 @@ td.n,th.n{text-align:right;white-space:nowrap}
 </style>`;
 
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
-function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', barra = '' }) {
+function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '' }) {
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const base = typeof RE_CSS === 'string' ? RE_CSS : '';   // classes de conteúdo já usadas pelo relatório das empresas
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>${base}${TPL_CSS}${css}</head><body>
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>${base}${cssAntes}${TPL_CSS}${css}</head><body>
     ${barra || '<div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ' + esc(quando) + ' (horário de Brasília)</span></div>'}
     <div class="tpl-pagina">
       <header class="tpl-capa"><div class="tpl-capa-fundo">
@@ -126,3 +126,21 @@ function tplProtegerImpressao(html) {
   });
   return r;
 }
+
+// Coloca no template qualquer relatório HTML já pronto (consumo, equipamentos, impactos, efetivo, planejamento…): o título (h1) e a linha de
+// subtítulo (.sub) viram a capa; o resto do corpo e os estilos próprios do relatório são mantidos dentro do padrão Rótula × QPC.
+function tplAdaptarRelatorio(html, tituloPadrao = 'Relatório') {
+  if (typeof html !== 'string' || html.includes('class="tpl-capa"')) return html;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  if (!doc.body || !doc.body.children.length) return html;
+  const txt = el => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+  const h1 = doc.querySelector('h1'), sub = doc.querySelector('p.sub, .sub');
+  const titulo = txt(h1) || tituloPadrao, subtitulo = txt(sub);
+  doc.querySelectorAll('.no-print, .topo-acoes, script').forEach(e => e.remove());   // a barra Imprimir/PDF do template substitui a do relatório
+  if (h1) h1.remove();
+  if (sub) sub.remove();
+  const estilos = [...doc.querySelectorAll('style')].map(s => s.textContent), tam = (estilos.join(' ').match(/@page\s*\{[^}]*?size\s*:\s*([^;}]+)/) || [])[1];   // mantém o formato do papel do relatório (ex.: A4 paisagem)
+  const cssAntes = estilos.map(t => `<style>${t.replace(/@page\s*\{[^}]*\}/g, '')}</style>`).join('') + (tam ? `<style>@page{size:${tam.trim()}}</style>` : '');
+  return tplDocumento({ titulo, subtitulo, corpo: doc.body.innerHTML, cssAntes });
+}
+tplLogosCarregar();   // já deixa as marcas oficiais (assets/) prontas quando o primeiro relatório for aberto
