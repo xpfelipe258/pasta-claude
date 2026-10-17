@@ -386,20 +386,26 @@ function reEfetivo(emp, ini, fim, c, ls) {
 }
 
 // ---------------------------------------------------------------- 11. suprimentos: material retirado × joists previstos × realizados
-function reSuprimentos(emp, c) {
+// Retirada da SEMANA ANTECEDENTE ao período (mesma quantidade de semanas do período) × o que foi produzido no período. O consumo é informado por semana
+// nomeada; a data de cada semana vem de Estoque › Consumo físico (✎ Editar coluna) ou, se faltar, do intervalo escrito no nome.
+function reSuprimentos(emp, ini, fim, c) {
   const cf = estConsumoComCadastros(), regras = M.estoque_ifc?.regras || {}, servs = regras.consumo_por_servico || {};
   if (!(cf.empresas || []).includes(emp)) return { sem: 'O consumo físico de material só é lançado para ' + (cf.empresas || []).join(' e ') + '.' };
   const mats = new Map(estMateriaisComCadastros().map(m => [ganNorm(m.tag), m]));
-  const prodCache = new Map(), prod = nome => { if (!prodCache.has(nome)) prodCache.set(nome, prodServico(nome, emp, '0000-01-01', c)); return prodCache.get(nome); };
+  const datas = consSemanasDatas(cf), nSem = reSemanas(ini, fim).length, alvoFim = add(segunda(ini), -1), alvoIni = add(segunda(ini), -7 * nSem);
+  const alvo = (cf.semanas || []).filter(n => { const d = datas.get(n); return d && d.data >= alvoIni && d.data <= alvoFim; });
+  const modo = alvo.length ? 'semana' : 'acumulado';   // sem semana datada antes do período: cai no acumulado e avisa
+  const de = modo === 'semana' ? ini : '0000-01-01';
+  const prodCache = new Map(), prod = nome => { if (!prodCache.has(nome)) prodCache.set(nome, prodServico(nome, emp, de, c)); return prodCache.get(nome); };
   const temServ = nome => !nome.startsWith('_') && M.empresas.some(e => e.nome === emp && e.servicos.some(s => s.nome === nome));
   // Ø1/2": 8 parafusos + 8 porcas + 8 arruelas por joist içada; o parafuso (FG005/FG006/FG007) é o específico da posição da joist (criterio_por_letra) e vem do apontamento
   const crit = (window._regras_baixa || {}).criterio_por_letra || regras.criterio_por_letra || {};
-  const apJ = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'JOIST' && a.empresa === emp && (!a.data || a.data <= c));
+  const apJ = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'JOIST' && a.empresa === emp && (!a.data || (a.data <= c && a.data >= de)));
   const joistsAp = soma0(apJ, a => a.qtd || 0), parafusoAp = new Map();
   apJ.forEach(a => { const cod = (crit[String(a.letra || '').toUpperCase()] || {}).parafuso; if (cod) parafusoAp.set(cod, (parafusoAp.get(cod) || 0) + 8 * (a.qtd || 0)); });
   const itens = [];
   (cf.itens || []).forEach(m => {
-    const retirado = soma0(Object.values(m.consumo_semanas || {}), d => Number(d?.[emp]) || 0);
+    const retirado = soma0(Object.entries(m.consumo_semanas || {}).filter(([n]) => modo === 'acumulado' || alvo.includes(n)), ([, d]) => Number(d?.[emp]) || 0);
     if (!(retirado > 0)) return;
     const refs = Object.entries(servs).filter(([nome, conf]) => temServ(nome) && (conf.itens || []).some(x => ganNorm(x.codigo) === ganNorm(m.tag)))
       .map(([nome, conf]) => ({ nome, por: Number(conf.itens.find(x => ganNorm(x.codigo) === ganNorm(m.tag)).por_unidade) || 0, real: prod(nome) })).filter(x => x.por > 0);
@@ -416,7 +422,8 @@ function reSuprimentos(emp, c) {
   });
   itens.sort((a, b) => (b.perda ?? -999) - (a.perda ?? -999));
   const conta = cls => itens.filter(i => i.sem[0] === cls).length;
-  return { itens, verdes: conta('vd'), amarelos: conta('am'), vermelhos: conta('vm'), semBase: conta('nd') };
+  return { itens, verdes: conta('vd'), amarelos: conta('am'), vermelhos: conta('vm'), semBase: conta('nd'), modo, alvo: alvo.map(n => ({ nome: n, ...datas.get(n) })), alvoIni, alvoFim,
+    semData: (cf.semanas || []).filter(n => !datas.has(n)), semanasTotal: (cf.semanas || []).length };
 }
 
 // ---------------------------------------------------------------- mapa pintado da montagem (joists, vigas e contraventamentos)
@@ -535,7 +542,7 @@ function reDados(emp, ini, fim, ls) {
   d.equip = reTry(() => reEquipamentos(emp, ini, fim, c, d.atividades.erro ? { linhas: [] } : d.atividades, ls), 'equipamentos');
   d.impactos = reTry(() => reImpactos(emp, ini, fim, c), 'impactos');
   d.efetivo = reTry(() => reEfetivo(emp, ini, fim, c, ls), 'efetivo');
-  d.sup = reTry(() => reSuprimentos(emp, c), 'suprimentos');
+  d.sup = reTry(() => reSuprimentos(emp, ini, fim, c), 'suprimentos');
   return d;
 }
 const reErro = x => (x && x.erro ? `<p class="aviso">Não foi possível montar esta parte: ${esc(x.erro)}</p>` : '');
@@ -720,9 +727,13 @@ function reSecSuprimentos(d) {
   if (s.erro) return reErro(s);
   if (s.sem) return `<p class="nota">${esc(s.sem)}</p>`;
   const linhas = s.itens.map(i => `<tr><td><b>${esc(i.tag)}</b><div class="nota">${esc(i.produto)}</div></td><td class="n">${nf(i.retirado, 1)}</td><td class="n">${i.refs.length ? nf(i.esperado, 1) : '—'}</td><td class="n">${i.previstas != null ? nf(i.previstas, 1) : '—'}</td><td class="n"><b>${i.refs.length ? nf(i.realizadas, 1) : '—'}</b></td><td class="n">${i.perda != null ? (i.perda > 0 ? '+' : '') + nf(i.perda, 1) + '%' : '—'}</td><td>${reSm(i.sem[0], i.sem[1])}</td><td class="nota">${i.exato ? 'por apontamento: 8 por joist, parafuso da posição' : i.refs.map(r => `${esc(cap(r.nome))}: ${nf(r.por, 2)}/un`).join(' · ') || '—'}</td></tr>`);
-  return `<p>Material retirado do estoque pela empresa (consumo físico) comparado com o que as unidades realizadas exigiriam. <b>${s.verdes}</b> conforme(s) · <b>${s.amarelos}</b> em atenção · <b>${s.vermelhos}</b> não conforme(s)${s.semBase ? ` · ${s.semBase} sem referência de consumo por unidade` : ''}.</p>`
+  const aviso = s.modo === 'semana'
+    ? `<p><b>Retirada da semana antecedente:</b> ${s.alvo.map(a => `${esc(a.nome)} <span class="nota">(semana de ${fd(a.data)}${a.origem === 'cadastrada' ? '' : ' · ' + esc(a.origem)})</span>`).join(' + ')} × produção de ${fd(d.ini)} a ${fd(d.corte)}.</p>`
+    : `<p class="aviso">Nenhuma semana de consumo datada entre ${fd(s.alvoIni)} e ${fd(s.alvoFim)} (semana antecedente ao período). Mostrando o consumo ACUMULADO × produção acumulada. Informe a data de cada semana em Estoque › Consumo físico (✎ Editar coluna).</p>`;
+  const semDt = s.semData.length && s.modo === 'semana' ? `<p class="nota">${s.semData.length} semana(s) do consumo ainda sem data e fora desta conta: ${s.semData.map(esc).join(', ')}.</p>` : '';
+  return aviso + semDt + `<p>Material retirado do estoque pela empresa (consumo físico) comparado com o que as unidades realizadas exigiriam. <b>${s.verdes}</b> conforme(s) · <b>${s.amarelos}</b> em atenção · <b>${s.vermelhos}</b> não conforme(s)${s.semBase ? ` · ${s.semBase} sem referência de consumo por unidade` : ''}.</p>`
     + reTab(['Material (TAG)', '#nRetirado', '#nNecessário p/ o realizado', '#nUnidades previstas pelo material retirado', '#nUnidades realizadas', '#nPerda', 'Situação', 'Consumo por unidade'], linhas)
-    + `<p class="nota">Unidades previstas = quanto o material retirado permitiria montar (retirado ÷ consumo por unidade do serviço); realizadas = produção lançada da empresa (acumulada até ${fdA(d.corte)}). Perda = (retirado − necessário) ÷ retirado. Situação: <b>CONFORME</b> até ${RE_PERDA_VERDE}% de perda · <b>ATENÇÃO</b> de ${RE_PERDA_VERDE} a ${RE_PERDA_AMARELO}% (ou retirada menor que o necessário — conferir lançamentos) · <b>NÃO CONFORME</b> acima de ${RE_PERDA_AMARELO}%; “sem referência” = serviço sem consumo por unidade cadastrado. O consumo físico é lançado por semana e acumulado — não é separado por período.</p>`;
+    + `<p class="nota">Unidades previstas = quanto o material retirado permitiria montar (retirado ÷ consumo por unidade do serviço); realizadas = produção lançada da empresa ${s.modo === 'semana' ? `no período (${fd(d.ini)} a ${fd(d.corte)})` : `acumulada até ${fdA(d.corte)}`}. Perda = (retirado − necessário) ÷ retirado. Situação: <b>CONFORME</b> até ${RE_PERDA_VERDE}% de perda · <b>ATENÇÃO</b> de ${RE_PERDA_VERDE} a ${RE_PERDA_AMARELO}% (ou retirada menor que o necessário — conferir lançamentos) · <b>NÃO CONFORME</b> acima de ${RE_PERDA_AMARELO}%; “sem referência” = serviço sem consumo por unidade cadastrado.${s.modo === 'semana' ? ' O consumo retirado numa semana é o material para a produção da semana seguinte.' : ''}</p>`;
 }
 
 const RE_CSS = `<style>
@@ -761,7 +772,7 @@ function reHtmlEmpresa(d) {
     ${reSecao('8. Equipamentos e abastecimento — custos e projeção', reSecEquip(d))}
     ${reSecao('9. Impactos gerados e sofridos', reSecImpactos(d))}
     ${reSecao('10. Tendência de efetivo (pessoal)', reSecEfetivo(d))}
-    ${reSecao('11. Suprimentos — material retirado × joists realizados', reSecSuprimentos(d))}
+    ${reSecao('11. Suprimentos — retirada da semana antecedente × joists realizados', reSecSuprimentos(d))}
   </div></section>`;
 }
 async function reHtml(ini, fim, emps) {

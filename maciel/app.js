@@ -3198,6 +3198,7 @@ function edBarra(k) {
         + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
     box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
       + datasHtml
+      + (k === 'cons' ? `<span class="ed-datas"><label>Semana de (qualquer dia)<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="dataSemana" value="${esc(ed.dataSemana || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
       + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
       + `<button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
@@ -3208,7 +3209,7 @@ function edAbrir(k) {
   if (!EP) return;
   if (!estEdit[k]) estEdit[k] = k === 'rem'
     ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false }
-    : { nome: '', val: new Map() };
+    : { nome: '', val: new Map(), dataSemana: '' };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
   const cab = $(ED[k].tabela).querySelector('.ed-cab');
@@ -3243,6 +3244,7 @@ async function edSalvar(k) {
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
     const corpo = { [ED[k].campo]: nome, itens };
+    if (k === 'cons' && ed.dataSemana) corpo.data_semana = ed.dataSemana;
     if (k === 'rem') {
       if (ed.substituir) { corpo.substituir = true; corpo.original_remessa = ed.original || nome; }
       if (ed.prevista || ed.emissaoNf || ed.chegadaObra || ed.substituir) corpo.datas = { prevista_chegada: ed.prevista, emissao_nota: ed.emissaoNf, chegada_obra: ed.chegadaObra };
@@ -3432,13 +3434,37 @@ function gerarRelConsumo() {
 
 // ------------------------------------------------------------ EDITAR COLUNA (semana) DO CONSUMO FÍSICO
 // Renomeia a semana, ajusta EJ/CMM de vários itens de uma vez e exclui a coluna (rota estoque-planilha/consumo-semana).
-const consSem = { semana: '', originais: new Map(), novos: new Map() };
+// Cada semana do consumo é um nome livre ("SEMANA 6 SET 12 a 19"); a data da semana (gravada em consumo_fisico.semanas_datas) liga o consumo ao
+// calendário nos relatórios. Sem data gravada, tenta-se ler o intervalo do nome (dd a dd + mês, ou o mês da semana anterior).
+const ABR_MES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+function consSemanasDatas(cf) {
+  const salvas = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas : {};
+  const ano = Number(String((M && M.datas && M.datas[0]) || hoje()).slice(0, 4)), out = new Map();
+  let mesAnt = null;
+  (cf.semanas || []).forEach(nome => {
+    const u = ganNorm(nome), mes = ABR_MES.findIndex(m => u.split(' ').some(w => w.startsWith(m)));
+    const m = String(nome).match(/(\d{1,2})\s*(?:a|à|até|[-–])\s*(\d{1,2})/i);
+    const mesUsado = mes >= 0 ? mes : mesAnt;
+    if (mes >= 0) mesAnt = mes;
+    if (ehISO(salvas[nome])) { out.set(nome, { data: segunda(salvas[nome]), origem: 'cadastrada', bruta: salvas[nome] }); return; }
+    if (m && mesUsado != null) {
+      const d = `${ano}-${String(mesUsado + 1).padStart(2, '0')}-${String(Math.min(31, Number(m[1]))).padStart(2, '0')}`;
+      if (ehISO(d)) out.set(nome, { data: segunda(d), origem: 'inferida do nome', bruta: d });
+    }
+  });
+  return out;
+}
+const consSem = { semana: '', originais: new Map(), novos: new Map(), dataOrig: '' };
 function abrirConsSemana(semana) {
   const cf = estConsumoComCadastros();
   consSem.semana = semana; consSem.novos = new Map(); consSem.originais = new Map();
   cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, { EJ: Number(d.EJ) || 0, CMM: Number(d.CMM) || 0 }); });
   $('#tituloConsSemana').textContent = `Editar coluna — ${semana}`;
   $('#consSemNome').value = semana; $('#consSemBusca').value = '';
+  const dt = consSemanasDatas(cf).get(semana), salva = cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas[semana] : '';
+  consSem.dataOrig = salva || '';
+  $('#consSemData').value = salva || (dt ? dt.bruta : '');
+  $('#consSemDataDica').textContent = salva ? '' : dt ? 'sugerida pelo nome da semana — confirme e salve' : 'informe qualquer dia da semana em que o material foi retirado';
   const ex = $('#btnConsSemExcluir'); ex.dataset.confirmar = ''; ex.textContent = 'Excluir coluna';
   consSemDesenhar();
   $('#modalConsSemana').hidden = false; document.body.classList.add('modal-aberto');
@@ -3462,9 +3488,10 @@ async function salvarConsSemana() {
     ['EJ', 'CMM'].forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
     if (Object.keys(v).length > 1) valores.push(v);
   });
-  if (novo === semana && !valores.length) { fecharConsSemana(); return toast('Nada foi alterado.'); }
+  const dataNova = $('#consSemData').value || '';
+  if (novo === semana && !valores.length && dataNova === consSem.dataOrig) { fecharConsSemana(); return toast('Nada foi alterado.'); }
   try {
-    await postar(API + 'estoque-planilha/consumo-semana', { semana, novo_nome: novo, valores });
+    await postar(API + 'estoque-planilha/consumo-semana', { semana, novo_nome: novo, valores, data_semana: dataNova });
     fecharConsSemana(); await recarregarEstoquePlanilha();
     toast(`Coluna ${novo} salva ${ONDE}`);
   } catch (err) { toast(err.message || 'Erro ao salvar.', true); }

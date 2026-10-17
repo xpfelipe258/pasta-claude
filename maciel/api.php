@@ -998,6 +998,16 @@ function acao_estoque_remessa_datas(array $corpo)
     return ['salvos' => 1];
 }
 
+// Data (qualquer dia da semana) em que o consumo de uma semana nomeada foi retirado: serve para ligar a semana ao calendário nos relatórios.
+function semana_consumo_data_valida($v)
+{
+    $v = trim((string)$v);
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+        throw new ErroValidacao('Data da semana inválida: use o formato aaaa-mm-dd.');
+    }
+    return $v;
+}
+
 function acao_estoque_consumo(array $corpo)
 {
     $dados = estoque_planilha_ler();
@@ -1042,6 +1052,12 @@ function acao_estoque_consumo(array $corpo)
     }
     if (!in_array($semana, $dados['consumo_fisico']['semanas'], true)) {
         $dados['consumo_fisico']['semanas'][] = $semana;
+    }
+    if (trim((string)($corpo['data_semana'] ?? '')) !== '') {
+        $datas = $dados['consumo_fisico']['semanas_datas'] ?? [];
+        $datas = is_array($datas) ? $datas : [];
+        $datas[$semana] = semana_consumo_data_valida($corpo['data_semana']);
+        $dados['consumo_fisico']['semanas_datas'] = $datas;
     }
     foreach ($lancamentos as $chave => $qtd) {
         list($tag, $empresa) = explode('|', $chave);
@@ -1220,6 +1236,24 @@ function acao_estoque_consumo_semana(array $corpo)
         $semanas[$pos] = $novo;
     }
     $dados['consumo_fisico']['semanas'] = array_values($semanas);
+    $datas = $dados['consumo_fisico']['semanas_datas'] ?? [];
+    $datas = is_array($datas) ? $datas : [];
+    if ($excluir) {
+        unset($datas[$semana]);
+    } else {
+        if ($novo !== $semana && isset($datas[$semana])) {
+            $datas[$novo] = $datas[$semana];
+            unset($datas[$semana]);
+        }
+        if (array_key_exists('data_semana', $corpo)) {
+            if (trim((string)$corpo['data_semana']) === '') {
+                unset($datas[$novo]);
+            } else {
+                $datas[$novo] = semana_consumo_data_valida($corpo['data_semana']);
+            }
+        }
+    }
+    $dados['consumo_fisico']['semanas_datas'] = $datas;
     estoque_planilha_gravar($dados);
     return ['semana' => $excluir ? null : $novo, 'excluida' => $excluir, 'itens_ajustados' => count($valores)];
 }
