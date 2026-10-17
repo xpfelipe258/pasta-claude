@@ -3454,7 +3454,7 @@ function gerarRelConsumo() {
   if (!relCons.it.size) return toast('Marque pelo menos um item.', true);
   const html = relConsHtml(modo, relCons.sem, relCons.it, $('#relConsSemZero').checked);
   const nome = `relatorio_consumo_${modo === 'cada' ? 'por_empresa' : modo.toLowerCase()}_${hoje()}.html`;
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([(typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html)], { type: 'text/html;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
   fecharRelConsumo();
@@ -5015,7 +5015,7 @@ function baixarRelEquip(tipo = 'geral', ini = per.ini, fim = per.fim, usoFiltro 
   const html = relEquipHtml(tipo, ini, fim, usoFiltro);
   const usoNome = usoFiltro === 'todos' ? 'todos' : usoFiltro;
   const nome = `relatorio_equipamentos_${tipo === 'geral' ? 'geral' : tipo.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'_').toLowerCase()}_${usoNome}_${ini}_${fim}.html`;
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const blob = new Blob([(typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html)], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
@@ -6215,6 +6215,7 @@ function efetivoImpactoTexto(i) {
   }).join(' / ');
 }
 function baixarHtml(nome, html) {
+  if (typeof tplProtegerImpressao === 'function') html = tplProtegerImpressao(html);   // sem URL/data/título impressos pelo navegador
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
     window.navigator.msSaveOrOpenBlob(blob, nome);

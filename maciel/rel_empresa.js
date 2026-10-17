@@ -824,10 +824,8 @@ async function reHtml(ini, fim, emps) {
   if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
   const c = minD(fim, ref), ls = reLinhas(c);
   const dados = emps.map(emp => reDados(emp, ini, fim, ls));
-  const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório das empresas — ${fdA(ini)} a ${fdA(fim)}</title>${RE_CSS}</head><body>
-    <div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ${esc(quando)} (horário de Brasília) · ${emps.map(esc).join(', ')}</span></div>
-    ${dados.map(reHtmlEmpresa).join('')}</body></html>`;
+  await tplLogosCarregar();
+  return tplDocumento({ titulo: 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join('') });
 }
 
 // ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)
@@ -851,7 +849,7 @@ function reAbrirPrevia(html, nomeArq, titulo) {
       <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>Baixar relatório</button><button type="button" class="btn" data-re-imprimir>Imprimir / salvar em PDF</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
     <iframe class="re-previa-quadro" title="Visualização do relatório"></iframe>`;
   document.body.appendChild(dlg);
-  dlg.querySelector('iframe').srcdoc = html;
+  dlg.querySelector('iframe').srcdoc = typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html;
   reUltimo = { html, nomeArq };
   dlg.addEventListener('close', () => dlg.remove());
   dlg.showModal();

@@ -786,7 +786,7 @@ function impactoCascata(servico, frente) {
 function plBaixarDoc(pl) {
   const html = plDocHtml(pl);
   const nome = `planejamento-${String(pl.nome || 'plano').replace(/[^\w\-]+/g, '_')}-${plBase()}.html`;
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const blob = new Blob([(typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html)], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = nome; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);

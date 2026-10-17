@@ -19,6 +19,7 @@ $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR_
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $html = str_replace('src="planos.js"', 'src="planos.js?v=' . @filemtime(__DIR__ . '/planos.js') . '"', $html);
 $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(__DIR__ . '/planos_doc.js') . '"', $html);
+$html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
 $html = str_replace('src="rel_lanc.js"', 'src="rel_lanc.js?v=' . @filemtime(__DIR__ . '/rel_lanc.js') . '"', $html);
 $html = str_replace('src="bm_resumo.js"', 'src="bm_resumo.js?v=' . @filemtime(__DIR__ . '/bm_resumo.js') . '"', $html);

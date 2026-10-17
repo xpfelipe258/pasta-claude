@@ -64,12 +64,9 @@ function lcHtmlEmpresa(d) {
   </div></section>`;
 }
 
-function lcHtml(ini, fim, emps) {
-  const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  const dados = emps.map(emp => lcDados(emp, ini, fim));
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Produção do período — ${fdA(ini)} a ${fdA(fim)}</title>${RE_CSS}</head><body>
-    <div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ${esc(quando)} (horário de Brasília) · ${emps.map(esc).join(', ')}</span></div>
-    ${dados.map(lcHtmlEmpresa).join('')}</body></html>`;
+async function lcHtml(ini, fim, emps) {
+  await tplLogosCarregar();
+  return tplDocumento({ titulo: 'Produção do período', subtitulo: `${emps.join(' · ')} — ${fdA(ini)} a ${fdA(fim)}`, meta: 'Somente atividades do catálogo (BM) com avanço no período', corpo: emps.map(emp => lcHtmlEmpresa(lcDados(emp, ini, fim))).join('') });
 }
 
 let lcBarPer = '';
@@ -89,7 +86,7 @@ async function lcGerar() {
   if (!emp) { toast('Selecione a empresa nas abas de Lançamentos.', true); return; }
   const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
-    reAbrirPrevia(lcHtml(ini, fim, [emp]), `producao-${emp.replace(/\s+/g, '-')}-${ini}_a_${fim}.html`,
+    reAbrirPrevia(await lcHtml(ini, fim, [emp]), `producao-${emp.replace(/\s+/g, '-')}-${ini}_a_${fim}.html`,
       `Produção do período · ${emp} · ${fdA(ini)} a ${fdA(fim)}`);
   } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }
   finally { btn.disabled = false; btn.textContent = rot; }
