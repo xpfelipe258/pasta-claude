@@ -5313,14 +5313,24 @@ function bmDesconsideraAbastecimentoMedicao(r) {
   const ehAbastecimento = uso.includes('ABASTECIMENTO') || (r.litrosR || 0) > 0 || (r.combR || 0) > 0 || (r.litros || 0) > 0 || (r.custo_combustivel || 0) > 0;
   return ehAbastecimento && eq.includes('SANY');
 }
+// Equipamento mensal com responsável = locação já cobrada como desconto (valor × meses): os lançamentos de uso do MESMO equipamento pela
+// mesma empresa não somam o custo de novo (só valem os de uso diário lançados nos demais equipamentos); abastecimento continua valendo.
+function bmEquipamentosLocados(emp) {
+  return bmTab('equipamentos').filter(e => e.cobranca === 'MENSAL' && (e.responsavel || '').toUpperCase() === emp.toUpperCase() && e.valor && e.situacao !== 'DESMOBILIZADO');
+}
 function bmDeducoes(emp, p, medido = 0) {
-  let equip, comb, litros, usos = null, mensalEquip = 0, eqMensList = [], usosIgnoradosAbast = 0;
+  let equip, comb, litros, usos = null, mensalEquip = 0, eqMensList = [], usosIgnoradosAbast = 0, usosIgnoradosLocacao = 0;
   if (p.fechado && p.fech) {
     equip = p.fech.equip || 0; comb = p.fech.comb || 0; litros = p.fech.litros || 0;
   } else {
     const rt0 = ratear(bmTab('usos').filter(u => u.data && u.data >= p.ini && u.data <= p.fim)).filter(r => r.empAjust === emp);
     usosIgnoradosAbast = rt0.filter(bmDesconsideraAbastecimentoMedicao).length;
-    const rt = rt0.map(r => bmDesconsideraAbastecimentoMedicao(r) ? { ...r, combR: 0, litrosR: 0 } : r);
+    const locados = new Set(bmEquipamentosLocados(emp).map(e => ganNorm(e.equipamento)));
+    const rt = rt0.map(r => {
+      let x = bmDesconsideraAbastecimentoMedicao(r) ? { ...r, combR: 0, litrosR: 0 } : r;
+      if (locados.has(ganNorm(r.equipamento)) && (x.custoR || 0) > 0) { x = { ...x, custoR: 0 }; usosIgnoradosLocacao++; }
+      return x;
+    });
     equip = soma0(rt, r => r.custoR); comb = soma0(rt, r => r.combR); litros = soma0(rt, r => r.litrosR); usos = rt.length;
     // Equipamentos mensais com empresa responsável — deduzidos automaticamente
     const meses = mesesNoPeriodo(p.ini, p.fim);
@@ -5339,7 +5349,7 @@ function bmDeducoes(emp, p, medido = 0) {
     const descontoSinal = c === 'RÓTULA' ? sinalAuto : 0;
     total[c] = descontoSinal + (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => bmValorDeducao(d, medido));
   });
-  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos, mensalEquip, eqMensList, sinalAuto, sinalPercentual: BM_SINAL_PERCENTUAL, sinalManualIgnorado, usosIgnoradosAbast };
+  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos, mensalEquip, eqMensList, sinalAuto, sinalPercentual: BM_SINAL_PERCENTUAL, sinalManualIgnorado, usosIgnoradosAbast, usosIgnoradosLocacao };
 }
 
 // BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
@@ -5608,6 +5618,7 @@ function renderBMBoletim(box) {
     (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
     (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× R$ ${nf(e.valor, 0)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
+    (dd.usosIgnoradosLocacao ? `<tr><td class="nota">Uso de equipamento locado desconsiderado <span class="nota">${dd.usosIgnoradosLocacao} lançamento(s) de equipamento com locação mensal já descontada — só o uso diário dos demais equipamentos soma</span></td><td class="n">—</td></tr>` : '') +
     (dd.usosIgnoradosAbast ? `<tr><td class="nota">Abastecimento de SANY desconsiderado na medição <span class="nota">mantida apenas a diária/custo do equipamento</span></td><td class="n">—</td></tr>` : '') +
     (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal manual cadastrado ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% automaticamente</span></td><td class="n">—</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : (!dd.sinalAuto && !(dd.equip - dd.mensalEquip) && !dd.mensalEquip && !dd.comb && !dd.sinalManualIgnorado ? '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>' : '')) +

@@ -22,7 +22,8 @@ function bmResumoPeriodoHtml(emp, p, r, tot, cc) {
   const pctGasto = ganho > 0 ? gasto / ganho * 100 : null;
   const card = (rot, val, sub, cls) => `<div class="tile" style="--c:${cls}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const dados = relEquipDados(emp, ini, fim, 'todos');
-  const eqs = dados.equipamentos.filter(q => q.emps.has(emp));
+  const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
+  const eqs = dados.equipamentos.filter(q => q.emps.has(emp)).map(q => locados.has(ganNorm(q.equipamento)) ? { ...q, custo: 0 } : q);   // a locação mensal (linha abaixo) já cobre o equipamento
   const linhasEq = eqs.map(q => `<tr><td>${esc(q.equipamento)}</td><td>${esc(q.resp)}</td><td class="n">${q.dias.size}</td><td class="n">${rs(q.custo)}</td><td class="n">${nf(q.litros, 0)}</td><td class="n">${rs(q.comb)}</td><td class="n"><b>${rs(q.custo + q.comb)}</b></td></tr>`);
   (dd.eqMensList || []).forEach(e => linhasEq.push(`<tr><td>${esc(e.equipamento)} <span class="nota">locação mensal</span></td><td>${esc(e.responsavel || '')}</td><td class="n">—</td><td class="n">${rs(e.valor * mesesNoPeriodo(p.ini, p.fim))}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs(e.valor * mesesNoPeriodo(p.ini, p.fim))}</b></td></tr>`));
   const linhasIt = r.itens.filter(it => Math.abs(it.pctPer) > 1e-9).map(it => `<tr><td><b>${esc(it.item)}</b> ${esc(cap(it.desc || ''))}</td><td class="n">${nf(it.pctPer * 100, 1)}%</td><td class="n"><b>${rs(it.pctPer * it.valor[BM_R])}</b></td><td class="n">${nf(it.pct * 100, 1)}%</td></tr>`);
