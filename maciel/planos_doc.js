@@ -68,13 +68,14 @@ const PLD_FLUXOS = {
         impacto: ['<b>Prazo/contrato:</b> marco contratual da cobertura; atraso gera multa, pressão do cliente e atrasa as disciplinas internas.',
           '<b>Qualidade:</b> obra exposta à chuva danifica pisos e equipamentos e gera infiltração.', '<b>Cascata:</b> calhas, rufos e acabamentos dependem das telhas.'],
         recupera: ['Aumentar equipes e frentes de telhamento, mantendo a perfilação adiantada.', 'Trabalhar por água completa para entregar trechos já estanques.', 'Planejar janelas de clima e plano de contingência contra chuva.'] },
-      { id: 'g10', nome: 'Suporte e terças do fechamento lateral',
-        oque: 'Instalação dos suportes (consoles/mãos-francesas) na estrutura e montagem das terças horizontais do fechamento lateral sobre eles; as duas etapas andam juntas e formam a estrutura que recebe as telhas das fachadas.',
-        importa: 'O alinhamento dos suportes define o prumo de todo o fechamento, e as terças são a fixação das telhas laterais: erro aqui aparece na fachada inteira.',
-        impacto: ['<b>Prazo:</b> bloqueia as telhas do fechamento lateral e a vedação das fachadas.',
-          '<b>Qualidade:</b> suportes fora de prumo e terças desalinhadas geram fachada ondulada, retrabalho nas telhas e infiltração.',
-          '<b>Custo:</b> refazer suporte já com terça montada é caro e lento; fachada aberta expõe o interior ao vento e à chuva.'],
-        recupera: ['Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa, conferindo prumo a cada trecho, com suporte e terça na mesma sequência.', 'Reforçar a equipe de fechamento lateral se o telhamento da cobertura liberar pessoal.'] },
+      { id: 'g10', nome: 'Estrutura do fechamento lateral', ramo: true, libera: ['g12'],
+        ramoTxt: 'Ramo independente: depende somente da Chegada de material e do Descarregamento; não espera cobertura, telhas nem checklist.',
+        oque: 'Estrutura que recebe as telhas das fachadas, montada em sequência: suporte de terças › terças › espaçadores › frechais. Não depende de nenhuma outra atividade da obra, apenas da chegada e da descarga do material.',
+        importa: 'O alinhamento dos suportes define o prumo de todo o fechamento e as terças/frechais são a fixação das telhas laterais: erro aqui aparece na fachada inteira. Por ser independente, pode (e deve) andar em paralelo à cobertura.',
+        impacto: ['<b>Prazo:</b> só trava as telhas do fechamento lateral e a vedação das fachadas; não atrasa a cobertura.',
+          '<b>Qualidade:</b> suportes fora de prumo, terças desalinhadas ou frechais mal fixados geram fachada ondulada, retrabalho nas telhas e infiltração.',
+          '<b>Custo:</b> refazer suporte já com terça e frechal montados é caro e lento; fachada aberta expõe o interior ao vento e à chuva.'],
+        recupera: ['Conferir se o material (suportes, terças, espaçadores, frechais) chegou e foi descarregado: é a única dependência.', 'Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa na sequência suporte › terça › espaçador › frechal, conferindo prumo a cada trecho.', 'Reforçar a equipe de fechamento lateral em paralelo à cobertura se houver atraso.'] },
       { id: 'g11', nome: 'Vigas das marquises',
         oque: 'Montagem das vigas principais das marquises (em balanço), que recebem as terças e as telhas da marquise.',
         importa: 'É o apoio de toda a marquise; estrutura em balanço exige travamento e fixação corretos.',
@@ -170,7 +171,7 @@ const PLD_REGRAS = {
   galpao: [
     [/MARQUISE.*VIGAS/, ['g11']], [/MARQUISE.*TERCAS/, ['g14']], [/MARQUISE.*TELHAS/, ['g15']], [/MARQUISE.*CALHAS/, ['g16']],
     [/MARQUISE.*(TESTEIRA|RUFO|ARREMATE)/, ['g17']],
-    [/FECH.*LATERAL.*(ESTRUTURA|TERCAS|SUPORTE)/, ['g10']], [/^FECHAMENTO|FECH.*LATERAL/, ['g12']],
+    [/FECH.*LATERAL.*(ESTRUTURA|TERCAS|SUPORTE|ESPACADOR|FRECHAL)/, ['g10']], [/^FECHAMENTO|FECH.*LATERAL/, ['g12']],
     [/CONTRAVENT/, ['g6']], [/CHECKLIST|CHECK LIST/, ['g7']],
     [/PREMONT|PRE MONT/, ['g3']], [/VIGAS/, ['g4']], [/ICAMENTO|JOIST/, ['g5']],
     [/PERFILACAO/, ['g8']], [/TELHAR|TELHAS/, ['g9']], [/CALHAS/, ['g13']], [/ARREMATES|RUFOS/, ['g17']],
@@ -189,6 +190,11 @@ function pldEtapasDe(x) {
   return { fluxo, ids: reg ? reg[1] : [] };
 }
 const pldEtapa = (fluxo, id) => PLD_FLUXOS[fluxo].etapas.find(e => e.id === id);
+// Ramo independente: etapa que depende só da chegada e da descarga do material (ex.: estrutura do fechamento lateral). Não entra na
+// cadeia principal: não espera checklist/cobertura, não empurra a cobertura e só libera as etapas listadas em `libera`.
+const pldRamo = id => !!PLD_FLUXOS.galpao.etapas.find(e => e.id === id)?.ramo;
+const pldEhRamo = x => { const m = pldEtapasDe(x); return m.ids.length > 0 && m.ids.every(pldRamo); };
+const pldLibera = ids => ids.flatMap(id => pldEtapa('galpao', id)?.libera || []);
 
 // ---------------------------------------------------------------- portões do fluxo (perguntas de liberação)
 // Chegada de material, descarregamento e checklist não têm linha no cronograma: viram perguntas feitas a cada atividade.
@@ -204,7 +210,7 @@ const pldPortaoR = (x, k) => x.it.portoes?.[k]?.r || '';
 // perguntas que valem para a atividade: material e descarga para todas; checklist só para o que vem depois dele no fluxo do galpão
 function pldPortoesDe(x) {
   const m = pldEtapasDe(x), ordem = PLD_ORDEM[m.fluxo], pos = m.ids.length ? ordem.indexOf(m.ids[0]) : -1;
-  return PLD_PORTOES.filter(g => g.etapa[m.fluxo] && (g.k !== 'checklist' || (m.fluxo === 'galpao' && pos > ordem.indexOf('g7'))));
+  return PLD_PORTOES.filter(g => g.etapa[m.fluxo] && (g.k !== 'checklist' || (m.fluxo === 'galpao' && pos > ordem.indexOf('g7') && !pldEhRamo(x))));   // ramo independente: só material e descarga
 }
 function pldPortaoEstado(x) {
   if (x.status === 'CONCLUÍDO') return { estado: 'concluida', rot: 'concluída', cls: 'ok' };
@@ -260,9 +266,10 @@ function pldAtraso(x, base) {
 function pldSucessoras(c, x) {
   const e = pldEtapasDe(x);
   if (!e.ids.length) return [];
-  const ordem = PLD_ORDEM[e.fluxo], pos = Math.max(...e.ids.map(id => ordem.indexOf(id)));
+  const ordem = PLD_ORDEM[e.fluxo], pos = Math.max(...e.ids.map(id => ordem.indexOf(id))), ramo = e.fluxo === 'galpao' && e.ids.every(pldRamo), libera = ramo ? pldLibera(e.ids) : [];
   return c.itens.filter(y => y !== x).map(y => ({ y, e: pldEtapasDe(y) }))
-    .filter(({ y, e: ey }) => ey.fluxo === e.fluxo && ey.ids.length && Math.min(...ey.ids.map(id => ordem.indexOf(id))) > pos && (e.fluxo === 'galpao' || y.it.frente === x.it.frente))
+    .filter(({ y, e: ey }) => ey.fluxo === e.fluxo && ey.ids.length && (e.fluxo === 'galpao' || y.it.frente === x.it.frente)
+      && (ramo ? ey.ids.some(id => libera.includes(id)) : !ey.ids.every(pldRamo) && Math.min(...ey.ids.map(id => ordem.indexOf(id))) > pos))
     .sort((a, b) => Math.min(...a.e.ids.map(id => ordem.indexOf(id))) - Math.min(...b.e.ids.map(id => ordem.indexOf(id))));
 }
 // ---------------------------------------------------------------- curva S em SVG (planejado × realizado × projeção)
@@ -300,8 +307,10 @@ function pldImpactoCaixas(lista) {
 }
 // fluxograma de uma etapa: anterior ▶ etapa ▶ decisão ─SIM▶ libera a próxima | ─NÃO▼ impactos ▼ recuperação ↩ volta à decisão
 function pldFluxogramaEtapa(e, plano, i, o) {
-  const ant = plano[i - 1], prox = plano[i + 1];
-  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : 'Concluído: entrega e aceite');
+  const ramo = !!e.ramo;   // ramo independente: antes dele só chegada/descarga; depois, só o que ele libera
+  const ant = ramo ? [...plano].reverse().find(q => q.id === 'g2' || q.id === 'g1') : plano.slice(0, i).reverse().find(q => !q.ramo);
+  const prox = ramo ? plano.find(q => (e.libera || []).includes(q.id)) : plano.slice(i + 1).find(q => !q.ramo);
+  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : ramo ? 'Concluído: estrutura pronta para receber as telhas' : 'Concluído: entrega e aceite');
   return `<div class="fc">
     <div class="fc-linha">
       ${pldNo('cz', ant ? esc(ant.nome) : 'Início do plano', ant ? 'etapa anterior' : '')}${pldSeta()}
@@ -309,6 +318,7 @@ function pldFluxogramaEtapa(e, plano, i, o) {
       ${pldDec(o.pergunta || 'Objetivo cumprido no prazo?')}${pldSeta('SIM', 'ok')}
       ${pldNo('vd', sim, o.simDet || '')}
     </div>
+    ${ramo && e.ramoTxt ? `<p class="mini"><b>↔ ${esc(e.ramoTxt)}</b></p>` : ''}
     ${pldSetaV(o.nao || 'NÃO', 'ruim')}
     <div class="fc-rot">IMPACTOS</div><div class="fc-linha fc-wrap">${pldImpactoCaixas(e.impacto)}</div>
     ${pldSetaV('ação')}
@@ -467,13 +477,23 @@ function pldFluxoVisual(c) {
   const bloco = fluxo => {
     const et = plano[fluxo];
     if (!et) return '';
-    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="fc-linha fc-cascata">` + et.map((e, i) => {
+    const principais = et.map((e, k) => ({ e, k })).filter(o => !o.e.ramo), ramos = et.map((e, k) => ({ e, k })).filter(o => o.e.ramo);
+    const caixa = ({ e, k }, prox) => {
       const itens = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.includes(e.id); });
-      const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens), d = atrasoEtapa(fluxo, e), prox = et[i + 1];
+      const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens), d = atrasoEtapa(fluxo, e);
       const cls = { ok: 'vd', alerta: 'am', ruim: 'vm', pend: 'cz', nd: 'cz' }[st.cls] || 'cz';
-      return `<div class="fc-col"><a href="#${esc(fluxo + '-' + e.id)}" class="fc-no ${cls} fc-link"><b>${i + 1} · ${esc(e.nome)}</b><span>${st.rot}</span></a>
-        ${d > 0 ? `${pldSetaV('', 'ruim')}${pldNo('vm fc-peq', `+${d} d.u.`, prox ? 'empurra ' + esc(prox.nome) : 'atrasa a entrega')}` : ''}</div>${i < et.length - 1 ? pldSeta() : ''}`;
-    }).join('') + '</div></div>';
+      return `<div class="fc-col"><a href="#${esc(fluxo + '-' + e.id)}" class="fc-no ${cls} fc-link"><b>${k + 1} · ${esc(e.nome)}</b><span>${st.rot}</span></a>
+        ${d > 0 ? `${pldSetaV('', 'ruim')}${pldNo('vm fc-peq', `+${d} d.u.`, prox ? 'empurra ' + esc(prox.nome) : 'atrasa a entrega')}` : ''}</div>`;
+    };
+    const cadeia = principais.map((o, i) => caixa(o, principais[i + 1]?.e) + (i < principais.length - 1 ? pldSeta() : '')).join('');
+    // ramo independente: Chegada de material › Descarregamento › ramo › (só o que ele libera); não passa pela cobertura nem pelo checklist
+    const ramoHtml = ramos.map(r => {
+      const base = et.map((e, k) => ({ e, k })).filter(o => o.e.id === 'g1' || o.e.id === 'g2');
+      const libera = et.map((e, k) => ({ e, k })).filter(o => (r.e.libera || []).includes(o.e.id));
+      return `<div class="fc-linha fc-cascata" style="margin-top:10px"><span class="mini"><b>↔ Ramo independente</b> (depende só de chegada e descarga):</span>`
+        + base.map(o => caixa(o) + pldSeta()).join('') + caixa(r, libera[0]?.e) + libera.map(o => pldSeta('libera') + `<div class="fc-col"><a href="#${esc(fluxo + '-' + o.e.id)}" class="fc-no cz fc-link"><b>${o.k + 1} · ${esc(o.e.nome)}</b></a></div>`).join('') + '</div>';
+    }).join('');
+    return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="fc-linha fc-cascata">${cadeia}</div>${ramoHtml}</div>`;
   };
   return bloco('galpao') + bloco('anexo');
 }
@@ -487,13 +507,13 @@ function pldBloqueios(c) {
 function pldGargalo(c) {
   // causa-raiz: em cada fluxo, a atividade atrasada mais a montante (as etapas seguintes só se recuperam depois dela)
   return ['galpao', 'anexo'].map(fluxo => {
-    const atras = c.itens.filter(x => x.status === 'ATRASADO').map(x => ({ x, m: pldEtapasDe(x) })).filter(o => o.m.fluxo === fluxo && o.m.ids.length);
+    const atras = c.itens.filter(x => x.status === 'ATRASADO').map(x => ({ x, m: pldEtapasDe(x) })).filter(o => o.m.fluxo === fluxo && o.m.ids.length && !o.m.ids.every(pldRamo));   // o ramo independente tem alerta próprio
     if (!atras.length) return '';
     const idx = o => Math.min(...o.m.ids.map(id => PLD_ORDEM[fluxo].indexOf(id)));
     atras.sort((a, b) => idx(a) - idx(b));
     const o = atras[0], a = pldAtraso(o.x, c.base);
     return `<div class="alerta-box"><b>Gargalo atual — ${esc(PLD_FLUXOS[fluxo].nome)}:</b> ${esc(o.x.it.atividade)} (etapa “${esc(pldEtapa(fluxo, o.m.ids[0]).nome)}”)${a.dias ? `, projeção de ${a.dias} dia(s) útil(eis) de atraso` : ''}. As etapas seguintes só recuperam se esta for destravada primeiro.</div>`;
-  }).join('');
+  }).join('') + c.itens.filter(x => x.status === 'ATRASADO' && pldEhRamo(x)).map(x => `<div class="alerta-box"><b>Ramo independente atrasado:</b> ${esc(x.it.atividade)}. Depende só de chegada e descarga do material; atrasa apenas as telhas do fechamento lateral e não interfere na cobertura.</div>`).join('');
 }
 
 function plDocHtml(pl) {
@@ -672,10 +692,11 @@ function pldEtapasPorNome(servico, frente) {
 function impactoCascata(servico, frente) {
   const m = pldEtapasPorNome(servico, frente);
   if (!m.ids.length) return null;
-  const ordem = PLD_ORDEM[m.fluxo], pos = ordem.indexOf(m.ids[0]);
+  const ordem = PLD_ORDEM[m.fluxo], pos = ordem.indexOf(m.ids[0]), ramo = m.fluxo === 'galpao' && m.ids.every(pldRamo), libera = ramo ? pldLibera(m.ids) : [];
   const posteriores = (typeof plAtividades === 'function' ? plAtividades() : [])
     .map(a => ({ a, e: pldEtapasPorNome(a.it.servico, a.frente) }))
-    .filter(({ a, e }) => e.fluxo === m.fluxo && e.ids.length && ordem.indexOf(e.ids[0]) > pos && a.status !== 'CONCLUÍDO' && (m.fluxo === 'galpao' || ganNorm(a.frente) === ganNorm(frente)))
+    .filter(({ a, e }) => e.fluxo === m.fluxo && e.ids.length && a.status !== 'CONCLUÍDO' && (m.fluxo === 'galpao' || ganNorm(a.frente) === ganNorm(frente))
+      && (ramo ? e.ids.some(id => libera.includes(id)) : !e.ids.every(pldRamo) && ordem.indexOf(e.ids[0]) > pos))   // ramo independente só empurra o que ele libera; a cadeia principal não empurra o ramo
     .sort((x, y) => ordem.indexOf(x.e.ids[0]) - ordem.indexOf(y.e.ids[0]) || (x.a.ini || '').localeCompare(y.a.ini || ''))
     .map(({ a, e }) => ({ nome: a.nome, fase: a.fase, frente: a.frente, etapa: pldEtapa(m.fluxo, e.ids[0]).nome, ini: a.ini, prazo: a.prazo, empresas: a.empresas || [], status: a.status }));
   const vezes = {};
