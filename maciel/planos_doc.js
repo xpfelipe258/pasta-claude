@@ -68,60 +68,59 @@ const PLD_FLUXOS = {
         impacto: ['<b>Prazo/contrato:</b> marco contratual da cobertura; atraso gera multa, pressão do cliente e atrasa as disciplinas internas.',
           '<b>Qualidade:</b> obra exposta à chuva danifica pisos e equipamentos e gera infiltração.', '<b>Cascata:</b> calhas, rufos e acabamentos dependem das telhas.'],
         recupera: ['Aumentar equipes e frentes de telhamento, mantendo a perfilação adiantada.', 'Trabalhar por água completa para entregar trechos já estanques.', 'Planejar janelas de clima e plano de contingência contra chuva.'] },
-      { id: 'g10', nome: 'Estrutura do fechamento lateral', ramo: 'fecha', libera: ['g12'],
-        ramoTxt: 'Ramo independente: depende somente da Chegada de material e do Descarregamento; não espera cobertura, telhas nem checklist.',
+      { id: 'g10', nome: 'Estrutura do fechamento lateral',
         oque: 'Estrutura que recebe as telhas das fachadas, montada em sequência: suporte de terças › terças › espaçadores › frechais. Não depende de nenhuma outra atividade da obra, apenas da chegada e da descarga do material.',
         importa: 'O alinhamento dos suportes define o prumo de todo o fechamento e as terças/frechais são a fixação das telhas laterais: erro aqui aparece na fachada inteira. Por ser independente, pode (e deve) andar em paralelo à cobertura.',
         impacto: ['<b>Prazo:</b> só trava as telhas do fechamento lateral e a vedação das fachadas; não atrasa a cobertura.',
           '<b>Qualidade:</b> suportes fora de prumo, terças desalinhadas ou frechais mal fixados geram fachada ondulada, retrabalho nas telhas e infiltração.',
           '<b>Custo:</b> refazer suporte já com terça e frechal montados é caro e lento; fachada aberta expõe o interior ao vento e à chuva.'],
         recupera: ['Conferir se o material (suportes, terças, espaçadores, frechais) chegou e foi descarregado: é a única dependência.', 'Liberar a topografia e a marcação dos eixos antes de instalar.', 'Montar por fachada completa na sequência suporte › terça › espaçador › frechal, conferindo prumo a cada trecho.', 'Reforçar a equipe de fechamento lateral em paralelo à cobertura se houver atraso.'] },
-      { id: 'g11', nome: 'Vigas das marquises', ramo: 'marq', libera: ['g14'], ramoTxt: 'Ramo independente da marquise: depende somente da Chegada de material e do Descarregamento; não espera a cobertura principal nem o checklist.',
+      { id: 'g11', nome: 'Vigas das marquises',
         oque: 'Montagem das vigas principais das marquises (em balanço), que recebem as terças e as telhas da marquise.',
         importa: 'É o apoio de toda a marquise; estrutura em balanço exige travamento e fixação corretos.',
         impacto: ['<b>Prazo:</b> terças e telhas da marquise não podem começar.', '<b>Segurança/qualidade:</b> viga em balanço sem os travamentos completos é instável.',
           '<b>Contrato:</b> a marquise costuma ser marco de fachada/entrada visto pelo cliente.'],
         recupera: ['Programar o equipamento de içamento específico para as marquises.', 'Concluir travamento e torque logo após o posicionamento.'] },
-      { id: 'g12', nome: 'Telhas do fechamento lateral', tambem: ['g10'],
+      { id: 'g12', nome: 'Telhas do fechamento lateral',
         oque: 'Instalação das telhas das fachadas laterais, em m².',
         importa: 'Fecha o galpão lateralmente, dá estanqueidade e define a imagem final da fachada.',
         impacto: ['<b>Prazo/contrato:</b> marco de fechamento; atraso mantém a obra aberta e libera tarde as disciplinas internas.', '<b>Qualidade:</b> exposição ao tempo e ao vento antes do fechamento.',
           '<b>Custo:</b> permanência prolongada de andaimes/plataformas e equipes.'],
         recupera: ['Concentrar equipes por fachada completa.', 'Manter perfilação e entrega de telhas laterais adiantadas.'] },
-      { id: 'g13s', nome: 'Suportes de calha', tambem: ['g12'],
+      { id: 'g13s', nome: 'Suportes de calha',
         oque: 'Montagem dos suportes (ganchos/mãos-francesas) que sustentam a calha, nivelados com o caimento de projeto, depois das telhas da cobertura e do fechamento lateral.',
         importa: 'O nível e o espaçamento dos suportes definem o caimento da calha: erro aqui compromete o escoamento de toda a água da cobertura.',
         impacto: ['<b>Prazo:</b> a calha da cobertura não pode ser instalada; rufos e acabamentos também esperam.', '<b>Qualidade:</b> suporte fora de nível gera empoçamento, transbordo e infiltração.', '<b>Custo:</b> refazer suporte com calha instalada exige desmontagem.'],
         recupera: ['Conferir o caimento de projeto antes de fixar os suportes.', 'Instalar por trecho logo após as telhas daquele trecho.', 'Garantir o material de suporte no Estoque antes de iniciar.'] },
-      { id: 'g13', nome: 'Calha da cobertura', tambem: ['g12', 'g13s'],
+      { id: 'g13', nome: 'Calha da cobertura',
         oque: 'Instalação das calhas da cobertura principal, conectadas às descidas de água pluvial.',
         importa: 'Garante o escoamento da água e a estanqueidade da cobertura; é condição para entregar a obra sem pendências.',
         impacto: ['<b>Qualidade:</b> água sem destino correto causa infiltração, manchas e corrosão.', '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega do trecho coberto.',
           '<b>Cascata:</b> rufos e arremates dependem das calhas posicionadas.'],
         recupera: ['Instalar as calhas logo após cada trecho de telhas.', 'Confirmar material (calha, suporte, vedação) no Estoque antes de iniciar.'] },
-      { id: 'g14', nome: 'Montagem de terças da marquise', ramo: 'marq', antes: 'g11', libera: ['g15'], ramoTxt: 'Ramo independente da marquise: segue as vigas da própria marquise.',
+      { id: 'g14', nome: 'Montagem de terças da marquise',
         oque: 'Pré-montagem e montagem das terças da marquise sobre as vigas, que recebem as telhas.',
         importa: 'Estrutura secundária da marquise; define alinhamento e caimento da cobertura da marquise.',
         impacto: ['<b>Prazo:</b> impede a montagem das telhas da marquise.', '<b>Qualidade:</b> terças fora de nível comprometem o caimento e a drenagem.', '<b>Cascata:</b> telhas, calha e testeira da marquise também ficam travadas.'],
         recupera: ['Pré-montar as terças em solo enquanto as vigas são instaladas.', 'Liberar a marquise por trechos completos.'] },
-      { id: 'g15', nome: 'Montagem de telhas da marquise', ramo: 'marq', antes: 'g14', libera: ['g16'], ramoTxt: 'Ramo independente da marquise: segue as terças da própria marquise.',
+      { id: 'g15', nome: 'Montagem de telhas da marquise',
         oque: 'Instalação das telhas da marquise, em m².',
         importa: 'Conclui a cobertura da marquise, protegendo entradas e acessos.',
         impacto: ['<b>Prazo/contrato:</b> acesso e fachada principais ficam sem proteção e sem fechamento.', '<b>Qualidade:</b> infiltração nas interfaces com a fachada.', '<b>Cascata:</b> impede a calha, a testeira e os rufos da marquise.'],
         recupera: ['Antecipar perfilação das telhas da marquise.', 'Usar a equipe de telhas da cobertura assim que liberada.'] },
-      { id: 'g16', nome: 'Calha da marquise', ramo: 'marq', antes: 'g15', libera: ['g18'], ramoTxt: 'Ramo independente da marquise: segue as telhas da própria marquise.',
+      { id: 'g16', nome: 'Calha da marquise',
         oque: 'Instalação da calha da marquise e da descida de água pluvial correspondente, depois de montadas as telhas da marquise.',
         importa: 'Dá destino à água da marquise, que cobre acessos e circulação de pessoas; sem calha a água cai sobre a entrada.',
         impacto: ['<b>Qualidade:</b> água descendo sem controle na entrada/fachada, manchas, corrosão e infiltração na interface com a parede.', '<b>Segurança:</b> piso molhado e escorregadio em área de circulação.',
           '<b>Prazo/contrato:</b> impede o teste de estanqueidade e a entrega da marquise; testeira e rufos dependem da calha posicionada.'],
         recupera: ['Instalar a calha logo após cada trecho de telhas da marquise.', 'Conferir antes o material (calha, suportes, descida) e a declividade.', 'Alinhar com o acabamento da fachada para fechar a interface de uma vez.'] },
-      { id: 'g17', nome: 'Rufos e acabamentos', tambem: ['g12', 'g13', 'g13s'],
+      { id: 'g17', nome: 'Rufos e acabamentos',
         oque: 'Instalação de rufos, arremates e calafetação da cobertura e do fechamento — o acabamento que fecha as interfaces e garante a estanqueidade final. Depende das telhas da cobertura, das telhas do fechamento lateral e da calha com seus suportes.',
         importa: 'É a última etapa e a que segura o aceite: reúne as pendências finais e a vedação das interfaces.',
         impacto: ['<b>Qualidade:</b> infiltrações pelas interfaces e reclamações no recebimento.', '<b>Contrato/BM:</b> aceite e medição final retidos enquanto houver pendências.',
           '<b>Custo:</b> equipes mobilizadas só para acabamento prolongam a obra.'],
         recupera: ['Antecipar a compra e o recebimento de rufos e acessórios.', 'Fazer os arremates por trecho, junto com a entrega parcial.', 'Manter uma lista de pendências (punch list) atualizada.'] },
-      { id: 'g18', nome: 'Testeira e rufos da marquise', ramo: 'marq', antes: 'g16', libera: [], ramoTxt: 'Ramo independente da marquise: fecha a sequência da própria marquise.',
+      { id: 'g18', nome: 'Testeira e rufos da marquise',
         oque: 'Instalação da testeira, rufos e arremates da marquise, depois das telhas e da calha da marquise.',
         importa: 'Fecha as interfaces da marquise com a fachada e dá o acabamento visível na entrada.',
         impacto: ['<b>Qualidade:</b> infiltração na interface da marquise com a fachada e acabamento inacabado na entrada.', '<b>Contrato/BM:</b> retém o aceite da marquise.', '<b>Prazo:</b> última etapa da marquise; atrasa a entrega do trecho de entrada.'],
@@ -200,18 +199,68 @@ function pldEtapasDe(x) {
   return { fluxo, ids: reg ? reg[1] : [] };
 }
 const pldEtapa = (fluxo, id) => PLD_FLUXOS[fluxo].etapas.find(e => e.id === id);
-// Ramo independente: etapa que depende só da chegada e da descarga do material (ex.: estrutura do fechamento lateral). Não entra na
-// cadeia principal: não espera checklist/cobertura, não empurra a cobertura e só libera as etapas listadas em `libera`.
-const pldRamo = id => !!PLD_FLUXOS.galpao.etapas.find(e => e.id === id)?.ramo;
-const pldRamoDe = id => PLD_FLUXOS.galpao.etapas.find(e => e.id === id)?.ramo || '';
-const pldEhRamo = x => { const m = pldEtapasDe(x); return m.ids.length > 0 && m.ids.every(pldRamo); };
-// etapas liberadas (direta e indiretamente) pelo ramo: ex.: vigas da marquise › terças › telhas › calha › testeira
-function pldLibera(ids) {
-  const vistos = new Set(), fila = [...ids];
-  while (fila.length) { const id = fila.shift(); (pldEtapa('galpao', id)?.libera || []).forEach(l => { if (!vistos.has(l)) { vistos.add(l); fila.push(l); } }); }
+// ---------------------------------------------------------------- dependências entre as etapas (editáveis na aba Planejamento › Fluxo da obra)
+// Cada etapa depende de outras: o padrão abaixo vale até a obra definir o seu (sistema.fluxo_config, vem no modelo como M.fluxo_config).
+// Tudo é derivado daí: o que cada etapa espera, o que ela empurra (cascata), o que é cadeia principal e o que é ramo independente.
+const PLD_DEP_PADRAO = {
+  galpao: { g1: [], g2: ['g1'], g3: ['g2'], g4: ['g3'], g5: ['g4'], g6: ['g5'], g7: ['g6'], g8: ['g7'], g9: ['g8'], g10: ['g2'], g11: ['g2'],
+    g12: ['g9', 'g10'], g13s: ['g12'], g13: ['g9', 'g12', 'g13s'], g14: ['g11'], g15: ['g14'], g16: ['g15'], g17: ['g9', 'g12', 'g13s', 'g13'], g18: ['g16'] },
+  anexo: { a1: [], a2: ['a1'], a3: ['a2'], a4: ['a3'], a5: ['a4'], a6: ['a5'], a7: ['a6'], a8: ['a7'] },
+};
+const pldCfgFluxo = () => (typeof M !== 'undefined' && M && M.fluxo_config) || {};
+function pldDeps(fluxo, id) {
+  const c = pldCfgFluxo()[fluxo]?.[id]?.dep;
+  const ids = new Set(PLD_FLUXOS[fluxo].etapas.map(e => e.id));
+  return (Array.isArray(c) ? c : PLD_DEP_PADRAO[fluxo][id] || []).filter(d => ids.has(d) && d !== id);
+}
+const pldDepsPersonalizadas = (fluxo, id) => Array.isArray(pldCfgFluxo()[fluxo]?.[id]?.dep);
+// ancestrais (tudo de que a etapa depende, direta e indiretamente) e sucessores (tudo o que ela empurra)
+function pldAnc(fluxo, id) {
+  const vistos = new Set(), fila = [...pldDeps(fluxo, id)];
+  while (fila.length) { const d = fila.shift(); if (vistos.has(d)) continue; vistos.add(d); fila.push(...pldDeps(fluxo, d)); }
   return [...vistos];
 }
-const PLD_RAMOS = { fecha: 'Ramo independente — estrutura do fechamento lateral', marq: 'Ramo independente — marquise' };
+const pldSuc = (fluxo, id) => PLD_FLUXOS[fluxo].etapas.map(e => e.id).filter(o => o !== id && pldAnc(fluxo, o).includes(id));
+// vizinhos entre as etapas PRESENTES no plano: se uma etapa do caminho não está no plano, atravessa-se por ela
+function pldAntPresentes(fluxo, id, presentes) {
+  const r = new Set(), vistos = new Set(), fila = [...pldDeps(fluxo, id)];
+  while (fila.length) { const d = fila.shift(); if (vistos.has(d)) continue; vistos.add(d); if (presentes.has(d)) r.add(d); else fila.push(...pldDeps(fluxo, d)); }
+  return [...r];
+}
+const pldSucPresentes = (fluxo, id, presentes) => [...presentes].filter(o => o !== id && pldAntPresentes(fluxo, o, presentes).includes(id));
+// disposição do fluxo do plano: cadeia principal = maior caminho; o resto são ramos (grupos ligados entre si) que entram e saem da cadeia
+function pldLayout(fluxo, ids) {
+  const pres = new Set(ids), ord = PLD_ORDEM[fluxo], todos = PLD_FLUXOS[fluxo].etapas.map(e => e.id);
+  const dep = Object.fromEntries(ids.map(id => [id, pldAntPresentes(fluxo, id, pres)]));
+  // a cadeia principal é a mesma em qualquer plano: maior caminho do fluxo COMPLETO (depois filtrada pelas etapas presentes)
+  const prof = {}, vindo = {};
+  const calc = id => {
+    if (prof[id] != null) return prof[id];
+    prof[id] = 1; vindo[id] = null;
+    pldDeps(fluxo, id).forEach(d => { const v = calc(d) + 1; if (v > prof[id]) { prof[id] = v; vindo[id] = d; } });
+    return prof[id];
+  };
+  todos.forEach(calc);
+  let fim = todos[0];
+  todos.forEach(id => { if (prof[id] > prof[fim] || (prof[id] === prof[fim] && ord.indexOf(id) > ord.indexOf(fim))) fim = id; });
+  const caminho = [];
+  for (let id = fim; id; id = vindo[id]) caminho.unshift(id);
+  const main = caminho.filter(id => pres.has(id));
+  const outros = ids.filter(id => !main.includes(id)), grupos = [], visto = new Set();
+  outros.forEach(id => {
+    if (visto.has(id)) return;
+    const comp = [], fila = [id];
+    while (fila.length) {
+      const a = fila.shift(); if (visto.has(a)) continue; visto.add(a); comp.push(a);
+      outros.forEach(b => { if (!visto.has(b) && (dep[a].includes(b) || dep[b].includes(a))) fila.push(b); });
+    }
+    comp.sort((a, b) => prof[a] - prof[b] || ord.indexOf(a) - ord.indexOf(b));
+    const entradas = [...new Set(comp.flatMap(a => dep[a]).filter(d => !comp.includes(d)))].sort((a, b) => ord.indexOf(a) - ord.indexOf(b));
+    const saidas = ids.filter(o => !comp.includes(o) && dep[o].some(d => comp.includes(d))).sort((a, b) => ord.indexOf(a) - ord.indexOf(b));
+    grupos.push({ ids: comp, entradas, saidas });
+  });
+  return { main, grupos, dep };
+}
 
 // ---------------------------------------------------------------- portões do fluxo (perguntas de liberação)
 // Chegada de material, descarregamento e checklist não têm linha no cronograma: viram perguntas feitas a cada atividade.
@@ -226,8 +275,8 @@ const PLD_ETAPA_PORTAO = { g1: 'material', a1: 'material', g2: 'descarga', a2: '
 const pldPortaoR = (x, k) => x.it.portoes?.[k]?.r || '';
 // perguntas que valem para a atividade: material e descarga para todas; checklist só para o que vem depois dele no fluxo do galpão
 function pldPortoesDe(x) {
-  const m = pldEtapasDe(x), ordem = PLD_ORDEM[m.fluxo], pos = m.ids.length ? ordem.indexOf(m.ids[0]) : -1;
-  return PLD_PORTOES.filter(g => g.etapa[m.fluxo] && (g.k !== 'checklist' || (m.fluxo === 'galpao' && pos > ordem.indexOf('g7') && !pldEhRamo(x))));   // ramo independente: só material e descarga
+  const m = pldEtapasDe(x);
+  return PLD_PORTOES.filter(g => g.etapa[m.fluxo] && (g.k !== 'checklist' || (m.fluxo === 'galpao' && m.ids.some(id => pldAnc('galpao', id).includes('g7')))));   // checklist só para quem depende dele
 }
 function pldPortaoEstado(x) {
   if (x.status === 'CONCLUÍDO') return { estado: 'concluida', rot: 'concluída', cls: 'ok' };
@@ -283,10 +332,9 @@ function pldAtraso(x, base) {
 function pldSucessoras(c, x) {
   const e = pldEtapasDe(x);
   if (!e.ids.length) return [];
-  const ordem = PLD_ORDEM[e.fluxo], pos = Math.max(...e.ids.map(id => ordem.indexOf(id))), ramo = e.fluxo === 'galpao' && e.ids.every(pldRamo), libera = ramo ? pldLibera(e.ids) : [];
+  const ordem = PLD_ORDEM[e.fluxo], suc = new Set(e.ids.flatMap(id => pldSuc(e.fluxo, id)));
   return c.itens.filter(y => y !== x).map(y => ({ y, e: pldEtapasDe(y) }))
-    .filter(({ y, e: ey }) => ey.fluxo === e.fluxo && ey.ids.length && (e.fluxo === 'galpao' || y.it.frente === x.it.frente)
-      && (ramo ? ey.ids.some(id => libera.includes(id)) : !ey.ids.every(pldRamo) && Math.min(...ey.ids.map(id => ordem.indexOf(id))) > pos))
+    .filter(({ y, e: ey }) => ey.fluxo === e.fluxo && ey.ids.length && ey.ids.some(id => suc.has(id)) && !ey.ids.some(id => e.ids.includes(id)) && (e.fluxo === 'galpao' || y.it.frente === x.it.frente))
     .sort((a, b) => Math.min(...a.e.ids.map(id => ordem.indexOf(id))) - Math.min(...b.e.ids.map(id => ordem.indexOf(id))));
 }
 // ---------------------------------------------------------------- curva S em SVG (planejado × realizado × projeção)
@@ -324,11 +372,12 @@ function pldImpactoCaixas(lista) {
 }
 // fluxograma de uma etapa: anterior ▶ etapa ▶ decisão ─SIM▶ libera a próxima | ─NÃO▼ impactos ▼ recuperação ↩ volta à decisão
 function pldFluxogramaEtapa(e, plano, i, o) {
-  const ramo = !!e.ramo;   // ramo independente: antes dele só chegada/descarga (ou a etapa anterior do próprio ramo); depois, só o que ele libera
-  const ant = ramo ? (plano.find(q => q.id === e.antes) || [...plano].reverse().find(q => q.id === 'g2' || q.id === 'g1')) : plano.slice(0, i).reverse().find(q => !q.ramo);
-  const prox = ramo ? plano.find(q => (e.libera || []).includes(q.id)) : plano.slice(i + 1).find(q => !q.ramo);
-  const tambem = (e.tambem || []).map(id => plano.find(q => q.id === id)).filter(q => q && q !== ant);
-  const sim = o.sim || (prox ? 'Libera: ' + esc(prox.nome) : ramo ? (e.ramo === 'fecha' ? 'Concluído: estrutura pronta para receber as telhas' : 'Concluído: etapa da marquise pronta') : 'Concluído: entrega e aceite');
+  const fluxo = e.id[0] === 'a' ? 'anexo' : 'galpao', pres = new Set(plano.map(q => q.id));
+  const ants = pldAntPresentes(fluxo, e.id, pres).map(id => plano.find(q => q.id === id)).sort((a, b) => plano.indexOf(b) - plano.indexOf(a));
+  const sucs = pldSucPresentes(fluxo, e.id, pres).map(id => plano.find(q => q.id === id)).sort((a, b) => plano.indexOf(a) - plano.indexOf(b));
+  const ant = ants[0], tambem = ants.slice(1), prox = sucs[0];
+  const sim = o.sim || (prox ? 'Libera: ' + sucs.map(q => esc(q.nome)).join(' · ') : 'Concluído: entrega e aceite');
+  const indep = fluxo === 'galpao' && !pldAnc('galpao', e.id).includes('g7') && PLD_ORDEM.galpao.indexOf(e.id) > PLD_ORDEM.galpao.indexOf('g7');
   return `<div class="fc">
     <div class="fc-linha">
       ${pldNo('cz', ant ? esc(ant.nome) : 'Início do plano', ant ? 'etapa anterior' : '')}${pldSeta()}
@@ -336,7 +385,7 @@ function pldFluxogramaEtapa(e, plano, i, o) {
       ${pldDec(o.pergunta || 'Objetivo cumprido no prazo?')}${pldSeta('SIM', 'ok')}
       ${pldNo('vd', sim, o.simDet || '')}
     </div>
-    ${ramo && e.ramoTxt ? `<p class="mini"><b>↔ ${esc(e.ramoTxt)}</b></p>` : ''}
+    ${indep ? '<p class="mini"><b>↔ Ramo independente:</b> não espera a cobertura principal nem o checklist.</p>' : ''}
     ${tambem.length ? `<p class="mini"><b>Depende também de:</b> ${tambem.map(q => esc(q.nome)).join(' · ')}</p>` : ''}
     ${pldSetaV(o.nao || 'NÃO', 'ruim')}
     <div class="fc-rot">IMPACTOS</div><div class="fc-linha fc-wrap">${pldImpactoCaixas(e.impacto)}</div>
@@ -496,7 +545,7 @@ function pldFluxoVisual(c) {
   const bloco = fluxo => {
     const et = plano[fluxo];
     if (!et) return '';
-    const principais = et.map((e, k) => ({ e, k })).filter(o => !o.e.ramo), ramos = et.map((e, k) => ({ e, k })).filter(o => o.e.ramo);
+    const lay = pldLayout(fluxo, et.map(e => e.id)), pos = id => { const k = et.findIndex(e => e.id === id); return { e: et[k], k }; };
     const caixa = ({ e, k }, prox) => {
       const itens = c.itens.filter(x => { const m = pldEtapasDe(x); return m.fluxo === fluxo && m.ids.includes(e.id); });
       const st = PLD_ETAPA_PORTAO[e.id] ? pldStatusPortao(fluxo, PLD_ETAPA_PORTAO[e.id], c) : pldStatusEtapa(itens), d = atrasoEtapa(fluxo, e);
@@ -504,16 +553,14 @@ function pldFluxoVisual(c) {
       return `<div class="fc-col"><a href="#${esc(fluxo + '-' + e.id)}" class="fc-no ${cls} fc-link"><b>${k + 1} · ${esc(e.nome)}</b><span>${st.rot}</span></a>
         ${d > 0 ? `${pldSetaV('', 'ruim')}${pldNo('vm fc-peq', `+${d} d.u.`, prox ? 'empurra ' + esc(prox.nome) : 'atrasa a entrega')}` : ''}</div>`;
     };
-    const cadeia = principais.map((o, i) => caixa(o, principais[i + 1]?.e) + (i < principais.length - 1 ? pldSeta() : '')).join('');
-    // ramos independentes (um por grupo): Chegada de material › Descarregamento › etapas do ramo em sequência › (só o que o ramo libera fora dele)
-    const grupos = [...new Set(ramos.map(r => r.e.ramo))];
-    const ramoHtml = grupos.map(gr => {
-      const seq = ramos.filter(r => r.e.ramo === gr);
-      const base = et.map((e, k) => ({ e, k })).filter(o => o.e.id === 'g1' || o.e.id === 'g2');
-      const fora = et.map((e, k) => ({ e, k })).filter(o => seq.some(r => (r.e.libera || []).includes(o.e.id)) && !o.e.ramo);
-      return `<div class="fc-linha fc-cascata" style="margin-top:10px"><span class="mini"><b>↔ ${esc(PLD_RAMOS[gr] || 'Ramo independente')}</b> (depende só de chegada e descarga):</span>`
-        + base.map(o => caixa(o) + pldSeta()).join('') + seq.map((r, n) => caixa(r, seq[n + 1]?.e || fora[0]?.e) + (n < seq.length - 1 ? pldSeta() : '')).join('')
-        + fora.map(o => pldSeta('libera') + `<div class="fc-col"><a href="#${esc(fluxo + '-' + o.e.id)}" class="fc-no cz fc-link"><b>${o.k + 1} · ${esc(o.e.nome)}</b></a></div>`).join('') + '</div>';
+    const cadeia = lay.main.map((id, i) => caixa(pos(id), lay.main[i + 1] ? pos(lay.main[i + 1]).e : null) + (i < lay.main.length - 1 ? pldSeta() : '')).join('');
+    // ramos independentes: o que entra (de onde dependem) › etapas do ramo em sequência › o que liberam na cadeia principal
+    const ramoHtml = lay.grupos.map(g => {
+      const soMaterial = g.entradas.every(id => id === 'g1' || id === 'g2' || id === 'a1' || id === 'a2');
+      const nomes = g.entradas.map(id => pldEtapa(fluxo, id).nome).join(' + ') || 'início';
+      return `<div class="fc-linha fc-cascata" style="margin-top:10px"><span class="mini"><b>↔ Ramo independente</b> (${soMaterial ? 'depende só de chegada e descarga' : 'depende de ' + esc(nomes)}):</span>`
+        + g.entradas.map(id => caixa(pos(id)) + pldSeta()).join('') + g.ids.map((id, n) => caixa(pos(id), g.ids[n + 1] ? pos(g.ids[n + 1]).e : pos(g.saidas[0] || id).e) + (n < g.ids.length - 1 ? pldSeta() : '')).join('')
+        + g.saidas.map(id => pldSeta('libera') + `<div class="fc-col"><a href="#${esc(fluxo + '-' + id)}" class="fc-no cz fc-link"><b>${pos(id).k + 1} · ${esc(pos(id).e.nome)}</b></a></div>`).join('') + '</div>';
     }).join('');
     return `<div class="fluxo-linha"><h4>${esc(PLD_FLUXOS[fluxo].nome)} · ${c.itens.filter(x => pldEtapasDe(x).fluxo === fluxo).length} atividade(s) do plano</h4><div class="fc-linha fc-cascata">${cadeia}</div>${ramoHtml}</div>`;
   };
@@ -527,15 +574,23 @@ function pldBloqueios(c) {
   return `<div class="alerta-box"><b>Atividades bloqueadas (retornam no fluxo):</b><ul>${l.map(({ x, est }) => { const d = pldBloqueioDias(x, est, c.baseRef); return `<li><b>${esc(x.it.atividade)}</b> — ${esc(est.g.nao.replace(/^Retorna para /, 'retorna para '))}${d ? ` (${d} dia(s) útil(eis) de bloqueio sobre o início previsto)` : ''}</li>`; }).join('')}</ul>Resolver primeiro: o que está nestas etapas segura todas as seguintes.</div>`;
 }
 function pldGargalo(c) {
-  // causa-raiz: em cada fluxo, a atividade atrasada mais a montante (as etapas seguintes só se recuperam depois dela)
+  // causa-raiz: na cadeia principal de cada fluxo, a atividade atrasada mais a montante (as etapas seguintes só se recuperam depois dela);
+  // atividades atrasadas fora da cadeia principal (ramos independentes) têm alerta próprio e só afetam o que o ramo libera
+  const plano = pldFluxoDoPlano(c);
   return ['galpao', 'anexo'].map(fluxo => {
-    const atras = c.itens.filter(x => x.status === 'ATRASADO').map(x => ({ x, m: pldEtapasDe(x) })).filter(o => o.m.fluxo === fluxo && o.m.ids.length && !o.m.ids.every(pldRamo));   // o ramo independente tem alerta próprio
-    if (!atras.length) return '';
+    if (!plano[fluxo]) return '';
+    const lay = pldLayout(fluxo, plano[fluxo].map(e => e.id));
+    const atras = c.itens.filter(x => x.status === 'ATRASADO').map(x => ({ x, m: pldEtapasDe(x) })).filter(o => o.m.fluxo === fluxo && o.m.ids.length);
+    const principal = atras.filter(o => o.m.ids.some(id => lay.main.includes(id))), ramos = atras.filter(o => !o.m.ids.some(id => lay.main.includes(id)));
     const idx = o => Math.min(...o.m.ids.map(id => PLD_ORDEM[fluxo].indexOf(id)));
-    atras.sort((a, b) => idx(a) - idx(b));
-    const o = atras[0], a = pldAtraso(o.x, c.base);
-    return `<div class="alerta-box"><b>Gargalo atual — ${esc(PLD_FLUXOS[fluxo].nome)}:</b> ${esc(o.x.it.atividade)} (etapa “${esc(pldEtapa(fluxo, o.m.ids[0]).nome)}”)${a.dias ? `, projeção de ${a.dias} dia(s) útil(eis) de atraso` : ''}. As etapas seguintes só recuperam se esta for destravada primeiro.</div>`;
-  }).join('') + c.itens.filter(x => x.status === 'ATRASADO' && pldEhRamo(x)).map(x => `<div class="alerta-box"><b>Ramo independente atrasado:</b> ${esc(x.it.atividade)}. Depende só de chegada e descarga do material; atrasa apenas as telhas do fechamento lateral e não interfere na cobertura.</div>`).join('');
+    principal.sort((a, b) => idx(a) - idx(b));
+    let h = '';
+    if (principal.length) {
+      const o = principal[0], a = pldAtraso(o.x, c.base);
+      h += `<div class="alerta-box"><b>Gargalo atual — ${esc(PLD_FLUXOS[fluxo].nome)}:</b> ${esc(o.x.it.atividade)} (etapa “${esc(pldEtapa(fluxo, o.m.ids[0]).nome)}”)${a.dias ? `, projeção de ${a.dias} dia(s) útil(eis) de atraso` : ''}. As etapas seguintes só recuperam se esta for destravada primeiro.</div>`;
+    }
+    return h + ramos.map(o => `<div class="alerta-box"><b>Ramo independente atrasado:</b> ${esc(o.x.it.atividade)}. Não trava a cadeia principal; atrasa apenas ${pldSucessoras(c, o.x).map(s => esc(s.y.it.atividade)).slice(0, 4).join(', ') || 'a própria sequência do ramo'}.</div>`).join('');
+  }).join('');
 }
 
 function plDocHtml(pl) {
@@ -714,11 +769,11 @@ function pldEtapasPorNome(servico, frente) {
 function impactoCascata(servico, frente) {
   const m = pldEtapasPorNome(servico, frente);
   if (!m.ids.length) return null;
-  const ordem = PLD_ORDEM[m.fluxo], pos = ordem.indexOf(m.ids[0]), ramo = m.fluxo === 'galpao' && m.ids.every(pldRamo), libera = ramo ? pldLibera(m.ids) : [];
+  const ordem = PLD_ORDEM[m.fluxo], suc = new Set(m.ids.flatMap(id => pldSuc(m.fluxo, id)));
   const posteriores = (typeof plAtividades === 'function' ? plAtividades() : [])
     .map(a => ({ a, e: pldEtapasPorNome(a.it.servico, a.frente) }))
     .filter(({ a, e }) => e.fluxo === m.fluxo && e.ids.length && a.status !== 'CONCLUÍDO' && (m.fluxo === 'galpao' || ganNorm(a.frente) === ganNorm(frente))
-      && (ramo ? e.ids.some(id => libera.includes(id)) : !e.ids.every(pldRamo) && ordem.indexOf(e.ids[0]) > pos))   // ramo independente só empurra o que ele libera; a cadeia principal não empurra o ramo
+      && e.ids.some(id => suc.has(id)))   // só o que depende (direta ou indiretamente) da etapa do impacto
     .sort((x, y) => ordem.indexOf(x.e.ids[0]) - ordem.indexOf(y.e.ids[0]) || (x.a.ini || '').localeCompare(y.a.ini || ''))
     .map(({ a, e }) => ({ nome: a.nome, fase: a.fase, frente: a.frente, etapa: pldEtapa(m.fluxo, e.ids[0]).nome, ini: a.ini, prazo: a.prazo, empresas: a.empresas || [], status: a.status }));
   const vezes = {};

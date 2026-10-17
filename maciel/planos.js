@@ -425,13 +425,14 @@ async function renderPlanejamento() {
   const box = $('#planoNovo');
   if (!box) return;
   if (!PL._rascTentado) { PL._rascTentado = true; const r = plRascunhoLer(); if (r && Date.now() - r.ts < 6 * 3600 * 1000) setTimeout(() => plRascunhoRetomar(true), 200); }   // reabriu a página no meio da edição: retoma o rascunho
-  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['legado', 'Setores e impacto logístico']]
+  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['fluxo', 'Fluxo da obra'], ['legado', 'Setores e impacto logístico']]
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
   $('#planoLegado').hidden = PL.sub !== 'legado';
   box.hidden = PL.sub === 'legado';
   if (PL.sub === 'legado') return renderPlanejamentoLegado();
   if (PL.sub === 'sug') { await plCarregar(); return renderSugestao(box); }
   if (PL.sub === 'qual') return renderQualidade(box);
+  if (PL.sub === 'fluxo') return renderFluxoObra(box);
   if (!PL.dados) { box.innerHTML = '<p class="vazio">Carregando planejamentos…</p>'; await plCarregar(); }
   PL._atv = null;
   const planos = PL.dados.planos.slice().sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
@@ -997,6 +998,61 @@ function renderQualidade(box) {
         <td>${i.chave ? `<button class="btn" data-pl-audit="${esc(i.chave)}" data-ini="2000-01-01" data-fim="2099-12-31">Ver origem</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>'
       : '<p class="vazio">Nenhuma pendência. Os dados estão consistentes.</p>') + '</div>';
 }
+
+// ---------------------------------------------------------------- fluxo da obra: dependências entre as etapas (editável)
+// O relatório do planejamento, a cascata de impactos e as perguntas de liberação seguem estas dependências (padrão em planos_doc.js).
+function renderFluxoObra(box) {
+  const nome = (f, id) => pldEtapa(f, id).nome;
+  const bloco = fluxo => {
+    const et = PLD_FLUXOS[fluxo].etapas, lay = pldLayout(fluxo, et.map(e => e.id));
+    const linhas = et.map((e, k) => {
+      const deps = pldDeps(fluxo, e.id), pers = pldDepsPersonalizadas(fluxo, e.id), suc = pldSuc(fluxo, e.id);
+      const chips = et.filter(o => o.id !== e.id).map(o => {
+        const ciclo = pldAnc(fluxo, o.id).includes(e.id);   // o já depende desta etapa: marcar criaria um ciclo
+        return `<label class="pl-chip ${deps.includes(o.id) ? 'on' : ''}" title="${ciclo ? 'Criaria um ciclo: esta etapa já espera por ' + esc(e.nome) : esc(o.nome)}"><input type="checkbox" data-fx-dep data-fluxo="${fluxo}" data-id="${e.id}" data-dep="${o.id}" ${deps.includes(o.id) ? 'checked' : ''} ${ciclo ? 'disabled' : ''}> ${esc(o.nome)}</label>`;
+      }).join('');
+      const diretos = et.filter(o => pldDeps(fluxo, o.id).includes(e.id)).map(o => o.nome);
+      return `<tr><td class="n">${k + 1}</td><td><b>${esc(e.nome)}</b><div class="nota">${lay.main.includes(e.id) ? 'cadeia principal' : '<b>ramo independente</b>'}</div></td><td><div class="pl-chips">${chips}</div></td>
+        <td class="nota">${diretos.length ? esc(diretos.join(' · ')) : '—'}${suc.length > diretos.length ? `<div class="nota">+ ${suc.length - diretos.length} indireta(s)</div>` : ''}</td>
+        <td>${pers ? `<span class="farol f-amarelo">PERSONALIZADA</span> <button class="btn" data-fx-reset data-fluxo="${fluxo}" data-id="${e.id}">Restaurar padrão</button>` : '<span class="nota">padrão</span>'}</td></tr>`;
+    }).join('');
+    const ramos = lay.grupos.map(g => g.ids.map(id => nome(fluxo, id)).join(' › ')).join(' | ') || 'nenhum';
+    return `<div class="bloco"><div class="bloco-cab"><h2>${esc(PLD_FLUXOS[fluxo].nome)}</h2><button class="btn" data-fx-reset-tudo data-fluxo="${fluxo}">Restaurar o padrão deste fluxo</button></div>
+      <p class="nota"><b>Cadeia principal:</b> ${esc(lay.main.map(id => nome(fluxo, id)).join(' › '))}<br><b>Ramos independentes:</b> ${esc(ramos)}</p>
+      <div class="tabela-rolagem"><table class="pl-tab pl-fluxo"><thead><tr><th>#</th><th>Etapa</th><th>Depende de (marque o que ela espera)</th><th>Empurra diretamente</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+  };
+  box.innerHTML = plRascunhoBanner() + `<div class="pl-topo"><div><h2 class="pl-titulo">Fluxo da obra</h2><p class="nota">Defina de quais etapas cada etapa depende. Etapa que depende só de chegada e descarga do material vira ramo independente: não espera checklist nem cobertura, não é empurrada pela cadeia principal e só empurra o que depende dela. A mudança vale para todos e já é aplicada no relatório do planejamento, nas perguntas de liberação e no efeito cascata dos impactos.</p></div></div>` + bloco('galpao') + bloco('anexo');
+}
+async function fxSalvar(fluxo, id, deps) {   // deps = lista nova, ou null para restaurar o padrão da etapa; id vazio = restaura o fluxo todo
+  const cfg = JSON.parse(JSON.stringify(M.fluxo_config || {}));
+  if (!id) delete cfg[fluxo];
+  else {
+    cfg[fluxo] = cfg[fluxo] || {};
+    const pad = (PLD_DEP_PADRAO[fluxo][id] || []).slice().sort().join(',');
+    if (deps === null || deps.slice().sort().join(',') === pad) delete cfg[fluxo][id];
+    else cfg[fluxo][id] = { dep: deps };
+    if (!Object.keys(cfg[fluxo]).length) delete cfg[fluxo];
+  }
+  try {
+    const r = await postar(API + 'fluxo-config', { config: cfg });
+    M.fluxo_config = r.config || {};
+    toast('Fluxo atualizado.');
+  } catch (e) { toast(e.message || 'Não foi possível salvar o fluxo.', true); }
+  const y = window.scrollY;
+  renderPlanejamento();
+  setTimeout(() => window.scrollTo(0, y), 60);
+}
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (!t.dataset || t.dataset.fxDep === undefined) return;
+  const { fluxo, id, dep } = t.dataset, atuais = pldDeps(fluxo, id);
+  fxSalvar(fluxo, id, t.checked ? [...new Set([...atuais, dep])] : atuais.filter(d => d !== dep));
+});
+document.addEventListener('click', ev => {
+  const t = ev.target, r = t.closest && t.closest('[data-fx-reset]'), rt = t.closest && t.closest('[data-fx-reset-tudo]');
+  if (r) fxSalvar(r.dataset.fluxo, r.dataset.id, null);
+  else if (rt) fxSalvar(rt.dataset.fluxo, '', null);
+});
 
 function plDiasTxt(dias) { return dias.length ? dias.slice(0, 10).map(fd).join(', ') + (dias.length > 10 ? ` … +${dias.length - 10}` : '') : '—'; }
 function plAuditoriaAbrir(chave, ini, fim) {

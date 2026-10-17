@@ -983,3 +983,7 @@ table.tab-ord th[data-ord="desc"]::after{content:" ▼";font-size:.8em;color:var
 .pl-rascunho{margin:0 0 10px;padding:10px 14px;border-radius:8px}.pl-rascunho .btn{margin-left:8px}
 .pl-audit-val { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
 #plAudit h3 { margin: 0 0 8px; } #plAudit h4 { margin: 16px 0 6px; font-size: .95rem; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 4px 6px; max-width: 760px; }
+.pl-fluxo td { vertical-align: top; }
+.pl-chip input[disabled] { cursor: not-allowed; }
+.pl-chip:has(input[disabled]) { opacity: .45; cursor: not-allowed; }

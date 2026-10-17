@@ -104,7 +104,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -122,7 +122,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1749,6 +1749,74 @@ function acao_projecao_config(array $corpo)
     sistema_gravar('projecao_config', json_encode($d, JSON_UNESCAPED_UNICODE));
     registrar_alteracao('projecao_config', ['kit' => $d['kit'] ?? null, 'cob' => $d['cob'] ?? null, 'precos' => count($precos)]);
     return ['salvos' => 1, 'config' => $d];
+}
+
+// Dependências entre as etapas do fluxo da obra (aba Planejamento › Fluxo da obra). Só o que difere do padrão do programa é gravado:
+//   { "galpao": { "g12": { "dep": ["g9","g10"] } }, "anexo": { ... } }
+// O padrão e o significado de cada etapa ficam no navegador (planos_doc.js); aqui só se valida o formato e se recusa ciclo.
+function fluxo_config_ler()
+{
+    $d = json_decode((string)sistema_ler('fluxo_config', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+
+function fluxo_tem_ciclo(array $mapa)
+{
+    $estado = [];
+    $visita = function ($id) use (&$visita, &$estado, $mapa) {
+        if (($estado[$id] ?? 0) === 1) {
+            return true;
+        }
+        if (($estado[$id] ?? 0) === 2) {
+            return false;
+        }
+        $estado[$id] = 1;
+        foreach (($mapa[$id]['dep'] ?? []) as $d) {
+            if (isset($mapa[$d]) && $visita($d)) {
+                return true;
+            }
+        }
+        $estado[$id] = 2;
+        return false;
+    };
+    foreach (array_keys($mapa) as $id) {
+        if ($visita($id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function acao_fluxo_config(array $corpo)
+{
+    $cfg = is_array($corpo['config'] ?? null) ? $corpo['config'] : [];
+    $novo = [];
+    foreach (['galpao', 'anexo'] as $fluxo) {
+        $f = $cfg[$fluxo] ?? null;
+        if (!is_array($f)) {
+            continue;
+        }
+        foreach (array_slice($f, 0, 40, true) as $id => $e) {
+            $id = (string)$id;
+            if (!preg_match('/^[ga]\d{1,2}[a-z]?$/', $id) || !is_array($e) || !is_array($e['dep'] ?? null)) {
+                continue;
+            }
+            $dep = [];
+            foreach (array_slice($e['dep'], 0, 20) as $d) {
+                $d = (string)$d;
+                if (preg_match('/^[ga]\d{1,2}[a-z]?$/', $d) && $d !== $id) {
+                    $dep[$d] = true;
+                }
+            }
+            $novo[$fluxo][$id] = ['dep' => array_keys($dep)];
+        }
+        if (!empty($novo[$fluxo]) && fluxo_tem_ciclo($novo[$fluxo])) {
+            throw new ErroValidacao('As dependências formam um ciclo (uma etapa esperando por outra que espera por ela). Revise.');
+        }
+    }
+    sistema_gravar('fluxo_config', json_encode((object)$novo, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('fluxo_config', ['etapas' => array_sum(array_map('count', $novo))]);
+    return ['salvos' => 1, 'config' => (object)$novo];
 }
 
 function planos_ler()

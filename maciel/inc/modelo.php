@@ -149,6 +149,7 @@ function montar_modelo()
         'cliente' => $cliente,
         'impactos' => $impactos,
         'contratos_cliente' => (object)(json_decode((string)sistema_ler('contratos_cliente', '{}'), true) ?: []),   // contrato editado na tela do Dashboard cliente
+        'fluxo_config' => (object)(json_decode((string)sistema_ler('fluxo_config', '{}'), true) ?: []),   // dependências entre as etapas do fluxo da obra (Planejamento › Fluxo da obra)
         'projecao_config' => (object)(json_decode((string)sistema_ler('projecao_config', '{}'), true) ?: []),   // conjunto de equipamentos, dias cobrados e preços da aba Projeção
         'referencia' => sistema_ler('referencia', null),
         'tabelas' => $tabelas,
