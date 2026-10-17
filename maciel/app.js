@@ -1783,7 +1783,23 @@ function ganBmResumo(it, ate) {
 // Linhas das frentes anexas cujo avanço vem das atividades do BM da própria frente (e não das colunas gerais do galpão).
 // Eclusa: Vigas e Joists = item 3.3.1 (instalação das vigas, pré-montagem e instalação de joists, contraventamento);
 // Calhas = suportes e calhas da Eclusa (3.4.10); Telhas = instalação de telhas da Eclusa (3.4.1).
+// Marquise do galpão (aba MARQUISES do catálogo): cada linha do Gantt lê as atividades do BM do seu serviço. O catálogo cobre o galpão inteiro,
+// então só a linha da Fase 1 recebe o avanço (a Fase 2 começa depois e continua sem avanço até ter atividade própria).
+function ganBmMarquise(it) {
+  const fr = ganNorm(it.frente);
+  if (!fr.includes('MARQUISE') || !fr.includes('GALPAO F1')) return null;
+  const sv = ganNorm(it.servico), item = a => ganNorm(a.item_desc), ativ = a => ganNorm(a.atividade);
+  if (sv.includes('PREMONTAGEM') || sv.includes('PRE MONT')) return null;   // o catálogo não tem atividade de pré-montagem de terças
+  if (sv.includes('VIGAS')) return a => item(a) === 'MARQUISES' && ativ(a).includes('VIGAS PRINCIPAIS');
+  if (sv.includes('TERCAS')) return a => item(a) === 'MARQUISES' && (ativ(a).includes('TERCAMENTO') || ativ(a).includes('ALINHAMENTO DAS TERCAS'));
+  if (sv.includes('CALHAS')) return a => item(a).includes('CALHAS METALICAS PARA AS MARQUISES');
+  if (sv.includes('TELHAS')) return a => item(a).includes('COBERTURAS DAS MARQUISES');
+  if (sv.includes('TESTEIRA')) return a => item(a).includes('TESTEIRA METALICA FRONTAL PARA MARQUISE DO GALPAO');
+  return null;
+}
 function ganBmAtividadesEspecificas(it) {
+  const filtroMarquise = ganBmMarquise(it);
+  if (filtroMarquise) return bmTab('bm_atividades').filter(filtroMarquise);
   if (ganNorm(it.frente) !== 'ECLUSA') return [];
   const sv = ganNorm(it.servico);
   let filtro = null;
