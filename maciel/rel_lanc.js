@@ -1,7 +1,7 @@
 'use strict';
 // ------------------------------------------------------------------------------------------------
 // LANÇAMENTOS › botão "Relatório de produção" — produção do período só das atividades que tiveram avanço.
-// Empresa = painel escolhido no Painel (Geral = todas); período = caixas de data ao lado do botão (acompanham o período do Painel).
+// Empresa = a empresa selecionada nas abas de Lançamentos (EJ, CMM, GLOBO AÇOS…) — o relatório é sempre de UMA empresa; período = caixas de data ao lado do botão (acompanham o período do Painel).
 // Usa o catálogo de atividades do BM (o mesmo da grade de Lançamentos) e a janela de visualização do relatório das empresas (reAbrirPrevia).
 // Depende de app.js e rel_empresa.js.
 // ------------------------------------------------------------------------------------------------
@@ -79,16 +79,18 @@ function lcSincronizarBarra() {   // chamada a cada desenho de Lançamentos: as 
   const p = per || { ini: ref, fim: ref }, k = `${p.ini}|${p.fim}`;
   if (lcBarPer !== k) { lcBarPer = k; a.value = p.ini; b.value = p.fim; }
   const btn = document.getElementById('btnRelLanc');
-  if (btn && !btn.disabled) btn.textContent = painelEmpFiltro ? `Relatório de produção · ${painelEmpFiltro}` : 'Relatório de produção';
+  if (btn && !btn.disabled) btn.textContent = `Relatório de produção · ${lcEmpresaSel() || '—'}`;
 }
+const lcEmpresaSel = () => (M.empresas.find(x => x.aba === empSel) || M.empresas[0] || {}).nome || '';
 async function lcGerar() {
   const ini = document.getElementById('lcBarIni').value, fim = document.getElementById('lcBarFim').value, btn = document.getElementById('btnRelLanc');
   if (!ehISO(ini) || !ehISO(fim) || fim < ini) { toast('Informe um período válido ao lado do botão.', true); return; }
-  const emps = painelEmpFiltro ? [painelEmpFiltro] : (M.empresas || []).map(e => e.nome).filter(Boolean);
+  const emp = lcEmpresaSel();
+  if (!emp) { toast('Selecione a empresa nas abas de Lançamentos.', true); return; }
   const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
-    reAbrirPrevia(lcHtml(ini, fim, emps), `producao-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'empresas'}-${ini}_a_${fim}.html`,
-      `Produção do período · ${painelEmpFiltro || 'Todas as empresas'} · ${fdA(ini)} a ${fdA(fim)}`);
+    reAbrirPrevia(lcHtml(ini, fim, [emp]), `producao-${emp.replace(/\s+/g, '-')}-${ini}_a_${fim}.html`,
+      `Produção do período · ${emp} · ${fdA(ini)} a ${fdA(fim)}`);
   } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }
   finally { btn.disabled = false; btn.textContent = rot; }
 }
