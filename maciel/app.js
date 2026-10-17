@@ -3995,6 +3995,7 @@ function apEfeitosHtml(regras, ctx) {
     let t = `<b>${esc(g.emp)} · ${esc(cap(g.servico))}:</b> `;
     if (somar) {
       t += `+${nf(g.delta)} em ${fdA(data)}.`;
+      if (ehTelhar(ganNorm(g.servico || ''))) { const frT = ((window._frentes || {}).frentes || {}).telha; t += ` (${nf(g.delta)} telha(s) ≈ ${nf(g.delta * (frT ? apTelhaM2(frT) : 86), 1)} m²)`; }
       if (meta && col) {
         const real = soma(e, col, meta.inicio, meta.fim), alvo = metaSemanaTotal(meta);
         t += ` Semana ${nf(real)} → ${nf(real + g.delta)} de ${nf(alvo, 1)} previstos${alvo ? ` (${nf((real + g.delta) / alvo * 100, 0)}%)` : ''}.`;
@@ -4031,7 +4032,8 @@ function apResumoTxt(ctx) {
   const s = apSelecao(ctx);
   if (!s.nJ && !s.nV && !s.nF) return 'Nada selecionado';
   const emps = Object.entries(s.porEmp).map(([e, n]) => `${e === '?' ? 'sem empresa' : e} ${nf(n)}`).join(' · ');
-  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '', s.nF ? `${nf(s.nF)} trecho(s)` : ''].filter(Boolean);
+  const frT = apEst.modo === 'telha' ? ((window._frentes || {}).frentes || {}).telha : null;
+  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '', s.nF ? (frT ? `${nf(s.nF)} telha(s) ≈ ${nf(s.nF * apTelhaM2(frT), 1)} m²` : `${nf(s.nF)} trecho(s)`) : ''].filter(Boolean);
   return `Seleção: ${partes.join(' · ')} (${emps})`;
 }
 
@@ -4265,14 +4267,22 @@ function apTelhaSvg(fr) {
   if (ruas.length) { const u = ruas[ruas.length - 1], x = mEsq + u.ate * px; o.push(`<line x1="${x}" x2="${x}" y1="${mTop - 10}" y2="${mTop + alto + 6}" class="apt-lin"/><text x="${x}" y="${mTop - 16}" text-anchor="middle" class="apt-rot b">${u.rua.split('-')[1]}</text>`); }
   return o.join('') + '</svg>';
 }
-function apTelhaHtml(ctx, fr) {
-  const t = fr.telha || {}, n = apTelhaN(fr), m2 = (t.comprimento_m || 177.32) * (t.largura_mm || 485) / 1000;
+const apTelhaM2 = fr => ((fr.telha || {}).comprimento_m || 177.32) * ((fr.telha || {}).largura_mm || 485) / 1000;   // m² de uma telha (A→H × largura)
+// Quadro: telhas e m² já apontadas, selecionadas (serão lançadas ao salvar) e pendentes depois do lançamento
+function apTelhaResumoHtml(fr) {
+  const n = apTelhaN(fr), m2 = apTelhaM2(fr);
   const feitas = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHA').length, sel = [...apEst.frente.keys()].filter(k => k.startsWith('TELHA|')).length;
+  const pend = Math.max(0, n - feitas - sel);
+  const tile = (rot, q, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${nf(q)} <small>telhas</small></div><div class="sub"><b>${nf(q * m2, 1)} m²</b> · ${sub}</div></div>`;
+  return `<div class="tiles ap-telha-tiles">${tile('Apontadas', feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, sel ? 'entram na produção ao salvar o apontamento' : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do galpão', n, `${nf(apTelhaM2(fr) * n, 0)} m² (${nf(apTelhaM2(fr), 2)} m² por telha)`, 'var(--amarelo)')}</div>`;
+}
+function apTelhaHtml(ctx, fr) {
+  const t = fr.telha || {}, n = apTelhaN(fr);
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
   const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
-  return `<div class="ap-linha ap-mapa-barra">${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
-      <span class="nota"><b>${nf(feitas)} de ${nf(n)} telhas</b> montadas (${nf(feitas * m2, 0)} m² de ${nf(n * m2, 0)} m²) · ${nf(sel)} selecionada(s)</span>
+  return `<div id="apTelhaResumo">${apTelhaResumoHtml(fr)}</div>
+    <div class="ap-linha ap-mapa-barra">${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
       <div class="ap-legenda">${leg('joist feita', 'montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
     <div class="ap-linha"><label class="rot-sel">Marcar telhas de <input type="number" id="apTelDe" min="1" max="${n}" value="1" style="width:84px"> até <input type="number" id="apTelAte" min="1" max="${n}" value="${n}" style="width:84px"></label>
       <button class="btn" id="apTelMarcar">Marcar intervalo (só pendentes)</button><span class="nota">ou arraste o mouse sobre as telhas; o número do eixo marca o vão inteiro.</span></div>
@@ -4530,6 +4540,7 @@ function apAtualizarSelecao(redesenharMapa) {
   const ctx = apContexto(regras);
   $('#apEfeitos').innerHTML = apEfeitosHtml(regras, ctx);
   $('#apResumo').textContent = apResumoTxt(ctx);
+  apTelhaResumoAtualizar();
   if (redesenharMapa && apEst.modo === 'mapa') $('#apMapaSvg').innerHTML = apMapaSvg(ctx);
   const logEl = $('#apSelLog');
   if (logEl) logEl.innerHTML = apSelLogHtml(ctx);
@@ -4592,6 +4603,11 @@ function apPintarTelha(el, modo) {   // só a faixa muda (redesenhar as 882 troc
   const k = `TELHA|${el.dataset.apTelha}`;
   if (modo === 'add') { apEst.frente.set(k, apEst.empresa); el.setAttribute('class', 'apt-t sel'); el.style.setProperty('--sel', corSelEmp(apEst.empresa)); }
   else { apEst.frente.delete(k); el.setAttribute('class', 'apt-t pend'); el.style.removeProperty('--sel'); }
+  apTelhaResumoAtualizar();
+}
+function apTelhaResumoAtualizar() {
+  const el = $('#apTelhaResumo'), fr = apFrenteAtual();
+  if (el && fr && apEst.modo === 'telha') el.innerHTML = apTelhaResumoHtml(fr);
 }
 function apTelhasMarcar(de, ate) {   // marca (ou, se todas já estavam marcadas, desmarca) as telhas pendentes do intervalo
   const fr = apFrenteAtual(), id = fr.partes[0].id, feitas = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHA').map(a => String(a.rua)));
@@ -4785,7 +4801,7 @@ function ligarApontamento() {
   });
   sec.addEventListener('mouseover', ev => {
     const alvo = ev.target.closest('[data-ap-info]'), info = $('#apMapaInfo');
-    if (info) info.textContent = alvo ? alvo.dataset.apInfo : AP_INFO_PADRAO;
+    if (info) info.textContent = alvo ? alvo.dataset.apInfo : (apEst.modo === 'telha' ? 'Passe o mouse sobre uma telha para ver o número e a posição no galpão.' : AP_INFO_PADRAO);
     const slot = ev.target.closest('[data-ap-slot]');
     // durante o arraste só o retângulo muda (redesenhar o mapa trocaria o elemento sob o mouse e perderia retângulos)
     if (apArraste && slot && regras()) apArrastarAte(apContexto(regras()), slot.dataset.apSlot);

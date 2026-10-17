@@ -1012,3 +1012,6 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 .apt-rot.b { font-weight: 700; fill: var(--fg2); }
 .apt-eixo { cursor: pointer; }
 .apt-eixo:hover .apt-rot { fill: var(--acento); }
+
+.ap-telha-tiles { margin: 6px 0 12px; }
+.ap-telha-tiles .val small { font-size: 12px; font-weight: 500; color: var(--fg3); }
