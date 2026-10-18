@@ -31,13 +31,46 @@ function lcDados(emp, ini, fim) {
   const porDia = new Map();
   itens.forEach(x => x.ats.forEach(t => t.dias.forEach(([d, v]) => { const l = porDia.get(d) || []; l.push({ a: t.a, v }); porDia.set(d, l); })));
   const medicao = itens.reduce((s, x) => s + x.valor, 0);
-  return { emp, ini, fim, itens, contrato, medicao, nAtiv: itens.reduce((s, x) => s + x.ats.length, 0), dias: [...porDia.entries()].sort((a, b) => a[0].localeCompare(b[0])) };
+  let equip = null;
+  try { equip = lcEquip(emp, ini, fim); } catch (e) { console.error('custo de equipamentos', e); }
+  return { emp, ini, fim, equip, itens, contrato, medicao, nAtiv: itens.reduce((s, x) => s + x.ats.length, 0), dias: [...porDia.entries()].sort((a, b) => a[0].localeCompare(b[0])) };
+}
+
+// Custo de equipamentos da empresa no período: MENSAL = valor mensal cheio × meses-calendário que o período toca (custo fixo, sem ratear por dia);
+// DIÁRIO (uso lançado) e ABASTECIMENTO = só o que foi lançado entre as datas. Uso lançado de equipamento mensal com responsável não soma de novo (já é o fixo).
+function lcEquip(emp, ini, fim) {
+  const locados = bmEquipamentosLocados(emp), nomesLocados = new Set(locados.map(e => ganNorm(e.equipamento)));
+  const meses = mesesNoPeriodo(ini, fim);
+  const mensal = locados.map(e => ({ equip: e.equipamento, valor: e.valor || 0, meses, total: (e.valor || 0) * meses })).sort((a, b) => b.total - a.total);
+  const diario = relEquipDados(emp, ini, fim, 'equipamento').equipamentos.filter(q => q.custo > 0 && !nomesLocados.has(ganNorm(q.equipamento))).sort((a, b) => b.custo - a.custo);
+  const abast = relEquipDados(emp, ini, fim, 'abastecimento').equipamentos.filter(q => q.comb > 0 || q.litros > 0).sort((a, b) => b.comb - a.comb);
+  const tMensal = soma0(mensal, x => x.total), tDiario = soma0(diario, x => x.custo), tAbast = soma0(abast, x => x.comb);
+  return { mensal, diario, abast, meses, tMensal, tDiario, tAbast, total: tMensal + tDiario + tAbast, litros: soma0(abast, x => x.litros) };
+}
+
+function lcEquipHtml(q) {
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const vazio = n => `<tr><td colspan="${n}" class="vazio">Sem registros no período.</td></tr>`;
+  const rM = q.mensal.map(x => `<tr><td><b>${esc(x.equip)}</b></td><td class="n">${rs2(x.valor)}</td><td class="n">${nf(x.meses, 0)}</td><td class="n"><b>${rs2(x.total)}</b></td></tr>`).join('') || vazio(4);
+  const rD = q.diario.map(x => `<tr><td><b>${esc(x.equipamento)}</b></td><td>${esc(x.resp)}</td><td class="n">${x.dias.size}</td><td class="n"><b>${rs2(x.custo)}</b></td></tr>`).join('') || vazio(4);
+  const rA = q.abast.map(x => `<tr><td><b>${esc(x.equipamento)}</b></td><td>${esc(x.resp)}</td><td class="n">${nf(x.litros, 1)}</td><td class="n"><b>${rs2(x.comb)}</b></td></tr>`).join('') || vazio(4);
+  return `<h2>Custo de equipamentos no período</h2>
+    <div class="cards">
+      ${card('Custo total de equipamentos', rs2(q.total), 'mensal + diário + abastecimento', 'vm')}
+      ${card('Equipamentos mensais', rs2(q.tMensal), `custo fixo — valor mensal cheio × ${nf(q.meses, 0)} mês(es) tocado(s) pelo período`, 'az')}
+      ${card('Equipamentos diários', rs2(q.tDiario), 'uso lançado dentro do período', 'am')}
+      ${card('Abastecimento', rs2(q.tAbast), `${nf(q.litros, 1)} L lançados dentro do período`, 'vd')}
+    </div>
+    <h3>Mensais (custo fixo)</h3><table><thead><tr><th>Equipamento</th><th class="n">Valor mensal</th><th class="n">Meses</th><th class="n">Custo</th></tr></thead><tbody>${rM}</tbody><tfoot><tr><th colspan="3">Total</th><th class="n">${rs2(q.tMensal)}</th></tr></tfoot></table>
+    <h3>Diários (uso no período)</h3><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Dias de uso</th><th class="n">Custo</th></tr></thead><tbody>${rD}</tbody><tfoot><tr><th colspan="3">Total</th><th class="n">${rs2(q.tDiario)}</th></tr></tfoot></table>
+    <h3>Abastecimento (no período)</h3><table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th class="n">Litros</th><th class="n">Valor</th></tr></thead><tbody>${rA}</tbody><tfoot><tr><th colspan="3">Total</th><th class="n">${rs2(q.tAbast)}</th></tr></tfoot></table>`;
 }
 
 function lcHtmlEmpresa(d) {
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const cab = `<h1>${esc(d.emp)}</h1><p class="sub-cab">Produção do período · ${fdA(d.ini)} a ${fdA(d.fim)} · só as atividades do catálogo (BM) que tiveram avanço</p>`;
-  if (!d.itens.length) return `<section class="emp-sec"><div class="pag">${cab}<p class="aviso">Nenhuma atividade teve avanço neste período.</p></div></section>`;
+  const custoEq = d.equip ? lcEquipHtml(d.equip) : '<p class="aviso">Não foi possível calcular o custo de equipamentos.</p>';
+  if (!d.itens.length) return `<section class="emp-sec"><div class="pag">${cab}<p class="aviso">Nenhuma atividade teve avanço neste período.</p>${custoEq}</div></section>`;
   const pc = v => nf(v * 100, 1) + '%';
   let linhas = '';
   d.itens.forEach(x => {
@@ -61,12 +94,13 @@ function lcHtmlEmpresa(d) {
     <table><thead><tr><th>Atividade (BM)</th><th>Un.</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">% da atividade no período</th><th class="n">% acumulado</th><th>Lançado em</th><th class="n">Valor do período</th></tr></thead><tbody>${linhas}</tbody></table>
     <h2>Dia a dia</h2>
     <table><thead><tr><th class="n" style="width:90px">Data</th><th>O que foi lançado</th></tr></thead><tbody>${dia || '<tr><td colspan="2" class="vazio">Sem lançamentos datados no período.</td></tr>'}</tbody></table>
+    ${custoEq}
   </div></section>`;
 }
 
 async function lcHtml(ini, fim, emps) {
   await tplLogosCarregar();
-  return tplDocumento({ titulo: 'Produção do período', subtitulo: `${emps.join(' · ')} — ${fdA(ini)} a ${fdA(fim)}`, meta: 'Somente atividades do catálogo (BM) com avanço no período', corpo: emps.map(emp => lcHtmlEmpresa(lcDados(emp, ini, fim))).join('') });
+  return tplDocumento({ titulo: 'Produção do período', subtitulo: `${emps.join(' · ')} — ${fdA(ini)} a ${fdA(fim)}`, meta: 'Atividades do catálogo (BM) com avanço no período · custo de equipamentos (mensal fixo + diário + abastecimento)', corpo: emps.map(emp => lcHtmlEmpresa(lcDados(emp, ini, fim))).join('') });
 }
 
 let lcBarPer = '';
