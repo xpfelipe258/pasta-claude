@@ -176,7 +176,7 @@ function renderCff() {
   let h = `<div class="bloco"><div class="bloco-cab"><h2>Cronograma físico-financeiro — ${esc(nome)}</h2><span class="nota">Valor = catálogo do BM (contrato ${CFF_R}) · previsto = datas do cronograma do cliente, linear por dia útil · realizado até ${fdA(base)}</span></div>
     <div class="barra-acoes"><div class="seg" id="cffMod">${btns}</div>
       <label class="rot-sel">Colunas <select id="cffVista"><option value="semana" ${CFF.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${CFF.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
-      <button class="btn" id="cffCsv">Exportar CSV</button></div></div>`;
+      <button class="btn primario" id="cffRel">Relatório (PDF)</button><button class="btn" id="cffCsv">Exportar CSV</button></div></div>`;
   h += '<div class="tiles">' +
     tile('Valor do módulo', rs(V), `${T.n} atividade(s) do catálogo${CFF.mod ? '' : ' de ' + D.empresas.length + ' empresa(s)'}`, 'var(--acento)') +
     tile('Previsto até hoje', rs(prevHoje), `${V ? nf(prevHoje / V * 100, 1) : 0}% do valor · cronograma do cliente`, 'var(--fg3)') +
@@ -200,6 +200,37 @@ function renderCff() {
     ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: eixos({ ticks: { color: cor('--fg2'), callback: v => rs(v) } }), plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${rs(c.parsed.y)}` } } } },
   });
+}
+
+// Relatório do cronograma físico-financeiro (visualização antes de baixar; baixa em PDF): módulo escolhido na tela
+async function cffRelatorio() {
+  const D = CFF.dados; if (!D) return;
+  const btn = document.getElementById('cffRel'), rot = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Montando…'; }
+  try {
+    await tplLogosCarregar();
+    const mod = CFF.mod, T = D.modulos[mod], ib = D.ib, V = T.V || 0, nome = mod || 'Geral (todas as empresas)';
+    const prevHoje = T.prev[ib], realHoje = T.real[ib], fimProj = T.proj[T.proj.length - 1], desv = realHoje - prevHoje;
+    const card = (r, v, sub, c) => `<div class="card ${c}"><div class="rot">${r}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
+    const m = cffMatriz(D, T, CFF.vista);
+    let img = '';
+    try { img = graficos.gCff ? graficos.gCff.toBase64Image('image/png', 1) : ''; } catch (e) { img = ''; }
+    const resumoEmp = mod ? '' : `<h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Valor</th><th class="n">Previsto até hoje</th><th class="n">% previsto</th><th class="n">Realizado até hoje</th><th class="n">% realizado</th><th class="n">Desvio</th><th class="n">Projeção no fim</th><th class="n">Saldo a medir</th></tr></thead><tbody>${D.empresas.map(e => { const t = D.modulos[e], pv = t.prev[ib], rl = t.real[ib]; return `<tr><td><b>${esc(e)}</b></td><td class="n">${rs(t.V)}</td><td class="n">${rs(pv)}</td><td class="n">${t.V ? nf(pv / t.V * 100, 1) : 0}%</td><td class="n">${rs(rl)}</td><td class="n">${t.V ? nf(rl / t.V * 100, 1) : 0}%</td><td class="n ${rl - pv < -0.5 ? 'valor-neg' : ''}">${rs(rl - pv)}</td><td class="n">${rs(t.proj[t.proj.length - 1])}</td><td class="n">${rs(Math.max(0, t.V - rl))}</td></tr>`; }).join('')}</tbody><tfoot><tr><th>Total</th><th class="n">${rs(V)}</th><th class="n">${rs(prevHoje)}</th><th class="n">${V ? nf(prevHoje / V * 100, 1) : 0}%</th><th class="n">${rs(realHoje)}</th><th class="n">${V ? nf(realHoje / V * 100, 1) : 0}%</th><th class="n">${rs(desv)}</th><th class="n">${rs(fimProj)}</th><th class="n">${rs(Math.max(0, V - realHoje))}</th></tr></tfoot></table>`;
+    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:330px;object-fit:contain}</style>`;
+    const corpo = `<section class="emp-sec"><div class="pag">
+      <div class="cards">${card('Valor do módulo', rs(V), `${T.n} atividade(s) do catálogo (contrato RÓTULA)`, 'az')}${card('Previsto até hoje', rs(prevHoje), `${V ? nf(prevHoje / V * 100, 1) : 0}% · cronograma do cliente`, 'nd')}${card('Realizado até hoje', rs(realHoje), `${V ? nf(realHoje / V * 100, 1) : 0}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(prevHoje, 1) ? 'vm' : desv < 0 ? 'am' : 'vd')}${card('Projeção no fim do cronograma', rs(fimProj), `${V ? nf(fimProj / V * 100, 0) : 0}% do valor${V - fimProj > 0.5 ? ' · ' + rs(V - fimProj) + ' ficam para depois' : ' · fecha no prazo'}`, V - fimProj > 0.5 ? 'vm' : 'vd')}${card('Saldo a medir', rs(Math.max(0, V - realHoje)), 'valor ainda não realizado', 'az')}</div>
+      ${T.semCronoN ? `<p class="aviso">${T.semCronoN} atividade(s) do catálogo (${rs(T.semCronoV)}) não estão ligadas ao cronograma do cliente: entram no valor e no realizado, mas não têm previsto (“SEM CRONOGRAMA”).</p>` : ''}
+      ${resumoEmp}
+      ${img ? `<h2>Curva S financeira (R$ acumulado)</h2><p class="sub-cab">Cinza tracejada = previsto · verde = realizado · amarela pontilhada = projeção (realizado + o que o cronograma ainda prevê).</p><img class="cff-curva" src="${img}" alt="Curva S">` : ''}
+      <h2>Cronograma físico-financeiro por ${CFF.vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = realizado · amarelas = projetado · a que contém ${fdA(D.base)} mistura os dois.</p>
+      <div class="cff-mat"><table>${m.html}</table></div>
+      <h2>Por atividade</h2><p class="sub-cab">R$ previsto/realizado = % físico × valor da atividade (valor do item × peso no catálogo do BM) em ${fdA(D.base)}.</p>
+      <table>${cffTabelaAtividades(D, mod)}</table>
+    </div></section>`;
+    const html = tplDocumento({ titulo: 'Cronograma físico-financeiro', subtitulo: `${nome} — posição em ${fdA(D.base)}`, meta: 'Previsto = cronograma do cliente (linear por dia útil) · valor = catálogo do BM · realizado = lançamentos e apontamentos do BM', corpo, css });
+    reAbrirPrevia(html, `cronograma-fisico-financeiro-${(mod || 'geral').replace(/\s+/g, '-')}-${D.base}`, `Cronograma físico-financeiro · ${nome}`);
+  } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
 
 function cffCsv() {
@@ -229,6 +260,7 @@ document.addEventListener('click', ev => {
   const b = ev.target.closest && ev.target.closest('[data-cff-mod]');
   if (b) { CFF.mod = b.dataset.cffMod; return renderCff(); }
   if (ev.target.closest && ev.target.closest('#cffCsv')) return cffCsv();
+  if (ev.target.closest && ev.target.closest('#cffRel')) return cffRelatorio();
 });
 document.addEventListener('change', ev => {
   if (ev.target && ev.target.id === 'cffVista') { CFF.vista = ev.target.value === 'mes' ? 'mes' : 'semana'; renderCff(); }

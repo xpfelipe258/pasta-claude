@@ -95,7 +95,7 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
 
     // regiões que não devem ser cortadas ao meio: linhas de tabela, cartões, figuras e (título + começo do que vem depois)
     const regioes = [];
-    doc.querySelectorAll('tr, .card, .mapa-fig, figure, svg, .aviso, .tpl-ficha, .tpl-capa, h2, h3').forEach(el => {
+    doc.querySelectorAll('tr, .card, .mapa-fig, figure, svg, img, .aviso, .tpl-ficha, .tpl-capa, h2, h3').forEach(el => {
       const r = el.getBoundingClientRect();
       if (r.height < 1 || r.height > altPag * 0.9) return;   // sem altura ou maior que uma página: não adianta proteger
       const extra = /^H[23]$/.test(el.tagName) ? 90 : 0;
