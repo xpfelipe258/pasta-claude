@@ -101,6 +101,13 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
       const extra = /^H[23]$/.test(el.tagName) ? 90 : 0;
       regioes.push([r.top, r.bottom + extra]);
     });
+    // bloco de uma atividade na matriz do cronograma (cabeçalho + 10 linhas) não se parte entre páginas
+    doc.querySelectorAll('tr.cff-ativ').forEach(tr => {
+      let fim = tr, n = 0;
+      while (n < 10 && fim.nextElementSibling && !fim.nextElementSibling.classList.contains('grupo')) { fim = fim.nextElementSibling; n++; }
+      const a = tr.getBoundingClientRect(), b = fim.getBoundingClientRect();
+      if (b.bottom - a.top <= altPag * 0.9) regioes.push([a.top, b.bottom]);
+    });
     const cortes = [0];
     let y = 0;
     while (y < H - 2) {

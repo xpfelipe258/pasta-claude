@@ -153,24 +153,68 @@ function cffTabelaAtividades(D, mod, comPer = false) {
   return h + '</tbody>';
 }
 
-function cffMatriz(D, T, vista) {
-  const per = cffPeriodos(D, vista), ib = D.ib;
-  const pb = per.find(p => p.i0 <= ib && ib <= p.i1);
+// as 10 linhas da matriz (previsto/realizado/projetado no período e acumulado, % e desvio) para uma série T = {V, prev[], real[], proj[]}
+function cffLinhasMatriz(T, V, per, ib, curto = false) {
   const cls = p => (p.i1 <= ib ? 'pj-real' : p.i0 > ib ? 'pj-proj' : 'pj-misto');
-  const V = T.V || 1;
-  const linha = (rot, fn, estilo = '') => `<tr><td>${rot}</td>${per.map(p => `<td class="n ${cls(p)}">${fn(p)}</td>`).join('')}</tr>`;
-  let h = `<thead><tr><th>${vista === 'mes' ? 'Mês' : 'Semana de'}</th>${per.map(p => `<th class="n ${cls(p)}">${cffRotuloPer(p.k, vista)}</th>`).join('')}</tr></thead><tbody>`;
-  h += linha('<b>Previsto no período (R$)</b>', p => rs(cffNoPer(T.prev, p)));
-  h += linha('<b>Realizado no período (R$)</b>', p => (p.i0 > ib ? '—' : rs(T.real[Math.min(p.i1, ib)] - (p.i0 > 0 ? T.real[p.i0 - 1] : 0))));
+  const v = V || 1, b = t => (curto ? t : `<b>${t}</b>`);
+  const linha = (rot, fn) => `<tr><td>${rot}</td>${per.map(p => `<td class="n ${cls(p)}">${fn(p)}</td>`).join('')}</tr>`;
+  let h = '';
+  h += linha(b('Previsto no período (R$)'), p => rs(cffNoPer(T.prev, p)));
+  h += linha(b('Realizado no período (R$)'), p => (p.i0 > ib ? '—' : rs(T.real[Math.min(p.i1, ib)] - (p.i0 > 0 ? T.real[p.i0 - 1] : 0))));
   h += linha('Projetado no período (R$)', p => (p.i1 < ib ? '—' : rs(cffNoPer(T.proj, p))));
   h += linha('Previsto acumulado (R$)', p => rs(T.prev[p.i1]));
   h += linha('Realizado acumulado (R$)', p => (p.i0 > ib ? '—' : rs(T.real[Math.min(p.i1, ib)])));
   h += linha('Projetado acumulado (R$)', p => (p.i1 < ib ? '—' : rs(T.proj[p.i1])));
-  h += linha('% previsto acumulado', p => nf(T.prev[p.i1] / V * 100, 1) + '%');
-  h += linha('% realizado acumulado', p => (p.i0 > ib ? '—' : nf(T.real[Math.min(p.i1, ib)] / V * 100, 1) + '%'));
-  h += linha('% projetado acumulado', p => (p.i1 < ib ? '—' : nf(T.proj[p.i1] / V * 100, 1) + '%'));
-  h += linha('<b>Desvio acumulado (R$)</b>', p => { if (p.i0 > ib) return '—'; const i = Math.min(p.i1, ib), d = T.real[i] - T.prev[i]; return `<span class="${d < -0.5 ? 'valor-neg' : ''}">${rs(d)}</span>`; });
+  h += linha('% previsto acumulado', p => nf(T.prev[p.i1] / v * 100, 1) + '%');
+  h += linha('% realizado acumulado', p => (p.i0 > ib ? '—' : nf(T.real[Math.min(p.i1, ib)] / v * 100, 1) + '%'));
+  h += linha('% projetado acumulado', p => (p.i1 < ib ? '—' : nf(T.proj[p.i1] / v * 100, 1) + '%'));
+  h += linha(b('Desvio acumulado (R$)'), p => { if (p.i0 > ib) return '—'; const i = Math.min(p.i1, ib), d = T.real[i] - T.prev[i]; return `<span class="${d < -0.5 ? 'valor-neg' : ''}">${rs(d)}</span>`; });
+  return h;
+}
+
+function cffMatriz(D, T, vista) {
+  const per = cffPeriodos(D, vista), ib = D.ib;
+  const pb = per.find(p => p.i0 <= ib && ib <= p.i1);
+  const cls = p => (p.i1 <= ib ? 'pj-real' : p.i0 > ib ? 'pj-proj' : 'pj-misto');
+  const h = `<thead><tr><th>${vista === 'mes' ? 'Mês' : 'Semana de'}</th>${per.map(p => `<th class="n ${cls(p)}">${cffRotuloPer(p.k, vista)}</th>`).join('')}</tr></thead><tbody>` + cffLinhasMatriz(T, T.V, per, ib);
   return { html: h + '</tbody>', per, pb };
+}
+
+// Atividades que entram na matriz por atividade. filtro: 'todas' | 'mov' (têm previsto/realizado/projetado dentro do período) | 'recuperar' (realizado abaixo do previsto na referência)
+function cffAtividadesMatriz(D, mod, filtro) {
+  const ib = D.ib, J = cffJanela(D);
+  const real = x => (J.iI > ib ? 0 : x.real[Math.min(J.iF, ib)] - (J.iI > 0 ? x.real[J.iI - 1] : 0));
+  return D.atividades
+    .filter(x => (!mod || x.emp === mod) && (x.V > 0 || x.pctReal > 0))
+    .filter(x => {
+      if (filtro === 'recuperar') return x.real[ib] - x.prev[ib] < -0.5;
+      if (filtro === 'mov') return Math.abs(cffNaJanela(x.prev, J)) > 0.5 || Math.abs(real(x)) > 0.5 || Math.abs(cffNaJanela(x.proj, J)) > 0.5;
+      return true;
+    })
+    .sort((a, b) => a.emp.localeCompare(b.emp) || String(a.item).localeCompare(String(b.item), 'pt', { numeric: true }) || String(a.a.codigo).localeCompare(String(b.a.codigo), 'pt', { numeric: true }));
+}
+
+// Matriz por atividade: o mesmo quadro do cronograma (semana/mês nas colunas), um bloco de linhas para cada atividade do catálogo
+function cffMatrizAtividades(D, mod, vista, filtro) {
+  const per = cffPeriodos(D, vista), ib = D.ib, lista = cffAtividadesMatriz(D, mod, filtro);
+  const cls = p => (p.i1 <= ib ? 'pj-real' : p.i0 > ib ? 'pj-proj' : 'pj-misto');
+  let h = `<thead><tr><th>${vista === 'mes' ? 'Mês' : 'Semana de'}</th>${per.map(p => `<th class="n ${cls(p)}">${cffRotuloPer(p.k, vista)}</th>`).join('')}</tr></thead><tbody>`;
+  let empAtual = null;
+  lista.forEach(x => {
+    if (x.emp !== empAtual) { empAtual = x.emp; h += `<tr class="grupo cff-emp"><td colspan="${per.length + 1}"><b>${esc(x.emp)}</b></td></tr>`; }
+    const desv = x.real[ib] - x.prev[ib], rec = desv < -0.5;
+    const estado = x.semCrono ? '<span class="farol f-amarelo">SEM CRONOGRAMA</span>' : rec ? `<span class="farol f-vermelho">A RECUPERAR ${rs(-desv)}</span>` : '<span class="farol f-verde">NO PRAZO</span>';
+    h += `<tr class="grupo cff-ativ"><td class="cff-ativ-nome"><b>${esc(x.item)} · ${esc(x.a.atividade)}</b> ${estado}<div class="nota">${esc(x.a.codigo)} · valor ${rs(x.V)} · ${x.semCrono ? 'sem datas no cronograma' : fd(x.iniCrono) + ' a ' + fd(x.fimCrono)}</div></td><td colspan="${per.length}"></td></tr>`;
+    h += cffLinhasMatriz(x, x.V, per, ib, true);
+  });
+  if (!lista.length) h += `<tr><td colspan="${per.length + 1}" class="vazio">Nenhuma atividade neste filtro.</td></tr>`;
+  return { html: h + '</tbody>', n: lista.length, rec: lista.filter(x => x.real[ib] - x.prev[ib] < -0.5).length };
+}
+
+function cffRenderMatrizAtiv() {
+  const D = CFF.dados, tb = document.getElementById('tabCffMatrizAtiv'), sel = document.getElementById('cffAtivFiltro');
+  if (!D || !tb || !sel) return;
+  tb.innerHTML = cffMatrizAtividades(D, '', CFF.vista, sel.value).html;
 }
 
 function renderCff() {
@@ -197,6 +241,10 @@ function renderCff() {
   h += `<div class="bloco"><div class="bloco-cab"><h2>Curva S financeira (R$ acumulado)</h2><span class="nota">Cinza tracejada = previsto · verde = realizado · amarela pontilhada = projeção (realizado + o que o cronograma ainda prevê)</span></div><div class="grafico" style="height:320px"><canvas id="gCff"></canvas></div></div>`;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Cronograma físico-financeiro por ${CFF.vista === 'mes' ? 'mês' : 'semana'}</h2><span class="nota"><i class="pj-leg pj-real"></i>realizado <i class="pj-leg pj-proj"></i>projetado · a coluna que contém ${fdA(base)} mistura realizado e projeção</span></div>
     <div class="tabela-rolagem"><table class="pj-matriz" id="tabCffMatriz">${m.html}</table></div></div>`;
+  const nRec = cffAtividadesMatriz(D, '', 'recuperar').length, nAtv = cffAtividadesMatriz(D, '', 'todas').length;
+  h += `<details class="bloco" id="cffAtivDet"><summary><b>Matriz por atividade</b> — previsto × realizado × projetado de cada atividade do catálogo · ${nAtv} atividades, <span class="${nRec ? 'valor-neg' : ''}">${nRec} a recuperar</span> (clique para abrir)</summary>
+    <div class="barra-acoes"><label class="rot-sel">Mostrar <select id="cffAtivFiltro"><option value="recuperar">Só as que precisam recuperar</option><option value="mov">Todas com movimento</option><option value="todas">Todas as atividades</option></select></label><span class="nota">Mesmas colunas do quadro acima; “A recuperar” = realizado abaixo do previsto até ${fdA(base)}.</span></div>
+    <div class="tabela-rolagem"><table class="pj-matriz" id="tabCffMatrizAtiv" data-sem-ferramentas></table></div></details>`;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Por atividade</h2><span class="nota">R$ previsto/realizado = % físico × valor da atividade (item × peso) na data ${fdA(base)}.</span></div><div class="tabela-rolagem"><table id="tabCffAtiv">${cffTabelaAtividades(D, '')}</table></div></div>`;
   box.innerHTML = h;
   // curva S (um ponto por período)
@@ -246,6 +294,7 @@ function cffAbrirPeriodo() {
       <label>Módulo<select id="cffDlgMod"><option value="">Geral (todas as empresas)</option>${D.empresas.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('')}</select></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><label>Período — de<input type="date" id="cffDlgIni" value="${primeiro}" min="${primeiro}" max="${ultimo}"></label><label>até<input type="date" id="cffDlgFim" value="${ultimo}" min="${primeiro}" max="${ultimo}"></label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-cff-atalho="tudo">Todo o cronograma</button><button type="button" class="btn" data-cff-atalho="mes">Mês da referência</button><button type="button" class="btn" data-cff-atalho="hoje">Até a referência</button></div>
+      <label>Matriz por atividade<select id="cffDlgAtiv"><option value="mov">Todas as atividades com movimento no período</option><option value="recuperar">Só as atividades a recuperar</option><option value="todas">Todas as atividades do catálogo</option><option value="nao">Não incluir</option></select></label>
       <label>Colunas da matriz<select id="cffDlgVista"><option value="semana" ${CFF.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${CFF.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px"><button type="button" class="btn" data-cff-cancelar>Cancelar</button><button type="button" class="btn primario" data-cff-visualizar>Visualizar relatório</button></div>`;
@@ -266,7 +315,7 @@ function cffAbrirPeriodo() {
       const ini = dlg.querySelector('#cffDlgIni').value, fim = dlg.querySelector('#cffDlgFim').value;
       if (!ehISO(ini) || !ehISO(fim)) { toast('Informe as datas inicial e final do período.', true); return; }
       if (fim < ini) { toast('A data final não pode ser anterior à data inicial.', true); return; }
-      const op = { mod: dlg.querySelector('#cffDlgMod').value, ini, fim, vista: dlg.querySelector('#cffDlgVista').value === 'mes' ? 'mes' : 'semana' };
+      const op = { mod: dlg.querySelector('#cffDlgMod').value, ini, fim, vista: dlg.querySelector('#cffDlgVista').value === 'mes' ? 'mes' : 'semana', ativ: dlg.querySelector('#cffDlgAtiv').value };
       dlg.close();
       cffRelatorio(op);
     }
@@ -287,9 +336,10 @@ async function cffRelatorio(op) {
     const pPrev = cffNaJanela(T.prev, J), pReal = J.iI > ib ? 0 : T.real[Math.min(J.iF, ib)] - (J.iI > 0 ? T.real[J.iI - 1] : 0), pProj = cffNaJanela(T.proj, J);
     const card = (r, v, sub, c) => `<div class="card ${c}"><div class="rot">${r}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
     const m = cffMatriz(D, T, op.vista);
+    const ma = op.ativ === 'nao' ? null : cffMatrizAtividades(D, mod, op.vista, op.ativ || 'mov');
     const img = cffCurvaImagem(D, T, m.per);
     const resumoEmp = mod ? '' : `<h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Valor</th><th class="n">Previsto até hoje</th><th class="n">% previsto</th><th class="n">Realizado até hoje</th><th class="n">% realizado</th><th class="n">Desvio</th><th class="n">Projeção no fim</th><th class="n">Saldo a medir</th></tr></thead><tbody>${D.empresas.map(e => { const t = D.modulos[e], pv = t.prev[ib], rl = t.real[ib]; return `<tr><td><b>${esc(e)}</b></td><td class="n">${rs(t.V)}</td><td class="n">${rs(pv)}</td><td class="n">${t.V ? nf(pv / t.V * 100, 1) : 0}%</td><td class="n">${rs(rl)}</td><td class="n">${t.V ? nf(rl / t.V * 100, 1) : 0}%</td><td class="n ${rl - pv < -0.5 ? 'valor-neg' : ''}">${rs(rl - pv)}</td><td class="n">${rs(t.proj[t.proj.length - 1])}</td><td class="n">${rs(Math.max(0, t.V - rl))}</td></tr>`; }).join('')}</tbody><tfoot><tr><th>Total</th><th class="n">${rs(V)}</th><th class="n">${rs(prevHoje)}</th><th class="n">${V ? nf(prevHoje / V * 100, 1) : 0}%</th><th class="n">${rs(realHoje)}</th><th class="n">${V ? nf(realHoje / V * 100, 1) : 0}%</th><th class="n">${rs(desv)}</th><th class="n">${rs(fimProj)}</th><th class="n">${rs(Math.max(0, V - realHoje))}</th></tr></tfoot></table>`;
-    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:330px;object-fit:contain}</style>`;
+    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:330px;object-fit:contain}.cff-ativ-mat tr.cff-emp td{background:#1f3b5c;color:#fff;font-weight:700}.cff-ativ-mat tr.cff-ativ td{background:#eef1f5;white-space:normal;padding-top:5px}.cff-ativ-mat .nota{font-weight:400;font-size:8px;color:#555}</style>`;
     const corpo = `<section class="emp-sec"><div class="pag">
       <p class="sub-cab"><b>Período do relatório:</b> ${fdA(J.ini)} a ${fdA(J.fim)} — ${J.iF < ib ? 'período já realizado' : J.iI > ib ? 'período futuro (só previsto/projetado)' : 'inclui a data de referência ' + fdA(D.base)}.</p>
       <div class="cards">${card('Valor do módulo', rs(V), `${T.n} atividade(s) do catálogo (contrato RÓTULA)`, 'az')}${card('Previsto até hoje', rs(prevHoje), `${V ? nf(prevHoje / V * 100, 1) : 0}% · cronograma do cliente`, 'nd')}${card('Realizado até hoje', rs(realHoje), `${V ? nf(realHoje / V * 100, 1) : 0}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(prevHoje, 1) ? 'vm' : desv < 0 ? 'am' : 'vd')}${card('Projeção no fim do cronograma', rs(fimProj), `${V ? nf(fimProj / V * 100, 0) : 0}% do valor${V - fimProj > 0.5 ? ' · ' + rs(V - fimProj) + ' ficam para depois' : ' · fecha no prazo'}`, V - fimProj > 0.5 ? 'vm' : 'vd')}${card('Saldo a medir', rs(Math.max(0, V - realHoje)), 'valor ainda não realizado', 'az')}</div>
@@ -299,6 +349,8 @@ async function cffRelatorio(op) {
       ${img ? `<h2>Curva S financeira (R$ acumulado)</h2><p class="sub-cab">Cinza tracejada = previsto · verde = realizado · amarela pontilhada = projeção (realizado + o que o cronograma ainda prevê). Acumulado desde o início do cronograma.</p><img class="cff-curva" src="${img}" alt="Curva S">` : ''}
       <h2>Cronograma físico-financeiro por ${op.vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = realizado · amarelas = projetado · a que contém ${fdA(D.base)} mistura os dois. Os acumulados contam desde o início do cronograma.</p>
       <div class="cff-mat"><table>${m.html}</table></div>
+      ${ma ? `<h2>Cronograma físico-financeiro por atividade</h2><p class="sub-cab">${ma.n} atividade(s) · ${ma.rec} a recuperar (realizado abaixo do previsto em ${fdA(D.base)}) · mesmas colunas e cores do quadro acima; os acumulados contam desde o início do cronograma.</p>
+      <div class="cff-mat cff-ativ-mat"><table>${ma.html}</table></div>` : ''}
       <h2>Por atividade</h2><p class="sub-cab">R$ previsto/realizado = % físico × valor da atividade (valor do item × peso no catálogo do BM) em ${fdA(D.base)}; “no período” = só o que cai entre ${fdA(J.ini)} e ${fdA(J.fim)}.</p>
       <table>${cffTabelaAtividades(D, mod, true)}</table>
     </div></section>`;
@@ -337,6 +389,8 @@ document.addEventListener('click', ev => {
   if (t.closest('#cffCsv')) return cffCsv();
   if (t.closest('#cffRel')) return cffAbrirPeriodo();
 });
+document.addEventListener('toggle', ev => { if (ev.target && ev.target.id === 'cffAtivDet' && ev.target.open) cffRenderMatrizAtiv(); }, true);
+document.addEventListener('change', ev => { if (ev.target && ev.target.id === 'cffAtivFiltro') cffRenderMatrizAtiv(); });
 document.addEventListener('change', ev => {
   if (ev.target && ev.target.id === 'cffVista') { CFF.vista = ev.target.value === 'mes' ? 'mes' : 'semana'; renderCff(); }
 });
