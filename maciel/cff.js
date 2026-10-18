@@ -12,7 +12,7 @@
 // Depende de app.js e projecao.js: M, ref, bmTab, bmItens, bmPrecoAtividade, bmQtdFinanceira, ganBmDatasAtividade, ganItensCliente,
 // pjAtividadesBm, faseFiltro, segunda, add, diaUtil, contarDiasUteis, trocarGrafico, eixos, cor, rs, rs2, nf, fd, fdA, esc, cap, soma0.
 // ------------------------------------------------------------------------------------------------
-const CFF = { mod: '', vista: 'semana', dados: null };
+const CFF = { mod: '', vista: 'semana', ini: '', fim: '', dados: null };   // ini/fim = período desejado ('' = o cronograma inteiro)
 const CFF_R = 'RÓTULA';
 
 function cffDiasEixo(a, b) { const l = []; for (let d = a; d <= b; d = add(d, 1)) l.push(d); return l; }
@@ -107,37 +107,49 @@ const cffRotuloPer = (k, vista) => {
   return fd(k);
 };
 
-// períodos (semanas/meses): primeiro e último índice do eixo de cada um
+// período desejado → índices do eixo (iI..iF). Sem datas, vale o cronograma inteiro.
+function cffJanela(D) {
+  const n = D.dias.length, primeiro = D.dias[0], ultimo = D.dias[n - 1];
+  let iI = 0, iF = n - 1;
+  if (ehISO(CFF.ini)) iI = CFF.ini <= primeiro ? 0 : CFF.ini > ultimo ? n - 1 : D.idx.get(CFF.ini);
+  if (ehISO(CFF.fim)) iF = CFF.fim >= ultimo ? n - 1 : CFF.fim < primeiro ? 0 : D.idx.get(CFF.fim);
+  if (iF < iI) iF = iI;
+  return { iI, iF, ini: D.dias[iI], fim: D.dias[iF] };
+}
+// valor no período [iI, iF] de uma série acumulada (R$ acumulado − acumulado na véspera)
+const cffNaJanela = (arr, J) => arr[J.iF] - (J.iI > 0 ? arr[J.iI - 1] : 0);
+
+// períodos (semanas/meses) que cabem no período desejado: primeiro e último índice do eixo de cada um (cortados nas pontas do período)
 function cffPeriodos(D, vista) {
-  const mapa = new Map();
-  D.dias.forEach((d, i) => { const k = cffChave(d, vista); const p = mapa.get(k); if (p) p.i1 = i; else mapa.set(k, { k, i0: i, i1: i }); });
+  const J = cffJanela(D), mapa = new Map();
+  for (let i = J.iI; i <= J.iF; i++) { const k = cffChave(D.dias[i], vista); const p = mapa.get(k); if (p) p.i1 = i; else mapa.set(k, { k, i0: i, i1: i }); }
   return [...mapa.values()];
 }
 const cffNoPer = (arr, p) => arr[p.i1] - (p.i0 > 0 ? arr[p.i0 - 1] : 0);
 
 function cffTabelaAtividades(D, mod) {
   const lista = D.atividades.filter(x => (!mod || x.emp === mod) && (x.V > 0 || x.pctReal > 0)).sort((a, b) => a.emp.localeCompare(b.emp) || String(a.item).localeCompare(String(b.item), 'pt', { numeric: true }) || String(a.a.codigo).localeCompare(String(b.a.codigo), 'pt', { numeric: true }));
-  const ib = D.ib;
-  let h = '<thead><tr><th>Atividade (catálogo do BM)</th><th>Cronograma</th><th class="n">Valor</th><th class="n">% previsto</th><th class="n">R$ previsto</th><th class="n">% realizado</th><th class="n">R$ realizado</th><th class="n">Desvio R$</th><th class="n">Saldo a medir</th><th class="n">Projeção no fim</th></tr></thead><tbody>';
+  const ib = D.ib, J = cffJanela(D), naJ = (x, arr) => (arr === x.real ? (J.iI > ib ? 0 : x.real[Math.min(J.iF, ib)] - (J.iI > 0 ? x.real[J.iI - 1] : 0)) : cffNaJanela(arr, J));
+  let h = '<thead><tr><th>Atividade (catálogo do BM)</th><th>Cronograma</th><th class="n">Valor</th><th class="n">Previsto no período</th><th class="n">Realizado no período</th><th class="n">% previsto</th><th class="n">R$ previsto</th><th class="n">% realizado</th><th class="n">R$ realizado</th><th class="n">Desvio R$</th><th class="n">Saldo a medir</th><th class="n">Projeção no fim</th></tr></thead><tbody>';
   let empAtual = null, itemAtual = null;
-  const totEmp = nm => { const l = lista.filter(x => x.emp === nm); return { V: soma0(l, x => x.V), pv: soma0(l, x => x.prev[ib]), rl: soma0(l, x => x.real[ib]), pj: soma0(l, x => x.proj[x.proj.length - 1]) }; };
+  const totEmp = nm => { const l = lista.filter(x => x.emp === nm); return { V: soma0(l, x => x.V), pv: soma0(l, x => x.prev[ib]), rl: soma0(l, x => x.real[ib]), pj: soma0(l, x => x.proj[x.proj.length - 1]), pp: soma0(l, x => naJ(x, x.prev)), rp: soma0(l, x => naJ(x, x.real)) }; };
   lista.forEach(x => {
     if (!mod && x.emp !== empAtual) {
       empAtual = x.emp; itemAtual = null;
       const t = totEmp(x.emp);
-      h += `<tr class="grupo"><td colspan="2"><b>${esc(x.emp)}</b></td><td class="n"><b>${rs(t.V)}</b></td><td class="n">${t.V ? nf(t.pv / t.V * 100, 1) : 0}%</td><td class="n">${rs(t.pv)}</td><td class="n">${t.V ? nf(t.rl / t.V * 100, 1) : 0}%</td><td class="n">${rs(t.rl)}</td><td class="n ${t.rl - t.pv < 0 ? 'valor-neg' : ''}">${rs(t.rl - t.pv)}</td><td class="n">${rs(Math.max(0, t.V - t.rl))}</td><td class="n">${rs(t.pj)}</td></tr>`;
+      h += `<tr class="grupo"><td colspan="2"><b>${esc(x.emp)}</b></td><td class="n"><b>${rs(t.V)}</b></td><td class="n">${rs(t.pp)}</td><td class="n">${rs(t.rp)}</td><td class="n">${t.V ? nf(t.pv / t.V * 100, 1) : 0}%</td><td class="n">${rs(t.pv)}</td><td class="n">${t.V ? nf(t.rl / t.V * 100, 1) : 0}%</td><td class="n">${rs(t.rl)}</td><td class="n ${t.rl - t.pv < 0 ? 'valor-neg' : ''}">${rs(t.rl - t.pv)}</td><td class="n">${rs(Math.max(0, t.V - t.rl))}</td><td class="n">${rs(t.pj)}</td></tr>`;
     }
     if (x.item !== itemAtual) {
       itemAtual = x.item;
-      h += `<tr class="grupo"><td colspan="10"><b>${esc(x.item)}</b> ${esc(cap(x.itemDesc || ''))}</td></tr>`;
+      h += `<tr class="grupo"><td colspan="12"><b>${esc(x.item)}</b> ${esc(cap(x.itemDesc || ''))}</td></tr>`;
     }
     const fimProj = x.proj[x.proj.length - 1], desv = x.real[ib] - x.prev[ib];
     h += `<tr><td>${esc(x.a.atividade)}<div class="nota">${esc(x.a.codigo)}</div></td>
       <td>${x.semCrono ? '<span class="farol f-amarelo" title="Esta atividade do catálogo não está ligada a nenhuma linha do cronograma do cliente: entra no valor e no realizado, mas não tem previsto.">SEM CRONOGRAMA</span>' : `${fd(x.iniCrono)} a ${fd(x.fimCrono)}<div class="nota">${esc(x.linhasCrono.slice(0, 2).join(' · '))}${x.linhasCrono.length > 2 ? ' …' : ''}</div>`}</td>
-      <td class="n">${rs(x.V)}</td><td class="n">${nf(x.pctPrev * 100, 1)}%</td><td class="n">${rs(x.prev[ib])}</td><td class="n">${nf(x.pctReal * 100, 1)}%</td><td class="n"><b>${rs(x.real[ib])}</b></td>
+      <td class="n">${rs(x.V)}</td><td class="n">${rs(naJ(x, x.prev))}</td><td class="n">${rs(naJ(x, x.real))}</td><td class="n">${nf(x.pctPrev * 100, 1)}%</td><td class="n">${rs(x.prev[ib])}</td><td class="n">${nf(x.pctReal * 100, 1)}%</td><td class="n"><b>${rs(x.real[ib])}</b></td>
       <td class="n ${desv < -0.5 ? 'valor-neg' : ''}">${rs(desv)}</td><td class="n">${rs(Math.max(0, x.V - x.real[ib]))}</td><td class="n">${rs(fimProj)}</td></tr>`;
   });
-  if (!lista.length) h += '<tr><td colspan="10" class="vazio">Nenhuma atividade com valor no catálogo.</td></tr>';
+  if (!lista.length) h += '<tr><td colspan="12" class="vazio">Nenhuma atividade com valor no catálogo.</td></tr>';
   return h + '</tbody>';
 }
 
@@ -170,11 +182,13 @@ function renderCff() {
   const T = D.modulos[CFF.mod], ib = D.ib, base = D.base, V = T.V || 0;
   const prevHoje = T.prev[ib], realHoje = T.real[ib], fimProj = T.proj[T.proj.length - 1], desv = realHoje - prevHoje;
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const nome = CFF.mod || 'GERAL';
+  const nome = CFF.mod || 'GERAL', J = cffJanela(D), pPrev = cffNaJanela(T.prev, J), pReal = J.iI > ib ? 0 : T.real[Math.min(J.iF, ib)] - (J.iI > 0 ? T.real[J.iI - 1] : 0), pProj = cffNaJanela(T.proj, J);
   const btns = ['', ...D.empresas].map(m => `<button data-cff-mod="${esc(m)}" class="${m === CFF.mod ? 'ativa' : ''}">${m ? esc(m) : 'Geral (todas)'}</button>`).join('');
   const m = cffMatriz(D, T, CFF.vista);
   let h = `<div class="bloco"><div class="bloco-cab"><h2>Cronograma físico-financeiro — ${esc(nome)}</h2><span class="nota">Valor = catálogo do BM (contrato ${CFF_R}) · previsto = datas do cronograma do cliente, linear por dia útil · realizado até ${fdA(base)}</span></div>
     <div class="barra-acoes"><div class="seg" id="cffMod">${btns}</div>
+      <label class="rot-sel">Período de <input type="date" id="cffIni" value="${CFF.ini}"> até <input type="date" id="cffFim" value="${CFF.fim}"></label>
+      <button class="btn" id="cffPerTudo" title="Volta ao cronograma inteiro">Todo o cronograma</button><button class="btn" id="cffPerMes">Mês da referência</button>
       <label class="rot-sel">Colunas <select id="cffVista"><option value="semana" ${CFF.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${CFF.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
       <button class="btn primario" id="cffRel">Relatório (PDF)</button><button class="btn" id="cffCsv">Exportar CSV</button></div></div>`;
   h += '<div class="tiles">' +
@@ -183,6 +197,12 @@ function renderCff() {
     tile('Realizado até hoje', rs(realHoje), `${V ? nf(realHoje / V * 100, 1) : 0}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(prevHoje, 1) ? 'var(--vermelho)' : desv < 0 ? 'var(--amarelo)' : 'var(--verde)') +
     tile('Projeção no fim do cronograma', rs(fimProj), `${V ? nf(fimProj / V * 100, 0) : 0}% do valor · ${V - fimProj > 0.5 ? rs(V - fimProj) + ' não gerados no cronograma' : 'fecha no prazo'}`, V - fimProj > 0.5 ? 'var(--vermelho)' : 'var(--verde)') +
     tile('Saldo a medir', rs(Math.max(0, V - realHoje)), `${V ? nf(Math.max(0, V - realHoje) / V * 100, 1) : 0}% do valor ainda não realizado`, 'var(--acento)') + '</div>';
+  h += `<div class="faixa faixa-info">Período informado: <b>${fdA(J.ini)}</b> a <b>${fdA(J.fim)}</b>${CFF.ini || CFF.fim ? '' : ' (todo o cronograma)'} — ${J.iF < ib ? 'período já realizado' : J.iI > ib ? 'período futuro (só previsto/projetado)' : 'inclui a data de referência ' + fdA(base)}.</div>`;
+  h += '<div class="tiles">' +
+    tile('Previsto no período', rs(pPrev), `${V ? nf(pPrev / V * 100, 1) : 0}% do valor do módulo`, 'var(--fg3)') +
+    tile('Realizado no período', J.iI > ib ? '—' : rs(pReal), J.iI > ib ? 'o período ainda não começou' : `${V ? nf(pReal / V * 100, 1) : 0}% do valor · ${J.iF > ib ? 'até ' + fdA(base) : 'período fechado'}`, 'var(--verde)') +
+    tile('Projetado no período', rs(pProj), `realizado + o que o cronograma ainda prevê${V ? ' · ' + nf(pProj / V * 100, 1) + '%' : ''}`, 'var(--amarelo)') +
+    tile('Acumulado ao fim do período', rs(T.proj[J.iF]), `${V ? nf(T.proj[J.iF] / V * 100, 1) : 0}% do valor (previsto ${rs(T.prev[J.iF])})`, 'var(--acento)') + '</div>';
   if (T.semCronoN) h += `<div class="faixa">${T.semCronoN} atividade(s) do catálogo (${rs(T.semCronoV)}) <b>não estão ligadas ao cronograma do cliente</b>: entram no valor e no realizado, mas não têm previsto. Aparecem como “SEM CRONOGRAMA” na tabela abaixo.</div>`;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Curva S financeira (R$ acumulado)</h2><span class="nota">Cinza tracejada = previsto · verde = realizado · amarela pontilhada = projeção (realizado + o que o cronograma ainda prevê)</span></div><div class="grafico" style="height:320px"><canvas id="gCff"></canvas></div></div>`;
   h += `<div class="bloco"><div class="bloco-cab"><h2>Cronograma físico-financeiro por ${CFF.vista === 'mes' ? 'mês' : 'semana'}</h2><span class="nota"><i class="pj-leg pj-real"></i>realizado <i class="pj-leg pj-proj"></i>projetado · a coluna que contém ${fdA(base)} mistura realizado e projeção</span></div>
@@ -227,7 +247,7 @@ async function cffRelatorio() {
       <h2>Por atividade</h2><p class="sub-cab">R$ previsto/realizado = % físico × valor da atividade (valor do item × peso no catálogo do BM) em ${fdA(D.base)}.</p>
       <table>${cffTabelaAtividades(D, mod)}</table>
     </div></section>`;
-    const html = tplDocumento({ titulo: 'Cronograma físico-financeiro', subtitulo: `${nome} — posição em ${fdA(D.base)}`, meta: 'Previsto = cronograma do cliente (linear por dia útil) · valor = catálogo do BM · realizado = lançamentos e apontamentos do BM', corpo, css });
+    const html = tplDocumento({ titulo: 'Cronograma físico-financeiro', subtitulo: `${nome} — período de ${fdA(cffJanela(D).ini)} a ${fdA(cffJanela(D).fim)} · posição em ${fdA(D.base)}`, meta: 'Previsto = cronograma do cliente (linear por dia útil) · valor = catálogo do BM · realizado = lançamentos e apontamentos do BM', corpo, css });
     reAbrirPrevia(html, `cronograma-fisico-financeiro-${(mod || 'geral').replace(/\s+/g, '-')}-${D.base}`, `Cronograma físico-financeiro · ${nome}`);
   } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
   finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
@@ -237,7 +257,7 @@ function cffCsv() {
   const D = CFF.dados; if (!D) return;
   const T = D.modulos[CFF.mod], m = cffMatriz(D, T, CFF.vista), ib = D.ib;
   const per = m.per, num = v => String(Math.round(v * 100) / 100).replace('.', ',');
-  const linhas = [['Módulo', CFF.mod || 'GERAL'], ['Referência', D.base], [], ['Linha', ...per.map(p => cffRotuloPer(p.k, CFF.vista))]];
+  const J = cffJanela(D), linhas = [['Módulo', CFF.mod || 'GERAL'], ['Período', J.ini + ' a ' + J.fim], ['Referência', D.base], [], ['Linha', ...per.map(p => cffRotuloPer(p.k, CFF.vista))]];
   const add2 = (rot, fn) => linhas.push([rot, ...per.map(fn)]);
   add2('Previsto no período', p => num(cffNoPer(T.prev, p)));
   add2('Realizado no período', p => (p.i0 > ib ? '' : num(T.real[Math.min(p.i1, ib)] - (p.i0 > 0 ? T.real[p.i0 - 1] : 0))));
@@ -245,9 +265,9 @@ function cffCsv() {
   add2('Previsto acumulado', p => num(T.prev[p.i1]));
   add2('Realizado acumulado', p => (p.i0 > ib ? '' : num(T.real[Math.min(p.i1, ib)])));
   add2('Projetado acumulado', p => (p.i1 < ib ? '' : num(T.proj[p.i1])));
-  linhas.push([], ['Empresa', 'Item', 'Código', 'Atividade', 'Início cronograma', 'Fim cronograma', 'Valor', 'R$ previsto', 'R$ realizado', 'Projeção no fim']);
+  linhas.push([], ['Empresa', 'Item', 'Código', 'Atividade', 'Início cronograma', 'Fim cronograma', 'Valor', 'Previsto no período', 'Realizado no período', 'R$ previsto até a referência', 'R$ realizado até a referência', 'Projeção no fim']);
   D.atividades.filter(x => (!CFF.mod || x.emp === CFF.mod) && (x.V > 0 || x.pctReal > 0)).forEach(x =>
-    linhas.push([x.emp, x.item, x.a.codigo, x.a.atividade, x.iniCrono || 'SEM CRONOGRAMA', x.fimCrono || '', num(x.V), num(x.prev[ib]), num(x.real[ib]), num(x.proj[x.proj.length - 1])]));
+    linhas.push([x.emp, x.item, x.a.codigo, x.a.atividade, x.iniCrono || 'SEM CRONOGRAMA', x.fimCrono || '', num(x.V), num(cffNaJanela(x.prev, J)), num(J.iI > ib ? 0 : x.real[Math.min(J.iF, ib)] - (J.iI > 0 ? x.real[J.iI - 1] : 0)), num(x.prev[ib]), num(x.real[ib]), num(x.proj[x.proj.length - 1])]));
   const csv = '﻿' + linhas.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -263,5 +283,21 @@ document.addEventListener('click', ev => {
   if (ev.target.closest && ev.target.closest('#cffRel')) return cffRelatorio();
 });
 document.addEventListener('change', ev => {
-  if (ev.target && ev.target.id === 'cffVista') { CFF.vista = ev.target.value === 'mes' ? 'mes' : 'semana'; renderCff(); }
+  const t = ev.target;
+  if (!t) return;
+  if (t.id === 'cffVista') { CFF.vista = t.value === 'mes' ? 'mes' : 'semana'; renderCff(); }
+  else if (t.id === 'cffIni' || t.id === 'cffFim') {
+    const ini = document.getElementById('cffIni').value, fim = document.getElementById('cffFim').value;
+    if (ini && fim && fim < ini) { toast('A data final não pode ser anterior à data inicial.', true); return renderCff(); }
+    CFF.ini = ini; CFF.fim = fim; renderCff();
+  }
+});
+document.addEventListener('click', ev => {
+  const t = ev.target && ev.target.closest ? ev.target : null;
+  if (!t) return;
+  if (t.closest('#cffPerTudo')) { CFF.ini = ''; CFF.fim = ''; renderCff(); }
+  else if (t.closest('#cffPerMes')) {
+    const r = ref, ini = r.slice(0, 8) + '01', prox = new Date(+r.slice(0, 4), +r.slice(5, 7), 1), fim = add(prox.getFullYear() + '-' + String(prox.getMonth() + 1).padStart(2, '0') + '-01', -1);
+    CFF.ini = ini; CFF.fim = fim; renderCff();
+  }
 });
