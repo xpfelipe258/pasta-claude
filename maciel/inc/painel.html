@@ -81,6 +81,7 @@
       <div class="sidebar-itens aberto" id="grp-financeiro">
         <button data-aba="bm">Medição (BM)</button>
         <button data-aba="proj">Projeção físico-financeira</button>
+        <button data-aba="cff">Cronograma físico-financeiro</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -693,6 +694,10 @@
     <div id="projCorpo"></div>
   </section>
 
+  <section id="aba-cff" hidden>
+    <div id="cffCorpo"></div>
+  </section>
+
   <!-- CRONOGRAMA (GANTT) PREVISTO x REALIZADO -->
   <section id="aba-gantt" hidden>
     <div class="tiles" id="ganTiles"></div>
@@ -780,6 +785,7 @@
 <script src="rel_lanc.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
+<script src="cff.js"></script>
 <script src="tabelas.js"></script>
 </body>
 </html>
