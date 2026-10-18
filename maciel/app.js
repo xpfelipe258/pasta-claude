@@ -4752,9 +4752,9 @@ async function baixarMapa() {
     const canvas = document.createElement('canvas'); canvas.width=w*2; canvas.height=h*2;
     const ctx=canvas.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,w*2,h*2); URL.revokeObjectURL(src);
     const png = canvas.toDataURL('image/png');
-    const baixarPng = () => { const a=document.createElement('a'); a.download=`mapa-montagem-${ref}.png`; a.href=png; document.body.appendChild(a); a.click(); a.remove(); toast('Mapa baixado em PNG.'); };
+    const baixarPdf = async () => { try { await relPdfImagem(png, `mapa-montagem-${ref}.pdf`, `Mapa de montagem · ${fdA(ref)}`); toast('Mapa baixado em PDF.'); } catch (e) { console.error(e); toast('Não foi possível gerar o PDF: ' + (e.message || e), true); } };
     reAbrirPrevia(`<!doctype html><html><head><meta charset="utf-8"><title>Mapa de montagem</title></head><body style="margin:0;background:#fff"><img src="${png}" style="max-width:100%;display:block;margin:0 auto" alt="Mapa de montagem"></body></html>`,
-      `mapa-montagem-${ref}.html`, `Mapa de montagem · ${fdA(ref)}`, { rotuloBaixar: 'Baixar mapa (PNG)', baixar: baixarPng, semTemplate: true });   // visualização antes de baixar;
+      `mapa-montagem-${ref}.html`, `Mapa de montagem · ${fdA(ref)}`, { rotuloBaixar: 'Baixar mapa (PDF)', baixar: baixarPdf, semTemplate: true });   // visualização antes de baixar;
   } catch (err) { console.error(err); toast('Erro ao gerar mapa: '+(err?.message||err), true); }
 }
 

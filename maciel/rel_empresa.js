@@ -847,13 +847,23 @@ function reAbrirPrevia(html, nomeArq, titulo, opcoes = {}) {   // opcoes: { rotu
   const dlg = document.createElement('dialog');
   dlg.id = 'reDlgPrevia'; dlg.className = 're-previa';
   dlg.innerHTML = `<div class="re-previa-topo"><b>${esc(titulo)}</b><span class="nota">Visualização do relatório — confira antes de baixar</span>
-      <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>${esc(opcoes.rotuloBaixar || 'Baixar relatório')}</button><button type="button" class="btn" data-re-imprimir>Imprimir / salvar em PDF</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
+      <span class="re-previa-acoes"><button type="button" class="btn primario" data-re-baixar>${esc(opcoes.rotuloBaixar || 'Baixar PDF')}</button><button type="button" class="btn" data-re-imprimir>Imprimir</button><button type="button" class="btn" data-re-fechar>Fechar</button></span></div>
     <iframe class="re-previa-quadro" title="Visualização do relatório"></iframe>`;
   document.body.appendChild(dlg);
   dlg.querySelector('iframe').srcdoc = typeof tplProtegerImpressao === 'function' ? tplProtegerImpressao(html) : html;
-  reUltimo = { html, nomeArq, baixar: opcoes.baixar || null };
+  reUltimo = { html, nomeArq, titulo, baixar: opcoes.baixar || null };
   dlg.addEventListener('close', () => dlg.remove());
   dlg.showModal();
+}
+// Todo relatório baixado sai em PDF (pdf_relatorio.js): gera a partir do mesmo documento da visualização
+async function reBaixarPdf(btn) {
+  const u = reUltimo, rot = btn ? btn.textContent : '';
+  if (btn) { if (btn.disabled) return; btn.disabled = true; }
+  try {
+    await relPdfGerar(u.html, u.nomeArq, u.titulo || 'Relatório', (n, t) => { if (btn) btn.textContent = `Gerando PDF… ${n}/${t}`; });
+    toast('PDF baixado.');
+  } catch (e) { console.error(e); toast('Não foi possível gerar o PDF: ' + (e.message || e), true); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
 async function reGerar() {
   const ini = document.getElementById('reBarIni').value, fim = document.getElementById('reBarFim').value, btn = document.getElementById('btnRelEmpresas');
@@ -870,7 +880,7 @@ async function reGerar() {
 document.addEventListener('click', ev => {
   const t = ev.target;
   if (t.closest && t.closest('#btnRelEmpresas')) return reGerar();
-  if (t.closest && t.closest('[data-re-baixar]') && reUltimo) { if (reUltimo.baixar) { reUltimo.baixar(); return; } baixarHtml(reUltimo.nomeArq, reUltimo.html); return toast('Relatório baixado.'); }
+  if (t.closest && t.closest('[data-re-baixar]') && reUltimo) { if (reUltimo.baixar) { reUltimo.baixar(); return; } return reBaixarPdf(t.closest('[data-re-baixar]')); }
   if (t.closest && t.closest('[data-re-imprimir]')) { const f = document.querySelector('#reDlgPrevia iframe'); return f && f.contentWindow && f.contentWindow.print(); }
   if (t.closest && t.closest('#reDlgPrevia [data-re-fechar]')) return document.getElementById('reDlgPrevia')?.close();
 });
