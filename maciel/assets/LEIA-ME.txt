@@ -1,4 +1,4 @@
 Coloque aqui os arquivos oficiais das marcas (PNG, fundo transparente ou branco):
-  logo_rotula.png  -> RÓTULA (gestora)
-  logo_qpc.png     -> QPC ENGENHARIA (cliente)
+  logo_rotula.png  -> RÓTULA (cliente, canto direito da capa)
+  logo_qpc.png     -> não é mais usado na capa (a gestão agora é o nome da obra)
 Sem eles, o template (template_doc.js) usa uma versão vetorial das marcas na capa.

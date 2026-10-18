@@ -1,9 +1,9 @@
 'use strict';
 // ------------------------------------------------------------------------------------------------
-// BIBLIOTECA DE TEMPLATE DE DOCUMENTOS — Rótula (gestora) × QPC (cliente)
+// BIBLIOTECA DE TEMPLATE DE DOCUMENTOS — obra (gestão) × Rótula (cliente)
 //   tplDocumento({ titulo, subtitulo, meta, corpo, css })  → HTML completo (capa com cortes e sombreamento, seções, tabelas, cartões, rodapé)
 //   tplProtegerImpressao(html)                              → tira a URL/data/título que o navegador imprime nas margens (qualquer relatório HTML)
-//   tplLogosCarregar()                                      → lê assets/logo_rotula.png e assets/logo_qpc.png (se existirem) para dentro do documento
+//   tplLogosCarregar()                                      → lê assets/logo_rotula.png (se existir) para dentro do documento
 // Sem os PNG em maciel/assets/ a capa usa uma versão vetorial das marcas. Usado por rel_empresa.js, rel_lanc.js, planos_doc.js e baixarHtml (app.js).
 // ------------------------------------------------------------------------------------------------
 
@@ -46,6 +46,7 @@ body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:
 .tpl-capa-fundo:after{content:"";position:absolute;left:0;bottom:0;width:62%;height:10px;background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,0));clip-path:polygon(0 0,100% 0,96% 100%,0 100%)}
 .tpl-marcas{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .tpl-marca small{display:block;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;opacity:.9;margin:0 0 5px 2px;font-weight:700}
+.tpl-chip-obra{font-weight:800;font-size:17px;letter-spacing:.06em;color:var(--tae);min-height:30px}
 .tpl-chip{background:#fff;border-radius:6px 16px 6px 16px;padding:7px 15px;box-shadow:0 4px 12px rgba(0,0,0,.28);display:inline-flex;align-items:center}
 .tpl-titulos{position:relative;margin-top:22px;max-width:76%}
 .tpl-titulos h1{color:#fff;font-size:28px;line-height:1.12;margin:0 0 5px;font-weight:800;letter-spacing:.01em;text-shadow:0 2px 8px rgba(0,0,0,.28)}
@@ -113,14 +114,15 @@ function tplFichaObra() {
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
 function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '' }) {
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const obraNome = ((typeof D !== 'undefined' && D && D.obra && D.obra.nome) || 'OBRA').toString().trim().toUpperCase();   // gestão = a própria obra (cadastro do portal); cliente = Rótula
   const base = typeof RE_CSS === 'string' ? RE_CSS : '';   // classes de conteúdo já usadas pelo relatório das empresas
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>${base}${cssAntes}${TPL_CSS}${css}</head><body>
     ${barra || '<div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ' + esc(quando) + ' (horário de Brasília)</span></div>'}
     <div class="tpl-pagina">
       <header class="tpl-capa"><div class="tpl-capa-fundo">
         <div class="tpl-marcas">
-          <div class="tpl-marca"><small>Gestão</small><span class="tpl-chip">${tplLogo('rotula')}</span></div>
-          <div class="tpl-marca" style="text-align:right"><small>Cliente</small><span class="tpl-chip">${tplLogo('qpc')}</span></div>
+          <div class="tpl-marca"><small>Gestão</small><span class="tpl-chip tpl-chip-obra">${esc(obraNome)}</span></div>
+          <div class="tpl-marca" style="text-align:right"><small>Cliente</small><span class="tpl-chip">${tplLogo('rotula')}</span></div>
         </div>
         <div class="tpl-titulos"><h1>${esc(titulo)}</h1>${subtitulo ? `<p>${esc(subtitulo)}</p>` : ''}</div>
         ${meta ? `<div class="tpl-meta">${esc(meta)}</div>` : ''}
@@ -128,7 +130,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
       ${tplFichaObra()}
       <div class="tpl-corpo">${corpo}</div>
     </div>
-    <div class="tpl-rodape"><span>RÓTULA · GESTÃO</span><span>${esc(titulo)} · QPC ENGENHARIA · ${esc(quando)}</span></div>
+    <div class="tpl-rodape"><span>${esc(obraNome)} · GESTÃO</span><span>${esc(titulo)} · RÓTULA · ${esc(quando)}</span></div>
   </body></html>`;
   return tplProtegerImpressao(html);
 }
