@@ -148,6 +148,7 @@ function montar_modelo()
             'linha' => (int)$i['id'], 'data' => $i['data'], 'servico' => nome_servico_padrao($i['servico']), 'empresas' => $i['empresas'] ?? '', 'motivo' => nome_servico_padrao($i['motivo']),
             'solucionado' => $i['solucionado'], 'tempo' => $i['tempo'], 'quando' => nome_servico_padrao($i['quando']), 'paralisacao' => nome_servico_padrao($i['paralisacao']),
             'setor' => $i['setor'] ?? '',
+            'solucao' => $i['solucao'] ?? '', 'solucionado_por' => $i['solucionado_por'] ?? '', 'solucionado_em' => $i['solucionado_em'] ?? '',
         ];
     }
     $tabelas = [];

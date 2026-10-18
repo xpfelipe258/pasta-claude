@@ -307,6 +307,11 @@ function garantir_coluna_impacto_setor()
     if (!in_array('setor', colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN setor VARCHAR(100) NULL");
     }
+    foreach (impactos_colunas_solucao() as $col => $tipo) {
+        if (!in_array($col, colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {
+            $pdo->exec("ALTER TABLE impactos ADD COLUMN $col $tipo");
+        }
+    }
     $ok = true;
 }
 
@@ -314,18 +319,42 @@ function acao_impacto(array $corpo)
 {
     garantir_coluna_impacto_setor();
     $id = isset($corpo['linha']) ? (int)$corpo['linha'] : null;
-    if ($id !== null && !q('SELECT id FROM impactos WHERE id = ?', [$id])->fetch()) {
+    $atual = $id !== null ? q('SELECT * FROM impactos WHERE id = ?', [$id])->fetch() : null;
+    if ($id !== null && !$atual) {
         throw new ErroValidacao('Impacto não encontrado.');
     }
     if (!empty($corpo['excluir'])) {
         q('DELETE FROM impactos WHERE id = ?', [$id]);
         return 1;
     }
-    $campos = ['data', 'servico', 'empresas', 'motivo', 'solucionado', 'tempo', 'quando', 'paralisacao', 'setor'];
+    $campos = ['data', 'servico', 'empresas', 'motivo', 'solucionado', 'tempo', 'quando', 'paralisacao', 'setor', 'solucao', 'solucionado_por'];
     $vals = [];
     foreach ($campos as $c) {
         if (array_key_exists($c, $corpo)) {
             $vals[$c] = texto_ou_nulo($corpo[$c]);
+        }
+    }
+    // Impacto solucionado precisa dizer COMO foi solucionado e POR QUEM (exigido quando a solução é nova ou está sendo alterada;
+    // impacto antigo já solucionado sem esses dados continua editável). Reabrir o impacto limpa a solução.
+    if (array_key_exists('solucionado', $vals) || array_key_exists('solucao', $vals) || array_key_exists('solucionado_por', $vals)) {
+        $dataSol = array_key_exists('solucionado', $vals) ? $vals['solucionado'] : ($atual['solucionado'] ?? null);
+        if ($dataSol === null) {
+            $vals['solucao'] = null; $vals['solucionado_por'] = null; $vals['solucionado_em'] = null;
+        } else {
+            $solucao = array_key_exists('solucao', $vals) ? $vals['solucao'] : ($atual['solucao'] ?? null);
+            $por = array_key_exists('solucionado_por', $vals) ? $vals['solucionado_por'] : ($atual['solucionado_por'] ?? null);
+            $mudou = !$atual || ($atual['solucionado'] ?? null) !== $dataSol || array_key_exists('solucao', $vals) && ($vals['solucao'] ?? '') !== ($atual['solucao'] ?? '');
+            if ($mudou) {
+                if ($solucao === null || trim((string)$solucao) === '') {
+                    throw new ErroValidacao('Informe como o impacto foi solucionado.');
+                }
+                if ($por === null || trim((string)$por) === '') {
+                    $por = (string)($GLOBALS['usuario']['nome'] ?? '');   // sem nome informado, vale quem está registrando
+                    if ($por === '') { throw new ErroValidacao('Informe quem solucionou o impacto.'); }
+                    $vals['solucionado_por'] = $por;
+                }
+                $vals['solucionado_em'] = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+            }
         }
     }
     return gravar_linha('impactos', $id, $vals);
