@@ -5667,16 +5667,18 @@ function renderBMPeriodos(box) {
 
 function renderBMCatalogo(box) {
   const its = bmItens(bmEmp, ref);
+  const contrato = soma0(its, it => it.valor['RÓTULA'] || 0), pc = v => (contrato ? nf(v / contrato * 100, 2) + '%' : '—');
   let h = `<div class="bloco"><div class="bloco-cab"><h2>Catálogo de atividades — ${esc(bmEmp)}</h2><div class="acoes"><button class="btn primario" data-novo="bm_atividades">+ Atividade</button></div></div>
-    <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na grade de produção em und e podem ser convertidas para a unidade financeira do BM. Para forçar um fator, use na observação: m2_por_und=2,45.</p>
-    <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
+    <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na grade de produção em und e podem ser convertidas para a unidade financeira do BM. Para forçar um fator, use na observação: m2_por_und=2,45. A coluna "% do contrato" é o valor de cada item/atividade sobre o valor total do contrato da empresa (${rs2(contrato)}).</p>
+    <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th class="n">Valor total (R$)</th><th class="n">% do contrato</th><th class="n">Valor unitário (R$)</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">valor do item (RÓTULA)</td><td class="n"><b>${rs2(it.valor['RÓTULA'])}</b></td><td></td>
+    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">valor do item (RÓTULA)</td><td class="n"><b>${rs2(it.valor['RÓTULA'])}</b></td><td class="n"><b>${pc(it.valor['RÓTULA'] || 0)}</b></td><td></td>
       <td colspan="3">${it.pesosAjustados ? `<span class="farol f-amarelo">pesos somam ${nf(it.somaPesos * 100, 1)}%</span>` : ''}</td></tr>`;
-    it.ats.forEach(x => h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${bmLegendaUnidade(x.a)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
-      <td class="n">${rs2(bmPrecoAtividade(it, x.a).total)}</td><td class="n">${rs2(bmPrecoAtividade(it, x.a).unit)}</td>
-      <td>${esc(x.a.controle || '')}</td><td>${x.a.controle ? (bmAtividadeUsaBaseFinanceira(x.a) ? `produção = catálogo (${esc(bmUnFinanceira(x.a) || '')})` : `1 ${esc(bmUnProducao(x.a))} = ${nf(bmFatorControle(x.a), 2)} ${esc(bmUnFinanceira(x.a) || '')}`) : '—'}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`);
+    it.ats.forEach(x => { const pr = bmPrecoAtividade(it, x.a); h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${bmLegendaUnidade(x.a)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
+      <td class="n">${rs2(pr.total)}</td><td class="n">${pc(pr.total || 0)}</td><td class="n">${rs2(pr.unit)}</td>
+      <td>${esc(x.a.controle || '')}</td><td>${x.a.controle ? (bmAtividadeUsaBaseFinanceira(x.a) ? `produção = catálogo (${esc(bmUnFinanceira(x.a) || '')})` : `1 ${esc(bmUnProducao(x.a))} = ${nf(bmFatorControle(x.a), 2)} ${esc(bmUnFinanceira(x.a) || '')}`) : '—'}</td><td><button class="link" data-editar-reg="bm_atividades" data-linha="${x.a.linha}">Editar</button></td></tr>`; });
   });
+  h += `<tr class="grupo-item"><td colspan="5"><b>TOTAL DO CONTRATO — ${esc(bmEmp)}</b></td><td class="n"><b>${rs2(contrato)}</b></td><td class="n"><b>${contrato ? '100,00%' : '—'}</b></td><td colspan="4"></td></tr>`;
   box.innerHTML = h + '</tbody></table></div></div>';
 }
 
