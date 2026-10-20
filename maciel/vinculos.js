@@ -332,16 +332,41 @@ function vcParafusosHtml() {
     const mesma = exato.length ? exato : cad.filter(c => c.k === t.k);
     const locais = Object.entries(v.locais).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
     const c = mesma[0];
+    const kit = [...Object.entries(v.arruelas || {}), ...Object.entries(v.porcas || {})].map(([n, q]) => `${esc(n)} <b>${nf(q, 0)}</b>`).join('<br>');
     const cadHtml = c ? `<b>${esc(c.m.tag)}</b> ${esc(c.m.produto)}${exato.length ? '' : ' <span class="nota">(norma diferente)</span>'}<br><span class="nota">planejado ${nf(c.m.planejado, 0)} · chegou ${nf(c.m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span>';
-    return `<tr><td><b>${esc(prf)}</b></td><td class="n">${nf(v.diametro_mm, 1)} × ${nf(v.comprimento_mm, 1)}</td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${cadHtml}</td></tr>`;
+    return `<tr><td><b>${esc(prf)}</b></td><td class="n">${nf(v.diametro_mm, 1)} × ${nf(v.comprimento_mm, 1)}</td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${kit}</td><td>${cadHtml}</td></tr>`;
   }).join('');
-  const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas || 0, 0)}</td><td class="n">${nf(v.porcas || 0, 0)}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
+  const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas_reais || 0, 0)}${v.arruelas_falsas ? ` <span class="nota">+ ${nf(v.arruelas_falsas, 0)} falsas</span>` : ''}</td><td class="n">${nf(v.porcas_reais || 0, 0)}${v.porcas_falsas ? ` <span class="nota">+ ${nf(v.porcas_falsas, 0)} falsas</span>` : ''}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
   const tot = Object.values(pf.por_local).reduce((s, v) => s + (v.BOLT_qtd || 0), 0);
   const btn = '<button class="btn" type="button" data-vc-parafcsv>Baixar lista com localização (CSV)</button>';
   return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por local — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). Furos sem parafuso não entram no total.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Local</th><th class="n">Conjuntos</th><th class="n">Parafusos</th><th class="n">Arruelas</th><th class="n">Porcas</th><th class="n">Furos sem parafuso</th></tr></thead><tbody>${loc}</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por tipo e onde estão</h2>${btn}</div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Parafuso (PRF_NAME)</th><th class="n">Ø × comp. (mm)</th><th class="n">Total</th><th>Onde estão</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Parafuso (PRF_NAME)</th><th class="n">Ø × comp. (mm)</th><th class="n">Total</th><th>Onde estão</th><th>Arruela e porca do kit</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
+    ${vcKitHtml(pf)}`;
+}
+// Arruelas e porcas do kit de cada parafuso (Tekla: Washer name / Nut name). "FALSA" = item do kit sem peça física separada (a confirmar).
+function vcChaveKit(nome) {
+  const m = /^(ARRUELA|PORCA)_(\d+\/\d+|\d+)"/.exec(nome || '');
+  return m ? `${m[1]}|${m[2]}` : '';
+}
+function vcKitHtml(pf) {
+  const cad = new Map();
+  estMateriaisComCadastros().filter(m => m.tag).forEach(m => {
+    const r = /^(ARRUELA|PORCA) Ø?(\d+\/\d+|\d+)"$/.exec(vcUp(m.produto));
+    if (r && !cad.has(`${r[1]}|${r[2]}`)) cad.set(`${r[1]}|${r[2]}`, m);
+  });
+  const lin = (rot, dic) => Object.entries(dic || {}).map(([nome, v]) => {
+    const falsa = /FALSA/i.test(nome), m = falsa ? null : cad.get(vcChaveKit(nome));
+    const locais = Object.entries(v.locais).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
+    const par = Object.entries(v.parafusos).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, q]) => `${esc(n)} ${nf(q, 0)}`).join('<br>') + (Object.keys(v.parafusos).length > 4 ? '<br>…' : '');
+    const c = falsa ? '<span class="nota">FALSA: sem peça física separada (confirmar)</span>' : m ? `<b>${esc(m.tag)}</b> ${esc(m.produto)}<br><span class="nota">planejado ${nf(m.planejado, 0)} · chegou ${nf(m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span>';
+    return `<tr><td>${rot}</td><td><b>${esc(nome)}</b></td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${par}</td><td>${c}</td></tr>`;
+  }).join('');
+  const corpo = lin('Arruela', pf.por_arruela) + lin('Porca', pf.por_porca);
+  if (!corpo) return '';
+  return `<div class="bloco"><div class="bloco-cab"><h2>Arruelas e porcas do kit dos parafusos</h2><span class="nota">Quantidade do kit de cada conjunto (Washer count / Nut count). Alguns conjuntos têm arruela e porca em número diferente do parafuso.</span></div>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Item</th><th>Tipo (nome no modelo)</th><th class="n">Total</th><th>Onde estão</th><th>Parafusos que usam</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${corpo}</tbody></table></div></div>`;
 }
 // CSV com um conjunto por linha: local, tipo, parafuso, quantidade, arruelas, porcas, montagem, coordenadas e peça vizinha
 async function vcBaixarParafusosCsv() {
@@ -349,10 +374,10 @@ async function vcBaixarParafusosCsv() {
     const r = await fetch(API + 'parafusos-locais', { cache: 'no-store' });
     if (!r.ok) throw new Error('lista não publicada');
     const d = await r.json(), T = d.tabelas;
-    const cab = ['Modelo', 'Local', 'Tipo (BOLT=parafuso, HOLE=furo)', 'Parafuso', 'Qtd', 'Arruelas', 'Porcas', 'Montagem', 'X (m)', 'Y (m)', 'Cota Z (m)', 'Fase da peça vizinha', 'Distância à peça (m)'];
+    const cab = ['Modelo', 'Local', 'Tipo (BOLT=parafuso, HOLE=furo)', 'Parafuso', 'Qtd', 'Arruelas', 'Porcas', 'Montagem', 'X (m)', 'Y (m)', 'Cota Z (m)', 'Fase da peça vizinha', 'Distância à peça (m)', 'Arruela do kit', 'Porca do kit'];
     const q = v => `"${String(v).replace(/"/g, '""')}"`;
     const num = v => String(v).replace('.', ',');
-    const lin = d.linhas.map(l => [T.modelo[l[0]], T.local[l[1]], T.tipo[l[2]], T.prf[l[3]], l[4], l[5], l[6], T.montagem[l[7]] === 'Site' ? 'Obra' : (T.montagem[l[7]] === 'Shop' ? 'Fábrica' : T.montagem[l[7]]), num(l[8]), num(l[9]), num(l[10]), T.fase_vizinha[l[11]], num(l[12])].map(q).join(';'));
+    const lin = d.linhas.map(l => [T.modelo[l[0]], T.local[l[1]], T.tipo[l[2]], T.prf[l[3]], l[4], l[5], l[6], T.montagem[l[7]] === 'Site' ? 'Obra' : (T.montagem[l[7]] === 'Shop' ? 'Fábrica' : T.montagem[l[7]]), num(l[8]), num(l[9]), num(l[10]), T.fase_vizinha[l[11]], num(l[12]), T.arruela[l[13]], T.porca[l[14]]].map(q).join(';'));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['﻿' + [cab.map(q).join(';'), ...lin].join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     a.download = 'parafusos-localizacao.csv';

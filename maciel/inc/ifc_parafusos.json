@@ -1,5 +1,5 @@
 {
- "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); TIPO HOLE = só furo, não conta como parafuso. Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
+ "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" = item do kit sem peça física separada (a confirmar). Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
  "fontes": [
   {
    "arquivo": "ea3034b5-OF.198_-_LYON_G200_PORTARIA.ifc.trb",
@@ -27,15 +27,21 @@
    "BOLT_conjuntos": 52,
    "BOLT_qtd": 104,
    "arruelas": 104,
-   "porcas": 104
+   "porcas": 104,
+   "arruelas_falsas": 104,
+   "porcas_falsas": 104
   },
   "Eclusa": {
    "BOLT_conjuntos": 5480,
    "BOLT_qtd": 6100,
    "arruelas": 6100,
    "porcas": 6100,
+   "arruelas_reais": 5908,
+   "porcas_reais": 5908,
    "HOLE_conjuntos": 5744,
-   "HOLE_qtd": 5928
+   "HOLE_qtd": 5928,
+   "arruelas_falsas": 192,
+   "porcas_falsas": 192
   },
   "Marquise Refeitório/Vestiário": {
    "HOLE_conjuntos": 168,
@@ -43,7 +49,11 @@
    "BOLT_conjuntos": 98,
    "BOLT_qtd": 180,
    "arruelas": 180,
-   "porcas": 180
+   "porcas": 180,
+   "arruelas_reais": 174,
+   "porcas_reais": 174,
+   "arruelas_falsas": 6,
+   "porcas_falsas": 6
   },
   "Passarela": {
    "HOLE_conjuntos": 151,
@@ -51,7 +61,11 @@
    "BOLT_conjuntos": 239,
    "BOLT_qtd": 602,
    "arruelas": 602,
-   "porcas": 602
+   "porcas": 602,
+   "arruelas_reais": 464,
+   "porcas_reais": 464,
+   "arruelas_falsas": 138,
+   "porcas_falsas": 138
   },
   "Ponto de ônibus": {
    "HOLE_conjuntos": 252,
@@ -59,7 +73,9 @@
    "BOLT_conjuntos": 496,
    "BOLT_qtd": 1224,
    "arruelas": 1224,
-   "porcas": 1224
+   "porcas": 1224,
+   "arruelas_reais": 1224,
+   "porcas_reais": 1224
   },
   "Portaria": {
    "HOLE_conjuntos": 58,
@@ -67,7 +83,11 @@
    "BOLT_conjuntos": 204,
    "BOLT_qtd": 450,
    "arruelas": 450,
-   "porcas": 450
+   "porcas": 450,
+   "arruelas_reais": 358,
+   "porcas_reais": 358,
+   "arruelas_falsas": 92,
+   "porcas_falsas": 92
   },
   "Refeitório": {
    "HOLE_conjuntos": 749,
@@ -75,13 +95,21 @@
    "BOLT_conjuntos": 857,
    "BOLT_qtd": 1587,
    "arruelas": 1435,
-   "porcas": 1435
+   "porcas": 1435,
+   "arruelas_reais": 1236,
+   "porcas_reais": 1236,
+   "arruelas_falsas": 199,
+   "porcas_falsas": 199
   },
   "Vestiário": {
    "BOLT_conjuntos": 945,
    "BOLT_qtd": 1749,
    "arruelas": 1577,
    "porcas": 1577,
+   "arruelas_falsas": 193,
+   "porcas_falsas": 193,
+   "arruelas_reais": 1384,
+   "porcas_reais": 1384,
    "HOLE_conjuntos": 796,
    "HOLE_qtd": 1132
   }
@@ -95,6 +123,12 @@
     "Passarela": 138,
     "Anexos (geral)": 104,
     "Marquise Refeitório/Vestiário": 2
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_1/4\"": 244
+   },
+   "porcas": {
+    "PORCA_FALSA_1/4\"": 244
    }
   },
   "AB 1/4\"X3/4\"_TCP3": {
@@ -105,6 +139,12 @@
     "Eclusa": 192,
     "Refeitório": 152,
     "Vestiário": 172
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_1/4\"": 192
+   },
+   "porcas": {
+    "PORCA_FALSA_1/4\"": 192
    }
   },
   "PARABOLT_1/2\"X4\"": {
@@ -113,6 +153,12 @@
    "qtd": 8,
    "locais": {
     "Portaria": 8
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_1/2\"": 8
+   },
+   "porcas": {
+    "PORCA_FALSA_1/2\"": 8
    }
   },
   "PARABOLT_1/2\"X4.1/4\"": {
@@ -123,6 +169,12 @@
     "Portaria": 48,
     "Refeitório": 115,
     "Vestiário": 103
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_1/2\"": 266
+   },
+   "porcas": {
+    "PORCA_FALSA_1/2\"": 266
    }
   },
   "PARABOLT_1/2\"X7\"": {
@@ -131,6 +183,12 @@
    "qtd": 16,
    "locais": {
     "Portaria": 16
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_1/2\"": 16
+   },
+   "porcas": {
+    "PORCA_FALSA_1/2\"": 16
    }
   },
   "PARABOLT_3/4\"X4.1/4\"": {
@@ -140,6 +198,12 @@
    "locais": {
     "Refeitório": 8,
     "Vestiário": 4
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_3/4\"": 12
+   },
+   "porcas": {
+    "PORCA_FALSA_3/4\"": 12
    }
   },
   "PARABOLT_3/8\"X2.1/4\"": {
@@ -149,6 +213,12 @@
    "locais": {
     "Refeitório": 76,
     "Vestiário": 86
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_3/8\"": 162
+   },
+   "porcas": {
+    "PORCA_FALSA_3/8\"": 162
    }
   },
   "PARABOLT_3/8\"X3.3/4\"": {
@@ -158,6 +228,12 @@
    "locais": {
     "Portaria": 20,
     "Marquise Refeitório/Vestiário": 4
+   },
+   "arruelas": {
+    "ARRUELA_FALSA_3/8\"": 24
+   },
+   "porcas": {
+    "PORCA_FALSA_3/8\"": 24
    }
   },
   "PARAF_1/2\"X1\"1/2_A307": {
@@ -172,6 +248,12 @@
     "Passarela": 8,
     "Refeitório": 128,
     "Vestiário": 96
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 376
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 376
    }
   },
   "PARAF_1/2\"X1\"1/4_A307": {
@@ -182,6 +264,12 @@
     "Eclusa": 244,
     "Refeitório": 380,
     "Vestiário": 428
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 1052
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 1052
    }
   },
   "PARAF_1/2\"X1\"1/4_A325": {
@@ -192,6 +280,12 @@
     "Eclusa": 128,
     "Refeitório": 576,
     "Vestiário": 720
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 1424
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 1424
    }
   },
   "PARAF_1/2\"X1\"3/4_A307": {
@@ -203,6 +297,12 @@
     "Eclusa": 4,
     "Refeitório": 32,
     "Vestiário": 32
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 84
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 84
    }
   },
   "PARAF_1/2\"X1\"3/4_A325": {
@@ -211,6 +311,12 @@
    "qtd": 56,
    "locais": {
     "Eclusa": 56
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 56
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 56
    }
   },
   "PARAF_1/2\"X2\"1/2_A325": {
@@ -219,6 +325,12 @@
    "qtd": 4,
    "locais": {
     "Eclusa": 4
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 4
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 4
    }
   },
   "PARAF_1/2\"X2\"1/4_A307": {
@@ -227,6 +339,12 @@
    "qtd": 2,
    "locais": {
     "Eclusa": 2
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 2
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 2
    }
   },
   "PARAF_1/2\"X2\"1/4_A325": {
@@ -235,6 +353,12 @@
    "qtd": 26,
    "locais": {
     "Eclusa": 26
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 26
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 26
    }
   },
   "PARAF_1/2\"X2\"_A307": {
@@ -243,6 +367,12 @@
    "qtd": 28,
    "locais": {
     "Portaria": 28
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 28
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 28
    }
   },
   "PARAF_1/2\"X2\"_A325": {
@@ -251,6 +381,12 @@
    "qtd": 72,
    "locais": {
     "Eclusa": 72
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 72
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 72
    }
   },
   "PARAF_3/8\"X1\"1/2_A307": {
@@ -261,6 +397,12 @@
     "Portaria": 216,
     "Eclusa": 20,
     "Ponto de ônibus": 672
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 908
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 908
    }
   },
   "PARAF_3/8\"X1\"1/4_A307": {
@@ -272,6 +414,12 @@
     "Portaria": 40,
     "Passarela": 240,
     "Marquise Refeitório/Vestiário": 154
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 498
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 498
    }
   },
   "PARAF_3/8\"X1\"3/4_A307": {
@@ -280,6 +428,12 @@
    "qtd": 28,
    "locais": {
     "Eclusa": 28
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 28
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 28
    }
   },
   "PARAF_3/8\"X1\"_A307": {
@@ -290,6 +444,12 @@
     "Portaria": 20,
     "Marquise Refeitório/Vestiário": 4,
     "Passarela": 24
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 48
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 48
    }
   },
   "PARAF_3/8\"X1\"_GR.8": {
@@ -298,6 +458,12 @@
    "qtd": 144,
    "locais": {
     "Eclusa": 144
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 144
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 144
    }
   },
   "PARAF_3/8\"X3/4\"_A307": {
@@ -308,6 +474,12 @@
     "Eclusa": 4960,
     "Refeitório": 24,
     "Vestiário": 28
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 5012
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 5012
    }
   },
   "PARAF_5/8\"X1\"1/2_A325": {
@@ -316,6 +488,12 @@
    "qtd": 80,
    "locais": {
     "Eclusa": 80
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 80
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 80
    }
   },
   "PARAF_5/8\"X1\"1/4_A325": {
@@ -324,6 +502,12 @@
    "qtd": 16,
    "locais": {
     "Eclusa": 16
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 16
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 16
    }
   },
   "PARAF_5/8\"X1\"3/4_A325": {
@@ -335,6 +519,12 @@
     "Passarela": 192,
     "Refeitório": 64,
     "Vestiário": 32
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 310
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 310
    }
   },
   "PARAF_5/8\"X2\"1/4_A325": {
@@ -344,6 +534,12 @@
    "locais": {
     "Refeitório": 32,
     "Vestiário": 48
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 80
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 80
    }
   },
   "PARAF_7/8\"X2\"1/2_A325": {
@@ -352,6 +548,12 @@
    "qtd": 448,
    "locais": {
     "Ponto de ônibus": 448
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 448
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 448
    }
   },
   "PARAF_7/8\"X2\"3/4_A325": {
@@ -360,6 +562,12 @@
    "qtd": 32,
    "locais": {
     "Eclusa": 32
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 32
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 32
    }
   },
   "PARAF_7/8\"X3\"_A325": {
@@ -368,6 +576,258 @@
    "qtd": 20,
    "locais": {
     "Eclusa": 20
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 20
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 20
+   }
+  }
+ },
+ "por_arruela": {
+  "ARRUELA_1/2\"_LISA": {
+   "qtd": 3124,
+   "locais": {
+    "Eclusa": 544,
+    "Portaria": 60,
+    "Ponto de ônibus": 104,
+    "Marquise Refeitório/Vestiário": 16,
+    "Passarela": 8,
+    "Refeitório": 1116,
+    "Vestiário": 1276
+   },
+   "parafusos": {
+    "PARAF_1/2\"X1\"1/4_A307": 1052,
+    "PARAF_1/2\"X1\"1/4_A325": 1424,
+    "PARAF_1/2\"X1\"3/4_A325": 56,
+    "PARAF_1/2\"X1\"1/2_A307": 376,
+    "PARAF_1/2\"X1\"3/4_A307": 84,
+    "PARAF_1/2\"X2\"1/4_A325": 26,
+    "PARAF_1/2\"X2\"_A325": 72,
+    "PARAF_1/2\"X2\"1/2_A325": 4,
+    "PARAF_1/2\"X2\"1/4_A307": 2,
+    "PARAF_1/2\"X2\"_A307": 28
+   }
+  },
+  "ARRUELA_3/8\"_LISA": {
+   "qtd": 6638,
+   "locais": {
+    "Eclusa": 5216,
+    "Portaria": 276,
+    "Ponto de ônibus": 672,
+    "Passarela": 264,
+    "Marquise Refeitório/Vestiário": 158,
+    "Refeitório": 24,
+    "Vestiário": 28
+   },
+   "parafusos": {
+    "PARAF_3/8\"X3/4\"_A307": 5012,
+    "PARAF_3/8\"X1\"_A307": 48,
+    "PARAF_3/8\"X1\"_GR.8": 144,
+    "PARAF_3/8\"X1\"1/4_A307": 498,
+    "PARAF_3/8\"X1\"1/2_A307": 908,
+    "PARAF_3/8\"X1\"3/4_A307": 28
+   }
+  },
+  "ARRUELA_5/8\"_LISA": {
+   "qtd": 486,
+   "locais": {
+    "Eclusa": 96,
+    "Portaria": 22,
+    "Passarela": 192,
+    "Refeitório": 96,
+    "Vestiário": 80
+   },
+   "parafusos": {
+    "PARAF_5/8\"X1\"1/2_A325": 80,
+    "PARAF_5/8\"X1\"1/4_A325": 16,
+    "PARAF_5/8\"X1\"3/4_A325": 310,
+    "PARAF_5/8\"X2\"1/4_A325": 80
+   }
+  },
+  "ARRUELA_7/8\"_LISA": {
+   "qtd": 500,
+   "locais": {
+    "Eclusa": 52,
+    "Ponto de ônibus": 448
+   },
+   "parafusos": {
+    "PARAF_7/8\"X2\"3/4_A325": 32,
+    "PARAF_7/8\"X3\"_A325": 20,
+    "PARAF_7/8\"X2\"1/2_A325": 448
+   }
+  },
+  "ARRUELA_FALSA_1/2\"": {
+   "qtd": 290,
+   "locais": {
+    "Portaria": 72,
+    "Refeitório": 115,
+    "Vestiário": 103
+   },
+   "parafusos": {
+    "PARABOLT_1/2\"X4.1/4\"": 266,
+    "PARABOLT_1/2\"X4\"": 8,
+    "PARABOLT_1/2\"X7\"": 16
+   }
+  },
+  "ARRUELA_FALSA_1/4\"": {
+   "qtd": 436,
+   "locais": {
+    "Eclusa": 192,
+    "Passarela": 138,
+    "Anexos (geral)": 104,
+    "Marquise Refeitório/Vestiário": 2
+   },
+   "parafusos": {
+    "AB 1/4\"X3/4\"_TCP3": 192,
+    "AB 1/4\"X2\"_TCP3": 244
+   }
+  },
+  "ARRUELA_FALSA_3/4\"": {
+   "qtd": 12,
+   "locais": {
+    "Refeitório": 8,
+    "Vestiário": 4
+   },
+   "parafusos": {
+    "PARABOLT_3/4\"X4.1/4\"": 12
+   }
+  },
+  "ARRUELA_FALSA_3/8\"": {
+   "qtd": 186,
+   "locais": {
+    "Portaria": 20,
+    "Marquise Refeitório/Vestiário": 4,
+    "Refeitório": 76,
+    "Vestiário": 86
+   },
+   "parafusos": {
+    "PARABOLT_3/8\"X3.3/4\"": 24,
+    "PARABOLT_3/8\"X2.1/4\"": 162
+   }
+  }
+ },
+ "por_porca": {
+  "PORCA_1/2\"_HEX": {
+   "qtd": 3124,
+   "locais": {
+    "Eclusa": 544,
+    "Portaria": 60,
+    "Ponto de ônibus": 104,
+    "Marquise Refeitório/Vestiário": 16,
+    "Passarela": 8,
+    "Refeitório": 1116,
+    "Vestiário": 1276
+   },
+   "parafusos": {
+    "PARAF_1/2\"X1\"1/4_A307": 1052,
+    "PARAF_1/2\"X1\"1/4_A325": 1424,
+    "PARAF_1/2\"X1\"3/4_A325": 56,
+    "PARAF_1/2\"X1\"1/2_A307": 376,
+    "PARAF_1/2\"X1\"3/4_A307": 84,
+    "PARAF_1/2\"X2\"1/4_A325": 26,
+    "PARAF_1/2\"X2\"_A325": 72,
+    "PARAF_1/2\"X2\"1/2_A325": 4,
+    "PARAF_1/2\"X2\"1/4_A307": 2,
+    "PARAF_1/2\"X2\"_A307": 28
+   }
+  },
+  "PORCA_3/8\"_HEX": {
+   "qtd": 6638,
+   "locais": {
+    "Eclusa": 5216,
+    "Portaria": 276,
+    "Ponto de ônibus": 672,
+    "Passarela": 264,
+    "Marquise Refeitório/Vestiário": 158,
+    "Refeitório": 24,
+    "Vestiário": 28
+   },
+   "parafusos": {
+    "PARAF_3/8\"X3/4\"_A307": 5012,
+    "PARAF_3/8\"X1\"_A307": 48,
+    "PARAF_3/8\"X1\"_GR.8": 144,
+    "PARAF_3/8\"X1\"1/4_A307": 498,
+    "PARAF_3/8\"X1\"1/2_A307": 908,
+    "PARAF_3/8\"X1\"3/4_A307": 28
+   }
+  },
+  "PORCA_5/8\"_HEX": {
+   "qtd": 486,
+   "locais": {
+    "Eclusa": 96,
+    "Portaria": 22,
+    "Passarela": 192,
+    "Refeitório": 96,
+    "Vestiário": 80
+   },
+   "parafusos": {
+    "PARAF_5/8\"X1\"1/2_A325": 80,
+    "PARAF_5/8\"X1\"1/4_A325": 16,
+    "PARAF_5/8\"X1\"3/4_A325": 310,
+    "PARAF_5/8\"X2\"1/4_A325": 80
+   }
+  },
+  "PORCA_7/8\"_HEX": {
+   "qtd": 500,
+   "locais": {
+    "Eclusa": 52,
+    "Ponto de ônibus": 448
+   },
+   "parafusos": {
+    "PARAF_7/8\"X2\"3/4_A325": 32,
+    "PARAF_7/8\"X3\"_A325": 20,
+    "PARAF_7/8\"X2\"1/2_A325": 448
+   }
+  },
+  "PORCA_FALSA_1/2\"": {
+   "qtd": 290,
+   "locais": {
+    "Portaria": 72,
+    "Refeitório": 115,
+    "Vestiário": 103
+   },
+   "parafusos": {
+    "PARABOLT_1/2\"X4.1/4\"": 266,
+    "PARABOLT_1/2\"X4\"": 8,
+    "PARABOLT_1/2\"X7\"": 16
+   }
+  },
+  "PORCA_FALSA_1/4\"": {
+   "qtd": 436,
+   "locais": {
+    "Eclusa": 192,
+    "Passarela": 138,
+    "Anexos (geral)": 104,
+    "Marquise Refeitório/Vestiário": 2
+   },
+   "parafusos": {
+    "AB 1/4\"X3/4\"_TCP3": 192,
+    "AB 1/4\"X2\"_TCP3": 244
+   }
+  },
+  "PORCA_FALSA_3/4\"": {
+   "qtd": 12,
+   "locais": {
+    "Refeitório": 8,
+    "Vestiário": 4
+   },
+   "parafusos": {
+    "PARABOLT_3/4\"X4.1/4\"": 12
+   }
+  },
+  "PORCA_FALSA_3/8\"": {
+   "qtd": 186,
+   "locais": {
+    "Portaria": 20,
+    "Marquise Refeitório/Vestiário": 4,
+    "Refeitório": 76,
+    "Vestiário": 86
+   },
+   "parafusos": {
+    "PARABOLT_3/8\"X3.3/4\"": 24,
+    "PARABOLT_3/8\"X2.1/4\"": 162
    }
   }
  },
@@ -382,6 +842,8 @@
    "qtd": 104,
    "arruelas": 104,
    "porcas": 104,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 104,
+   "nome_porca:PORCA_FALSA_1/4\"": 104,
    "em_obra": 104
   },
   {
@@ -394,6 +856,8 @@
    "qtd": 192,
    "arruelas": 192,
    "porcas": 192,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 192,
+   "nome_porca:PORCA_FALSA_1/4\"": 192,
    "em_obra": 192
   },
   {
@@ -406,6 +870,8 @@
    "qtd": 8,
    "arruelas": 8,
    "porcas": 8,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 8,
+   "nome_porca:PORCA_1/2\"_HEX": 8,
    "em_obra": 8
   },
   {
@@ -418,6 +884,8 @@
    "qtd": 244,
    "arruelas": 244,
    "porcas": 244,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 244,
+   "nome_porca:PORCA_1/2\"_HEX": 244,
    "em_obra": 244
   },
   {
@@ -430,6 +898,8 @@
    "qtd": 128,
    "arruelas": 128,
    "porcas": 128,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 128,
+   "nome_porca:PORCA_1/2\"_HEX": 128,
    "em_obra": 128
   },
   {
@@ -442,6 +912,8 @@
    "qtd": 4,
    "arruelas": 4,
    "porcas": 4,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 4,
+   "nome_porca:PORCA_1/2\"_HEX": 4,
    "em_obra": 4
   },
   {
@@ -454,6 +926,8 @@
    "qtd": 56,
    "arruelas": 56,
    "porcas": 56,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 56,
+   "nome_porca:PORCA_1/2\"_HEX": 56,
    "em_obra": 56
   },
   {
@@ -466,6 +940,8 @@
    "qtd": 4,
    "arruelas": 4,
    "porcas": 4,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 4,
+   "nome_porca:PORCA_1/2\"_HEX": 4,
    "em_obra": 4
   },
   {
@@ -478,6 +954,8 @@
    "qtd": 2,
    "arruelas": 2,
    "porcas": 2,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 2,
+   "nome_porca:PORCA_1/2\"_HEX": 2,
    "em_obra": 2
   },
   {
@@ -490,6 +968,8 @@
    "qtd": 26,
    "arruelas": 26,
    "porcas": 26,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 26,
+   "nome_porca:PORCA_1/2\"_HEX": 26,
    "em_obra": 26
   },
   {
@@ -502,6 +982,8 @@
    "qtd": 72,
    "arruelas": 72,
    "porcas": 72,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 72,
+   "nome_porca:PORCA_1/2\"_HEX": 72,
    "em_obra": 72
   },
   {
@@ -514,6 +996,8 @@
    "qtd": 20,
    "arruelas": 20,
    "porcas": 20,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 20,
+   "nome_porca:PORCA_3/8\"_HEX": 20,
    "em_obra": 20
   },
   {
@@ -526,6 +1010,8 @@
    "qtd": 64,
    "arruelas": 64,
    "porcas": 64,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 64,
+   "nome_porca:PORCA_3/8\"_HEX": 64,
    "em_obra": 64
   },
   {
@@ -538,6 +1024,8 @@
    "qtd": 28,
    "arruelas": 28,
    "porcas": 28,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 28,
+   "nome_porca:PORCA_3/8\"_HEX": 28,
    "em_obra": 28
   },
   {
@@ -550,6 +1038,8 @@
    "qtd": 144,
    "arruelas": 144,
    "porcas": 144,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 144,
+   "nome_porca:PORCA_3/8\"_HEX": 144,
    "em_obra": 144
   },
   {
@@ -562,6 +1052,8 @@
    "qtd": 4960,
    "arruelas": 4960,
    "porcas": 4960,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 4960,
+   "nome_porca:PORCA_3/8\"_HEX": 4960,
    "em_obra": 4960
   },
   {
@@ -574,6 +1066,8 @@
    "qtd": 80,
    "arruelas": 80,
    "porcas": 80,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 80,
+   "nome_porca:PORCA_5/8\"_HEX": 80,
    "em_obra": 80
   },
   {
@@ -586,6 +1080,8 @@
    "qtd": 16,
    "arruelas": 16,
    "porcas": 16,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 16,
+   "nome_porca:PORCA_5/8\"_HEX": 16,
    "em_obra": 16
   },
   {
@@ -598,6 +1094,8 @@
    "qtd": 32,
    "arruelas": 32,
    "porcas": 32,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 32,
+   "nome_porca:PORCA_7/8\"_HEX": 32,
    "em_obra": 32
   },
   {
@@ -610,6 +1108,8 @@
    "qtd": 20,
    "arruelas": 20,
    "porcas": 20,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 20,
+   "nome_porca:PORCA_7/8\"_HEX": 20,
    "em_obra": 20
   },
   {
@@ -622,6 +1122,8 @@
    "qtd": 136,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 136
   },
   {
@@ -634,6 +1136,8 @@
    "qtd": 128,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 128
   },
   {
@@ -646,6 +1150,8 @@
    "qtd": 64,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 64
   },
   {
@@ -658,6 +1164,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 8
   },
   {
@@ -670,6 +1178,8 @@
    "qtd": 64,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 64
   },
   {
@@ -682,6 +1192,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 8
   },
   {
@@ -694,6 +1206,8 @@
    "qtd": 12,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
    "em_obra": 12
   },
   {
@@ -706,6 +1220,8 @@
    "qtd": 44,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 44
   },
   {
@@ -718,6 +1234,8 @@
    "qtd": 3024,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 3024
   },
   {
@@ -730,6 +1248,8 @@
    "qtd": 288,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 288
   },
   {
@@ -742,6 +1262,8 @@
    "qtd": 1728,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 1728
   },
   {
@@ -754,6 +1276,8 @@
    "qtd": 288,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 288
   },
   {
@@ -766,6 +1290,8 @@
    "qtd": 64,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 64
   },
   {
@@ -778,6 +1304,8 @@
    "qtd": 72,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 72
   },
   {
@@ -790,6 +1318,8 @@
    "qtd": 2,
    "arruelas": 2,
    "porcas": 2,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 2,
+   "nome_porca:PORCA_FALSA_1/4\"": 2,
    "em_obra": 2
   },
   {
@@ -802,6 +1332,8 @@
    "qtd": 4,
    "arruelas": 4,
    "porcas": 4,
+   "nome_arruela:ARRUELA_FALSA_3/8\"": 4,
+   "nome_porca:PORCA_FALSA_3/8\"": 4,
    "em_obra": 4
   },
   {
@@ -814,6 +1346,8 @@
    "qtd": 16,
    "arruelas": 16,
    "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
    "em_obra": 16
   },
   {
@@ -826,6 +1360,8 @@
    "qtd": 154,
    "arruelas": 154,
    "porcas": 154,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 154,
+   "nome_porca:PORCA_3/8\"_HEX": 154,
    "em_obra": 154
   },
   {
@@ -838,6 +1374,8 @@
    "qtd": 4,
    "arruelas": 4,
    "porcas": 4,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 4,
+   "nome_porca:PORCA_3/8\"_HEX": 4,
    "em_obra": 4
   },
   {
@@ -850,6 +1388,8 @@
    "qtd": 58,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 58
   },
   {
@@ -862,6 +1402,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 16
   },
   {
@@ -874,6 +1416,8 @@
    "qtd": 2,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 2
   },
   {
@@ -886,6 +1430,8 @@
    "qtd": 72,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 72
   },
   {
@@ -898,6 +1444,8 @@
    "qtd": 80,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 80
   },
   {
@@ -910,6 +1458,8 @@
    "qtd": 138,
    "arruelas": 138,
    "porcas": 138,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 138,
+   "nome_porca:PORCA_FALSA_1/4\"": 138,
    "em_obra": 138
   },
   {
@@ -922,6 +1472,8 @@
    "qtd": 8,
    "arruelas": 8,
    "porcas": 8,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 8,
+   "nome_porca:PORCA_1/2\"_HEX": 8,
    "em_obra": 8
   },
   {
@@ -934,6 +1486,8 @@
    "qtd": 240,
    "arruelas": 240,
    "porcas": 240,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 240,
+   "nome_porca:PORCA_3/8\"_HEX": 240,
    "em_obra": 240
   },
   {
@@ -946,6 +1500,8 @@
    "qtd": 24,
    "arruelas": 24,
    "porcas": 24,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 24,
+   "nome_porca:PORCA_3/8\"_HEX": 24,
    "em_obra": 24
   },
   {
@@ -958,6 +1514,8 @@
    "qtd": 192,
    "arruelas": 192,
    "porcas": 192,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 192,
+   "nome_porca:PORCA_5/8\"_HEX": 192,
    "em_obra": 192
   },
   {
@@ -970,6 +1528,8 @@
    "qtd": 24,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 24
   },
   {
@@ -982,6 +1542,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 8
   },
   {
@@ -994,6 +1556,8 @@
    "qtd": 88,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 88
   },
   {
@@ -1006,6 +1570,8 @@
    "qtd": 2,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 2
   },
   {
@@ -1018,6 +1584,8 @@
    "qtd": 120,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 120
   },
   {
@@ -1030,6 +1598,8 @@
    "qtd": 104,
    "arruelas": 104,
    "porcas": 104,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 104,
+   "nome_porca:PORCA_1/2\"_HEX": 104,
    "em_obra": 104
   },
   {
@@ -1042,6 +1612,8 @@
    "qtd": 672,
    "arruelas": 672,
    "porcas": 672,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 672,
+   "nome_porca:PORCA_3/8\"_HEX": 672,
    "em_obra": 672
   },
   {
@@ -1054,6 +1626,8 @@
    "qtd": 448,
    "arruelas": 448,
    "porcas": 448,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 448,
+   "nome_porca:PORCA_7/8\"_HEX": 448,
    "em_obra": 448
   },
   {
@@ -1066,6 +1640,8 @@
    "qtd": 104,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 104
   },
   {
@@ -1078,6 +1654,8 @@
    "qtd": 120,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 120
   },
   {
@@ -1090,6 +1668,8 @@
    "qtd": 224,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
    "em_obra": 224
   },
   {
@@ -1102,6 +1682,8 @@
    "qtd": 8,
    "arruelas": 8,
    "porcas": 8,
+   "nome_arruela:ARRUELA_FALSA_1/2\"": 8,
+   "nome_porca:PORCA_FALSA_1/2\"": 8,
    "em_obra": 8
   },
   {
@@ -1114,6 +1696,8 @@
    "qtd": 48,
    "arruelas": 48,
    "porcas": 48,
+   "nome_arruela:ARRUELA_FALSA_1/2\"": 48,
+   "nome_porca:PORCA_FALSA_1/2\"": 48,
    "em_obra": 48
   },
   {
@@ -1126,6 +1710,8 @@
    "qtd": 16,
    "arruelas": 16,
    "porcas": 16,
+   "nome_arruela:ARRUELA_FALSA_1/2\"": 16,
+   "nome_porca:PORCA_FALSA_1/2\"": 16,
    "em_obra": 16
   },
   {
@@ -1138,6 +1724,8 @@
    "qtd": 20,
    "arruelas": 20,
    "porcas": 20,
+   "nome_arruela:ARRUELA_FALSA_3/8\"": 20,
+   "nome_porca:PORCA_FALSA_3/8\"": 20,
    "em_obra": 20
   },
   {
@@ -1150,6 +1738,8 @@
    "qtd": 16,
    "arruelas": 16,
    "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
    "em_obra": 16
   },
   {
@@ -1162,6 +1752,8 @@
    "qtd": 16,
    "arruelas": 16,
    "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
    "em_obra": 16
   },
   {
@@ -1174,6 +1766,8 @@
    "qtd": 28,
    "arruelas": 28,
    "porcas": 28,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 28,
+   "nome_porca:PORCA_1/2\"_HEX": 28,
    "em_obra": 28
   },
   {
@@ -1186,6 +1780,8 @@
    "qtd": 216,
    "arruelas": 216,
    "porcas": 216,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 216,
+   "nome_porca:PORCA_3/8\"_HEX": 216,
    "em_obra": 216
   },
   {
@@ -1198,6 +1794,8 @@
    "qtd": 40,
    "arruelas": 40,
    "porcas": 40,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 40,
+   "nome_porca:PORCA_3/8\"_HEX": 40,
    "em_obra": 40
   },
   {
@@ -1210,6 +1808,8 @@
    "qtd": 20,
    "arruelas": 20,
    "porcas": 20,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 20,
+   "nome_porca:PORCA_3/8\"_HEX": 20,
    "em_obra": 20
   },
   {
@@ -1222,6 +1822,8 @@
    "qtd": 22,
    "arruelas": 22,
    "porcas": 22,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 22,
+   "nome_porca:PORCA_5/8\"_HEX": 22,
    "em_obra": 22
   },
   {
@@ -1234,6 +1836,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 16
   },
   {
@@ -1246,6 +1850,8 @@
    "qtd": 24,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 24
   },
   {
@@ -1258,6 +1864,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 8
   },
   {
@@ -1270,6 +1878,8 @@
    "qtd": 12,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 12
   },
   {
@@ -1282,6 +1892,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
    "em_obra": 16
   },
   {
@@ -1294,6 +1906,8 @@
    "qtd": 152,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 0,
+   "nome_porca:PORCA_FALSA_1/4\"": 0,
    "em_obra": 152
   },
   {
@@ -1306,6 +1920,8 @@
    "qtd": 115,
    "arruelas": 115,
    "porcas": 115,
+   "nome_arruela:ARRUELA_FALSA_1/2\"": 115,
+   "nome_porca:PORCA_FALSA_1/2\"": 115,
    "em_obra": 115
   },
   {
@@ -1318,6 +1934,8 @@
    "qtd": 8,
    "arruelas": 8,
    "porcas": 8,
+   "nome_arruela:ARRUELA_FALSA_3/4\"": 8,
+   "nome_porca:PORCA_FALSA_3/4\"": 8,
    "em_obra": 8
   },
   {
@@ -1330,6 +1948,8 @@
    "qtd": 76,
    "arruelas": 76,
    "porcas": 76,
+   "nome_arruela:ARRUELA_FALSA_3/8\"": 76,
+   "nome_porca:PORCA_FALSA_3/8\"": 76,
    "em_obra": 76
   },
   {
@@ -1342,6 +1962,8 @@
    "qtd": 128,
    "arruelas": 128,
    "porcas": 128,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 128,
+   "nome_porca:PORCA_1/2\"_HEX": 128,
    "em_obra": 128
   },
   {
@@ -1354,6 +1976,8 @@
    "qtd": 380,
    "arruelas": 380,
    "porcas": 380,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 380,
+   "nome_porca:PORCA_1/2\"_HEX": 380,
    "em_obra": 380
   },
   {
@@ -1366,6 +1990,8 @@
    "qtd": 576,
    "arruelas": 576,
    "porcas": 576,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 576,
+   "nome_porca:PORCA_1/2\"_HEX": 576,
    "em_obra": 576
   },
   {
@@ -1378,6 +2004,8 @@
    "qtd": 32,
    "arruelas": 32,
    "porcas": 32,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 32,
+   "nome_porca:PORCA_1/2\"_HEX": 32,
    "em_obra": 32
   },
   {
@@ -1390,6 +2018,8 @@
    "qtd": 24,
    "arruelas": 24,
    "porcas": 24,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 24,
+   "nome_porca:PORCA_3/8\"_HEX": 24,
    "em_obra": 24
   },
   {
@@ -1402,6 +2032,8 @@
    "qtd": 64,
    "arruelas": 64,
    "porcas": 64,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 64,
+   "nome_porca:PORCA_5/8\"_HEX": 64,
    "em_obra": 64
   },
   {
@@ -1414,6 +2046,8 @@
    "qtd": 32,
    "arruelas": 32,
    "porcas": 32,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 32,
+   "nome_porca:PORCA_5/8\"_HEX": 32,
    "em_obra": 32
   },
   {
@@ -1426,6 +2060,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_FALSA_5/8\"": 0,
+   "nome_porca:PORCA_FALSA_5/8\"": 0,
    "em_obra": 16
   },
   {
@@ -1438,6 +2074,8 @@
    "qtd": 120,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 120
   },
   {
@@ -1450,6 +2088,8 @@
    "qtd": 312,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 312
   },
   {
@@ -1462,6 +2102,8 @@
    "qtd": 32,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 32
   },
   {
@@ -1474,6 +2116,8 @@
    "qtd": 232,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 232
   },
   {
@@ -1486,6 +2130,8 @@
    "qtd": 56,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 56
   },
   {
@@ -1498,6 +2144,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
    "em_obra": 16
   },
   {
@@ -1510,6 +2158,8 @@
    "qtd": 21,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 21
   },
   {
@@ -1522,6 +2172,8 @@
    "qtd": 152,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 152
   },
   {
@@ -1534,6 +2186,8 @@
    "qtd": 152,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 152
   },
   {
@@ -1546,6 +2200,8 @@
    "qtd": 172,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_FALSA_1/4\"": 0,
+   "nome_porca:PORCA_FALSA_1/4\"": 0,
    "em_obra": 172
   },
   {
@@ -1558,6 +2214,8 @@
    "qtd": 103,
    "arruelas": 103,
    "porcas": 103,
+   "nome_arruela:ARRUELA_FALSA_1/2\"": 103,
+   "nome_porca:PORCA_FALSA_1/2\"": 103,
    "em_obra": 103
   },
   {
@@ -1570,6 +2228,8 @@
    "qtd": 4,
    "arruelas": 4,
    "porcas": 4,
+   "nome_arruela:ARRUELA_FALSA_3/4\"": 4,
+   "nome_porca:PORCA_FALSA_3/4\"": 4,
    "em_obra": 4
   },
   {
@@ -1582,6 +2242,8 @@
    "qtd": 86,
    "arruelas": 86,
    "porcas": 86,
+   "nome_arruela:ARRUELA_FALSA_3/8\"": 86,
+   "nome_porca:PORCA_FALSA_3/8\"": 86,
    "em_obra": 86
   },
   {
@@ -1594,6 +2256,8 @@
    "qtd": 96,
    "arruelas": 96,
    "porcas": 96,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 96,
+   "nome_porca:PORCA_1/2\"_HEX": 96,
    "em_obra": 96
   },
   {
@@ -1606,6 +2270,8 @@
    "qtd": 428,
    "arruelas": 428,
    "porcas": 428,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 428,
+   "nome_porca:PORCA_1/2\"_HEX": 428,
    "em_obra": 428
   },
   {
@@ -1618,6 +2284,8 @@
    "qtd": 720,
    "arruelas": 720,
    "porcas": 720,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 720,
+   "nome_porca:PORCA_1/2\"_HEX": 720,
    "em_obra": 720
   },
   {
@@ -1630,6 +2298,8 @@
    "qtd": 32,
    "arruelas": 32,
    "porcas": 32,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 32,
+   "nome_porca:PORCA_1/2\"_HEX": 32,
    "em_obra": 32
   },
   {
@@ -1642,6 +2312,8 @@
    "qtd": 28,
    "arruelas": 28,
    "porcas": 28,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 28,
+   "nome_porca:PORCA_3/8\"_HEX": 28,
    "em_obra": 28
   },
   {
@@ -1654,6 +2326,8 @@
    "qtd": 32,
    "arruelas": 32,
    "porcas": 32,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 32,
+   "nome_porca:PORCA_5/8\"_HEX": 32,
    "em_obra": 32
   },
   {
@@ -1666,6 +2340,8 @@
    "qtd": 48,
    "arruelas": 48,
    "porcas": 48,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 48,
+   "nome_porca:PORCA_5/8\"_HEX": 48,
    "em_obra": 48
   },
   {
@@ -1678,6 +2354,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_FALSA_5/8\"": 0,
+   "nome_porca:PORCA_FALSA_5/8\"": 0,
    "em_obra": 8
   },
   {
@@ -1690,6 +2368,8 @@
    "qtd": 336,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 336
   },
   {
@@ -1702,6 +2382,8 @@
    "qtd": 168,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 168
   },
   {
@@ -1714,6 +2396,8 @@
    "qtd": 48,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 48
   },
   {
@@ -1726,6 +2410,8 @@
    "qtd": 144,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 144
   },
   {
@@ -1738,6 +2424,8 @@
    "qtd": 32,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
    "em_obra": 32
   },
   {
@@ -1750,6 +2438,8 @@
    "qtd": 24,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
    "em_obra": 24
   },
   {
@@ -1762,6 +2452,8 @@
    "qtd": 28,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 28
   },
   {
@@ -1774,6 +2466,8 @@
    "qtd": 172,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 172
   },
   {
@@ -1786,6 +2480,8 @@
    "qtd": 172,
    "arruelas": 0,
    "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
    "em_obra": 172
   }
  ]

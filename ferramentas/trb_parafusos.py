@@ -219,6 +219,7 @@ def extrair(caminho):
 def resumir(modelos):
     por_local = collections.defaultdict(lambda: collections.Counter())
     por_tipo = {}
+    arruelas, porcas = {}, {}
     por_local_tipo = collections.defaultdict(lambda: collections.Counter())
     for m in modelos:
         for c in m["conjuntos"]:
@@ -228,20 +229,39 @@ def resumir(modelos):
             r["qtd"] += c["n"]
             r["arruelas"] += c.get("arruelas", 0)
             r["porcas"] += c.get("porcas", 0)
+            r["nome_arruela:" + (c.get("arruela") or "")] += c.get("arruelas", 0)
+            r["nome_porca:" + (c.get("porca") or "")] += c.get("porcas", 0)
             if c.get("montagem") == "Site":
                 r["em_obra"] += c["n"]
             por_local[c["local"]][c["tipo"] + "_conjuntos"] += 1
             por_local[c["local"]][c["tipo"] + "_qtd"] += c["n"]
             if c["tipo"] == "BOLT":
+                falsa = "FALSA" in (c.get("arruela") or "").upper()
                 por_local[c["local"]]["arruelas"] += c.get("arruelas", 0)
                 por_local[c["local"]]["porcas"] += c.get("porcas", 0)
+                por_local[c["local"]]["arruelas_falsas" if falsa else "arruelas_reais"] += c.get("arruelas", 0)
+                por_local[c["local"]]["porcas_falsas" if "FALSA" in (c.get("porca") or "").upper() else "porcas_reais"] += c.get("porcas", 0)
                 t = por_tipo.setdefault(c["prf"], {"diametro_mm": round(c["diametro"], 1), "comprimento_mm": round(c["comprimento"], 1),
-                                                   "qtd": 0, "locais": collections.Counter()})
+                                                   "qtd": 0, "locais": collections.Counter(), "arruelas": collections.Counter(),
+                                                   "porcas": collections.Counter()})
                 t["qtd"] += c["n"]
                 t["locais"][c["local"]] += c["n"]
+                if c.get("arruelas"):
+                    t["arruelas"][c.get("arruela") or "(sem nome)"] += c["arruelas"]
+                if c.get("porcas"):
+                    t["porcas"][c.get("porca") or "(sem nome)"] += c["porcas"]
+                for nome, q, dic in ((c.get("arruela"), c.get("arruelas", 0), arruelas), (c.get("porca"), c.get("porcas", 0), porcas)):
+                    if q:
+                        r = dic.setdefault(nome or "(sem nome)", {"qtd": 0, "locais": collections.Counter(), "parafusos": collections.Counter()})
+                        r["qtd"] += q
+                        r["locais"][c["local"]] += q
+                        r["parafusos"][c["prf"]] += q
+    fmt = lambda d: {k: dict(v, locais=dict(v["locais"]), parafusos=dict(v["parafusos"])) for k, v in sorted(d.items())}
     return {
         "por_local": {l: dict(v) for l, v in sorted(por_local.items())},
-        "por_tipo": {p: dict(v, locais=dict(v["locais"])) for p, v in sorted(por_tipo.items())},
+        "por_tipo": {p: dict(v, locais=dict(v["locais"]), arruelas=dict(v["arruelas"]), porcas=dict(v["porcas"])) for p, v in sorted(por_tipo.items())},
+        "por_arruela": fmt(arruelas),
+        "por_porca": fmt(porcas),
         "por_local_tipo": [dict(local=k[0], tipo=k[1], prf=k[2], diametro_mm=k[3], comprimento_mm=k[4], **dict(v))
                            for k, v in sorted(por_local_tipo.items())],
     }
@@ -252,15 +272,15 @@ def main(caminhos):
     resumo = resumir(modelos)
     resumo = {
         "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); "
-                      "TIPO HOLE = só furo, não conta como parafuso. Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
+                      "TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" = item do kit sem peça física separada (a confirmar). Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
         "fontes": [{"arquivo": m["arquivo"], "entidades": m["entidades"], "conjuntos_parafuso": len(m["conjuntos"])} for m in modelos],
         **resumo,
     }
     with open(SAIDA_RESUMO, "w", encoding="utf-8") as g:
         json.dump(resumo, g, ensure_ascii=False, indent=1)
     # registros por conjunto, compactos: colunas + linhas
-    cols = ["modelo", "local", "tipo", "prf", "n", "arruelas", "porcas", "montagem", "x", "y", "z", "fase_vizinha", "dist_m"]
-    pools = {"modelo": [], "local": [], "tipo": [], "prf": [], "montagem": [], "fase_vizinha": []}
+    cols = ["modelo", "local", "tipo", "prf", "n", "arruelas", "porcas", "montagem", "x", "y", "z", "fase_vizinha", "dist_m", "arruela", "porca"]
+    pools = {"modelo": [], "local": [], "tipo": [], "prf": [], "montagem": [], "fase_vizinha": [], "arruela": [], "porca": []}
 
     def ix(pool, v):
         if v not in pools[pool]:
@@ -272,7 +292,8 @@ def main(caminhos):
         for c in m["conjuntos"]:
             linhas.append([ix("modelo", m["arquivo"]), ix("local", c["local"]), ix("tipo", c["tipo"]), ix("prf", c["prf"]), c["n"],
                            c.get("arruelas", 0), c.get("porcas", 0), ix("montagem", c.get("montagem", "")),
-                           c["x"], c["y"], c["z"], ix("fase_vizinha", c["fase"]), c["dist_peca_m"]])
+                           c["x"], c["y"], c["z"], ix("fase_vizinha", c["fase"]), c["dist_peca_m"],
+                           ix("arruela", c.get("arruela", "")), ix("porca", c.get("porca", ""))])
     with open(SAIDA_LOCAIS, "w", encoding="utf-8") as g:
         json.dump({"colunas": cols, "tabelas": pools, "linhas": linhas}, g, ensure_ascii=False, separators=(",", ":"))
     print("gravado:", SAIDA_RESUMO)
