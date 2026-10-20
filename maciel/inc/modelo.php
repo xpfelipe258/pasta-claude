@@ -178,8 +178,19 @@ function montar_modelo()
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
-        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos()],
+        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos(), 'parafusos' => carregar_ifc_parafusos()],
     ];
+}
+
+// Parafusos lidos dos modelos TRB (quantidade por tipo e por local), gerado por ferramentas/trb_parafusos.py
+function carregar_ifc_parafusos()
+{
+    $p = __DIR__ . '/ifc_parafusos.json';
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
 }
 
 // Peças por local e família dos IFCs dos anexos (Eclusa, Portaria, Refeitório, Vestiário), gerado por ferramentas/ifc_anexos.py

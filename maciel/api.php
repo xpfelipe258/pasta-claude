@@ -67,6 +67,13 @@ try {
             }
             responder_json(200, $d);
         }
+        if ($rota === 'parafusos-locais') {
+            $p = __DIR__ . '/inc/ifc_parafusos_locais.json';
+            if (!is_file($p)) {
+                responder_json(404, ['erro' => 'ifc_parafusos_locais.json não encontrado.']);
+            }
+            responder_json(200, json_decode(file_get_contents($p), true));
+        }
         if ($rota === 'planos') {
             responder_json(200, planos_ler());
         }

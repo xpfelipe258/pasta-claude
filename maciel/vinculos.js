@@ -296,7 +296,69 @@ function vcRegrasHtml(cat, regra) {
   return `<div class="bloco"><div class="bloco-cab"><h2>Serviços com lista por regra</h2><span class="nota">Já definidos no projeto (regras_baixa.json). Entram nas atividades sem precisar de confirmação.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Serviço</th><th>Atividade do catálogo</th><th class="n">Materiais</th><th class="n">Unidades do galpão</th></tr></thead><tbody>${sv}</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Fixadores e onde são usados</h2><span class="nota">${fix.length} fixadores no cadastro. "Sem uso" quer dizer que nenhuma regra ou kit consome o fixador.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>`;
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcParafusosHtml();
+}
+
+// ---------------------------------------------------------------- Parafusos lidos dos modelos TRB
+// ifc_parafusos.json (ferramentas/trb_parafusos.py): quantidade por tipo e local. Os IFC de texto saem sem parafuso; só o TRB os traz.
+// Chave de comparação com o cadastro: tipo (parafuso, parabolt, autobrocante) + diâmetro + comprimento (+ norma nos parafusos).
+const vcFrac = x => String(x || '').replace(/["Ø]/g, ' ').replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+function vcChaveTrb(prf) {
+  let m = /^PARAF_(\d+\/\d+)"X(.+?)_(A\d+N?|GR\.8)$/.exec(prf);
+  if (m) return { k: `P|${m[1]}|${vcFrac(m[2])}`, norma: m[3].replace(/N$/, '') };
+  m = /^PARABOLT_(\d+\/\d+)"X(.+)$/.exec(prf);
+  if (m) return { k: `PB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
+  m = /^AB (\d+\/\d+)"X(.+?)_TCP3$/.exec(prf);
+  if (m) return { k: `AB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
+  return { k: '', norma: '' };
+}
+function vcChaveCad(m) {
+  const t = vcUp(m.produto);
+  let r = /^PARAF\. AB Ø?(\d+\/\d+)" X (.+)$/.exec(t);
+  if (r) return { k: `AB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
+  r = /^PARABOLT Ø?(\d+\/\d+)" X (.+)$/.exec(t);
+  if (r) return { k: `PB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
+  r = /^PARAF\. Ø?(\d+\/\d+)" X (.+)$/.exec(t);
+  if (r) { const n = /GR\.8/i.test(m.material || '') ? 'GR.8' : (String(m.material || '').match(/A\d+/) || [''])[0]; return { k: `P|${r[1]}|${vcFrac(r[2])}`, norma: n }; }
+  return { k: '', norma: '' };
+}
+function vcParafusosHtml() {
+  const pf = M?.estoque_ifc?.parafusos;
+  if (!pf) return '';
+  const cad = estMateriaisComCadastros().filter(m => m.tag && ehFixador(m)).map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k);
+  const linhas = Object.entries(pf.por_tipo).map(([prf, v]) => {
+    const t = vcChaveTrb(prf);
+    const exato = cad.filter(c => c.k === t.k && (!t.norma || !c.norma || c.norma === t.norma));
+    const mesma = exato.length ? exato : cad.filter(c => c.k === t.k);
+    const locais = Object.entries(v.locais).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
+    const c = mesma[0];
+    const cadHtml = c ? `<b>${esc(c.m.tag)}</b> ${esc(c.m.produto)}${exato.length ? '' : ' <span class="nota">(norma diferente)</span>'}<br><span class="nota">planejado ${nf(c.m.planejado, 0)} · chegou ${nf(c.m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span>';
+    return `<tr><td><b>${esc(prf)}</b></td><td class="n">${nf(v.diametro_mm, 1)} × ${nf(v.comprimento_mm, 1)}</td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${cadHtml}</td></tr>`;
+  }).join('');
+  const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas || 0, 0)}</td><td class="n">${nf(v.porcas || 0, 0)}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
+  const tot = Object.values(pf.por_local).reduce((s, v) => s + (v.BOLT_qtd || 0), 0);
+  const btn = '<button class="btn" type="button" data-vc-parafcsv>Baixar lista com localização (CSV)</button>';
+  return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por local — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). Furos sem parafuso não entram no total.</span></div>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Local</th><th class="n">Conjuntos</th><th class="n">Parafusos</th><th class="n">Arruelas</th><th class="n">Porcas</th><th class="n">Furos sem parafuso</th></tr></thead><tbody>${loc}</tbody></table></div></div>
+    <div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por tipo e onde estão</h2>${btn}</div>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Parafuso (PRF_NAME)</th><th class="n">Ø × comp. (mm)</th><th class="n">Total</th><th>Onde estão</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+}
+// CSV com um conjunto por linha: local, tipo, parafuso, quantidade, arruelas, porcas, montagem, coordenadas e peça vizinha
+async function vcBaixarParafusosCsv() {
+  try {
+    const r = await fetch(API + 'parafusos-locais', { cache: 'no-store' });
+    if (!r.ok) throw new Error('lista não publicada');
+    const d = await r.json(), T = d.tabelas;
+    const cab = ['Modelo', 'Local', 'Tipo (BOLT=parafuso, HOLE=furo)', 'Parafuso', 'Qtd', 'Arruelas', 'Porcas', 'Montagem', 'X (m)', 'Y (m)', 'Cota Z (m)', 'Fase da peça vizinha', 'Distância à peça (m)'];
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const num = v => String(v).replace('.', ',');
+    const lin = d.linhas.map(l => [T.modelo[l[0]], T.local[l[1]], T.tipo[l[2]], T.prf[l[3]], l[4], l[5], l[6], T.montagem[l[7]] === 'Site' ? 'Obra' : (T.montagem[l[7]] === 'Shop' ? 'Fábrica' : T.montagem[l[7]]), num(l[8]), num(l[9]), num(l[10]), T.fase_vizinha[l[11]], num(l[12])].map(q).join(';'));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + [cab.map(q).join(';'), ...lin].join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'parafusos-localizacao.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(`${lin.length} conjuntos exportados.`);
+  } catch (e) { toast('Não foi possível baixar: ' + (e.message || e), true); }
 }
 
 // ---------------------------------------------------------------- Pronto para iniciar
@@ -360,6 +422,7 @@ async function vcSalvar(itens, msg) {
 document.addEventListener('click', ev => {
   const t = ev.target && ev.target.closest ? ev.target : null;
   if (!t) return;
+  if (t.closest('[data-vc-parafcsv]')) return vcBaixarParafusosCsv();
   const f = t.closest('[data-vc-f]');
   if (f) { VC.filtro = f.dataset.vcF; VC.sel = ''; return renderVinculos(); }
   const ver = t.closest('[data-vc-ver]');
