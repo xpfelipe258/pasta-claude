@@ -178,8 +178,19 @@ function montar_modelo()
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
-        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo],
+        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos()],
     ];
+}
+
+// Peças por local e família dos IFCs dos anexos (Eclusa, Portaria, Refeitório, Vestiário), gerado por ferramentas/ifc_anexos.py
+function carregar_ifc_anexos()
+{
+    $p = __DIR__ . '/ifc_anexos.json';
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
 }
 
 // O estoque importado da planilha (materiais, remessas, consumo físico, inventário) fica guardado como JSON:

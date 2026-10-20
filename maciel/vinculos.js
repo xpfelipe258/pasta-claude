@@ -5,7 +5,7 @@
 //   peça do IFC  → família (o nome do produto é o da família do IFC)  → frente de serviço (o local do material)  → atividade do catálogo
 //   peça         → kit de fixadores por peça (regras_baixa.json: por_peca do fechamento, por_etapa da marquise)  → TAG do fixador
 //   serviços com regra por unidade (pré-montagem, içamento de joist, vigas de apoio e intermediárias) já têm a lista pronta nas regras.
-// A necessidade vem do IFC (peças do galpão) e, onde o IFC ainda não foi lido (anexos), do planejado do cadastro. Quando IFC e cadastro divergem,
+// A necessidade vem do IFC (peças do galpão e dos anexos, ifc_anexos.json) e, onde a família não existe no IFC, do planejado do cadastro. Quando IFC e cadastro divergem,
 // vale o IFC e o desencontro vira alerta. O vínculo de cada grupo (produto + local) é CONFIRMADO por uma pessoa (usuário ou planejamento);
 // quem confirmou e quando ficam gravados em sistema.vinculos_material (rota `vinculos`). Sem confirmação, só há sugestão.
 // Depende de app.js e projecao.js: M, T, ref, API, bmTab, estMateriaisComCadastros, ehFixador, ganItensCliente, pjAtividadesBm, faseFiltro,
@@ -108,6 +108,9 @@ function vcGrupos(cat) {
   const dec = M?.vinculos_material || {};
   const fams = M?.estoque_ifc?.inventario?.totais?.familias || {};
   const regra = vcTagsRegra();
+  // peças dos anexos no IFC: local → família (maiúsculas) → quantidade (ifc_anexos.json, ferramentas/ifc_anexos.py)
+  const anx = new Map();
+  Object.entries(M?.estoque_ifc?.anexos?.locais || {}).forEach(([loc, fam]) => anx.set(vcUp(loc), new Map(Object.entries(fam).map(([n, v]) => [vcUp(n), Number(v.qtd)]))));
   const mapa = new Map();
   estMateriaisComCadastros().forEach(m => {
     if (!m.tag || regra.has(m.tag) || ehFixador(m)) return;
@@ -119,8 +122,10 @@ function vcGrupos(cat) {
   return [...mapa.values()].map(g => {
     const fam = fams[g.produto] != null ? g.produto : (g.produto === 'TELHA_COB' ? 'TELHA COBERTURA' : null);
     const noGalpao = vcUp(g.local) === 'GALPÃO' && fam && fams[fam] != null;
-    g.fam = fam;
-    g.ifc = noGalpao ? Number(fams[fam]) : null;
+    const qAnexo = anx.get(vcUp(g.local))?.get(g.produto);
+    g.fam = fam || (qAnexo != null ? g.produto : null);
+    g.ifc = noGalpao ? Number(fams[fam]) : (qAnexo != null ? qAnexo : null);
+    g.ifcAnexo = !noGalpao && qAnexo != null;
     g.dif = g.ifc != null ? g.planejado - g.ifc : 0;
     g.diverge = g.ifc != null && Math.round(g.dif) !== 0;
     g.nec = g.ifc != null ? g.ifc : g.planejado;
@@ -157,7 +162,7 @@ function vcBom(grupos, cat) {
   });
   grupos.filter(g => g.ativ && cat.has(g.ativ)).forEach(g => {
     get(g.ativ).linhas.push({ tipo: 'peça', tag: g.tags.length > 3 ? `${g.tags.length} TAGs` : g.tags.join(', '), rotulo: `${cap(g.produto.toLowerCase())} · ${g.local}`, nec: g.nec, chegou: g.chegou,
-      origem: g.ifc != null ? `IFC: ${nf(g.ifc, 0)} peças${g.diverge ? ' (cadastro ' + nf(g.planejado, 0) + ')' : ''}` : 'planejado do cadastro (IFC do anexo ainda não importado)', grupo: g.chave, diverge: g.diverge });
+      origem: g.ifc != null ? `IFC: ${nf(g.ifc, 0)} peças${g.diverge ? ' (cadastro ' + nf(g.planejado, 0) + ')' : ''}` : 'planejado do cadastro (peça sem família no IFC)', grupo: g.chave, diverge: g.diverge });
     g.kit.forEach(k => {
       const nec = k.qtd * g.nec, mi = info.get(k.codigo);
       get(g.ativ).linhas.push({ tipo: 'fixador', tag: k.codigo, rotulo: k.descricao || (mi && mi.produto) || k.codigo, nec, chegou: chegouTag.get(k.codigo) || 0, origem: `kit: ${nf(k.qtd, 0)} por ${g.produto.toLowerCase()}`, grupo: g.chave });
@@ -240,7 +245,7 @@ function renderVinculos() {
       const lista = { sugeridas: sug, sem, confirmadas: conf, divergencias: div, ignoradas: ign }[VC.filtro] || [];
       const sel = grupos.find(g => g.chave === VC.sel);
       if (sel) h += vcDetalheGrupo(sel, cat);
-      h += `<div class="bloco"><div class="bloco-cab"><h2>${abas.find(a => a[0] === VC.filtro)[1].replace(/ · \d+$/, '')}</h2><span class="nota">Um vínculo vale para todas as TAGs do grupo (produto + local) e para os fixadores do kit da peça. Peças IFC = família no IFC do galpão; para os anexos o IFC ainda não foi importado e vale o planejado.</span></div>
+      h += `<div class="bloco"><div class="bloco-cab"><h2>${abas.find(a => a[0] === VC.filtro)[1].replace(/ · \d+$/, '')}</h2><span class="nota">Um vínculo vale para todas as TAGs do grupo (produto + local) e para os fixadores do kit da peça. Peças IFC = família no IFC do galpão ou do anexo (Eclusa, Portaria, Refeitório e Vestiário, separados pela fase do modelo); sem família no IFC vale o planejado.</span></div>
         <div class="tabela-rolagem"><table id="tabVc" data-sem-ferramentas><thead><tr><th>Produto</th><th>Local</th><th class="n">TAGs</th><th class="n">Peças IFC × cadastro</th><th>Atividade do catálogo</th><th>Situação</th><th></th></tr></thead><tbody>` +
         (lista.length ? lista.map(g => vcLinhaGrupo(g, cat, podeEditar)).join('') : '<tr><td colspan="7" class="vazio">Nenhum grupo nesta lista.</td></tr>') + '</tbody></table></div></div>';
     }
@@ -252,7 +257,7 @@ function renderVinculos() {
 }
 
 function vcLinhaGrupo(g, cat, podeEditar) {
-  const cmp = g.ifc == null ? '<span class="nota">IFC só do galpão</span>' : g.diverge ? `<span class="valor-neg">${nf(g.ifc, 0)} × ${nf(g.planejado, 0)} (${g.dif > 0 ? '+' : '−'}${nf(Math.abs(g.dif), 0)})</span>` : `<span style="color:var(--verde);font-weight:600">${nf(g.ifc, 0)} = ${nf(g.planejado, 0)}</span>`;
+  const cmp = g.ifc == null ? '<span class="nota">sem peça no IFC</span>' : g.diverge ? `<span class="valor-neg">${nf(g.ifc, 0)} × ${nf(g.planejado, 0)} (${g.dif > 0 ? '+' : '−'}${nf(Math.abs(g.dif), 0)})</span>` : `<span style="color:var(--verde);font-weight:600">${nf(g.ifc, 0)} = ${nf(g.planejado, 0)}</span>`;
   const farol = { confirmado: '<span class="farol f-verde">CONFIRMADO</span>', sugerida: `<span class="farol f-${g.sug && g.sug.conf === 'alta' ? 'verde' : g.sug && g.sug.conf === 'média' ? 'amarelo' : 'vermelho'}">SUGERIDA · ${g.sug ? g.sug.conf.toUpperCase() : ''}</span>`, 'sem par': '<span class="farol f-vermelho">SEM PAR</span>', ignorado: '<span class="farol f-pendente">IGNORADO</span>' }[g.estado];
   let atv, acao = '';
   if (g.estado === 'confirmado') {
@@ -270,7 +275,7 @@ function vcLinhaGrupo(g, cat, podeEditar) {
 
 function vcDetalheGrupo(g, cat) {
   const mats = estMateriaisComCadastros().filter(m => g.tags.includes(m.tag));
-  const kit = g.kit.length ? g.kit.map(k => `<tr><td><b>${esc(k.codigo)}</b></td><td>${esc(k.descricao)}</td><td class="n">${nf(k.qtd, 0)} por peça</td><td class="n">${nf(k.qtd * g.nec, 0)}</td></tr>`).join('') : `<tr><td colspan="4" class="vazio">${vcUp(g.local) === 'GALPÃO' ? 'Esta família não tem fixadores no desenho do projeto.' : 'Sem lista de fixadores: o IFC e as regras de fixador deste anexo ainda não foram importados.'}</td></tr>`;
+  const kit = g.kit.length ? g.kit.map(k => `<tr><td><b>${esc(k.codigo)}</b></td><td>${esc(k.descricao)}</td><td class="n">${nf(k.qtd, 0)} por peça</td><td class="n">${nf(k.qtd * g.nec, 0)}</td></tr>`).join('') : `<tr><td colspan="4" class="vazio">${vcUp(g.local) === 'GALPÃO' ? 'Esta família não tem fixadores no desenho do projeto.' : 'Sem lista de fixadores: as regras de fixador deste anexo ainda não existem (o IFC dele não traz parafusos).'}</td></tr>`;
   return `<div class="bloco" data-vc-detalhe><div class="bloco-cab"><h2>${esc(cap(g.produto.toLowerCase()))} · ${esc(g.local)}</h2><button class="link" data-vc-fechar>Fechar</button></div>
     ${g.diverge ? `<p class="aviso">O IFC tem ${nf(g.ifc, 0)} peças e o cadastro ${nf(g.planejado, 0)} (${g.dif > 0 ? '+' : '−'}${nf(Math.abs(g.dif), 0)}). A necessidade usa o IFC. Corrija o planejado deste produto em Materiais.</p>` : ''}
     <div class="grade-2"><div><h3>TAGs do grupo</h3><div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Nome</th><th class="n">Planejado</th><th class="n">Chegou</th></tr></thead><tbody>${mats.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material || '')}</td><td class="n">${nf(m.planejado, 0)}</td><td class="n">${nf(m.chegou, 0)}</td></tr>`).join('')}</tbody></table></div></div>
