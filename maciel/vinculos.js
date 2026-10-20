@@ -11,7 +11,7 @@
 // Depende de app.js e projecao.js: M, T, ref, API, bmTab, estMateriaisComCadastros, ehFixador, ganItensCliente, pjAtividadesBm, faseFiltro,
 // postar, carregar, toast, mudarAba, esc, cap, nf, fd, fdA, soma0, $.
 // ------------------------------------------------------------------------------------------------
-const VC = { filtro: 'sugeridas', sel: '', ativSel: '', _cron: null, _cronM: null };
+const VC = { filtro: 'sugeridas', sel: '', ativSel: '', _cron: null, _cronM: null, abertas: new Set(), abertasFx: new Set(), extras: new Set(), ativTodas: false };
 
 // Sugestão por família no galpão: [atividade (sem o prefixo da empresa), confiança, por quê]
 const VC_GALPAO = {
@@ -169,6 +169,23 @@ function vcBom(grupos, cat) {
       marca(k.codigo, g.ativ, nec);
     });
   });
+  // fixadores por unidade cadastrados na atividade (parafuso + arruela + porca): necessário = por unidade × quantidade da atividade
+  Object.entries(M?.fixadores_atividade || {}).forEach(([key, cfg]) => {
+    if (!cat.has(key)) return;
+    const { qtd, un } = vcQtdAtividade(key);
+    (cfg.linhas || []).forEach(l => {
+      const add = (tag, por, tipo) => {
+        if (!tag || !(por > 0)) return;
+        const mi = info.get(tag), nec = por * qtd;
+        get(key).linhas.push({ tipo, tag, rotulo: (mi && (mi.produto || mi.material)) || tag, nec, chegou: chegouTag.get(tag) || 0,
+          origem: `${nf(por, 4)} por ${un || 'und'} × ${nf(qtd, 0)} ${un || 'und'}`, config: true, parafuso: tipo === 'parafuso' ? '' : l.tag });
+        marca(tag, key, nec);
+      };
+      add(l.tag, l.por_unidade, 'parafuso');
+      add(l.arruela, l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade, 'arruela');
+      add(l.porca, l.porca_qtd != null ? l.porca_qtd : l.por_unidade, 'porca');
+    });
+  });
   // quanto cada TAG compartilhada é pedida no total (todas as atividades)
   const totalTag = new Map();
   uso.forEach((l, tag) => totalTag.set(tag, soma0(l, x => x.nec)));
@@ -237,10 +254,11 @@ function renderVinculos() {
     const nT = l => soma0(l, g => g.tags.length);
     const tile = (r, v, s, c) => `<div class="tile" style="--c:${c}"><div class="rot"><span>${r}</span></div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
     h += `<div class="tiles">${tile('TAGs do cadastro', nTags, `${regra.size} ligadas por regra (joist, vigas, fixadores)`, 'var(--fg)')}${tile('Confirmadas', nT(conf), `${conf.length} grupos · confirmados por você ou pelo planejamento`, 'var(--verde)')}${tile('Sugeridas', nT(sug), `${sug.length} grupos aguardando confirmação`, 'var(--acento)')}${tile('Sem par', nT(sem), `${sem.length} grupos: escolha a atividade à mão`, 'var(--vermelho)')}${tile('Divergências IFC × cadastro', div.length, 'o IFC vale; corrija o cadastro', 'var(--amarelo)')}</div>`;
-    const abas = [['sugeridas', `Sugeridas · ${sug.length}`], ['sem', `Sem par · ${sem.length}`], ['confirmadas', `Confirmadas · ${conf.length}`], ['divergencias', `Divergências · ${div.length}`], ['ignoradas', `Ignoradas · ${ign.length}`], ['regras', 'Regras e fixadores']];
+    const abas = [['sugeridas', `Sugeridas · ${sug.length}`], ['sem', `Sem par · ${sem.length}`], ['confirmadas', `Confirmadas · ${conf.length}`], ['atividades', 'Por atividade'], ['divergencias', `Divergências · ${div.length}`], ['ignoradas', `Ignoradas · ${ign.length}`], ['regras', 'Regras e fixadores']];
     h += `<div class="barra-acoes"><div class="seg" id="vcSeg">${abas.map(([k, r]) => `<button data-vc-f="${k}" class="${VC.filtro === k ? 'ativa' : ''}">${r}</button>`).join('')}</div>
       ${VC.filtro === 'sugeridas' && podeEditar && sug.some(g => g.sug.conf === 'alta') ? `<button class="btn primario" data-vc-lote="alta">Confirmar todas de confiança alta (${sug.filter(g => g.sug.conf === 'alta').length})</button>` : ''}</div>`;
     if (VC.filtro === 'regras') h += vcRegrasHtml(cat, regra);
+    else if (VC.filtro === 'atividades') h += vcAtividadesHtml(cat, grupos, podeEditar);
     else {
       const lista = { sugeridas: sug, sem, confirmadas: conf, divergencias: div, ignoradas: ign }[VC.filtro] || [];
       const sel = grupos.find(g => g.chave === VC.sel);
@@ -296,77 +314,148 @@ function vcRegrasHtml(cat, regra) {
   return `<div class="bloco"><div class="bloco-cab"><h2>Serviços com lista por regra</h2><span class="nota">Já definidos no projeto (regras_baixa.json). Entram nas atividades sem precisar de confirmação.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Serviço</th><th>Atividade do catálogo</th><th class="n">Materiais</th><th class="n">Unidades do galpão</th></tr></thead><tbody>${sv}</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Fixadores e onde são usados</h2><span class="nota">${fix.length} fixadores no cadastro. "Sem uso" quer dizer que nenhuma regra ou kit consome o fixador.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcParafusosHtml();
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcParafusosHtml(vcPerm());
 }
 
-// ---------------------------------------------------------------- Parafusos lidos dos modelos TRB
+// ---------------------------------------------------------------- Parafusos, arruelas e porcas do projeto (modelos TRB)
 // ifc_parafusos.json (ferramentas/trb_parafusos.py): quantidade por tipo e local. Os IFC de texto saem sem parafuso; só o TRB os traz.
-// Chave de comparação com o cadastro: tipo (parafuso, parabolt, autobrocante) + diâmetro + comprimento (+ norma nos parafusos).
+// Arruela e porca "FALSA" do modelo ficam fora das listas. A quantidade do projeto SOMA com o planejado do cadastro de Materiais
+// (`vcAplicarTrb`, chamado por estMateriaisComCadastros) quando o diâmetro, o comprimento e a norma batem com uma TAG do cadastro.
 const vcFrac = x => String(x || '').replace(/["Ø]/g, ' ').replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
-function vcChaveTrb(prf) {
-  let m = /^PARAF_(\d+\/\d+)"X(.+?)_(A\d+N?|GR\.8)$/.exec(prf);
-  if (m) return { k: `P|${m[1]}|${vcFrac(m[2])}`, norma: m[3].replace(/N$/, '') };
-  m = /^PARABOLT_(\d+\/\d+)"X(.+)$/.exec(prf);
-  if (m) return { k: `PB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
-  m = /^AB (\d+\/\d+)"X(.+?)_TCP3$/.exec(prf);
-  if (m) return { k: `AB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
-  return { k: '', norma: '' };
+const vcEhArrPor = k => /^(ARRUELA|PORCA)\|/.test(k);
+
+// nome do modelo (PRF_NAME, ARRUELA_…, PORCA_…) → tipo e chave de comparação
+function vcChaveTrb(nome) {
+  let m = /^PARAF_(\d+\/\d+)"X(.+?)_(A\d+N?|GR\.8)$/.exec(nome);
+  if (m) return { kind: 'parafuso', k: `P|${m[1]}|${vcFrac(m[2])}`, norma: m[3].replace(/N$/, '') };
+  m = /^PARABOLT_(\d+\/\d+)"X(.+)$/.exec(nome);
+  if (m) return { kind: 'parafuso', k: `PB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
+  m = /^AB (\d+\/\d+)"X(.+?)_TCP3$/.exec(nome);
+  if (m) return { kind: 'parafuso', k: `AB|${m[1]}|${vcFrac(m[2])}`, norma: '' };
+  m = /^(ARRUELA|PORCA)_(\d+\/\d+|\d+)"/.exec(nome);
+  if (m) return { kind: m[1] === 'ARRUELA' ? 'arruela' : 'porca', k: `${m[1]}|${m[2]}`, norma: '' };
+  return { kind: '', k: '', norma: '' };
 }
+// cadastro de Materiais (produto ou material) → mesma chave
 function vcChaveCad(m) {
-  const t = vcUp(m.produto);
-  let r = /^PARAF\. AB Ø?(\d+\/\d+)" X (.+)$/.exec(t);
-  if (r) return { k: `AB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
-  r = /^PARABOLT Ø?(\d+\/\d+)" X (.+)$/.exec(t);
-  if (r) return { k: `PB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
-  r = /^PARAF\. Ø?(\d+\/\d+)" X (.+)$/.exec(t);
-  if (r) { const n = /GR\.8/i.test(m.material || '') ? 'GR.8' : (String(m.material || '').match(/A\d+/) || [''])[0]; return { k: `P|${r[1]}|${vcFrac(r[2])}`, norma: n }; }
+  for (const txt of [m.produto, m.material]) {
+    const t = vcUp(txt);
+    let r = /^PARAF\. AB Ø?(\d+\/\d+)" X ([\d\/ ]+)"/.exec(t);
+    if (r) return { k: `AB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
+    r = /^PARABOLT Ø?(\d+\/\d+)" X ([\d\/ ]+)"/.exec(t);
+    if (r) return { k: `PB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
+    r = /^PARAF\. Ø?(\d+\/\d+)" X ([\d\/ ]+)"\s*(A\d+N?|GR\.8)?/.exec(t);
+    if (r) {
+      const mt = vcUp(m.material), n = r[3] || (/GR\.8/.test(mt) ? 'GR.8' : (mt.match(/A\d+/) || [''])[0]);
+      return { k: `P|${r[1]}|${vcFrac(r[2])}`, norma: n.replace(/N$/, '') };
+    }
+    r = /^(ARRUELA|PORCA) Ø?(\d+\/\d+|\d+)"/.exec(t);
+    if (r) return { k: `${r[1]}|${r[2]}`, norma: '' };
+  }
   return { k: '', norma: '' };
 }
-function vcParafusosHtml() {
+// nome como o cadastro de Materiais escreve (usado ao criar a TAG que falta)
+function vcNomeCadastro(it) {
+  let m;
+  if (it.kind === 'arruela' || it.kind === 'porca') { m = /^(ARRUELA|PORCA)_(\d+\/\d+|\d+)"/.exec(it.nome); return m ? `${m[1]} Ø${m[2]}"` : it.nome; }
+  if ((m = /^PARAF_(\d+\/\d+)"X(.+?)_(A\d+N?|GR\.8)$/.exec(it.nome))) return `PARAF. Ø${m[1]}" X ${vcFrac(m[2])}" ${m[3]}`;
+  if ((m = /^PARABOLT_(\d+\/\d+)"X(.+)$/.exec(it.nome))) return `PARABOLT Ø${m[1]}" X ${vcFrac(m[2])}"`;
+  if ((m = /^AB (\d+\/\d+)"X(.+?)_TCP3$/.exec(it.nome))) return `PARAF. AB Ø${m[1]}" X ${vcFrac(m[2])}"`;
+  return it.nome;
+}
+
+// parafusos, arruelas e porcas do projeto (sem as "falsas"), cada um com quantidade total e por local
+function vcTrbItens() {
+  const pf = M?.estoque_ifc?.parafusos;
+  if (!pf) return [];
+  if (VC._trb && VC._trb.pf === pf) return VC._trb.itens;
+  const out = [];
+  Object.entries(pf.por_tipo || {}).forEach(([nome, v]) => out.push({ kind: 'parafuso', nome, ...vcChaveTrb(nome), kind: 'parafuso', qtd: v.qtd, locais: v.locais || {}, arruelas: v.arruelas || {}, porcas: v.porcas || {}, diametro: v.diametro_mm, comprimento: v.comprimento_mm }));
+  [['arruela', pf.por_arruela], ['porca', pf.por_porca]].forEach(([kind, d]) => Object.entries(d || {}).forEach(([nome, v]) => {
+    if (/FALSA/i.test(nome)) return;
+    out.push({ ...vcChaveTrb(nome), kind, nome, qtd: v.qtd, locais: v.locais || {}, parafusos: v.parafusos || {} });
+  }));
+  VC._trb = { pf, itens: out };
+  return out;
+}
+function vcAcharCad(it, cad) {
+  const c = cad.filter(x => x.k === it.k);
+  if (!c.length) return null;
+  if (it.norma) return c.find(x => x.norma === it.norma) || c.find(x => !x.norma) || null;
+  return c[0];
+}
+// soma a quantidade do projeto ao planejado de cada TAG de fixador (cópia: o cadastro gravado não muda)
+function vcAplicarTrb(base) {
+  const itens = vcTrbItens();
+  if (!itens.length) return base;
+  const cad = base.map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k && ehFixador(x.m));
+  const soma = new Map();
+  itens.forEach(it => {
+    const c = vcAcharCad(it, cad);
+    if (!c) return;
+    const o = soma.get(c.m) || { qtd: 0, itens: [] };
+    o.qtd += it.qtd; o.itens.push(it.nome); soma.set(c.m, o);
+  });
+  soma.forEach((o, m) => {
+    const ch = Number(m.chegou) || 0;
+    m.planejado_cad = Number(m.planejado) || 0; m.planejado_trb = o.qtd; m.planejado = m.planejado_cad + o.qtd; m.trb_itens = o.itens;
+    m.atendimento = m.planejado ? ch / m.planejado : null;
+    m.status_logistico = ch <= 0 ? 'Crítico' : ch < m.planejado ? 'Recebimento Parcial' : ch > m.planejado ? 'Excedente' : 'Atendido';
+  });
+  return base;
+}
+// quantidade do projeto somada ao planejado, por TAG (para o Inventário e outras telas)
+function vcPlanejadoTrbPorTag() {
+  const mapa = new Map();
+  estMateriaisComCadastros().forEach(m => { if (m.tag && m.planejado_trb) mapa.set(m.tag, m.planejado_trb); });
+  return mapa;
+}
+// TAG do cadastro de cada item do projeto (ou null) e os itens que ainda não têm TAG
+function vcCasarTrb() {
+  const cad = estMateriaisComCadastros().map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k && ehFixador(x.m));
+  return vcTrbItens().map(it => ({ it, c: vcAcharCad(it, cad) }));
+}
+
+function vcParafusosHtml(podeEditar) {
   const pf = M?.estoque_ifc?.parafusos;
   if (!pf) return '';
-  const cad = estMateriaisComCadastros().filter(m => m.tag && ehFixador(m)).map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k);
-  const linhas = Object.entries(pf.por_tipo).map(([prf, v]) => {
-    const t = vcChaveTrb(prf);
-    const exato = cad.filter(c => c.k === t.k && (!t.norma || !c.norma || c.norma === t.norma));
-    const mesma = exato.length ? exato : cad.filter(c => c.k === t.k);
-    const locais = Object.entries(v.locais).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
-    const c = mesma[0];
-    const kit = [...Object.entries(v.arruelas || {}), ...Object.entries(v.porcas || {})].map(([n, q]) => `${esc(n)} <b>${nf(q, 0)}</b>`).join('<br>');
-    const cadHtml = c ? `<b>${esc(c.m.tag)}</b> ${esc(c.m.produto)}${exato.length ? '' : ' <span class="nota">(norma diferente)</span>'}<br><span class="nota">planejado ${nf(c.m.planejado, 0)} · chegou ${nf(c.m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span>';
-    return `<tr><td><b>${esc(prf)}</b></td><td class="n">${nf(v.diametro_mm, 1)} × ${nf(v.comprimento_mm, 1)}</td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${kit}</td><td>${cadHtml}</td></tr>`;
-  }).join('');
-  const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas_reais || 0, 0)}${v.arruelas_falsas ? ` <span class="nota">+ ${nf(v.arruelas_falsas, 0)} falsas</span>` : ''}</td><td class="n">${nf(v.porcas_reais || 0, 0)}${v.porcas_falsas ? ` <span class="nota">+ ${nf(v.porcas_falsas, 0)} falsas</span>` : ''}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
+  const casados = vcCasarTrb(), faltam = casados.filter(x => !x.c).map(x => x.it);
+  const locsHtml = loc => Object.entries(loc).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
+  const kitHtml = it => it.kind === 'parafuso'
+    ? [...Object.entries(it.arruelas), ...Object.entries(it.porcas)].map(([n, q]) => `${esc(n)} <b>${nf(q, 0)}</b>`).join('<br>') || '<span class="nota">sem arruela nem porca</span>'
+    : Object.entries(it.parafusos).sort((a, b) => b[1] - a[1]).map(([n, q]) => `${esc(n)} <b>${nf(q, 0)}</b>`).join('<br>');
+  const linha = ({ it, c }) => {
+    const m = c && c.m;
+    const cadHtml = m ? `<b>${esc(m.tag)}</b> ${esc(m.produto || m.material)}<br><span class="nota">${m.planejado_cad != null ? `cadastro ${nf(m.planejado_cad, 0)} + projeto ${nf(m.planejado_trb, 0)} = <b>${nf(m.planejado, 0)}</b>` : `planejado ${nf(m.planejado, 0)}`} · chegou ${nf(m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span><div class="nota">será criada como ' + esc(vcNomeCadastro(it)) + '</div>';
+    return `<tr><td><b>${esc(it.nome)}</b>${it.kind === 'parafuso' ? `<div class="nota">Ø ${nf(it.diametro, 1)} × ${nf(it.comprimento, 1)} mm</div>` : ''}</td><td class="n"><b>${nf(it.qtd, 0)}</b></td><td>${locsHtml(it.locais)}</td><td>${kitHtml(it)}</td><td>${cadHtml}</td></tr>`;
+  };
+  const secao = (kind, titulo, aberta) => {
+    const ls = casados.filter(x => x.it.kind === kind);
+    const tot = soma0(ls, x => x.it.qtd);
+    return `<details class="vc-ativ" ${aberta ? 'open' : ''} data-vc-sec="${kind}"><summary><b>${titulo}</b> <span class="nota">${ls.length} tipos · ${nf(tot, 0)} no projeto · ${ls.filter(x => !x.c).length} sem TAG</span></summary>
+      <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>${kind === 'parafuso' ? 'Parafuso (PRF_NAME)' : 'Nome no modelo'}</th><th class="n">Total no projeto</th><th>Onde estão</th><th>${kind === 'parafuso' ? 'Arruela e porca do kit' : 'Parafusos que usam'}</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${ls.map(linha).join('')}</tbody></table></div></details>`;
+  };
+  const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas || 0, 0)}</td><td class="n">${nf(v.porcas || 0, 0)}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
   const tot = Object.values(pf.por_local).reduce((s, v) => s + (v.BOLT_qtd || 0), 0);
-  const btn = '<button class="btn" type="button" data-vc-parafcsv>Baixar lista com localização (CSV)</button>';
-  return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por local — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). Furos sem parafuso não entram no total.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Local</th><th class="n">Conjuntos</th><th class="n">Parafusos</th><th class="n">Arruelas</th><th class="n">Porcas</th><th class="n">Furos sem parafuso</th></tr></thead><tbody>${loc}</tbody></table></div></div>
-    <div class="bloco"><div class="bloco-cab"><h2>Parafusos do projeto por tipo e onde estão</h2>${btn}</div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Parafuso (PRF_NAME)</th><th class="n">Ø × comp. (mm)</th><th class="n">Total</th><th>Onde estão</th><th>Arruela e porca do kit</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
-    ${vcKitHtml(pf)}`;
+  const btn = `<button class="btn" type="button" data-vc-parafcsv>Baixar lista com localização (CSV)</button>${faltam.length && podeEditar ? ` <button class="btn primario" type="button" data-vc-criar-faltantes>Criar ${faltam.length} TAG(s) que faltam no cadastro</button>` : ''}`;
+  return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos, arruelas e porcas do projeto — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). A quantidade do projeto é SOMADA ao planejado do cadastro de Materiais. Furos sem parafuso e arruela/porca "falsa" do modelo ficam de fora.</span></div>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Local</th><th class="n">Conjuntos</th><th class="n">Parafusos</th><th class="n">Arruelas</th><th class="n">Porcas</th><th class="n">Furos sem parafuso</th></tr></thead><tbody>${loc}</tbody></table></div>
+    <div class="barra-acoes">${btn}</div></div>
+    <div class="bloco">${secao('parafuso', 'Parafusos', true)}${secao('arruela', 'Arruelas', false)}${secao('porca', 'Porcas', false)}</div>`;
 }
-// Arruelas e porcas do kit de cada parafuso (Tekla: Washer name / Nut name). "FALSA" = item do kit sem peça física separada (a confirmar).
-function vcChaveKit(nome) {
-  const m = /^(ARRUELA|PORCA)_(\d+\/\d+|\d+)"/.exec(nome || '');
-  return m ? `${m[1]}|${m[2]}` : '';
-}
-function vcKitHtml(pf) {
-  const cad = new Map();
-  estMateriaisComCadastros().filter(m => m.tag).forEach(m => {
-    const r = /^(ARRUELA|PORCA) Ø?(\d+\/\d+|\d+)"$/.exec(vcUp(m.produto));
-    if (r && !cad.has(`${r[1]}|${r[2]}`)) cad.set(`${r[1]}|${r[2]}`, m);
-  });
-  const lin = (rot, dic) => Object.entries(dic || {}).map(([nome, v]) => {
-    const falsa = /FALSA/i.test(nome), m = falsa ? null : cad.get(vcChaveKit(nome));
-    const locais = Object.entries(v.locais).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
-    const par = Object.entries(v.parafusos).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, q]) => `${esc(n)} ${nf(q, 0)}`).join('<br>') + (Object.keys(v.parafusos).length > 4 ? '<br>…' : '');
-    const c = falsa ? '<span class="nota">FALSA: sem peça física separada (confirmar)</span>' : m ? `<b>${esc(m.tag)}</b> ${esc(m.produto)}<br><span class="nota">planejado ${nf(m.planejado, 0)} · chegou ${nf(m.chegou, 0)}</span>` : '<span class="farol f-pendente">SEM TAG NO CADASTRO</span>';
-    return `<tr><td>${rot}</td><td><b>${esc(nome)}</b></td><td class="n"><b>${nf(v.qtd, 0)}</b></td><td>${locais}</td><td>${par}</td><td>${c}</td></tr>`;
-  }).join('');
-  const corpo = lin('Arruela', pf.por_arruela) + lin('Porca', pf.por_porca);
-  if (!corpo) return '';
-  return `<div class="bloco"><div class="bloco-cab"><h2>Arruelas e porcas do kit dos parafusos</h2><span class="nota">Quantidade do kit de cada conjunto (Washer count / Nut count). Alguns conjuntos têm arruela e porca em número diferente do parafuso.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Item</th><th>Tipo (nome no modelo)</th><th class="n">Total</th><th>Onde estão</th><th>Parafusos que usam</th><th>TAG no cadastro de Materiais</th></tr></thead><tbody>${corpo}</tbody></table></div></div>`;
+// cria no cadastro de Materiais as TAGs de fixador que o projeto usa e ainda não existem (a TAG FG### é gerada pelo servidor)
+async function vcCriarTagsFaltantes() {
+  const faltam = vcCasarTrb().filter(x => !x.c).map(x => x.it);
+  if (!faltam.length) return toast('Todos os fixadores do projeto já têm TAG.');
+  let n = 0;
+  try {
+    for (const it of faltam) {
+      await postar(API + 'registro', { tabela: 'materiais', campos: { material: vcNomeCadastro(it), unidade: 'un', tipo_material: 'FIXADOR', local: 'Todos os locais', etapa: 'Fixação', saldo_inicial: 0 } });
+      n++;
+    }
+    await carregar();
+    toast(`${n} TAG(s) criadas no cadastro de Materiais.`);
+  } catch (err) { toast(`${n} criadas; parou em: ${err.message || err}`, true); await carregar(); }
 }
 // CSV com um conjunto por linha: local, tipo, parafuso, quantidade, arruelas, porcas, montagem, coordenadas e peça vizinha
 async function vcBaixarParafusosCsv() {
@@ -386,6 +475,108 @@ async function vcBaixarParafusosCsv() {
   } catch (e) { toast('Não foi possível baixar: ' + (e.message || e), true); }
 }
 
+// ---------------------------------------------------------------- Por atividade: peças, fixadores (parafuso + arruela + porca) e baixa por unidade
+const VC_ITEM_LOCAL = Object.fromEntries(Object.entries(VC_ANEXO_ITEM).map(([l, i]) => [i, l]));
+const vcLocalDaAtiv = key => VC_ITEM_LOCAL[String(key).replace(/-\d+$/, '')] || '';
+function vcQtdAtividade(key) {
+  let qtd = 0, un = '';
+  bmTab('bm_atividades').forEach(a => { if (vcChaveAtiv(a.codigo) === key) { qtd += Number(a.qtd) || 0; un = un || a.unidade || ''; } });
+  return { qtd, un };
+}
+// produção já lançada da atividade (todas as empresas do catálogo), na unidade do catálogo — base da baixa automática
+function vcRealizadoAtividade(key) {
+  let t = 0;
+  bmTab('bm_atividades').forEach(a => { if (vcChaveAtiv(a.codigo) === key) t += bmRealizado(a, '9999-12-31') || 0; });
+  return t;
+}
+const vcKindDe = txt => { const t = vcUp(txt); return /ARRUELA|WASHER/.test(t) ? 'arruela' : /PORCA|NUT/.test(t) ? 'porca' : /PARAF|PARABOLT|CHUMBADOR/.test(t) ? 'parafuso' : ''; };
+const vcDiamDe = txt => { const m = /Ø\s*(\d+\/\d+|\d+)"/.exec(String(txt || '')); return m ? m[1] : ''; };
+function vcOpcoesFix(kind, sel) {
+  const l = estMateriaisComCadastros().filter(m => m.tag && ehFixador(m) && (!kind || vcKindDe(m.produto + ' ' + m.material) === kind))
+    .sort((a, b) => a.tag.localeCompare(b.tag, 'pt', { numeric: true }));
+  return '<option value="">—</option>' + l.map(m => `<option value="${esc(m.tag)}" ${m.tag === sel ? 'selected' : ''}>${esc(m.tag + ' · ' + (m.produto || m.material) + (m.material && m.material !== m.produto ? ' ' + m.material : ''))}</option>`).join('');
+}
+// arruela e porca do cadastro com o mesmo diâmetro do parafuso (o kit)
+function vcKitDoParafuso(tag) {
+  const m = estMateriaisComCadastros().find(x => x.tag === tag);
+  const c = m ? vcChaveCad(m) : { k: '' };
+  const d = (c.k.split('|')[0] === 'P' || c.k.split('|')[0] === 'PB') ? c.k.split('|')[1] : '';
+  if (!d) return { arruela: '', porca: '' };
+  const cad = estMateriaisComCadastros().filter(x => x.tag && ehFixador(x)).map(x => ({ x, ...vcChaveCad(x) }));
+  const pega = pre => (cad.find(y => y.k === `${pre}|${d}`) || { x: { tag: '' } }).x.tag;
+  return { arruela: pega('ARRUELA'), porca: pega('PORCA') };
+}
+function vcFxLinhaHtml(l) {
+  l = l || {};
+  return `<tr data-fx-linha><td><select class="vc-sel" data-fx-tag>${vcOpcoesFix('', l.tag)}</select></td>
+    <td><input type="number" step="any" min="0" class="vc-num" data-fx-por value="${l.por_unidade != null ? l.por_unidade : ''}" placeholder="por und"></td>
+    <td><select class="vc-sel" data-fx-arr>${vcOpcoesFix('arruela', l.arruela)}</select><input type="number" step="any" min="0" class="vc-num" data-fx-arrq value="${l.arruela ? (l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade) : ''}" placeholder="qtd"></td>
+    <td><select class="vc-sel" data-fx-pca>${vcOpcoesFix('porca', l.porca)}</select><input type="number" step="any" min="0" class="vc-num" data-fx-pcaq value="${l.porca ? (l.porca_qtd != null ? l.porca_qtd : l.por_unidade) : ''}" placeholder="qtd"></td>
+    <td><button type="button" class="link" data-fx-del>remover</button></td></tr>`;
+}
+// sugestões do projeto (TRB) para o prédio da atividade: o modelo não separa por atividade, então a pessoa escolhe quais usar
+function vcSugestoesFx(key) {
+  const pf = M?.estoque_ifc?.parafusos, local = vcLocalDaAtiv(key);
+  if (!pf || !local) return '<p class="nota">O projeto (TRB) só cobre os anexos. Para atividades do galpão os fixadores vêm das regras de serviço.</p>';
+  const { qtd, un } = vcQtdAtividade(key);
+  const lf = (pf.por_local_fase || {})[Object.keys(pf.por_local_fase || {}).find(l => vcUp(l) === vcUp(local)) || ''] || {};
+  const casa = vcCasarTrb(), tagDe = nome => (casa.find(x => x.it.nome === nome && x.c) || {}).c;
+  const linhas = [];
+  Object.entries(lf).forEach(([fase, v]) => Object.entries(v.parafusos || {}).forEach(([prf, q]) => {
+    const c = tagDe(prf), it = vcTrbItens().find(x => x.nome === prf);
+    const arr = it ? Object.keys(it.arruelas || {})[0] : '', pca = it ? Object.keys(it.porcas || {})[0] : '';
+    const ta = arr ? (tagDe(arr) || {}).m : null, tp = pca ? (tagDe(pca) || {}).m : null;
+    const por = qtd > 0 ? Math.round((q / qtd) * 10000) / 10000 : 0;
+    linhas.push(`<tr><td>${esc(fase)}</td><td><b>${esc(prf)}</b></td><td class="n">${nf(q, 0)}</td><td>${c ? `<b>${esc(c.m.tag)}</b>` : '<span class="farol f-pendente">SEM TAG</span>'}</td><td class="n">${nf(por, 4)} / ${esc(un || 'und')}</td>
+      <td>${c ? `<button type="button" class="link" data-fx-usar='${esc(JSON.stringify({ tag: c.m.tag, por_unidade: por, arruela: ta ? ta.tag : '', porca: tp ? tp.tag : '' }))}' data-fx-key="${esc(key)}">usar</button>` : '<span class="nota">crie a TAG em Regras e fixadores</span>'}</td></tr>`);
+  }));
+  return `<p class="nota">Fixadores do projeto no prédio <b>${esc(cap(local.toLowerCase()))}</b> (por fase do modelo). O projeto não separa por atividade: use só os que pertencem a <b>${esc(key)}</b>. "Por und" = quantidade do prédio ÷ ${nf(qtd, 0)} ${esc(un || 'und')} da atividade, ajuste se só parte for dela.</p>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Fase do modelo</th><th>Parafuso</th><th class="n">No prédio</th><th>TAG</th><th class="n">Por und</th><th></th></tr></thead><tbody>${linhas.join('') || '<tr><td colspan="6" class="vazio">Sem parafusos neste prédio.</td></tr>'}</tbody></table></div>`;
+}
+function vcAtividadesHtml(cat, grupos, podeEditar) {
+  const { ativs } = vcBom(grupos, cat);
+  const fa = M?.fixadores_atividade || {};
+  const chaves = [...cat.keys()].filter(k => VC.ativTodas || ativs.has(k) || fa[k] || VC.extras.has(k)).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+  const regra = vcTagsRegra(), ativRegra = new Set(VC_REGRA_SERV.map(x => x.ativ));
+  const farol = { verde: '<span class="farol f-verde">ATENDE</span>', amarelo: '<span class="farol f-amarelo">NO LIMITE</span>', vermelho: '<span class="farol f-vermelho">NÃO ATENDE</span>', pendente: '<span class="farol f-pendente">SEM LISTA</span>' };
+  const ordem = { peça: 0, componente: 1, fixador: 2, parafuso: 2, arruela: 3, porca: 4 };
+  const corpo = key => {
+    const a = ativs.get(key) || { key, linhas: [] }, e = cat.get(key), sit = vcSituacao(a), { qtd, un } = vcQtdAtividade(key);
+    const ls = [...a.linhas].sort((p, q) => ((ordem[p.tipo] ?? 9) - (ordem[q.tipo] ?? 9)) || String(p.tag).localeCompare(String(q.tag), 'pt', { numeric: true }));
+    const linhas = ls.map(l => {
+      const kind = l.tipo === 'peça' ? '' : (['parafuso', 'arruela', 'porca'].includes(l.tipo) ? l.tipo : vcKindDe(l.rotulo));
+      let par = '';
+      if (kind === 'arruela' || kind === 'porca') {
+        const pfs = l.parafuso ? ls.filter(x => x.tag === l.parafuso && x !== l) : ls.filter(x => x !== l && vcKindDe(x.rotulo) === 'parafuso' && vcDiamDe(x.rotulo) && vcDiamDe(x.rotulo) === vcDiamDe(l.rotulo));
+        const lista = pfs.length ? pfs : (l.parafuso ? [{ tag: l.parafuso, rotulo: '' }] : []);
+        if (lista.length) par = `<div class="nota">parafuso do kit: ${lista.map(x => `<b>${esc(x.tag)}</b>${x.rotulo ? ' ' + esc(x.rotulo) : ''}`).join(' · ')}</div>`;
+      }
+      const sal = l.chegou - l.nec;
+      const ok = l.nec > 0 ? (l.chegou >= l.nec ? '<span class="farol f-verde">ATENDE</span>' : l.chegou > 0 ? `<span class="farol f-amarelo">PARCIAL ${nf(l.chegou / l.nec * 100, 0)}%</span>` : '<span class="farol f-vermelho">NÃO ATENDE</span>') : '—';
+      const dupla = l.config && ativRegra.has(key) && regra.has(l.tag) ? '<div class="nota valor-neg">esta atividade já baixa esta TAG por regra de serviço: pode contar em dobro</div>' : '';
+      return `<tr><td><span class="farol f-${l.tipo === 'peça' ? 'verde' : l.tipo === 'componente' ? 'pendente' : 'amarelo'}">${esc((kind || l.tipo).toUpperCase())}</span></td><td><b>${esc(l.tag)}</b><div class="nota">${esc(l.rotulo)}</div>${par}${dupla}</td><td class="nota">${esc(l.origem)}</td><td class="n">${nf(l.nec, 0)}</td><td class="n">${nf(l.chegou, 0)}</td><td class="n ${sal < 0 ? 'valor-neg' : ''}">${nf(sal, 0)}</td><td>${ok}</td></tr>`;
+    }).join('');
+    const cfg = (fa[key] && fa[key].linhas) || [];
+    const abertoFx = VC.abertasFx.has(key);
+    const editor = podeEditar ? `<details class="vc-fx" data-vc-fx="${esc(key)}" ${abertoFx ? 'open' : ''}><summary><b>Fixadores por unidade desta atividade</b> <span class="nota">${cfg.length} linha(s) · quando a produção da atividade é lançada, o consumo desses fixadores sobe sozinho${fa[key] ? ` · gravado por ${esc(fa[key].por || '—')} em ${esc(String(fa[key].em || '').slice(0, 16))}` : ''}</span></summary>
+      <p class="nota">Cada linha = um fixador com a quantidade que a atividade usa <b>por ${esc(un || 'unidade')}</b> produzida. Se tem arruela e porca, escolha também: o parafuso, a arruela e a porca baixam juntos. Unidades já lançadas hoje: <b>${nf(vcRealizadoAtividade(key), 2)}</b> ${esc(un || '')}.</p>
+      <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Fixador (parafuso)</th><th>Por ${esc(un || 'und')}</th><th>Arruela · qtd por ${esc(un || 'und')}</th><th>Porca · qtd por ${esc(un || 'und')}</th><th></th></tr></thead><tbody data-fx-corpo="${esc(key)}">${cfg.map(vcFxLinhaHtml).join('')}</tbody></table></div>
+      <div class="barra-acoes"><button type="button" class="btn" data-fx-add="${esc(key)}">+ Adicionar fixador</button> <button type="button" class="btn" data-fx-sug="${esc(key)}">Sugerir do projeto (TRB)</button> <button type="button" class="btn primario" data-fx-salvar="${esc(key)}">Salvar fixadores desta atividade</button></div>
+      <div data-fx-sugestoes="${esc(key)}" hidden></div></details>` : '';
+    return `<div class="vc-ativ-corpo">${a.linhas.length ? `<div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Tipo</th><th>Item</th><th>De onde vem a quantidade</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Saldo</th><th>Atende?</th></tr></thead><tbody>${linhas}</tbody></table></div>` : '<p class="nota">Nenhuma peça ou fixador ligado a esta atividade ainda. Confirme vínculos de peças ou cadastre os fixadores por unidade abaixo.</p>'}${editor}</div>`;
+  };
+  const itens = chaves.map(key => {
+    const a = ativs.get(key) || { key, linhas: [] }, e = cat.get(key), sit = vcSituacao(a), { qtd, un } = vcQtdAtividade(key);
+    return `<details class="vc-ativ" data-vc-ativ="${esc(key)}" ${VC.abertas.has(key) ? 'open' : ''}><summary><b>${esc(e ? e.nome : key)}</b> <span class="nota">${esc(key)} · ${esc(e ? cap(e.itemDesc || '') : '')}${qtd ? ` · ${nf(qtd, 0)} ${esc(un)}` : ''}</span>
+      <span class="vc-resumo">${a.linhas.length ? `${sit.completas}/${sit.total} itens atendem ${vcBarra(sit.media)}` : ''} ${farol[sit.nivel]}</span></summary>${corpo(key)}</details>`;
+  }).join('');
+  const extras = [...cat.keys()].filter(k => !chaves.includes(k)).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+  return `<div class="bloco"><div class="bloco-cab"><h2>Peças e fixadores de cada atividade</h2><span class="nota">Clique na atividade para exibir ou ocultar: peças com a quantidade planejada, fixadores (parafuso, arruela e porca) e se o que chegou atende.</span></div>
+    <div class="barra-acoes"><button class="btn" type="button" data-vc-todas="abrir">Exibir todas</button> <button class="btn" type="button" data-vc-todas="fechar">Ocultar todas</button>
+      <label class="check"><input type="checkbox" data-vc-ativtodas ${VC.ativTodas ? 'checked' : ''}> mostrar também atividades sem material</label>
+      ${podeEditar && !VC.ativTodas && extras.length ? `<select class="vc-sel" data-vc-extra><option value="">Cadastrar fixadores em outra atividade…</option>${extras.map(k => `<option value="${esc(k)}">${esc(vcRotuloAtiv(cat, k))}</option>`).join('')}</select>` : ''}</div>
+    ${itens || '<p class="vazio">Nenhuma atividade com material. Confirme vínculos ou cadastre fixadores por unidade.</p>'}</div>`;
+}
 // ---------------------------------------------------------------- Pronto para iniciar
 function renderPronto() {
   const box = document.getElementById('vpCorpo');
@@ -424,12 +615,12 @@ function renderPronto() {
 }
 
 function vcDetalheAtiv(x, cat) {
-  const ordem = { peça: 0, componente: 1, fixador: 2 };
+  const ordem = { peça: 0, componente: 1, fixador: 2, parafuso: 2, arruela: 3, porca: 4 };
   const ls = [...x.a.linhas].sort((p, q) => (ordem[p.tipo] - ordem[q.tipo]) || ((p.pct ?? 0) - (q.pct ?? 0)));
   const rows = ls.map(l => {
     const nec = l.nec > 0 ? vcBarra(Math.min(1, l.chegou / l.nec)) : '—';
     const comp = l.usos > 1 ? `<span class="farol f-amarelo" title="Esta TAG é pedida por ${l.usos} atividades. Total pedido: ${nf(l.totalTag, 0)}. Chegou: ${nf(l.chegou, 0)}.">USADA EM ${l.usos} ATIVIDADES</span><div class="nota">total ${nf(l.totalTag, 0)} · chegou cobre ${nf(Math.min(1, l.chegou / l.totalTag) * 100, 0)}%</div>${l.outras.map(k => esc(vcRotuloAtiv(cat, k))).join('<br>')}` : '<span class="nota">só esta atividade</span>';
-    return `<tr><td><span class="farol f-${l.tipo === 'peça' ? 'verde' : l.tipo === 'fixador' ? 'amarelo' : 'pendente'}">${l.tipo.toUpperCase()}</span></td><td><b>${esc(l.tag)}</b><div class="nota">${esc(l.rotulo)}</div></td><td class="nota">${esc(l.origem)}</td><td class="n">${nf(l.nec, 0)}</td><td class="n">${nf(l.chegou, 0)}</td><td>${nec}</td><td>${comp}</td></tr>`;
+    return `<tr><td><span class="farol f-${l.tipo === 'peça' ? 'verde' : l.tipo === 'componente' ? 'pendente' : 'amarelo'}">${l.tipo.toUpperCase()}</span></td><td><b>${esc(l.tag)}</b><div class="nota">${esc(l.rotulo)}</div></td><td class="nota">${esc(l.origem)}</td><td class="n">${nf(l.nec, 0)}</td><td class="n">${nf(l.chegou, 0)}</td><td>${nec}</td><td>${comp}</td></tr>`;
   }).join('');
   const c = x.c;
   return `<div class="bloco" data-vc-detalhe><div class="bloco-cab"><h2>${esc(x.e ? x.e.nome : x.a.key)} <span class="nota">${esc(x.a.key)}</span></h2><button class="link" data-vp-fechar>Fechar</button></div>
@@ -444,10 +635,76 @@ async function vcSalvar(itens, msg) {
   catch (err) { toast(err.message || String(err), true); }
 }
 
+// grava os fixadores por unidade de uma atividade (lê as linhas da tela)
+async function vcSalvarFixadores(key) {
+  const corpo = document.querySelector(`[data-fx-corpo="${CSS.escape(key)}"]`);
+  if (!corpo) return;
+  const num = v => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+  const linhas = [...corpo.querySelectorAll('[data-fx-linha]')].map(tr => {
+    const g = sel => tr.querySelector(sel)?.value || '';
+    const por = num(g('[data-fx-por]')), l = { tag: g('[data-fx-tag]'), por_unidade: por };
+    if (g('[data-fx-arr]')) { l.arruela = g('[data-fx-arr]'); l.arruela_qtd = g('[data-fx-arrq]') === '' ? por : num(g('[data-fx-arrq]')); }
+    if (g('[data-fx-pca]')) { l.porca = g('[data-fx-pca]'); l.porca_qtd = g('[data-fx-pcaq]') === '' ? por : num(g('[data-fx-pcaq]')); }
+    return l;
+  }).filter(l => l.tag);
+  const sem = linhas.find(l => !(l.por_unidade > 0));
+  if (sem) return toast(`Informe a quantidade por unidade do fixador ${sem.tag}.`, true);
+  VC.abertas.add(key); VC.abertasFx.add(key);
+  try { await postar(API + 'fixadores-atividade', { atividade: key, linhas }); await carregar(); toast(linhas.length ? 'Fixadores da atividade gravados. A baixa passa a acontecer com a produção lançada.' : 'Fixadores da atividade removidos.'); }
+  catch (err) { toast(err.message || String(err), true); }
+}
+
+// escolher o parafuso preenche a arruela e a porca do mesmo diâmetro
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (!t || !t.matches) return;
+  if (t.matches('[data-fx-tag]')) {
+    const tr = t.closest('tr'), k = vcKitDoParafuso(t.value);
+    const arr = tr.querySelector('[data-fx-arr]'), pca = tr.querySelector('[data-fx-pca]');
+    if (arr && !arr.value && k.arruela) arr.value = k.arruela;
+    if (pca && !pca.value && k.porca) pca.value = k.porca;
+    return;
+  }
+  if (t.matches('[data-vc-ativtodas]')) { VC.ativTodas = t.checked; return renderVinculos(); }
+  if (t.matches('[data-vc-extra]') && t.value) { VC.extras.add(t.value); VC.abertas.add(t.value); VC.abertasFx.add(t.value); return renderVinculos(); }
+});
+// lembra quais atividades estão abertas (o quadro é redesenhado depois de gravar)
+document.addEventListener('toggle', ev => {
+  const d = ev.target;
+  if (!d || !d.matches) return;
+  if (d.matches('details[data-vc-ativ]')) d.open ? VC.abertas.add(d.dataset.vcAtiv) : VC.abertas.delete(d.dataset.vcAtiv);
+  else if (d.matches('details[data-vc-fx]')) d.open ? VC.abertasFx.add(d.dataset.vcFx) : VC.abertasFx.delete(d.dataset.vcFx);
+}, true);
+
 document.addEventListener('click', ev => {
   const t = ev.target && ev.target.closest ? ev.target : null;
   if (!t) return;
   if (t.closest('[data-vc-parafcsv]')) return vcBaixarParafusosCsv();
+  if (t.closest('[data-vc-criar-faltantes]')) return vcCriarTagsFaltantes();
+  const todas = t.closest('[data-vc-todas]');
+  if (todas) {
+    if (todas.dataset.vcTodas === 'abrir') document.querySelectorAll('#vcCorpo details[data-vc-ativ]').forEach(d => { d.open = true; VC.abertas.add(d.dataset.vcAtiv); });
+    else { document.querySelectorAll('#vcCorpo details[data-vc-ativ]').forEach(d => { d.open = false; }); VC.abertas.clear(); VC.abertasFx.clear(); }
+    return;
+  }
+  const fxAdd = t.closest('[data-fx-add]');
+  if (fxAdd) { const c = document.querySelector(`[data-fx-corpo="${CSS.escape(fxAdd.dataset.fxAdd)}"]`); if (c) c.insertAdjacentHTML('beforeend', vcFxLinhaHtml()); return; }
+  const fxDel = t.closest('[data-fx-del]');
+  if (fxDel) { const tr = fxDel.closest('tr'); if (tr) tr.remove(); return; }
+  const fxSug = t.closest('[data-fx-sug]');
+  if (fxSug) {
+    const box = document.querySelector(`[data-fx-sugestoes="${CSS.escape(fxSug.dataset.fxSug)}"]`);
+    if (box) { if (box.hidden) { box.innerHTML = vcSugestoesFx(fxSug.dataset.fxSug); box.hidden = false; } else box.hidden = true; }
+    return;
+  }
+  const fxUsar = t.closest('[data-fx-usar]');
+  if (fxUsar) {
+    const c = document.querySelector(`[data-fx-corpo="${CSS.escape(fxUsar.dataset.fxKey)}"]`);
+    if (c) { try { c.insertAdjacentHTML('beforeend', vcFxLinhaHtml(JSON.parse(fxUsar.dataset.fxUsar))); toast('Fixador adicionado à lista. Confira e clique em Salvar.'); } catch (e) { console.error(e); } }
+    return;
+  }
+  const fxSalvar = t.closest('[data-fx-salvar]');
+  if (fxSalvar) return vcSalvarFixadores(fxSalvar.dataset.fxSalvar);
   const f = t.closest('[data-vc-f]');
   if (f) { VC.filtro = f.dataset.vcF; VC.sel = ''; return renderVinculos(); }
   const ver = t.closest('[data-vc-ver]');

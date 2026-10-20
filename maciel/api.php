@@ -112,7 +112,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -130,7 +130,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -2074,6 +2074,76 @@ function acao_vinculos(array $corpo)
     sistema_gravar('vinculos_material', json_encode((object)$atual, JSON_UNESCAPED_UNICODE));
     registrar_alteracao('vinculos_material', ['alterados' => $n, 'total' => count($atual)]);
     return ['salvos' => $n, 'config' => (object)$atual];
+}
+
+// Fixadores por unidade de cada atividade do catálogo do BM: quando a produção da atividade é lançada, o consumo virtual
+// de cada TAG sobe (por_unidade × unidades produzidas). Guardado em sistema.fixadores_atividade: {atividade: {linhas, por, em}}.
+function fixadores_atividade_ler()
+{
+    $d = json_decode((string)sistema_ler('fixadores_atividade', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+
+function acao_fixadores_atividade(array $corpo)
+{
+    $ativ = trim((string)($corpo['atividade'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9_.\-]{3,40}$/', $ativ)) {
+        throw new ErroValidacao('Atividade inválida.');
+    }
+    $tag = function ($v, $rotulo) {
+        $v = mb_strtoupper(trim((string)($v ?? '')));
+        if ($v === '') {
+            return '';
+        }
+        if (!preg_match('/^[A-Z0-9_.\-]{2,20}$/', $v)) {
+            throw new ErroValidacao("TAG inválida em $rotulo: $v");
+        }
+        return $v;
+    };
+    $qtd = function ($v, $rotulo) {
+        $n = numero($v);
+        if ($n === null || $n < 0 || $n > 1000000) {
+            throw new ErroValidacao("Quantidade inválida em $rotulo.");
+        }
+        return round($n, 4);
+    };
+    $linhas = [];
+    foreach (array_slice(is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : [], 0, 60) as $l) {
+        if (!is_array($l)) {
+            continue;
+        }
+        $t = $tag($l['tag'] ?? '', 'fixador');
+        if ($t === '') {
+            continue;
+        }
+        $por = $qtd($l['por_unidade'] ?? 0, "fixador $t");
+        if ($por <= 0) {
+            continue;
+        }
+        $linha = ['tag' => $t, 'por_unidade' => $por];
+        foreach (['arruela', 'porca'] as $k) {
+            $tk = $tag($l[$k] ?? '', $k);
+            if ($tk !== '') {
+                $linha[$k] = $tk;
+                $linha[$k . '_qtd'] = $qtd($l[$k . '_qtd'] ?? $por, $k . ' de ' . $t);
+            }
+        }
+        $linha['obs'] = mb_substr(trim((string)($l['obs'] ?? '')), 0, 160);
+        $linhas[] = $linha;
+    }
+    $atual = fixadores_atividade_ler();
+    if ($linhas) {
+        $atual[$ativ] = [
+            'linhas' => $linhas,
+            'por' => trim((string)($GLOBALS['usuario']['nome'] ?? '')),
+            'em' => (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i'),
+        ];
+    } else {
+        unset($atual[$ativ]);
+    }
+    sistema_gravar('fixadores_atividade', json_encode((object)$atual, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('fixadores_atividade', ['atividade' => $ativ, 'linhas' => count($linhas)]);
+    return ['config' => (object)$atual];
 }
 
 function planos_ler()

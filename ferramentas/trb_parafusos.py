@@ -167,7 +167,9 @@ def extrair(caminho):
     kit_de = {}
     for mod, val, ids in linhas:
         if mod in m_kit and len(val) >= 12:
-            kit = {"arruelas": val[0], "arruela": txt(val[3]), "porcas": val[4], "porca": txt(val[6]),
+            arr, por = txt(val[3]), txt(val[6])
+            kit = {"arruelas": 0 if "FALSA" in arr.upper() else val[0], "arruela": "" if "FALSA" in arr.upper() else arr,
+                   "porcas": 0 if "FALSA" in por.upper() else val[4], "porca": "" if "FALSA" in por.upper() else por,
                    "montagem": txt(val[10]), "norma": txt(val[14]) if len(val) > 14 else ""}
             for e in ids:
                 kit_de[e] = kit
@@ -216,10 +218,20 @@ def extrair(caminho):
     return {"arquivo": os.path.basename(caminho), "entidades": len(pos), "conjuntos": conjuntos}
 
 
+def _agrupar(contador):
+    """{'parafusos:X': 3, 'arruelas:Y': 3} -> {'parafusos': {'X': 3}, 'arruelas': {'Y': 3}}"""
+    r = {}
+    for k, v in contador.items():
+        tipo, nome = k.split(":", 1)
+        r.setdefault(tipo, {})[nome] = v
+    return r
+
+
 def resumir(modelos):
     por_local = collections.defaultdict(lambda: collections.Counter())
     por_tipo = {}
     arruelas, porcas = {}, {}
+    por_local_fase = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     por_local_tipo = collections.defaultdict(lambda: collections.Counter())
     for m in modelos:
         for c in m["conjuntos"]:
@@ -236,11 +248,14 @@ def resumir(modelos):
             por_local[c["local"]][c["tipo"] + "_conjuntos"] += 1
             por_local[c["local"]][c["tipo"] + "_qtd"] += c["n"]
             if c["tipo"] == "BOLT":
-                falsa = "FALSA" in (c.get("arruela") or "").upper()
                 por_local[c["local"]]["arruelas"] += c.get("arruelas", 0)
                 por_local[c["local"]]["porcas"] += c.get("porcas", 0)
-                por_local[c["local"]]["arruelas_falsas" if falsa else "arruelas_reais"] += c.get("arruelas", 0)
-                por_local[c["local"]]["porcas_falsas" if "FALSA" in (c.get("porca") or "").upper() else "porcas_reais"] += c.get("porcas", 0)
+                lf = por_local_fase[c["local"]][c.get("fase") or "(sem fase)"]
+                lf["parafusos:" + c["prf"]] += c["n"]
+                if c.get("arruelas"):
+                    lf["arruelas:" + c["arruela"]] += c["arruelas"]
+                if c.get("porcas"):
+                    lf["porcas:" + c["porca"]] += c["porcas"]
                 t = por_tipo.setdefault(c["prf"], {"diametro_mm": round(c["diametro"], 1), "comprimento_mm": round(c["comprimento"], 1),
                                                    "qtd": 0, "locais": collections.Counter(), "arruelas": collections.Counter(),
                                                    "porcas": collections.Counter()})
@@ -260,6 +275,7 @@ def resumir(modelos):
     return {
         "por_local": {l: dict(v) for l, v in sorted(por_local.items())},
         "por_tipo": {p: dict(v, locais=dict(v["locais"]), arruelas=dict(v["arruelas"]), porcas=dict(v["porcas"])) for p, v in sorted(por_tipo.items())},
+        "por_local_fase": {l: {f: _agrupar(c) for f, c in sorted(fs.items())} for l, fs in sorted(por_local_fase.items())},
         "por_arruela": fmt(arruelas),
         "por_porca": fmt(porcas),
         "por_local_tipo": [dict(local=k[0], tipo=k[1], prf=k[2], diametro_mm=k[3], comprimento_mm=k[4], **dict(v))
@@ -272,7 +288,7 @@ def main(caminhos):
     resumo = resumir(modelos)
     resumo = {
         "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); "
-                      "TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" = item do kit sem peça física separada (a confirmar). Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
+                      "TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" do modelo foi excluída das listas e dos totais. Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
         "fontes": [{"arquivo": m["arquivo"], "entidades": m["entidades"], "conjuntos_parafuso": len(m["conjuntos"])} for m in modelos],
         **resumo,
     }

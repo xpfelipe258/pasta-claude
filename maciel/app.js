@@ -3022,7 +3022,8 @@ function estMateriaisComCadastros() {
     });
     vistos.add(ganNorm(tag));
   });
-  return base;
+  // quantidade de parafusos, arruelas e porcas do projeto (modelos TRB) somada ao planejado das TAGs de fixador (vinculos.js)
+  return typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
 }
 function estRemessasComCadastros() {
   const rem = EP?.remessas || { colunas: [], datas: {}, itens: [] };
@@ -3063,7 +3064,8 @@ function estConsumoComCadastros() {
   return { ...cf, itens };
 }
 function estInventarioComCadastros() {
-  const inv = [...(EP?.inventario || [])];
+  const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
+  const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
   const vistos = new Set(inv.map(i => ganNorm(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
@@ -3131,7 +3133,7 @@ function renderEstMateriais() {
       return `<tr>
       <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td>
       <td>${esc(m.local || '—')}${ehFixador(m) ? ' <span class="nota">fixador</span>' : ''}</td><td>${esc(m.etapa)}</td>
-      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
+      <td class="n">${nf(m.planejado)}${m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
       <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
@@ -3676,6 +3678,16 @@ function consumoVirtualPorTag(regras) {
       if (n > 0) o.partes.push(`${nf(n)} ${rotulo} × ${nf(it.por_unidade, 2)}`);
       if (it.estimado && n > 0) o.estimado = true;
     });
+  });
+  // fixadores por unidade de cada atividade (Suprimentos › Vínculos › Por atividade): unidades já produzidas na atividade × fixadores por unidade
+  if (typeof vcRealizadoAtividade === 'function') Object.entries(M.fixadores_atividade || {}).forEach(([key, cfg]) => {
+    const un = vcRealizadoAtividade(key);
+    if (!(un > 0)) return;
+    (cfg.linhas || []).forEach(l => [[l.tag, l.por_unidade], [l.arruela, l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade], [l.porca, l.porca_qtd != null ? l.porca_qtd : l.por_unidade]].forEach(([tag, por]) => {
+      if (!tag || !(por > 0)) return;
+      const o = entrada(tag);
+      o.qtd += por * un; o.partes.push(`${nf(un, 2)} und de ${key} × ${nf(por, 4)}`);
+    }));
   });
   evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
 

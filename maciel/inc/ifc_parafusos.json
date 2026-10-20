@@ -1,5 +1,5 @@
 {
- "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" = item do kit sem peça física separada (a confirmar). Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
+ "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" do modelo foi excluída das listas e dos totais. Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
  "fontes": [
   {
    "arquivo": "ea3034b5-OF.198_-_LYON_G200_PORTARIA.ifc.trb",
@@ -26,46 +26,32 @@
   "Anexos (geral)": {
    "BOLT_conjuntos": 52,
    "BOLT_qtd": 104,
-   "arruelas": 104,
-   "porcas": 104,
-   "arruelas_falsas": 104,
-   "porcas_falsas": 104
+   "arruelas": 0,
+   "porcas": 0
   },
   "Eclusa": {
    "BOLT_conjuntos": 5480,
    "BOLT_qtd": 6100,
-   "arruelas": 6100,
-   "porcas": 6100,
-   "arruelas_reais": 5908,
-   "porcas_reais": 5908,
+   "arruelas": 5908,
+   "porcas": 5908,
    "HOLE_conjuntos": 5744,
-   "HOLE_qtd": 5928,
-   "arruelas_falsas": 192,
-   "porcas_falsas": 192
+   "HOLE_qtd": 5928
   },
   "Marquise Refeitório/Vestiário": {
    "HOLE_conjuntos": 168,
    "HOLE_qtd": 228,
    "BOLT_conjuntos": 98,
    "BOLT_qtd": 180,
-   "arruelas": 180,
-   "porcas": 180,
-   "arruelas_reais": 174,
-   "porcas_reais": 174,
-   "arruelas_falsas": 6,
-   "porcas_falsas": 6
+   "arruelas": 174,
+   "porcas": 174
   },
   "Passarela": {
    "HOLE_conjuntos": 151,
    "HOLE_qtd": 242,
    "BOLT_conjuntos": 239,
    "BOLT_qtd": 602,
-   "arruelas": 602,
-   "porcas": 602,
-   "arruelas_reais": 464,
-   "porcas_reais": 464,
-   "arruelas_falsas": 138,
-   "porcas_falsas": 138
+   "arruelas": 464,
+   "porcas": 464
   },
   "Ponto de ônibus": {
    "HOLE_conjuntos": 252,
@@ -73,43 +59,29 @@
    "BOLT_conjuntos": 496,
    "BOLT_qtd": 1224,
    "arruelas": 1224,
-   "porcas": 1224,
-   "arruelas_reais": 1224,
-   "porcas_reais": 1224
+   "porcas": 1224
   },
   "Portaria": {
    "HOLE_conjuntos": 58,
    "HOLE_qtd": 76,
    "BOLT_conjuntos": 204,
    "BOLT_qtd": 450,
-   "arruelas": 450,
-   "porcas": 450,
-   "arruelas_reais": 358,
-   "porcas_reais": 358,
-   "arruelas_falsas": 92,
-   "porcas_falsas": 92
+   "arruelas": 358,
+   "porcas": 358
   },
   "Refeitório": {
    "HOLE_conjuntos": 749,
    "HOLE_qtd": 1109,
    "BOLT_conjuntos": 857,
    "BOLT_qtd": 1587,
-   "arruelas": 1435,
-   "porcas": 1435,
-   "arruelas_reais": 1236,
-   "porcas_reais": 1236,
-   "arruelas_falsas": 199,
-   "porcas_falsas": 199
+   "arruelas": 1236,
+   "porcas": 1236
   },
   "Vestiário": {
    "BOLT_conjuntos": 945,
    "BOLT_qtd": 1749,
-   "arruelas": 1577,
-   "porcas": 1577,
-   "arruelas_falsas": 193,
-   "porcas_falsas": 193,
-   "arruelas_reais": 1384,
-   "porcas_reais": 1384,
+   "arruelas": 1384,
+   "porcas": 1384,
    "HOLE_conjuntos": 796,
    "HOLE_qtd": 1132
   }
@@ -124,12 +96,8 @@
     "Anexos (geral)": 104,
     "Marquise Refeitório/Vestiário": 2
    },
-   "arruelas": {
-    "ARRUELA_FALSA_1/4\"": 244
-   },
-   "porcas": {
-    "PORCA_FALSA_1/4\"": 244
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "AB 1/4\"X3/4\"_TCP3": {
    "diametro_mm": 6.3,
@@ -140,12 +108,8 @@
     "Refeitório": 152,
     "Vestiário": 172
    },
-   "arruelas": {
-    "ARRUELA_FALSA_1/4\"": 192
-   },
-   "porcas": {
-    "PORCA_FALSA_1/4\"": 192
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_1/2\"X4\"": {
    "diametro_mm": 12.7,
@@ -154,12 +118,8 @@
    "locais": {
     "Portaria": 8
    },
-   "arruelas": {
-    "ARRUELA_FALSA_1/2\"": 8
-   },
-   "porcas": {
-    "PORCA_FALSA_1/2\"": 8
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_1/2\"X4.1/4\"": {
    "diametro_mm": 12.7,
@@ -170,12 +130,8 @@
     "Refeitório": 115,
     "Vestiário": 103
    },
-   "arruelas": {
-    "ARRUELA_FALSA_1/2\"": 266
-   },
-   "porcas": {
-    "PORCA_FALSA_1/2\"": 266
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_1/2\"X7\"": {
    "diametro_mm": 12.7,
@@ -184,12 +140,8 @@
    "locais": {
     "Portaria": 16
    },
-   "arruelas": {
-    "ARRUELA_FALSA_1/2\"": 16
-   },
-   "porcas": {
-    "PORCA_FALSA_1/2\"": 16
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_3/4\"X4.1/4\"": {
    "diametro_mm": 19.0,
@@ -199,12 +151,8 @@
     "Refeitório": 8,
     "Vestiário": 4
    },
-   "arruelas": {
-    "ARRUELA_FALSA_3/4\"": 12
-   },
-   "porcas": {
-    "PORCA_FALSA_3/4\"": 12
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_3/8\"X2.1/4\"": {
    "diametro_mm": 9.6,
@@ -214,12 +162,8 @@
     "Refeitório": 76,
     "Vestiário": 86
    },
-   "arruelas": {
-    "ARRUELA_FALSA_3/8\"": 162
-   },
-   "porcas": {
-    "PORCA_FALSA_3/8\"": 162
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARABOLT_3/8\"X3.3/4\"": {
    "diametro_mm": 9.5,
@@ -229,12 +173,8 @@
     "Portaria": 20,
     "Marquise Refeitório/Vestiário": 4
    },
-   "arruelas": {
-    "ARRUELA_FALSA_3/8\"": 24
-   },
-   "porcas": {
-    "PORCA_FALSA_3/8\"": 24
-   }
+   "arruelas": {},
+   "porcas": {}
   },
   "PARAF_1/2\"X1\"1/2_A307": {
    "diametro_mm": 12.7,
@@ -585,6 +525,362 @@
    }
   }
  },
+ "por_local_fase": {
+  "Anexos (geral)": {
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "AB 1/4\"X2\"_TCP3": 104
+    }
+   }
+  },
+  "Eclusa": {
+   "1.3.1 E.M. COB. ECLUSA": {
+    "parafusos": {
+     "PARAF_3/8\"X3/4\"_A307": 272,
+     "AB 1/4\"X3/4\"_TCP3": 192,
+     "PARAF_1/2\"X1\"3/4_A325": 44,
+     "PARAF_3/8\"X1\"_GR.8": 144,
+     "PARAF_3/8\"X1\"1/4_A307": 16,
+     "PARAF_1/2\"X2\"1/4_A325": 26,
+     "PARAF_1/2\"X2\"_A325": 72,
+     "PARAF_1/2\"X1\"1/4_A325": 4,
+     "PARAF_3/8\"X1\"3/4_A307": 8,
+     "PARAF_7/8\"X2\"3/4_A325": 32,
+     "PARAF_1/2\"X2\"1/2_A325": 4,
+     "PARAF_1/2\"X2\"1/4_A307": 2,
+     "PARAF_7/8\"X3\"_A325": 12
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 440,
+     "ARRUELA_1/2\"_LISA": 152,
+     "ARRUELA_7/8\"_LISA": 44
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 440,
+     "PORCA_1/2\"_HEX": 152,
+     "PORCA_7/8\"_HEX": 44
+    }
+   },
+   "1.3.2 E.M. PLATIBANDA ECLUSA": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A307": 244,
+     "PARAF_1/2\"X1\"1/4_A325": 124,
+     "PARAF_1/2\"X1\"1/2_A307": 8,
+     "PARAF_3/8\"X3/4\"_A307": 64,
+     "PARAF_1/2\"X1\"3/4_A325": 12,
+     "PARAF_3/8\"X1\"1/4_A307": 16,
+     "PARAF_5/8\"X1\"1/2_A325": 80,
+     "PARAF_5/8\"X1\"1/4_A325": 16,
+     "PARAF_3/8\"X1\"1/2_A307": 16,
+     "PARAF_1/2\"X1\"3/4_A307": 4
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 392,
+     "ARRUELA_3/8\"_LISA": 96,
+     "ARRUELA_5/8\"_LISA": 96
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 392,
+     "PORCA_3/8\"_HEX": 96,
+     "PORCA_5/8\"_HEX": 96
+    }
+   },
+   "JOIST_ECLUSA": {
+    "parafusos": {
+     "PARAF_3/8\"X3/4\"_A307": 4624,
+     "PARAF_3/8\"X1\"1/4_A307": 32,
+     "PARAF_3/8\"X1\"3/4_A307": 20,
+     "PARAF_3/8\"X1\"1/2_A307": 4,
+     "PARAF_7/8\"X3\"_A325": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 4680,
+     "ARRUELA_7/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 4680,
+     "PORCA_7/8\"_HEX": 8
+    }
+   }
+  },
+  "Marquise Refeitório/Vestiário": {
+   "1.3.10 TESTEIRA MQ REF. E VEST.": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   },
+   "1.3.13 E.M. COB PASSARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 10,
+     "AB 1/4\"X2\"_TCP3": 2,
+     "PARAF_1/2\"X1\"1/2_A307": 1,
+     "PARAF_3/8\"X1\"_A307": 4,
+     "PARABOLT_3/8\"X3.3/4\"": 4
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 14,
+     "ARRUELA_1/2\"_LISA": 1
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 14,
+     "PORCA_1/2\"_HEX": 1
+    }
+   },
+   "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 140,
+     "PARAF_1/2\"X1\"1/2_A307": 15
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 140,
+     "ARRUELA_1/2\"_LISA": 15
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 140,
+     "PORCA_1/2\"_HEX": 15
+    }
+   },
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   }
+  },
+  "Passarela": {
+   "1.3.13 E.M. COB PASSARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 218,
+     "PARAF_5/8\"X1\"3/4_A325": 192,
+     "AB 1/4\"X2\"_TCP3": 38,
+     "PARAF_1/2\"X1\"1/2_A307": 8,
+     "PARAF_3/8\"X1\"_A307": 24
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 242,
+     "ARRUELA_5/8\"_LISA": 192,
+     "ARRUELA_1/2\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 242,
+     "PORCA_5/8\"_HEX": 192,
+     "PORCA_1/2\"_HEX": 8
+    }
+   },
+   "1.3.14 TESTEIRA PASARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   },
+   "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 4
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 4
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 4
+    }
+   },
+   "1.4.1 TELHA COB. ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2,
+     "AB 1/4\"X2\"_TCP3": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   },
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 8,
+     "AB 1/4\"X2\"_TCP3": 98
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   }
+  },
+  "Ponto de ônibus": {
+   "1.3.15 E.M. COB. PONTO DE ÔNIBUS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 664,
+     "PARAF_7/8\"X2\"1/2_A325": 448,
+     "PARAF_1/2\"X1\"1/2_A307": 104
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 664,
+     "ARRUELA_7/8\"_LISA": 448,
+     "ARRUELA_1/2\"_LISA": 104
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 664,
+     "PORCA_7/8\"_HEX": 448,
+     "PORCA_1/2\"_HEX": 104
+    }
+   },
+   "1.3.16 TESTEIRA PONTO DE ÔNIBUS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   }
+  },
+  "Portaria": {
+   "1.3.3. E.M. COB. PORTARIA": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/2_A307": 16,
+     "PARAF_3/8\"X1\"_A307": 20,
+     "PARAF_1/2\"X1\"3/4_A307": 16,
+     "PARABOLT_1/2\"X4.1/4\"": 48,
+     "PARAF_3/8\"X1\"1/2_A307": 210,
+     "PARAF_3/8\"X1\"1/4_A307": 34,
+     "PARABOLT_1/2\"X4\"": 8,
+     "PARABOLT_3/8\"X3.3/4\"": 20,
+     "PARAF_5/8\"X1\"3/4_A325": 22,
+     "PARABOLT_1/2\"X7\"": 16,
+     "PARAF_1/2\"X2\"_A307": 28
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 60,
+     "ARRUELA_3/8\"_LISA": 264,
+     "ARRUELA_5/8\"_LISA": 22
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 60,
+     "PORCA_3/8\"_HEX": 264,
+     "PORCA_5/8\"_HEX": 22
+    }
+   },
+   "1.4.10 CALHAS PORTARIA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 6,
+     "PARAF_3/8\"X1\"1/4_A307": 6
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 12
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 12
+    }
+   }
+  },
+  "Refeitório": {
+   "1.3.7 E.M COB. REFEITÓRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A307": 380,
+     "PARAF_1/2\"X1\"1/2_A307": 128,
+     "PARAF_1/2\"X1\"1/4_A325": 560,
+     "PARABOLT_1/2\"X4.1/4\"": 48,
+     "PARAF_3/8\"X3/4\"_A307": 24,
+     "PARAF_1/2\"X1\"3/4_A307": 32,
+     "PARAF_5/8\"X2\"1/4_A325": 32,
+     "PARAF_5/8\"X1\"3/4_A325": 64
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 1100,
+     "ARRUELA_3/8\"_LISA": 24,
+     "ARRUELA_5/8\"_LISA": 96
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 1100,
+     "PORCA_3/8\"_HEX": 24,
+     "PORCA_5/8\"_HEX": 96
+    }
+   },
+   "1.4.10 CALHAS REFEITÓRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A325": 16,
+     "AB 1/4\"X3/4\"_TCP3": 152,
+     "PARABOLT_3/8\"X2.1/4\"": 76
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 16
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 16
+    }
+   },
+   "1.4.9 LINHA DE VIDA ANEXOS": {
+    "parafusos": {
+     "PARABOLT_1/2\"X4.1/4\"": 67,
+     "PARABOLT_3/4\"X4.1/4\"": 8
+    }
+   }
+  },
+  "Vestiário": {
+   "1.3.8 E.M. COB VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A325": 696,
+     "PARABOLT_1/2\"X4.1/4\"": 56,
+     "PARAF_1/2\"X1\"1/4_A307": 428,
+     "PARAF_1/2\"X1\"1/2_A307": 96,
+     "PARAF_5/8\"X1\"3/4_A325": 32,
+     "PARAF_1/2\"X1\"3/4_A307": 32,
+     "PARAF_3/8\"X3/4\"_A307": 28,
+     "PARAF_5/8\"X2\"1/4_A325": 48
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 1252,
+     "ARRUELA_5/8\"_LISA": 80,
+     "ARRUELA_3/8\"_LISA": 28
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 1252,
+     "PORCA_5/8\"_HEX": 80,
+     "PORCA_3/8\"_HEX": 28
+    }
+   },
+   "1.4.10 CALHAS VESTIÁRIO": {
+    "parafusos": {
+     "AB 1/4\"X3/4\"_TCP3": 172,
+     "PARAF_1/2\"X1\"1/4_A325": 24,
+     "PARABOLT_3/8\"X2.1/4\"": 86
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 24
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 24
+    }
+   },
+   "1.4.9 LINHA DE VIDA ANEXOS": {
+    "parafusos": {
+     "PARABOLT_1/2\"X4.1/4\"": 47,
+     "PARABOLT_3/4\"X4.1/4\"": 4
+    }
+   }
+  }
+ },
  "por_arruela": {
   "ARRUELA_1/2\"_LISA": {
    "qtd": 3124,
@@ -656,55 +952,6 @@
     "PARAF_7/8\"X2\"3/4_A325": 32,
     "PARAF_7/8\"X3\"_A325": 20,
     "PARAF_7/8\"X2\"1/2_A325": 448
-   }
-  },
-  "ARRUELA_FALSA_1/2\"": {
-   "qtd": 290,
-   "locais": {
-    "Portaria": 72,
-    "Refeitório": 115,
-    "Vestiário": 103
-   },
-   "parafusos": {
-    "PARABOLT_1/2\"X4.1/4\"": 266,
-    "PARABOLT_1/2\"X4\"": 8,
-    "PARABOLT_1/2\"X7\"": 16
-   }
-  },
-  "ARRUELA_FALSA_1/4\"": {
-   "qtd": 436,
-   "locais": {
-    "Eclusa": 192,
-    "Passarela": 138,
-    "Anexos (geral)": 104,
-    "Marquise Refeitório/Vestiário": 2
-   },
-   "parafusos": {
-    "AB 1/4\"X3/4\"_TCP3": 192,
-    "AB 1/4\"X2\"_TCP3": 244
-   }
-  },
-  "ARRUELA_FALSA_3/4\"": {
-   "qtd": 12,
-   "locais": {
-    "Refeitório": 8,
-    "Vestiário": 4
-   },
-   "parafusos": {
-    "PARABOLT_3/4\"X4.1/4\"": 12
-   }
-  },
-  "ARRUELA_FALSA_3/8\"": {
-   "qtd": 186,
-   "locais": {
-    "Portaria": 20,
-    "Marquise Refeitório/Vestiário": 4,
-    "Refeitório": 76,
-    "Vestiário": 86
-   },
-   "parafusos": {
-    "PARABOLT_3/8\"X3.3/4\"": 24,
-    "PARABOLT_3/8\"X2.1/4\"": 162
    }
   }
  },
@@ -780,55 +1027,6 @@
     "PARAF_7/8\"X3\"_A325": 20,
     "PARAF_7/8\"X2\"1/2_A325": 448
    }
-  },
-  "PORCA_FALSA_1/2\"": {
-   "qtd": 290,
-   "locais": {
-    "Portaria": 72,
-    "Refeitório": 115,
-    "Vestiário": 103
-   },
-   "parafusos": {
-    "PARABOLT_1/2\"X4.1/4\"": 266,
-    "PARABOLT_1/2\"X4\"": 8,
-    "PARABOLT_1/2\"X7\"": 16
-   }
-  },
-  "PORCA_FALSA_1/4\"": {
-   "qtd": 436,
-   "locais": {
-    "Eclusa": 192,
-    "Passarela": 138,
-    "Anexos (geral)": 104,
-    "Marquise Refeitório/Vestiário": 2
-   },
-   "parafusos": {
-    "AB 1/4\"X3/4\"_TCP3": 192,
-    "AB 1/4\"X2\"_TCP3": 244
-   }
-  },
-  "PORCA_FALSA_3/4\"": {
-   "qtd": 12,
-   "locais": {
-    "Refeitório": 8,
-    "Vestiário": 4
-   },
-   "parafusos": {
-    "PARABOLT_3/4\"X4.1/4\"": 12
-   }
-  },
-  "PORCA_FALSA_3/8\"": {
-   "qtd": 186,
-   "locais": {
-    "Portaria": 20,
-    "Marquise Refeitório/Vestiário": 4,
-    "Refeitório": 76,
-    "Vestiário": 86
-   },
-   "parafusos": {
-    "PARABOLT_3/8\"X3.3/4\"": 24,
-    "PARABOLT_3/8\"X2.1/4\"": 162
-   }
   }
  },
  "por_local_tipo": [
@@ -840,10 +1038,10 @@
    "comprimento_mm": 50.8,
    "conjuntos": 52,
    "qtd": 104,
-   "arruelas": 104,
-   "porcas": 104,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 104,
-   "nome_porca:PORCA_FALSA_1/4\"": 104,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 104
   },
   {
@@ -854,10 +1052,10 @@
    "comprimento_mm": 19.0,
    "conjuntos": 96,
    "qtd": 192,
-   "arruelas": 192,
-   "porcas": 192,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 192,
-   "nome_porca:PORCA_FALSA_1/4\"": 192,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 192
   },
   {
@@ -1316,10 +1514,10 @@
    "comprimento_mm": 50.8,
    "conjuntos": 1,
    "qtd": 2,
-   "arruelas": 2,
-   "porcas": 2,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 2,
-   "nome_porca:PORCA_FALSA_1/4\"": 2,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 2
   },
   {
@@ -1330,10 +1528,10 @@
    "comprimento_mm": 95.0,
    "conjuntos": 2,
    "qtd": 4,
-   "arruelas": 4,
-   "porcas": 4,
-   "nome_arruela:ARRUELA_FALSA_3/8\"": 4,
-   "nome_porca:PORCA_FALSA_3/8\"": 4,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 4
   },
   {
@@ -1456,10 +1654,10 @@
    "comprimento_mm": 50.8,
    "conjuntos": 69,
    "qtd": 138,
-   "arruelas": 138,
-   "porcas": 138,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 138,
-   "nome_porca:PORCA_FALSA_1/4\"": 138,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 138
   },
   {
@@ -1680,10 +1878,10 @@
    "comprimento_mm": 101.6,
    "conjuntos": 2,
    "qtd": 8,
-   "arruelas": 8,
-   "porcas": 8,
-   "nome_arruela:ARRUELA_FALSA_1/2\"": 8,
-   "nome_porca:PORCA_FALSA_1/2\"": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 8
   },
   {
@@ -1694,10 +1892,10 @@
    "comprimento_mm": 108.0,
    "conjuntos": 12,
    "qtd": 48,
-   "arruelas": 48,
-   "porcas": 48,
-   "nome_arruela:ARRUELA_FALSA_1/2\"": 48,
-   "nome_porca:PORCA_FALSA_1/2\"": 48,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 48
   },
   {
@@ -1708,10 +1906,10 @@
    "comprimento_mm": 178.0,
    "conjuntos": 4,
    "qtd": 16,
-   "arruelas": 16,
-   "porcas": 16,
-   "nome_arruela:ARRUELA_FALSA_1/2\"": 16,
-   "nome_porca:PORCA_FALSA_1/2\"": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 16
   },
   {
@@ -1722,10 +1920,10 @@
    "comprimento_mm": 95.0,
    "conjuntos": 10,
    "qtd": 20,
-   "arruelas": 20,
-   "porcas": 20,
-   "nome_arruela:ARRUELA_FALSA_3/8\"": 20,
-   "nome_porca:PORCA_FALSA_3/8\"": 20,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 20
   },
   {
@@ -1906,8 +2104,8 @@
    "qtd": 152,
    "arruelas": 0,
    "porcas": 0,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 0,
-   "nome_porca:PORCA_FALSA_1/4\"": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 152
   },
   {
@@ -1918,10 +2116,10 @@
    "comprimento_mm": 108.0,
    "conjuntos": 83,
    "qtd": 115,
-   "arruelas": 115,
-   "porcas": 115,
-   "nome_arruela:ARRUELA_FALSA_1/2\"": 115,
-   "nome_porca:PORCA_FALSA_1/2\"": 115,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 115
   },
   {
@@ -1932,10 +2130,10 @@
    "comprimento_mm": 108.0,
    "conjuntos": 8,
    "qtd": 8,
-   "arruelas": 8,
-   "porcas": 8,
-   "nome_arruela:ARRUELA_FALSA_3/4\"": 8,
-   "nome_porca:PORCA_FALSA_3/4\"": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 8
   },
   {
@@ -1946,10 +2144,10 @@
    "comprimento_mm": 57.2,
    "conjuntos": 76,
    "qtd": 76,
-   "arruelas": 76,
-   "porcas": 76,
-   "nome_arruela:ARRUELA_FALSA_3/8\"": 76,
-   "nome_porca:PORCA_FALSA_3/8\"": 76,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 76
   },
   {
@@ -2060,8 +2258,8 @@
    "qtd": 16,
    "arruelas": 0,
    "porcas": 0,
-   "nome_arruela:ARRUELA_FALSA_5/8\"": 0,
-   "nome_porca:PORCA_FALSA_5/8\"": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 16
   },
   {
@@ -2200,8 +2398,8 @@
    "qtd": 172,
    "arruelas": 0,
    "porcas": 0,
-   "nome_arruela:ARRUELA_FALSA_1/4\"": 0,
-   "nome_porca:PORCA_FALSA_1/4\"": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 172
   },
   {
@@ -2212,10 +2410,10 @@
    "comprimento_mm": 108.0,
    "conjuntos": 63,
    "qtd": 103,
-   "arruelas": 103,
-   "porcas": 103,
-   "nome_arruela:ARRUELA_FALSA_1/2\"": 103,
-   "nome_porca:PORCA_FALSA_1/2\"": 103,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 103
   },
   {
@@ -2226,10 +2424,10 @@
    "comprimento_mm": 108.0,
    "conjuntos": 4,
    "qtd": 4,
-   "arruelas": 4,
-   "porcas": 4,
-   "nome_arruela:ARRUELA_FALSA_3/4\"": 4,
-   "nome_porca:PORCA_FALSA_3/4\"": 4,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 4
   },
   {
@@ -2240,10 +2438,10 @@
    "comprimento_mm": 57.2,
    "conjuntos": 86,
    "qtd": 86,
-   "arruelas": 86,
-   "porcas": 86,
-   "nome_arruela:ARRUELA_FALSA_3/8\"": 86,
-   "nome_porca:PORCA_FALSA_3/8\"": 86,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 86
   },
   {
@@ -2354,8 +2552,8 @@
    "qtd": 8,
    "arruelas": 0,
    "porcas": 0,
-   "nome_arruela:ARRUELA_FALSA_5/8\"": 0,
-   "nome_porca:PORCA_FALSA_5/8\"": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
    "em_obra": 8
   },
   {

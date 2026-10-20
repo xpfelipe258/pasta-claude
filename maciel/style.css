@@ -1036,3 +1036,17 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 .vc-prog b{font-size:12.5px;font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
 tr.vc-linha-sel td{background:var(--acento-suave)}
 .vc-sel{max-width:340px;width:100%}
+
+/* Vínculos › Por atividade: atividades que se exibem e se ocultam */
+details.vc-ativ{border:1px solid var(--borda,#d8dde6);border-radius:8px;margin:6px 0;background:var(--cartao,transparent)}
+details.vc-ativ>summary{cursor:pointer;padding:9px 12px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;list-style:none}
+details.vc-ativ>summary::-webkit-details-marker{display:none}
+details.vc-ativ>summary::before{content:'▸';font-size:12px;opacity:.7}
+details.vc-ativ[open]>summary::before{content:'▾'}
+details.vc-ativ>summary .vc-resumo{margin-left:auto;display:flex;align-items:center;gap:10px}
+.vc-ativ-corpo{padding:4px 12px 12px}
+details.vc-fx{margin-top:10px;border-top:1px dashed var(--borda,#d8dde6);padding-top:8px}
+details.vc-fx>summary{cursor:pointer;padding:4px 0}
+.vc-num{width:84px}
+[data-fx-linha] td{vertical-align:top}
+[data-fx-linha] .vc-sel{max-width:260px}
