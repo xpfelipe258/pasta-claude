@@ -64,6 +64,8 @@
         <button data-aba="estinv">Inventário <span class="contador alerta" id="invCritCont" hidden></span></button>
         <button data-aba="estcrit">Consumo Joists <span class="contador alerta" id="fixCritCont" hidden></span></button>
         <button data-aba="estsis" title="Sistema: baixa automática por IFC">Baixa automática <span class="contador alerta" id="faltaSemanaCont" hidden></span></button>
+        <button data-aba="estvinc" title="Liga cada material, pelo IFC, à atividade que o consome">Vínculos</button>
+        <button data-aba="estpronto" title="Material de cada atividade antes de iniciar">Pronto para iniciar</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -433,6 +435,16 @@
     </div>
   </section>
 
+  <!-- ESTOQUE · VÍNCULOS (material ↔ atividade) -->
+  <section id="aba-estvinc" hidden>
+    <div id="vcCorpo"></div>
+  </section>
+
+  <!-- ESTOQUE · PRONTO PARA INICIAR -->
+  <section id="aba-estpronto" hidden>
+    <div id="vpCorpo"></div>
+  </section>
+
   <!-- ESTOQUE · CONSUMO JOISTS -->
   <section id="aba-estcrit" hidden>
     <div class="tiles" id="estCritTiles"></div>
@@ -786,6 +798,7 @@
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>
+<script src="vinculos.js"></script>
 <script src="tabelas.js"></script>
 </body>
 </html>

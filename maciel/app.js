@@ -388,7 +388,7 @@ async function carregar() {
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
   preencherListas();
   renderTudo();
-  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); }).catch(() => {});
+  fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); if (abaAtual === 'estvinc' || abaAtual === 'estpronto') renderAba(); }).catch(() => {});
 }
 
 async function postar(url, corpo) {
@@ -554,7 +554,7 @@ function renderTudo() {
 function renderAba() {
   if (!M) return;
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
-     estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque,
+     estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
      equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont,
      plan: renderPlanejamento })[abaAtual]();
   requestAnimationFrame(syncScrollTopo);

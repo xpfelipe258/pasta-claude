@@ -26,6 +26,7 @@ $html = str_replace('src="rel_lanc.js"', 'src="rel_lanc.js?v=' . @filemtime(__DI
 $html = str_replace('src="bm_resumo.js"', 'src="bm_resumo.js?v=' . @filemtime(__DIR__ . '/bm_resumo.js') . '"', $html);
 $html = str_replace('src="tabelas.js"', 'src="tabelas.js?v=' . @filemtime(__DIR__ . '/tabelas.js') . '"', $html);
 $html = str_replace('src="cff.js"', 'src="cff.js?v=' . @filemtime(__DIR__ . '/cff.js') . '"', $html);
+$html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);
 $primaria = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));

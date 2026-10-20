@@ -1026,3 +1026,13 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 /* topo: a linha de status da planilha/versão fica oculta; só aparece se perder a conexão */
 #arquivo { display: none; }
 #arquivo.sem-conexao { display: flex; color: var(--vermelho); }
+
+
+/* Suprimentos › Vínculos e Pronto para iniciar */
+.vc-prog{display:flex;align-items:center;gap:8px;min-width:150px}
+.vc-prog .vc-t{flex:1;height:9px;background:var(--pend-bg);border-radius:5px;overflow:hidden;min-width:70px}
+.vc-prog .vc-t i{display:block;height:100%;border-radius:5px}
+.vc-prog .vc-verde{background:var(--verde)}.vc-prog .vc-amarelo{background:var(--amarelo)}.vc-prog .vc-vermelho{background:var(--vermelho)}
+.vc-prog b{font-size:12.5px;font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+tr.vc-linha-sel td{background:var(--acento-suave)}
+.vc-sel{max-width:340px;width:100%}
