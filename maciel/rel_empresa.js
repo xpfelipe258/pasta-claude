@@ -434,7 +434,7 @@ function reSuprimentos(emp, ini, fim, c) {
 // Mesma planta dos apontamentos de montagem, em SVG estático: cada peça é pintada pelo que foi apontado até a data de corte —
 // cor forte da empresa = montada por ela NO PERÍODO; cor clara = montada por ela antes do período; cinza = montada por outra empresa; branco = pendente.
 const RE_COR_OUTRA = '#b8c2cc';
-const reEstadoPeca = (row, emp, ini) => (!row ? 'pend' : (!emp || row.empresa === emp) ? (row.data >= ini ? 'per' : 'ant') : 'outra');   // sem empresa (geral): toda peça apontada é das empresas, na cor de quem montou
+const reEstadoPeca = (row, emp, ini, validas) => (!row ? 'pend' : (emp ? row.empresa === emp : (!validas || validas.has(row.empresa))) ? (row.data >= ini ? 'per' : 'ant') : 'outra');   // geral: só empresas com montagem (validas) pintam a peça; as demais ficam em cinza   // sem empresa (geral): toda peça apontada é das empresas, na cor de quem montou
 const reCorPeca = (cores, row) => (cores.porEmp && row && row.empresa ? (corEmpHex(row.empresa) || cores.forte) : cores.forte);
 const rePinta = (est, cores, row) => { const f = reCorPeca(cores, row); return ({ pend: 'fill="#ffffff" stroke="#c4cdd8"', ant: `fill="${f}" fill-opacity=".35" stroke="${f}" stroke-opacity=".6"`,
   per: `fill="${f}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est]; };
@@ -466,14 +466,14 @@ function reMapaPlanta(ctx, emp, ini, cores) {
   eixos.slice(0, -1).forEach((e, i) => {
     const rua = `${e}-${eixos[i + 1]}`, xl = xEixo(e) + pad, xr = xEixo(eixos[i + 1]) - pad;
     for (let k = 1; k <= n; k++) {
-      const row = ctx.slotRow.get(`${rua}|${k}`), st = reEstadoPeca(row, emp, ini); nJ[st]++;
+      const row = ctx.slotRow.get(`${rua}|${k}`), st = reEstadoPeca(row, emp, ini, cores.validas); nJ[st]++;
       out.push(`<rect x="${xl}" y="${mTop + (k - 1) * passo + 1}" width="${xr - xl}" height="${barH}" rx="2" ${rePinta(st, cores, row)} stroke-width=".7"/>`);
     }
     out.push(reTxt((xEixo(e) + xEixo(eixos[i + 1])) / 2, yFim + 18, `${ctx.totalRua.get(rua) || 0}/${ctx.limRua}`, 'text-anchor="middle"'));
   });
   out.push(reTxt(mEsq - 8, yFim + 18, 'joists/rua', 'text-anchor="end"'));
   eixos.forEach(e => ctx.letrasEixo(e).forEach(l => {
-    const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(e, l)), st = reEstadoPeca(m, emp, ini); nV[st]++;
+    const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(e, l)), st = reEstadoPeca(m, emp, ini, cores.validas); nV[st]++;
     const yv = c.oitao ? yOitao(c.posicao_estacao) : yEst(l), tam = c.oitao || c.evento_viga === 'VIGA_INTERM_MONTADA' ? 7 : 11;
     out.push(`<rect x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="1.5" ${rePinta(st, cores, m)} stroke-width="1"/>`);
   }));
@@ -506,7 +506,7 @@ function reMapaContrav(emp, ini, cores, feitas) {
   el.paineis.forEach(p => {
     if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
     const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b), y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
-    const row = feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), st = reEstadoPeca(row, emp, ini); n[st]++;
+    const row = feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), st = reEstadoPeca(row, emp, ini, cores.validas); n[st]++;
     const traco = st === 'pend' ? '#c4cdd8' : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : reCorPeca(cores, row);
     o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores, row)} stroke-width=".6"/>`,
       `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/>`);
@@ -545,10 +545,17 @@ function reMapa(emp, ini, c) {
   const temTelha = es.some(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome)))), temPerfil = es.some(e => e.servicos.some(s => ganNorm(s.nome).includes('PERFILAGEM')));
   if (!temJoist && !temTelha && !temPerfil) return null;   // sem montagem em mapa no catálogo da empresa: a seção não aparece
   const todos = T.apontamentos || [], ate = todos.filter(a => !a.data || a.data <= c);
-  const forte = (emp && corEmpHex(emp)) || '#2563eb', cores = { forte, porEmp: !emp }, out = { cores };
+  // geral: montagem de joist, viga e contraventamento é só das empresas que têm esse serviço (EJ e CMM); apontamento de outra empresa não pinta o mapa
+  const validas = !emp && temJoist ? new Set(es.filter(e => e.servicos.some(sv => sv.nome === cfgAp.servico_joist || sv.nome === cfgAp.servico_viga)).map(e => e.nome)) : null;
+  const forte = (emp && corEmpHex(emp)) || '#2563eb', cores = { forte, porEmp: !emp, validas }, out = { cores };
   const tipo = t => ate.filter(a => (a.tipo || '').toUpperCase() === t);
-  const meus = (t, de) => tipo(t).filter(a => (!emp || a.empresa === emp) && (de ? a.data >= ini : a.data < ini));
+  const tipoOk = t => tipo(t).filter(a => !validas || validas.has(a.empresa));   // total da obra só com as empresas que montam
+  const meus = (t, de) => tipo(t).filter(a => (emp ? a.empresa === emp : (!validas || t === 'TELHA' || t === 'PERFILAGEM' || validas.has(a.empresa))) && (de ? a.data >= ini : a.data < ini));
   const qJ = lista => soma0(lista, a => a.qtd || 0);
+  if (validas) {
+    out.legEmp = [...validas];
+    out.foraMontagem = ate.filter(a => ['JOIST', 'VIGA', 'CONTRAVENTAMENTO'].includes((a.tipo || '').toUpperCase()) && !validas.has(a.empresa));
+  }
   if (temJoist) {   // joists, vigas e contraventamentos (catálogo da EJ e da CMM)
     if (!regras.apontamento) return { sem: 'As regras de montagem (mapa de apontamento) não estão disponíveis.' };
     let ctx;
@@ -557,9 +564,9 @@ function reMapa(emp, ini, c) {
     const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
     const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
     Object.assign(out, { planta: pl, contrav: cv, ctx,
-      joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipo('JOIST')) },
-      viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipo('VIGA').length },
-      cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipo('CONTRAVENTAMENTO').length } });
+      joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipoOk('JOIST')) },
+      viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipoOk('VIGA').length },
+      cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipoOk('CONTRAVENTAMENTO').length } });
   }
   [[temTelha, 'telha', 'TELHA'], [temPerfil, 'perfilagem', 'PERFILAGEM']].forEach(([tem, chave, tp]) => {   // telhas e perfilagem (catálogo da Globo Aços)
     if (!tem) return;
@@ -741,7 +748,7 @@ function reMapaHtml(d) {
   const f = m.cores.forte;
   let h = `<h3>Mapa de montagem — o que foi montado</h3><div class="cards">${m.planta ? card('Joists', m.joist, 'joists') + card('Vigas', m.viga, 'vigas') + card('Contraventamentos (kits)', m.cont, 'kits') : ''}${[['Telhas', m.telha], ['Perfilagem', m.perfil]].map(([rot, x]) => x ? card(rot, { per: x.per, ant: x.ant, feitas: x.feitas, total: x.total }, 'telhas').replace('</div></div>', ` · ≈ ${nf(x.per * x.m2, 0)} m² no período · ${nf(x.feitas * x.m2, 0)} m² na obra</div></div>`) : '').join('')}</div>
     <p class="nota mapa-leg">${d.geral
-      ? `${(M.empresas || []).map(e => e.nome).filter(Boolean).map(n => leg(corEmpHex(n) || f, `montado por ${esc(n)}`)).join('')}${leg('#fff', 'pendente')}<br>Cor forte = montado no período (${fd(d.ini)} a ${fd(d.corte)}) · cor clara = montado antes do período.`
+      ? `${[...(m.legEmp || (M.empresas || []).map(e => e.nome)), ...((m.telha || m.perfil) ? (M.empresas || []).filter(e => e.servicos.some(sv => ehTelhar(ganNorm(sv.nome)) || ganNorm(sv.nome).includes('PERFILAGEM'))).map(e => e.nome) : [])].filter((n, i, a) => n && a.indexOf(n) === i).map(n => leg(corEmpHex(n) || f, `montado por ${esc(n)}`)).join('')}${m.foraMontagem && m.foraMontagem.length ? leg(RE_COR_OUTRA, 'apontado por empresa sem montagem') : ''}${leg('#fff', 'pendente')}<br>${m.foraMontagem && m.foraMontagem.length ? `<b class="neg">${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s) de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço (${esc([...new Set(m.foraMontagem.map(a => a.empresa || 'sem empresa'))].join(', '))}) — não entram nos totais; corrija em Apontar montagem › conciliação.</b><br>` : ''}Cor forte = montado no período (${fd(d.ini)} a ${fd(d.corte)}) · cor clara = montado antes do período.`
       : `${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}`}</p>`;
   if (m.planta) {
     h += `<h3>Joists e vigas (planta do galpão)</h3><div class="mapa-fig">${m.planta.svg}</div>
