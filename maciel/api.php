@@ -1341,67 +1341,6 @@ function frente_galpao($eixo) {
     return (int)$eixo < 11 ? 'GALPÃO F2' : 'GALPÃO F1';
 }
 
-// Cria, para (empresa, serviço), o serviço espelho "GALPÃO F2" (coluna própria em Lançamentos) a partir do
-// serviço da Fase 1 e devolve a coluna nova. Apontamentos da Fase 2 feitos ANTES de existir a coluna
-// foram somados na coluna da Fase 1: aqui eles são passados para a coluna nova, dia a dia.
-function criar_servico_fase2(array $emp, $servico, array $apsAnteriores = [])
-{
-    $obraId = (int)($emp['obra_id'] ?? 0) ?: obra_atual_id();
-    $base = q_global('SELECT col, id_crono, ordem FROM servicos WHERE empresa_id = ? AND nome = ? ORDER BY ordem, id',
-        [$emp['id'], $servico])->fetch(PDO::FETCH_ASSOC);
-    if (!$base) {
-        return null;
-    }
-    $usadas = q_global('SELECT s.col FROM servicos s JOIN empresas e ON e.id = s.empresa_id WHERE e.obra_id = ?',
-        [$obraId])->fetchAll(PDO::FETCH_COLUMN);
-    $nova = null;
-    foreach (['2', 'F2', 'G2', 'H2', 'I2', 'J2'] as $sfx) {
-        if (!in_array($base['col'] . $sfx, $usadas, true)) {
-            $nova = $base['col'] . $sfx;
-            break;
-        }
-    }
-    if (!$nova) {
-        return null;
-    }
-    $escopoF2 = ['IÇAMENTO JOIST' => 430, 'VIGAS' => 130];
-    q_global('INSERT INTO servicos (obra_id, empresa_id, col, nome, frente, id_crono, escopo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [$obraId, $emp['id'], $nova, $servico, 'GALPÃO F2', $base['id_crono'], $escopoF2[$servico] ?? null, ((float)$base['ordem']) + 0.5]);
-
-    // histórico: apontamentos da Fase 2 que lançaram produção na coluna da Fase 1
-    $porDia = [];
-    foreach ($apsAnteriores as $a) {
-        $t = mb_strtoupper((string)($a['tipo'] ?? ''));
-        if (mb_strtoupper((string)($a['lanca_producao'] ?? '')) !== 'SIM' || ($a['empresa'] ?? '') !== $emp['nome'] || empty($a['data'])) {
-            continue;
-        }
-        if ($t === 'JOIST' && !empty($a['rua'])) {
-            $f2 = frente_galpao(explode('-', (string)$a['rua'])[0]) === 'GALPÃO F2';
-        } elseif ($t === 'VIGA' && !empty($a['eixo'])) {
-            $f2 = frente_galpao((string)$a['eixo']) === 'GALPÃO F2';
-        } else {
-            continue;
-        }
-        $nomeServ = $t === 'JOIST' ? 'IÇAMENTO JOIST' : 'VIGAS';
-        if ($f2 && $nomeServ === $servico) {
-            $porDia[$a['data']] = ($porDia[$a['data']] ?? 0) + (float)($a['qtd'] ?? 0);
-        }
-    }
-    foreach ($porDia as $dia => $qtd) {
-        $f1 = (float)q('SELECT valor_num FROM producao WHERE empresa_id = ? AND data = ? AND col = ?',
-            [$emp['id'], $dia, $base['col']])->fetchColumn();
-        $tira = min($f1, $qtd);
-        q('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col = ?', [$emp['id'], $dia, $base['col']]);
-        if ($f1 - $tira > 0) {
-            q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $dia, $base['col'], $f1 - $tira]);
-        }
-        if ($tira > 0) {   // só o que de fato estava na Fase 1 (o apontamento em curso é somado depois por soma_producao)
-            q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $dia, $nova, $tira]);
-        }
-    }
-    return $nova;
-}
-
 // Soma `delta` na célula (empresa, serviço, dia) do controle de produção, que é de onde o BM,
 // o cronograma e os dashboards leem a produção.
 // $frente: quando informada, filtra o servicos pela frente correta (fase 1 vs fase 2).
@@ -1419,10 +1358,6 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
     if ($frente !== null) {
         $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ? AND frente = ?',
             [$emp['id'], $servico, $frente])->fetchColumn() ?: null;
-        if (!$col && $frente === 'GALPÃO F2') {
-            // Fase 2 sem coluna própria em Lançamentos: cria o espelho do serviço da Fase 1 (senão a produção cairia na coluna da Fase 1).
-            $col = criar_servico_fase2($emp, $servico);
-        }
     }
     if (!$col) {
         $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
@@ -1773,16 +1708,6 @@ function acao_apontamento(array $corpo, array $usuario)
     }
     if (!$novas) {
         throw new ErroValidacao('Nada selecionado para apontar.');
-    }
-    if ($lanca) {   // Fase 2 sem coluna em Lançamentos: cria agora e passa para ela o que já tinha caído na Fase 1
-        foreach ($grupos as $g) {
-            if ($g['servico'] && ($g['frente'] ?? null) === 'GALPÃO F2') {
-                $emp = q('SELECT * FROM empresas WHERE nome = ?', [$g['empresa']])->fetch();
-                if ($emp && !q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ? AND frente = ?', [$emp['id'], $g['servico'], 'GALPÃO F2'])->fetchColumn()) {
-                    criar_servico_fase2($emp, $g['servico'], $aps);
-                }
-            }
-        }
     }
     $ids = [];
     foreach ($novas as $campos) {
