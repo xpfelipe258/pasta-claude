@@ -1606,7 +1606,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
 function ganProducao(itOuServico, empNome) {
   if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
   const fontes = ganServicosFonte(itOuServico), frenteAlvo = typeof itOuServico === 'string' ? null : itOuServico.frente;
-  const ds = [];
+  const ds = [], dsBmAp = [];   // grade e apontamentos do BM separados: o mesmo trabalho pode estar nas duas fontes (telhas apontadas no mapa lançam nas duas)
   M.empresas.forEach(e => {
     if (empNome && e.nome !== empNome) return;
     e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, frenteAlvo))).forEach(s => Object.keys(e.registros).forEach(d => {
@@ -1622,10 +1622,13 @@ function ganProducao(itOuServico, empNome) {
       T.bm_apontamentos.forEach(x => {
         const a = porCod.get(String(x.codigo));
         if (!a || !x.data || !(Number(x.quantidade) > 0)) return;
-        ds.push([x.data, bmApontamentoServicoValor(a, x.quantidade, f)]);
+        dsBmAp.push([x.data, bmApontamentoServicoValor(a, x.quantidade, f)]);
       });
     });
   }
+  // vale a MAIOR fonte (grade × BM), nunca a soma: antes 1.720 m² lançados na grade e no BM viravam 3.440 no realizado
+  const tot = l => soma0(l, ([, v]) => v);
+  if (tot(dsBmAp) > tot(ds)) return dsBmAp.sort((a, b) => a[0].localeCompare(b[0]));
   return ds.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
