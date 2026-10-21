@@ -54,7 +54,7 @@ const $ = s => document.querySelector(s);
 const p2 = n => String(n).padStart(2, '0');
 function hoje() { const t = new Date(); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; }
 function dU(s) { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); }
-function add(s, n) { const d = dU(s); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function add(s, n) { const d = dU(s); d.setUTCDate(d.getUTCDate() + n); if (isNaN(d)) throw new RangeError(`Data inválida: "${s}"`); return d.toISOString().slice(0, 10); }
 function dow(s) { return (dU(s).getUTCDay() + 6) % 7; }
 function segunda(s) { return add(s, -dow(s)); }
 function diasEntre(a, b) { return Math.round((dU(b) - dU(a)) / 864e5); }
@@ -349,6 +349,14 @@ function farolHtml(pct, semMeta) { const [c, t] = farol(pct, semMeta); return `<
 const corte = () => minD(per.fim, ref);
 
 // ------------------------------------------------------------ comunicação
+function saneDatasModelo() {
+  const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(dU(v));
+  const ruins = [];
+  [['M.cliente', M.cliente, ['inicio_plan', 'prazo']], ['M.metas', M.metas, ['inicio', 'fim']]].forEach(([nome, arr, campos]) => {
+    (arr || []).forEach((x, i) => campos.forEach(c => { if (x && x[c] && !iso(x[c])) { ruins.push(`${nome}[${i}].${c} = "${x[c]}"${x.servico ? ' (' + x.servico + ')' : ''}`); x[c] = null; } }));
+  });
+  if (ruins.length) { console.warn('Datas inválidas ignoradas:', ruins); setTimeout(() => toast(`${ruins.length} data(s) inválida(s) ignorada(s): ${ruins.slice(0, 3).join('; ')}. Corrija em Metas.`, true, 15000), 500); }
+}
 async function carregar() {
   const r = await fetch(API + 'dados', { cache: 'no-store' });
   if (r.status === 401) { location.href = 'login.php'; return; }
@@ -358,6 +366,7 @@ async function carregar() {
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
+  saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
@@ -561,7 +570,7 @@ function renderAba() {
   } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
     console.error('Erro ao desenhar a aba', abaAtual, err);
     const sec = document.getElementById('aba-' + abaAtual);
-    if (sec) { sec.querySelector('.erro-aba')?.remove(); const e = document.createElement('div'); e.className = 'aviso erro-aba'; e.style.cssText = 'margin:12px 0;padding:10px 14px;border:1px solid #b42318;background:#fff1f0;color:#7a1a12;border-radius:6px;font-size:13px'; e.innerHTML = `<b>Não foi possível montar esta tela.</b> ${esc(String(err && err.message || err))}<br><span class="nota">Detalhe: ${esc(String(err && err.stack || '').split('\n').slice(0, 3).join(' | '))}</span>`; sec.prepend(e); }
+    if (sec) { sec.querySelector('.erro-aba')?.remove(); const e = document.createElement('div'); e.className = 'aviso erro-aba'; e.style.cssText = 'margin:12px 0;padding:10px 14px;border:1px solid #b42318;background:#fff1f0;color:#7a1a12;border-radius:6px;font-size:13px'; e.innerHTML = `<b>Não foi possível montar esta tela.</b> ${esc(String(err && err.message || err))}<br><span class="nota">Detalhe: ${esc(String(err && err.stack || '').split('\n').slice(0, 8).join(' | '))}</span>`; sec.prepend(e); }
   }
   requestAnimationFrame(syncScrollTopo);
 }
