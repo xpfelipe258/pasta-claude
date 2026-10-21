@@ -1353,14 +1353,29 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
     if (!empty($usuario['empresa']) && $usuario['empresa'] !== $emp['nome']) {
         throw new ErroValidacao('Seu usuário só pode apontar montagem da empresa ' . $usuario['empresa'] . '.');
     }
-    // Tenta localizar o serviço na frente específica; se não existir, cai para busca sem frente (retrocompatível).
+    // Lançamento é TOTAL (galpão inteiro): a fase (F1/F2) fica só no apontamento, para rastreio. A produção vai sempre
+    // para a coluna principal do serviço (a que não é "GALPÃO F2").
+    $linhas = q('SELECT col, frente FROM servicos WHERE empresa_id = ? AND nome = ? ORDER BY ordem, id', [$emp['id'], $servico])->fetchAll();
     $col = null;
-    if ($frente !== null) {
-        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ? AND frente = ?',
-            [$emp['id'], $servico, $frente])->fetchColumn() ?: null;
+    $colsF2 = [];
+    foreach ($linhas as $l) {
+        if (stripos((string)$l['frente'], 'GALPÃO F2') === 0) {
+            $colsF2[] = $l['col'];
+        } elseif ($col === null) {
+            $col = $l['col'];
+        }
     }
-    if (!$col) {
-        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
+    if ($col === null && $colsF2) {
+        $col = array_shift($colsF2);
+    }
+    if ($col) {   // o que já tiver caído em coluna "Fase 2" volta para o total
+        foreach ($colsF2 as $c2) {
+            foreach (q('SELECT data, valor_num FROM producao WHERE empresa_id = ? AND col = ? AND valor_num IS NOT NULL AND valor_txt IS NULL', [$emp['id'], $c2])->fetchAll() as $r) {
+                $ja = (float)q('SELECT valor_num FROM producao WHERE empresa_id = ? AND data = ? AND col = ?', [$emp['id'], $r['data'], $col])->fetchColumn();
+                q('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col IN (?, ?)', [$emp['id'], $r['data'], $col, $c2]);
+                q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $r['data'], $col, $ja + (float)$r['valor_num']]);
+            }
+        }
     }
     if (!$col && stripos((string)$servico, 'PERFILAGEM') === 0) {   // o banco guarda "PERFILAÇÃO"; a tela mostra "PERFILAGEM DE TELHAS" (modelo.php)
         $col = q("SELECT col FROM servicos WHERE empresa_id = ? AND nome LIKE 'PERFILA%'", [$emp['id']])->fetchColumn();

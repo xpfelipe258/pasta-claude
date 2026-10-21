@@ -5822,7 +5822,7 @@ function renderLancServico(e) {
       const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
       const baseFin = bmAtividadeUsaBaseFinanceira(a);
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ' <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>') : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
