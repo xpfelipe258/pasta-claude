@@ -1124,6 +1124,7 @@ details.vc-fx>summary{cursor:pointer;padding:4px 0}
    ================================================================================================ */
 @media (min-width: 901px) {
   :root[data-menu="topo"] .topo, :root[data-menu="topo"] .faixa, :root[data-menu="topo"] main, :root[data-menu="topo"] .periodo { margin-left:0; }
+  :root[data-menu="topo"] main { max-width:none; width:auto; }   /* sem a lateral, o conteúdo ocupa a largura toda da tela */
   :root[data-menu="topo"] .sidebar { position:sticky; top:0; left:auto; bottom:auto; width:auto; height:auto; margin:0; padding:0 20px; border:0; border-bottom:1px solid var(--linha); border-radius:0; overflow:visible; z-index:60; transform:none; box-shadow:0 8px 18px -16px rgba(0,0,0,.35); }
   :root[data-menu="topo"] .sidebar-nav { flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 0; }
   :root[data-menu="topo"] .sidebar-grupo { position:relative; overflow:visible; border-radius:0; }
