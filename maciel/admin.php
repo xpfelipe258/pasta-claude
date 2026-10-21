@@ -135,9 +135,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($tema !== '' && !in_array($tema, TEMAS_VALIDOS, true)) {
                 throw new InvalidArgumentException('Tema inválido.');
             }
-            q_global('UPDATE usuarios SET tema=? WHERE id=?', [$tema !== '' ? $tema : null, $eu['id']]);
+            $menu = (string)($_POST['menu'] ?? 'lateral');
+            if (!in_array($menu, MENUS_VALIDOS, true)) {
+                throw new InvalidArgumentException('Posição do menu inválida.');
+            }
+            q_global('UPDATE usuarios SET tema=?, menu_pos=? WHERE id=?', [$tema !== '' ? $tema : null, $menu === 'topo' ? 'topo' : null, $eu['id']]);
             $GLOBALS['tema_override'] = $tema;   // a página já aplica o tema escolhido
-            $msg = 'Tema atualizado: ' . ['' => 'automático (segue o aparelho)', 'light' => 'branco', 'dark' => 'preto', 'space' => 'espacial'][$tema] . '. Vale para o seu usuário em todas as telas.';
+            $GLOBALS['menu_override'] = $menu;
+            $msg = 'Aparência atualizada: tema ' . ['' => 'automático (segue o aparelho)', 'light' => 'branco', 'dark' => 'preto', 'space' => 'espacial', 'nevoa' => 'Névoa', 'grafite' => 'Grafite', 'salvia' => 'Sálvia'][$tema] . ', menu ' . ($menu === 'topo' ? 'na barra superior' : 'lateral') . '. Vale para o seu usuário em todas as telas.';
         } elseif ($acao === 'obra') {
             if (!data_valida($_POST['data_inicio'] ?? '') || !data_valida($_POST['data_fim'] ?? '') || $_POST['data_fim'] < $_POST['data_inicio']) {
                 throw new InvalidArgumentException('Datas da obra inválidas.');
@@ -204,14 +209,20 @@ pagina_inicio('Administração');
     <div class="bloco-cab"><div><h2>Aparência</h2><span class="nota">Escolha o tema para melhorar a visualização. A preferência fica salva no seu usuário e vale no painel, no dashboard e na administração.</span></div></div>
     <form method="post" class="tema-form">
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar_tema">
-      <?php $temaAtual = tema_do_usuario(); foreach ([['light', 'Branco', 'Claro, fundo branco-gelo'], ['dark', 'Preto', 'Escuro, descansa a vista'], ['space', 'Espacial', 'Nebulosa azul-noite com estrelas e cartões de vidro'], ['', 'Automático', 'Segue o aparelho (claro ou escuro)']] as [$v, $rot, $dica]): ?>
+      <?php $temaAtual = tema_do_usuario(); foreach ([['light', 'Branco', 'Claro, fundo branco-gelo'], ['dark', 'Preto', 'Escuro, descansa a vista'], ['space', 'Espacial', 'Nebulosa azul-noite com estrelas e cartões de vidro'], ['nevoa', 'Névoa', 'Claro e suave, azul-índigo, cantos arredondados'], ['grafite', 'Grafite', 'Menu escuro elegante, conteúdo claro, destaque vermelho'], ['salvia', 'Sálvia', 'Tons de areia e verde-sálvia, botões em pílula'], ['', 'Automático', 'Segue o aparelho (claro ou escuro)']] as [$v, $rot, $dica]): ?>
         <label class="tema-op<?= $temaAtual === $v ? ' sel' : '' ?>">
           <input type="radio" name="tema" value="<?= h($v) ?>" <?= $temaAtual === $v ? 'checked' : '' ?>>
           <span class="tema-prev tema-prev-<?= $v === '' ? 'auto' : h($v) ?>"><i></i><i></i><i></i></span>
           <b><?= h($rot) ?></b><small><?= h($dica) ?></small>
         </label>
       <?php endforeach; ?>
-      <button class="btn primario">Salvar tema</button>
+      <div class="menu-pos">
+        <b>Posição do menu</b>
+        <?php $menuAtual = menu_do_usuario(); foreach ([['lateral', 'Lateral', 'Lista de áreas e abas na lateral esquerda'], ['topo', 'Barra superior', 'Áreas em abas no topo; ao clicar numa área, escolha a aba']] as [$mv, $mr, $md]): ?>
+          <label class="menu-op<?= $menuAtual === $mv ? ' sel' : '' ?>"><input type="radio" name="menu" value="<?= h($mv) ?>" <?= $menuAtual === $mv ? 'checked' : '' ?>><span class="menu-prev menu-prev-<?= h($mv) ?>"><i></i><i></i><i></i></span><b><?= h($mr) ?></b><small><?= h($md) ?></small></label>
+        <?php endforeach; ?>
+      </div>
+      <button class="btn primario">Salvar aparência</button>
     </form>
   </section>
   <style>
@@ -223,6 +234,14 @@ pagina_inicio('Administração');
     .tema-prev-space{background:radial-gradient(1.5px 1.5px at 15% 25%,#fff,transparent),radial-gradient(1px 1px at 70% 20%,#fff,transparent),radial-gradient(1.2px 1.2px at 85% 70%,#cfd8ff,transparent),radial-gradient(ellipse at 90% 0,rgba(139,92,246,.6),transparent 60%),radial-gradient(ellipse at 0 100%,rgba(37,99,235,.55),transparent 60%),#0b1030}.tema-prev-space i{background:linear-gradient(180deg,#a78bfa,#60a5fa)}
     .tema-prev-auto{background:linear-gradient(90deg,#f4f3ef 50%,#131312 50%)}.tema-prev-auto i{background:#5b8def}
     .tema-form .btn{align-self:flex-end}
+    .tema-prev-nevoa{background:#f6f7fb}.tema-prev-nevoa i{background:#4f6bed}
+    .tema-prev-grafite{background:linear-gradient(90deg,#12151c 30%,#f3f4f6 30%)}.tema-prev-grafite i{background:#d4352f}
+    .tema-prev-salvia{background:#f4f1ea}.tema-prev-salvia i{background:#2f6f5b;border-radius:99px}
+    .menu-pos{flex-basis:100%;display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;margin-top:6px}.menu-pos>b{flex-basis:100%}
+    .menu-op{position:relative;display:flex;flex-direction:column;gap:4px;width:200px;padding:10px;border:2px solid var(--linha);border-radius:12px;cursor:pointer;background:var(--campo)}.menu-op:has(input:checked){border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}.menu-op input{position:absolute;opacity:0;pointer-events:none}.menu-op small{color:var(--fg2);font-size:.75rem}
+    .menu-prev{position:relative;height:54px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:var(--bg);overflow:hidden}.menu-prev i{position:absolute;background:var(--linha-forte);border-radius:3px}
+    .menu-prev-lateral i:nth-child(1){left:0;top:0;bottom:0;width:30%;border-radius:0;background:var(--linha)}.menu-prev-lateral i:nth-child(2){left:38%;top:10px;right:10px;height:12px}.menu-prev-lateral i:nth-child(3){left:38%;top:28px;right:30px;height:12px}
+    .menu-prev-topo i:nth-child(1){left:0;top:0;right:0;height:16px;border-radius:0;background:var(--linha)}.menu-prev-topo i:nth-child(2){left:10px;top:26px;right:10px;height:10px}.menu-prev-topo i:nth-child(3){left:10px;top:42px;right:40px;height:8px}
   </style>
   <script>
     document.querySelectorAll('.tema-form input[name=tema]').forEach(r => r.addEventListener('change', () => {   // prévia imediata, antes de salvar

@@ -136,7 +136,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 17;
+const ESQUEMA_VERSAO = 18;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -336,6 +336,9 @@ function garantir_autenticacao_estendida(PDO $pdo, $driver)
     }
     if (!in_array('tema', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // tema visual de cada usuário: light | dark | space (vazio = automático)
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN tema VARCHAR(20) NULL");
+    }
+    if (!in_array('menu_pos', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // posição do menu de cada usuário: lateral | topo (vazio = lateral)
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN menu_pos VARCHAR(10) NULL");
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS redefinicoes_senha (id $pk, usuario_id INT NOT NULL, token_hash VARCHAR(128) NOT NULL, expira_em VARCHAR(19) NOT NULL, usado_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, ip VARCHAR(64) NULL)$fim");
     $temIndice = false;
@@ -676,9 +679,13 @@ function usuario_atual()
         }
         $_SESSION['ultimo'] = time();
         try {
-            $linha = q('SELECT id, nome, login, perfil, empresa, email, tema FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
-        } catch (Throwable $e) {   // banco ainda sem a coluna tema (antes da migração)
-            $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            $linha = q('SELECT id, nome, login, perfil, empresa, email, tema, menu_pos FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+        } catch (Throwable $e) {   // banco ainda sem as colunas tema/menu_pos (antes da migração)
+            try {
+                $linha = q('SELECT id, nome, login, perfil, empresa, email, tema FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            } catch (Throwable $e2) {
+                $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            }
         }
         $u = $linha ?: null;
     }
@@ -728,7 +735,8 @@ function conferir_csrf()
 }
 
 // Tema visual do usuário logado: 'light' (branco), 'dark' (preto) ou 'space' (espacial); vazio = automático (segue o aparelho).
-const TEMAS_VALIDOS = ['light', 'dark', 'space'];
+const TEMAS_VALIDOS = ['light', 'dark', 'space', 'nevoa', 'grafite', 'salvia'];   // nevoa/grafite/salvia = propostas de visual suave (2026-10-21)
+const MENUS_VALIDOS = ['lateral', 'topo'];
 function tema_do_usuario()
 {
     if (isset($GLOBALS['tema_override'])) {
@@ -737,6 +745,19 @@ function tema_do_usuario()
     $u = function_exists('usuario_atual') ? usuario_atual() : null;
     $t = (string)($u['tema'] ?? '');
     return in_array($t, TEMAS_VALIDOS, true) ? $t : '';
+}
+// Posição do menu: 'lateral' (padrão) ou 'topo' (abas das áreas na barra superior). Só a tela principal (index.php) usa.
+function menu_do_usuario()
+{
+    if (isset($GLOBALS['menu_override'])) {
+        return $GLOBALS['menu_override'] === 'topo' ? 'topo' : 'lateral';
+    }
+    $u = function_exists('usuario_atual') ? usuario_atual() : null;
+    return (($u['menu_pos'] ?? '') === 'topo') ? 'topo' : 'lateral';
+}
+function menu_attr()
+{
+    return menu_do_usuario() === 'topo' ? ' data-menu="topo"' : '';
 }
 function tema_attr()
 {
@@ -754,7 +775,7 @@ function pagina_inicio($titulo)
     echo '<!doctype html><html lang="pt-BR"' . tema_attr() . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
-    echo '<link rel="stylesheet" href="style.css?v=20261005auth1"><link rel="stylesheet" href="portal.css?v=20261003v7"><style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
+    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '"><link rel="stylesheet" href="portal.css?v=20261003v7"><style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 
 

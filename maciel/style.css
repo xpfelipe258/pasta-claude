@@ -1054,3 +1054,96 @@ details.vc-fx>summary{cursor:pointer;padding:4px 0}
 .vc-num{width:84px}
 [data-fx-linha] td{vertical-align:top}
 [data-fx-linha] .vc-sel{max-width:260px}
+
+
+/* ================================================================================================
+   TEMAS SUAVES (2026-10-21) — escolhidos em Administração › Aparência: Névoa, Grafite e Sálvia.
+   Só trocam variáveis e acabamento (botões, menu, cartões); a estrutura das telas não muda.
+   ================================================================================================ */
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='producao'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9' rx='1.5'/><rect x='14' y='3' width='7' height='5' rx='1.5'/><rect x='14' y='12' width='7' height='9' rx='1.5'/><rect x='3' y='16' width='7' height='5' rx='1.5'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9' rx='1.5'/><rect x='14' y='3' width='7' height='5' rx='1.5'/><rect x='14' y='12' width='7' height='9' rx='1.5'/><rect x='3' y='16' width='7' height='5' rx='1.5'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='suprimentos'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M21 8l-9-5-9 5 9 5 9-5z'/><path d='M3 8v8l9 5 9-5V8'/><path d='M12 13v8'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M21 8l-9-5-9 5 9 5 9-5z'/><path d='M3 8v8l9 5 9-5V8'/><path d='M12 13v8'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='consumo'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><path d='M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='financeiro'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3 17l6-6 4 4 8-8'/><path d='M14 7h7v7'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3 17l6-6 4 4 8-8'/><path d='M14 7h7v7'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='gestao'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3 21h18M5 21V7l7-4 7 4v14'/><path d='M9 9h6M9 13h6M9 17h6'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3 21h18M5 21V7l7-4 7 4v14'/><path d='M9 9h6M9 13h6M9 17h6'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo[data-grupo='sesmt'] .sidebar-icone{font-size:0;width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z'/><path d='M9 12l2 2 4-4'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z'/><path d='M9 12l2 2 4-4'/></svg>") center/contain no-repeat}
+:root:is([data-theme="nevoa"],[data-theme="grafite"],[data-theme="salvia"]) .sidebar-titulo { text-transform: none; letter-spacing: 0; }
+
+/* ---- A · Névoa: claro, suave, índigo ---- */
+:root[data-theme="nevoa"] { --bg:#f6f7fb; --card:#fff; --campo:#fff; --fg:#1d2433; --fg2:#5b6478; --fg3:#98a1b3; --linha:#e8ebf2; --linha-forte:#d9deea; --acento:#4f6bed; --acento-suave:#eceffd; --sombra:0 1px 2px rgba(20,30,60,.04),0 6px 20px -8px rgba(20,30,60,.10); --r:14px; color-scheme: light; }
+:root[data-theme="nevoa"] .sidebar { width:244px; }
+:root[data-theme="nevoa"] .topo, :root[data-theme="nevoa"] .faixa, :root[data-theme="nevoa"] main, :root[data-theme="nevoa"] .periodo { margin-left:244px; }
+:root[data-theme="nevoa"] .topo { background:rgba(255,255,255,.85); backdrop-filter:blur(10px); }
+:root[data-theme="nevoa"] .sidebar-titulo { font-size:.84rem; font-weight:600; color:var(--fg); padding:11px 14px; border-radius:10px; margin-top:6px; }
+:root[data-theme="nevoa"] .sidebar-titulo:hover { background:#f3f5fa; }
+:root[data-theme="nevoa"] .sidebar-nav button { padding:8px 12px 8px 44px; font-size:.84rem; border-radius:10px; font-weight:500; position:relative; }
+:root[data-theme="nevoa"] .sidebar-nav button:hover { background:#f3f5fa; }
+:root[data-theme="nevoa"] .sidebar-nav button.ativa { background:var(--acento-suave); color:var(--acento); font-weight:600; }
+:root[data-theme="nevoa"] .sidebar-nav button.ativa::before { content:""; position:absolute; left:24px; top:50%; width:6px; height:6px; margin-top:-3px; border-radius:50%; background:var(--acento); }
+:root[data-theme="nevoa"] .btn, :root[data-theme="nevoa"] .btn-icone { border-radius:10px; border:1px solid var(--linha-forte); background:#fff; box-shadow:0 1px 2px rgba(20,30,60,.05); font-weight:500; transition:all .15s; }
+:root[data-theme="nevoa"] .btn:hover:not(:disabled) { background:#f6f8fe; border-color:#c5cdf5; box-shadow:0 2px 8px -2px rgba(79,107,237,.25); }
+:root[data-theme="nevoa"] .btn.primario { background:linear-gradient(180deg,#5b76f2,#4560e6); border-color:#4560e6; color:#fff; }
+:root[data-theme="nevoa"] .bloco { border-radius:16px; }
+:root[data-theme="nevoa"] input, :root[data-theme="nevoa"] select { border-radius:10px; border-color:var(--linha-forte); }
+
+/* ---- B · Grafite: menu escuro elegante, conteúdo claro, destaque vermelho ---- */
+:root[data-theme="grafite"] { --bg:#f3f4f6; --card:#fff; --campo:#fff; --fg:#17181c; --fg2:#555b68; --fg3:#9096a3; --linha:#e5e7eb; --linha-forte:#d4d7de; --acento:#d4352f; --acento-suave:#fdeceb; --sombra:0 1px 3px rgba(15,18,28,.06); --r:12px; color-scheme: light; }
+:root[data-theme="grafite"] .sidebar { background:linear-gradient(180deg,#171a21,#10131a); border-right:0; width:244px; color:#cfd3dc; }
+:root[data-theme="grafite"] .topo, :root[data-theme="grafite"] .faixa, :root[data-theme="grafite"] main, :root[data-theme="grafite"] .periodo { margin-left:244px; }
+:root[data-theme="grafite"] .sidebar-titulo { font-size:.7rem; font-weight:600; color:#7e8596; padding:14px 14px 6px; letter-spacing:.09em; text-transform:uppercase; }
+:root[data-theme="grafite"] .sidebar-titulo:hover { background:transparent; }
+:root[data-theme="grafite"] .sidebar-icone { color:#8e96a8; }
+:root[data-theme="grafite"] .sidebar-nav button { padding:8px 12px 8px 40px; font-size:.85rem; border-radius:9px; color:#b9bfcc; font-weight:500; }
+:root[data-theme="grafite"] .sidebar-nav button:hover { background:rgba(255,255,255,.06); color:#fff; }
+:root[data-theme="grafite"] .sidebar-nav button.ativa { background:rgba(255,255,255,.10); color:#fff; font-weight:600; box-shadow:inset 3px 0 0 #ef4b44; }
+:root[data-theme="grafite"] .contador { background:#ef4b44; color:#fff; }
+:root[data-theme="grafite"] .btn, :root[data-theme="grafite"] .btn-icone { border-radius:9px; border:1px solid var(--linha-forte); background:#fff; font-weight:600; box-shadow:0 1px 1px rgba(15,18,28,.04); }
+:root[data-theme="grafite"] .btn:hover:not(:disabled) { border-color:#17181c; }
+:root[data-theme="grafite"] .btn.primario { background:#17181c; border-color:#17181c; color:#fff; }
+
+/* ---- C · Sálvia: areia + verde-sálvia, cantos bem arredondados, botões em pílula ---- */
+:root[data-theme="salvia"] { --bg:#f4f1ea; --card:#fffdf9; --campo:#fffdf9; --fg:#232720; --fg2:#5d6358; --fg3:#97998d; --linha:#e9e4d8; --linha-forte:#d9d3c3; --acento:#2f6f5b; --acento-suave:#e1efe8; --sombra:0 1px 2px rgba(60,50,20,.05),0 10px 24px -14px rgba(60,50,20,.18); --r:18px; color-scheme: light; }
+:root[data-theme="salvia"] .sidebar { background:#fbf8f1; width:248px; top:46px; bottom:12px; left:12px; padding-top:12px; border:1px solid var(--linha); border-radius:22px; box-shadow:var(--sombra); }
+:root[data-theme="salvia"] .topo, :root[data-theme="salvia"] .faixa, :root[data-theme="salvia"] main, :root[data-theme="salvia"] .periodo { margin-left:262px; }
+:root[data-theme="salvia"] .topo { background:transparent; }
+:root[data-theme="salvia"] .sidebar-titulo { font-size:.8rem; font-weight:650; color:#3a4036; padding:11px 14px; border-radius:14px; margin-top:6px; }
+:root[data-theme="salvia"] .sidebar-titulo:hover { background:#f1ece0; }
+:root[data-theme="salvia"] .sidebar-nav button { padding:8px 12px 8px 44px; font-size:.84rem; border-radius:14px; font-weight:500; }
+:root[data-theme="salvia"] .sidebar-nav button:hover { background:#f1ece0; }
+:root[data-theme="salvia"] .sidebar-nav button.ativa { background:#2f6f5b; color:#fff; font-weight:600; box-shadow:0 6px 14px -6px rgba(47,111,91,.6); }
+:root[data-theme="salvia"] .btn, :root[data-theme="salvia"] .btn-icone { border-radius:999px; padding-inline:16px; border:1px solid var(--linha-forte); background:#fffdf9; font-weight:550; }
+:root[data-theme="salvia"] .btn-icone { padding-inline:0; }
+:root[data-theme="salvia"] .btn:hover:not(:disabled) { background:#e1efe8; border-color:#9fc9b8; }
+:root[data-theme="salvia"] .btn.primario { background:#2f6f5b; border-color:#2f6f5b; color:#fff; box-shadow:0 6px 14px -6px rgba(47,111,91,.6); }
+:root[data-theme="salvia"] .seg { border-radius:999px; overflow:hidden; }
+:root[data-theme="salvia"] .bloco { border-radius:20px; padding:20px; }
+:root[data-theme="salvia"] input, :root[data-theme="salvia"] select { border-radius:12px; }
+
+/* ================================================================================================
+   MENU NA BARRA SUPERIOR (Administração › Aparência › Posição do menu): as áreas viram abas no topo;
+   ao clicar numa área abre a lista de abas dela e a pessoa escolhe para onde ir.
+   ================================================================================================ */
+@media (min-width: 901px) {
+  :root[data-menu="topo"] .topo, :root[data-menu="topo"] .faixa, :root[data-menu="topo"] main, :root[data-menu="topo"] .periodo { margin-left:0; }
+  :root[data-menu="topo"] .sidebar { position:sticky; top:0; left:auto; bottom:auto; width:auto; height:auto; margin:0; padding:0 20px; border:0; border-bottom:1px solid var(--linha); border-radius:0; overflow:visible; z-index:60; transform:none; box-shadow:0 8px 18px -16px rgba(0,0,0,.35); }
+  :root[data-menu="topo"] .sidebar-nav { flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px; padding:6px 0; }
+  :root[data-menu="topo"] .sidebar-grupo { position:relative; overflow:visible; border-radius:0; }
+  :root[data-menu="topo"] .sidebar-titulo { margin:0; padding:9px 14px; border-radius:10px; font-size:.84rem; font-weight:600; }
+  :root[data-menu="topo"] .seta-grupo { margin-left:6px; transform:rotate(-90deg); }
+  :root[data-menu="topo"] .sidebar-titulo.top-aberto .seta-grupo { transform:rotate(90deg); }
+  :root[data-menu="topo"] .sidebar-titulo.top-aberto, :root[data-menu="topo"] .sidebar-titulo.area-ativa { background:var(--acento-suave); color:var(--acento); }
+  :root[data-menu="topo"] .sidebar-itens { display:none !important; }
+  :root[data-menu="topo"] .sidebar-itens.top-aberto { display:flex !important; position:absolute; top:calc(100% + 6px); left:0; min-width:250px; max-height:70vh; overflow:auto; flex-direction:column; padding:8px; background:var(--card); border:1px solid var(--linha); border-radius:14px; box-shadow:0 18px 40px -12px rgba(0,0,0,.28); z-index:70; }
+  :root[data-menu="topo"] .sidebar-nav .sidebar-itens button { padding:9px 12px; }
+  :root[data-menu="topo"] .sidebar-nav .sidebar-itens button.ativa::before { left:4px; }
+  :root[data-menu="topo"] .sidebar-dashboard .sidebar-itens { display:flex !important; position:static; min-width:0; padding:0; border:0; box-shadow:none; background:none; overflow:visible; }
+  :root[data-menu="topo"] .sidebar-dashboard .sidebar-itens button { padding:9px 14px; font-weight:600; }
+  /* temas com menu escuro/flutuante: a barra e a lista acompanham */
+  :root[data-menu="topo"][data-theme="grafite"] .sidebar { background:#12151c; padding-top:0; }
+  :root[data-menu="topo"][data-theme="grafite"] .sidebar-titulo { color:#cfd3dc; font-size:.8rem; letter-spacing:.02em; text-transform:none; padding:9px 14px; }
+  :root[data-menu="topo"][data-theme="grafite"] .sidebar-titulo.top-aberto, :root[data-menu="topo"][data-theme="grafite"] .sidebar-titulo.area-ativa { background:rgba(255,255,255,.10); color:#fff; }
+  :root[data-menu="topo"][data-theme="grafite"] .sidebar-itens.top-aberto { background:#171a21; border-color:#2a2f3a; }
+  :root[data-menu="topo"][data-theme="salvia"] .sidebar { background:#fbf8f1; border-radius:0; padding:0 20px; }
+  :root[data-menu="topo"][data-theme="salvia"] .sidebar-titulo.top-aberto, :root[data-menu="topo"][data-theme="salvia"] .sidebar-titulo.area-ativa { background:#2f6f5b; color:#fff; }
+  :root[data-menu="topo"][data-theme="salvia"] .sidebar-nav button.ativa { background:#2f6f5b; color:#fff; }
+  :root[data-menu="topo"][data-theme="nevoa"] .sidebar { background:rgba(255,255,255,.92); backdrop-filter:blur(10px); }
+}

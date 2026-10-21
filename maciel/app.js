@@ -497,6 +497,9 @@ function preencherListas() {
 function mudarAba(nome) {
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
+  document.querySelectorAll('.top-aberto').forEach(x => x.classList.remove('top-aberto'));   // menu superior: fecha a lista depois de escolher
+  document.querySelectorAll('.sidebar-titulo.area-ativa').forEach(x => x.classList.remove('area-ativa'));
+  document.querySelector('#abas button.ativa')?.closest('.sidebar-grupo')?.querySelector('.sidebar-titulo')?.classList.add('area-ativa');
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
   const emPeriodo = ABAS_PERIODO.has(nome);
   const emProducao = ABAS_PRODUCAO.has(nome);
@@ -6851,10 +6854,20 @@ function renderTendencia() {
 // ------------------------------------------------------------ eventos
 function ligarEventos() {
   $('#abas').addEventListener('click', ev => { const b = ev.target.closest('button[data-aba]'); if (b) { mudarAba(b.dataset.aba); const sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('aberta'); } });
+  const menuTopo = () => document.documentElement.dataset.menu === 'topo' && window.innerWidth > 900;
+  const fecharAreasTopo = () => document.querySelectorAll('.top-aberto').forEach(x => x.classList.remove('top-aberto'));
   document.querySelectorAll('.sidebar-titulo').forEach(t => t.addEventListener('click', () => {
     const grp = document.getElementById('grp-' + t.dataset.grupo);
+    if (menuTopo()) {   // menu na barra superior: abre só a lista da área clicada (e fecha as outras)
+      const abrir = grp && !grp.classList.contains('top-aberto');
+      fecharAreasTopo();
+      if (abrir) { grp.classList.add('top-aberto'); t.classList.add('top-aberto'); }
+      return;
+    }
     if (grp) { grp.classList.toggle('aberto'); t.classList.toggle('aberto'); }
   }));
+  document.addEventListener('click', ev => { if (menuTopo() && !ev.target.closest('.sidebar-titulo, .sidebar-itens')) fecharAreasTopo(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fecharAreasTopo(); });
   const sbToggle = document.getElementById('sidebarToggle');
   if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
   ['estMatFiltro', 'estMatLocal', 'estMatTipo', 'estMatEtapa', 'estMatStatus'].forEach(id => {
@@ -7066,13 +7079,13 @@ function ligarEventos() {
     });
   });
 
-  document.getElementById('btnNovoServico').addEventListener('click', () => {
+  document.getElementById('btnNovoServico')?.addEventListener('click', () => {
     const preset = {};
     if (faseFiltro === '2') preset.frente = 'GALPÃO F2';
     abrirDialogo('cliente', null, preset);
   });
 
-  document.getElementById('btnCriarFase2').addEventListener('click', async () => {
+  document.getElementById('btnCriarFase2')?.addEventListener('click', async () => {
     if (!confirm('Criar serviços e planejamento GALPÃO F2 para eixos 01-10?\n• Escopos IFC: IÇAMENTO JOIST = 430, VIGAS = 130 (eixos 01-10, 10 ruas)\n• Demais serviços: quantidades e prazos copiados de F1 para edição posterior\nRegistros já existentes não serão duplicados.')) return;
     try {
       const [r1, r2] = await Promise.all([
