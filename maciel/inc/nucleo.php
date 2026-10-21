@@ -545,20 +545,7 @@ function responder_json($status, $dados)
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
-    $corpo = json_encode($dados, JSON_UNESCAPED_UNICODE);
-    // respostas grandes (o modelo da obra passa de centenas de KB) vão comprimidas: JSON comprime ~10x e a rede/celular é o gargalo
-    if (strlen($corpo) > 4096 && function_exists('gzencode') && !headers_sent() && !ini_get('zlib.output_compression')
-        && stripos((string)($_SERVER['HTTP_ACCEPT_ENCODING'] ?? ''), 'gzip') !== false) {
-        $gz = gzencode($corpo, 5);
-        if ($gz !== false) {
-            header('Content-Encoding: gzip');
-            header('Vary: Accept-Encoding');
-            header('Content-Length: ' . strlen($gz));
-            echo $gz;
-            exit;
-        }
-    }
-    echo $corpo;
+    echo json_encode($dados, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
