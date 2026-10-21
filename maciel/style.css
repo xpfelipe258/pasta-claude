@@ -1020,6 +1020,10 @@ dialog.re-previa::backdrop { background: rgba(10, 18, 30, .6); }
 .ap-hist-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
 .ap-hist-barra .btn.perigo { margin-left: auto; color: var(--vermelho); border-color: var(--vermelho); }
 .ap-hist-barra .btn:disabled { opacity: .45; cursor: default; }
+.ap-hist-filtros { align-items: flex-end; }
+.ap-filtro { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--fg3, #51606f); }
+.ap-filtro select, .ap-filtro input { padding: 5px 7px; font-size: 13px; }
+.ap-filtro-q { flex: 1 1 180px; }
 #tabApHist tr.ap-hist-sel td { background: color-mix(in srgb, var(--acento) 10%, transparent); }
 #tabApHist input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
 

@@ -3904,7 +3904,7 @@ function renderEstCriticos() {
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
-  frente: new Map(), etapa: '', histSel: new Set(), histTodos: false };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
+  frente: new Map(), etapa: '', histSel: new Set(), histTodos: false, histFiltro: { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }, histTotal: 0 };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
 const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM' };
 function frentesMontagem(refazer) {
@@ -4584,9 +4584,49 @@ function renderApont() {
   $('#tabApConc').innerHTML = seguro('a conciliação', () => apConciliacaoHtml(ctx));
   $('#apDefEmp').innerHTML = seguro('a definição de empresa', () => apDefHtml(ctx));
 
-  const histTodas = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  apEst.ctxHist = ctx;
+  apHistRender(ctx);
+  patchDatas();
+  requestAnimationFrame(syncScrollTopo);
+}
+
+// "Últimos apontamentos": filtros por empresa, tipo, produção, período e texto (valem para todo o histórico; a lista continua mostrando 40 até "Ver todos").
+const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
+function apHistPassa(a) {
+  const f = apEst.histFiltro;
+  if (f.emp && a.empresa !== f.emp) return false;
+  if (f.tipo && apHistTipoRot(a) !== f.tipo) return false;
+  if (f.prod && ((a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização') !== f.prod) return false;
+  if (f.ini && (!a.data || a.data < f.ini)) return false;
+  if (f.fim && (!a.data || a.data > f.fim)) return false;
+  if (f.q) {
+    const txt = ganNorm([fdA(a.data), a.empresa, apHistTipoRot(a), a.faixa, a.rua, a.letra, a.slot, a.viga_id, a.obs].join(' '));
+    if (!f.q.split(/\s+/).filter(Boolean).every(t => txt.includes(ganNorm(t)))) return false;
+  }
+  return true;
+}
+function apHistFiltrosHtml(todas) {
+  const el = $('#apHistFiltros');
+  if (!el) return;
+  const f = apEst.histFiltro, unicos = fn => [...new Set(todas.map(fn).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+  const sel = (id, rot, valores, atual) => `<label class="ap-filtro">${rot}<select id="${id}"><option value="">Todos</option>${valores.map(v => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`;
+  const ativo = Object.values(f).some(Boolean);
+  el.innerHTML = `${sel('apHfEmp', 'Empresa', unicos(a => a.empresa), f.emp)}${sel('apHfTipo', 'Tipo', unicos(apHistTipoRot), f.tipo)}${sel('apHfProd', 'Produção', ['soma', 'regularização'], f.prod)}
+    <label class="ap-filtro">De<input type="date" id="apHfIni" value="${esc(f.ini)}"></label><label class="ap-filtro">Até<input type="date" id="apHfFim" value="${esc(f.fim)}"></label>
+    <label class="ap-filtro ap-filtro-q">Buscar<input type="search" id="apHfQ" placeholder="rua, faixa, viga, obs…" value="${esc(f.q)}"></label>
+    <button class="btn" id="apHfLimpar" ${ativo ? '' : 'disabled'}>Limpar filtros</button>`;
+}
+function apHistFiltrar() {   // refaz só a lista (sem redesenhar o mapa); a barra de filtros mantém o foco de quem está digitando
+  const ctx = apEst.ctxHist;
+  if (!ctx) return renderApont();
+  apHistRender(ctx, true);
+}
+function apHistRender(ctx, manterFiltros) {
+  const todasSemFiltro = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  const histTodas = todasSemFiltro.filter(apHistPassa);   // os filtros valem para todo o histórico, não só para as 40 linhas mostradas
+  apEst.histTotal = histTodas.length;
   const hist = apEst.histTodos ? histTodas : histTodas.slice(0, 40);
-  const linhasHist = new Set(histTodas.map(a => String(a.linha)));
+  const linhasHist = new Set(todasSemFiltro.map(a => String(a.linha)));
   apEst.histSel = new Set([...apEst.histSel].filter(l => linhasHist.has(l)));   // some o que já foi excluído
   $('#tabApHist').innerHTML = `<thead><tr><th><input type="checkbox" id="apHistTodos" title="Selecionar todos os apontamentos da lista" aria-label="Selecionar todos"></th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
     (hist.length ? hist.map(a => {
@@ -4598,10 +4638,11 @@ function renderApont() {
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
-    }).join('') : '<tr><td colspan="9" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
+    }).join('') : `<tr><td colspan="9" class="vazio">${todasSemFiltro.length ? 'Nenhum apontamento com esses filtros.' : 'Nenhum apontamento ainda.'}</td></tr>`) + '</tbody>';
   apHistBarra(histTodas.length, hist.length);
+  if (!manterFiltros) apHistFiltrosHtml(todasSemFiltro);
+  else { const b = $('#apHfLimpar'); if (b) b.disabled = !Object.values(apEst.histFiltro).some(Boolean); }
   patchDatas();
-  requestAnimationFrame(syncScrollTopo);
 }
 
 // "Últimos apontamentos": seleção em lote (todos / por linha) e exclusão dos marcados.
@@ -4620,7 +4661,7 @@ function apHistBarra(total, mostrando) {
 }
 function apHistMarcar(linhas, marcar) {
   linhas.forEach(c => { c.checked = marcar; c.closest('tr').classList.toggle('ap-hist-sel', marcar); if (marcar) apEst.histSel.add(c.dataset.apHistSel); else apEst.histSel.delete(c.dataset.apHistSel); });
-  apHistBarra((T.apontamentos || []).length, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
+  apHistBarra(apEst.histTotal, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
 }
 async function apHistExcluir(btn) {
   const linhas = [...apEst.histSel].map(Number);
@@ -4851,6 +4892,7 @@ function ligarApontamento() {
     if (ev.target.id === 'apHistSelTodos') { const vis = apHistLinhasVisiveis(); return apHistMarcar(vis, !(vis.length && vis.every(c => c.checked))); }
     if (ev.target.id === 'apHistVerTodos') { apEst.histTodos = !apEst.histTodos; return renderApont(); }
     if (ev.target.id === 'apHistExcluir') return apHistExcluir(ev.target);
+    if (ev.target.id === 'apHfLimpar') { apEst.histFiltro = { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }; apHistFiltrosHtml([...(T.apontamentos || [])]); return apHistFiltrar(); }
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
       if (!ex.dataset.confirmar) { ex.dataset.confirmar = '1'; ex.textContent = 'Confirmar exclusão'; return; }
@@ -4869,6 +4911,8 @@ function ligarApontamento() {
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
+    const hf = { apHfEmp: 'emp', apHfTipo: 'tipo', apHfProd: 'prod', apHfIni: 'ini', apHfFim: 'fim' }[id];
+    if (hf) { apEst.histFiltro[hf] = ev.target.value; return apHistFiltrar(); }
     if (id === 'apHistTodos') return apHistMarcar(apHistLinhasVisiveis(), ev.target.checked);
     if (ev.target.dataset.apHistSel !== undefined) return apHistMarcar([ev.target], ev.target.checked);
   });
@@ -4920,6 +4964,7 @@ function ligarApontamento() {
   });
   sec.addEventListener('input', ev => {
     if (ev.target.id === 'apObs') apEst.obs = ev.target.value;
+    if (ev.target.id === 'apHfQ') { apEst.histFiltro.q = ev.target.value.trim(); apHistFiltrar(); }
   });
 }
 
