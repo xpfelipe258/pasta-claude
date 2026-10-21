@@ -553,10 +553,16 @@ function renderTudo() {
 
 function renderAba() {
   if (!M) return;
+  try {
   ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
      equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont,
      plan: renderPlanejamento })[abaAtual]();
+  } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
+    console.error('Erro ao desenhar a aba', abaAtual, err);
+    const sec = document.getElementById('aba-' + abaAtual);
+    if (sec) { sec.querySelector('.erro-aba')?.remove(); const e = document.createElement('div'); e.className = 'aviso erro-aba'; e.style.cssText = 'margin:12px 0;padding:10px 14px;border:1px solid #b42318;background:#fff1f0;color:#7a1a12;border-radius:6px;font-size:13px'; e.innerHTML = `<b>Não foi possível montar esta tela.</b> ${esc(String(err && err.message || err))}<br><span class="nota">Detalhe: ${esc(String(err && err.stack || '').split('\n').slice(0, 3).join(' | '))}</span>`; sec.prepend(e); }
+  }
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -7371,7 +7377,7 @@ function ligarEventos() {
   const s = segunda(ref);
   per = { ini: s, fim: add(s, 6) };
   try { await carregar(); definirRef(ref); }
-  catch (err) { $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; }
+  catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
