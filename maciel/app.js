@@ -189,7 +189,20 @@ function servicoCompat(nomeFonte, nomeAlvo) {
   if (ehTelhar(a)) return !fontePerfil && !f.includes('PERFIL') && (f.includes('INSTALACAO DE TELH') || f.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || f.includes('FACEFELT') || f.includes('MONTAGEM TELH') || f === 'TELHAS' || f === 'TELHA' || f.includes(' TELHAS') || f.includes(' TELHA'));
   return f.includes(a) || a.includes(f);
 }
-function colDe(e, serv) { const s = e && (e.servicos.find(x => servicoCompat(x.nome, serv) && servicoLancadoPermitido(x, serv, null)) || e.servicos.find(x => servicoCompat(x.nome, serv))); return s ? s.col : null; }
+function colDe(e, serv) {
+  const ok = x => servicoCompat(x.nome, serv), naoF2 = x => faseItem(x.frente) !== '2';
+  const s = e && (e.servicos.find(x => ok(x) && naoF2(x) && servicoLancadoPermitido(x, serv, null)) || e.servicos.find(x => ok(x) && naoF2(x)) || e.servicos.find(ok));
+  return s ? s.col : null;
+}
+// Colunas da Fase 2 do galpão (eixos 01-10) do mesmo serviço da coluna `col`: criadas ao apontar a montagem no mapa.
+function colsFase2De(e, col) {
+  const s1 = e && col && e.servicos.find(x => x.col === col);
+  if (!s1 || faseItem(s1.frente) === '2' || ehFrenteAnexa(s1.frente)) return [];
+  return e.servicos.filter(x => x.col !== col && faseItem(x.frente) === '2' && !ehFrenteAnexa(x.frente) && ganNorm(x.nome) === ganNorm(s1.nome)).map(x => x.col);
+}
+// Fase 1 + Fase 2 do serviço (o catálogo do BM cobre o galpão inteiro).
+function colsDe(e, serv) { const c = colDe(e, serv); return c ? [c, ...colsFase2De(e, c)] : []; }
+function somaCols(e, cols, ini, fim) { return cols.reduce((t, c) => t + soma(e, c, ini, fim), 0); }
 function soma(e, col, ini, fim) {
   let t = 0;
   for (const d in e.registros) {
@@ -1581,10 +1594,7 @@ function ganSuprimirAvancoVisual(it) {
     || fr.includes('PASSARELAS')
     || fr.includes('AREA DE VIVENCIA')
     || fr.includes('MARQUISE')
-    || fr === 'GALPAO F2'
-    || fr.includes('GALPAO F2')
-    || fr.includes('FECHAMENTO LATERAL') && fr.includes('GALPAO F2')
-    || (fr.includes('GALPAO F2') && sv.includes('FECHAMENTO'));
+    || (fr.includes('GALPAO F2') && !ganFasePorColuna(it));   // Fase 2 só mostra avanço quando tem coluna própria em Lançamentos (apontada no mapa)
 }
 
 function ganServicosFonte(itOuServico) {
@@ -1603,13 +1613,21 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
   return a === b || a.includes(b) || b.includes(a);
 }
 
+// A Fase 2 do galpão tem coluna própria em Lançamentos (serviço com frente "GALPÃO F2", criado ao apontar montagem nos eixos 01-10):
+// então cada fase lê só as suas colunas, em vez de empurrar o excedente da Fase 1 para a Fase 2.
+function ganFasePorColuna(itOuServico) {
+  if (!itOuServico || typeof itOuServico === 'string' || itOuServico._eclusa || !itOuServico.frente || ehFrenteAnexa(itOuServico.frente)) return false;
+  const fontes = ganServicosFonte(itOuServico);
+  return M.empresas.some(e => e.servicos.some(s => faseItem(s.frente) === '2' && !ehFrenteAnexa(s.frente) && fontes.some(f => ganServicoCombina(f, s.nome))));
+}
 function ganProducao(itOuServico, empNome) {
   if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
   const fontes = ganServicosFonte(itOuServico), frenteAlvo = typeof itOuServico === 'string' ? null : itOuServico.frente;
+  const fasePorCol = ganFasePorColuna(itOuServico);
   const ds = [], dsBmAp = [];   // grade e apontamentos do BM separados: o mesmo trabalho pode estar nas duas fontes (telhas apontadas no mapa lançam nas duas)
   M.empresas.forEach(e => {
     if (empNome && e.nome !== empNome) return;
-    e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, frenteAlvo))).forEach(s => Object.keys(e.registros).forEach(d => {
+    e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, frenteAlvo)) && (!fasePorCol || ehFrenteAnexa(s.frente) || faseItem(s.frente) === faseItem(frenteAlvo))).forEach(s => Object.keys(e.registros).forEach(d => {
       const v = e.registros[d].v[s.col];
       const ajustado = v;
       if (typeof ajustado === 'number' && ajustado > 0) ds.push([d, ajustado]);
@@ -1704,7 +1722,8 @@ function ganSerieFase(it, bruto) {
 }
 
 function ganProducaoFase(it, empNome) {
-  return ganSerieFase(it, ganProducao(it, empNome));
+  const bruto = ganProducao(it, empNome);
+  return ganFasePorColuna(it) ? bruto : ganSerieFase(it, bruto);
 }
 
 function ganBmAtividades(it) {
@@ -1727,13 +1746,13 @@ function ganBmAtividades(it) {
 function ganBmDatasAtividade(a, ate) {
   const ds = [];
   if (a.controle) {
-    const e = empresa(a.empresa), col = colDe(e, a.controle);
-    if (e && col) Object.keys(e.registros).forEach(d => {
+    const e = empresa(a.empresa);
+    if (e) colsDe(e, a.controle).forEach(col => Object.keys(e.registros).forEach(d => {
       if (d <= ate) {
         const v = e.registros[d].v[col];
         if (typeof v === 'number' && v > 0) ds.push([d, v]);
       }
-    });
+    }));
   }
   bmTab('bm_apontamentos').forEach(x => {
     if (x.empresa === a.empresa && x.codigo === a.codigo && x.data && x.data <= ate && (x.quantidade || 0) > 0) ds.push([x.data, x.quantidade || 0]);
@@ -5284,8 +5303,8 @@ function bmQtdFinanceira(a, qtdProducao) {
 }
 function bmQtdProducaoBruta(a, ini, fim) {
   if (a.controle) {
-    const e = empresa(a.empresa), col = colDe(e, a.controle);
-    return col ? soma(e, col, ini, fim) : 0;
+    const e = empresa(a.empresa), cols = colsDe(e, a.controle);
+    return cols.length ? somaCols(e, cols, ini, fim) : 0;
   }
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data >= ini && x.data <= fim) t += x.quantidade || 0; });
@@ -5317,8 +5336,8 @@ function bmLegendaUnidade(a) {
 
 function bmRealizado(a, ate) {
   if (a.controle) {
-    const e = empresa(a.empresa), col = colDe(e, a.controle);
-    return col ? bmQtdFinanceira(a, soma(e, col, '0000', ate)) : 0;
+    const e = empresa(a.empresa), cols = colsDe(e, a.controle);
+    return cols.length ? bmQtdFinanceira(a, somaCols(e, cols, '0000', ate)) : 0;
   }
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data <= ate) t += x.quantidade || 0; });
@@ -5818,11 +5837,12 @@ function renderLancServico(e) {
     h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))} ${it.pesosAjustados ? '<span class="farol f-amarelo" title="Os pesos das atividades não somam 100%">pesos ≠ 100%</span>' : ''}</td><td colspan="9"></td><td class="n"><b>${nf(it.pct * 100, 1)}%</b></td></tr>`;
     it.ats.forEach(({ a, real, pct }) => {
       const ctl = a.controle ? colDe(e, a.controle) : null;
-      const semanaUnd = ctl ? soma(e, ctl, s, add(s, 6)) : null;
-      const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
+      const ctlF2 = ctl ? colsFase2De(e, ctl) : [];   // colunas da Fase 2 (apontadas no mapa): linha própria logo abaixo
+      const semanaUnd = ctl ? somaCols(e, [ctl, ...ctlF2], s, add(s, 6)) : null;
+      const acumUnd = ctl ? somaCols(e, [ctl, ...ctlF2], '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
       const baseFin = bmAtividadeUsaBaseFinanceira(a);
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ' <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>') : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
@@ -5833,6 +5853,13 @@ function renderLancServico(e) {
         }
       });
       h += `<td class="n">${bmFmtQtdFinanceira(a, semana, semanaUnd)}</td><td class="n">${bmFmtQtdFinanceira(a, real, acumUnd)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td></tr>`;
+      ctlF2.forEach(c2 => {
+        const sem2 = soma(e, c2, s, add(s, 6)), ac2 = soma(e, c2, '0000', ref);
+        h += `<tr class="sub-fase2"><td class="fixa sub-ativ" colspan="3">&nbsp;&nbsp;↳ Fase 2 (eixos 01-10) <span class="nota" title="Coluna própria da Fase 2: recebe os apontamentos de montagem dos eixos 01 a 10. Já está somada na linha acima (semana, acumulado e %).">apontada no mapa</span></td>` +
+          dias.map((d, i) => { const k = chave(e.aba, d, c2), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, c2);
+            return `<td><input class="num ${pend.has(k) ? 'editado' : ''}" data-d="${d}" data-c="${c2}" value="${esc(v)}" ${noCal.has(d) ? '' : 'disabled'} ${marca(d)} inputmode="decimal" aria-label="${esc(a.atividade)} Fase 2 ${DIAS[i]} ${fd(d)}"></td>`; }).join('') +
+          `<td class="n">${nf(sem2, 1)}</td><td class="n">${nf(ac2, 1)}</td><td></td></tr>`;
+      });
     });
   });
   $('#tabLanc').innerHTML = h + '</tbody>';
