@@ -7375,8 +7375,10 @@ function ligarEventos() {
   patchDatas();
   atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
-  setInterval(verificarVersao, 4000);
-  mostrarAtualizacao(); setInterval(mostrarAtualizacao, 20000);
+  // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
+  setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });
+  mostrarAtualizacao();   // o sistema online está sempre na versão publicada: uma consulta basta (a repetição a cada 20 s só pesava no servidor)
   $('#btnAtualizar').onclick = verificarAtualizacaoAgora;
 })();
 
