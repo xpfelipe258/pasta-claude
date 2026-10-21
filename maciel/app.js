@@ -90,7 +90,7 @@ function cor(v) { return getComputedStyle(document.documentElement).getPropertyV
 function corEmp(nome) { return `var(${COR_EMP[nome] || '--fg3'})`; }
 function corEmpHex(nome) { return cor(COR_EMP[nome] || '--fg3'); }
 function diaUtil(s) { return dow(s) < 5; }
-function somarDiasUteis(s, n) { let d = s; while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }
+function somarDiasUteis(s, n) { let d = s; n = Math.min(n, 2600); while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }   // teto de ~10 anos: ritmo quase zero gerava ano 10000 e quebrava o Painel
 function contarDiasUteis(a, b) { let n = 0; for (let d = add(a, 1); d <= b; d = add(d, 1)) if (diaUtil(d)) n++; return n; }
 function inicioMes(s) { return ehISO(s) ? s.slice(0, 8) + '01' : hoje().slice(0, 8) + '01'; }
 function fimMes(s) { const d = dU(inicioMes(s)); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); }
