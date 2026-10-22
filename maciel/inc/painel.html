@@ -350,10 +350,12 @@
   <!-- ESTOQUE · REMESSAS -->
   <section id="aba-estrem" hidden>
     <div class="tiles" id="estRemTiles"></div>
+    <div class="barra-acoes"><div class="seg" id="segRemTipo"></div></div>
     <div class="barra-acoes">
       <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
       <div class="acoes">
-        <button class="btn primario" id="btnNovaRemessa">+ Nova remessa</button>
+        <button class="btn primario" id="btnNovaRemessaCarga" title="Carga de estrutura (joists, vigas, terças, telhas…)">+ Remessa de carga</button>
+        <button class="btn primario" id="btnNovaRemessaFixador" title="Fixadores: parafusos, porcas, arruelas, chumbadores…">+ Remessa de fixador</button>
       </div>
     </div>
     <div class="rem-col-toggles" id="remColToggle">

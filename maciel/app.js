@@ -3163,21 +3163,43 @@ function renderEstMateriais() {
     : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 
+// Remessa de CARGA (estrutura) e remessa de FIXADOR são separadas: cada uma tem o seu tipo (EP.remessas.tipos[nome]);
+// remessa antiga sem tipo é deduzida pelos itens que recebeu (só fixadores = FIXADOR, só carga = CARGA, os dois = MISTA, aparece nas duas telas).
+let remTipoSel = 'CARGA';
+try { if (localStorage.getItem('remTipoSel') === 'FIXADOR') remTipoSel = 'FIXADOR'; } catch (e) { /* sem armazenamento */ }
+function remTagsFixador() {
+  const s = new Set();
+  estMateriaisComCadastros().forEach(m => { if (ehFixador(m) || ehFixadorCadastro({ tipo_material: m.tipo_material, codigo: m.tag, material: m.material })) s.add(m.tag); });
+  return s;
+}
+function remTipoDe(rem, nome, fix) {
+  const t = (rem.tipos || {})[nome];
+  if (t === 'CARGA' || t === 'FIXADOR') return t;
+  let f = 0, c = 0;
+  (rem.itens || []).forEach(i => { if ((i.qtd_por_remessa || {})[nome]) (fix.has(i.tag) ? f++ : c++); });
+  return f && c ? 'MISTA' : f ? 'FIXADOR' : 'CARGA';
+}
 function renderEstRemessas() {
   if (!EP) return;
   const rem = estRemessasComCadastros();
-  const cols = rem.colunas;
+  const fix = remTagsFixador(), tipo = remTipoSel, ehFix = tipo === 'FIXADOR';
+  const edTipo = estEdit.rem?.tipo;
+  const cols = rem.colunas.filter(c => { const t = remTipoDe(rem, c, fix); return t === tipo || t === 'MISTA'; });
   const f = ($('#estRemFiltro')?.value || '').toUpperCase();
   const vis = rem.itens.filter(m => {
+    if (fix.has(m.tag) !== ehFix) return false;
     if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
     return true;
   });
+  const segR = $('#segRemTipo');
+  if (segR) segR.innerHTML = [['CARGA', 'Remessas de carga'], ['FIXADOR', 'Remessas de fixador']].map(([k, r]) => `<button type="button" class="${tipo === k ? 'ativa' : ''}" data-rem-tipo="${k}">${r}</button>`).join('');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const totRec = soma0(rem.itens, m => m.total_recebido);
+  const itensTipo = rem.itens.filter(m => fix.has(m.tag) === ehFix);
+  const totRec = soma0(itensTipo, m => m.total_recebido);
   $('#estRemTiles').innerHTML =
-    tile('Itens', rem.itens.length, `${vis.length} visíveis`, 'var(--fg)') +
-    tile('Remessas', cols.length, 'colunas de envio', 'var(--acento)') +
-    tile('Total recebido', nf(totRec), 'soma de todas as remessas', 'var(--verde)');
+    tile('Itens', itensTipo.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile(ehFix ? 'Remessas de fixador' : 'Remessas de carga', cols.length, 'colunas de envio', 'var(--acento)') +
+    tile('Total recebido', nf(totRec), ehFix ? 'soma das remessas de fixador' : 'soma das remessas de carga', 'var(--verde)');
 
   const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
   const dataRemInput = (remessa, campo, rot, valor) => `<label class="rem-data rem-data-edit"><span>${rot}</span><input type="text" value="${esc(valor || '')}" placeholder="dd/mm/aaaa" data-remessa-data="${esc(remessa)}" data-remessa-campo="${esc(campo)}"></label>`;
@@ -3199,7 +3221,7 @@ function renderEstRemessas() {
       + novaDataInput('prevista_chegada', 'Prev.', ed.prevista, 'prevista')
       + novaDataInput('emissao_nota', 'NF', ed.emissaoNf, 'emissaoNf')
       + novaDataInput('chegada_obra', 'Obra', ed.chegadaObra, 'chegadaObra')
-      + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
+      + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa de ${ehFix ? 'fixador' : 'carga'}" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
       (!ed ? cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') : '') +
@@ -3243,7 +3265,8 @@ function edBarra(k) {
       ? `<span class="ed-datas"><label>Prev. chegada<input class="ed-dat" data-ed="${k}" data-ed-dat="prevista" placeholder="dd/mm/aaaa" value="${esc(ed.prevista)}"></label>`
         + `<label>Emissão NF<input class="ed-dat" data-ed="${k}" data-ed-dat="emissaoNf" placeholder="dd/mm/aaaa" value="${esc(ed.emissaoNf)}"></label>`
         + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
-    box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
+    const tipoTxt = k === 'rem' ? (ed.tipo === 'FIXADOR' ? ' de fixador' : ' de carga') : '';
+    box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') + tipoTxt : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
       + datasHtml
       + (k === 'cons' ? `<span class="ed-datas"><label>Período do consumo — de<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoIni" value="${esc(ed.periodoIni || '')}"></label><label>até<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoFim" value="${esc(ed.periodoFim || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
@@ -3252,10 +3275,12 @@ function edBarra(k) {
   }
   box.querySelector('.ed-resumo').textContent = resumo;
 }
-function edAbrir(k) {
+function edAbrir(k, tipo) {
   if (!EP) return;
+  if (k === 'rem' && estEdit.rem && tipo && estEdit.rem.tipo !== tipo) { toast('Salve ou cancele a remessa que está aberta antes de abrir outra.', true); return; }
+  if (k === 'rem') { remTipoSel = tipo || remTipoSel; try { localStorage.setItem('remTipoSel', remTipoSel); } catch (e) { /* sem armazenamento */ } }
   if (!estEdit[k]) estEdit[k] = k === 'rem'
-    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false }
+    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false, tipo: remTipoSel }
     : { nome: '', val: new Map(), periodoIni: '', periodoFim: '' };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
@@ -3269,8 +3294,10 @@ function edAbrirRemessaExistente(nome) {
   if (!EP || !nome) return;
   const rem = estRemessasComCadastros();
   const dt = (rem.datas || {})[nome] || {};
-  const ed = estEdit.rem = { nome, val: new Map(), prevista: dt.prevista_chegada || '', emissaoNf: dt.emissao_nota || '', chegadaObra: dt.chegada_obra || '', original: nome, substituir: true };
+  const ed = estEdit.rem = { nome, val: new Map(), prevista: dt.prevista_chegada || '', emissaoNf: dt.emissao_nota || '', chegadaObra: dt.chegada_obra || '', original: nome, substituir: true, tipo: remTipoSel };
+  const fixEd = remTagsFixador();
   (rem.itens || []).forEach(i => {
+    if (fixEd.has(i.tag) !== (remTipoSel === 'FIXADOR')) return;   // a edição mexe só nos itens do tipo da tela
     const v = (i.qtd_por_remessa || {})[nome];
     if (v != null && v !== '') ed.val.set(i.tag, String(v).replace('.', ','));
   });
@@ -3295,6 +3322,7 @@ async function edSalvar(k) {
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
     const corpo = { [ED[k].campo]: nome, itens };
+    if (k === 'rem') corpo.tipo = ed.tipo || remTipoSel;
     if (k === 'cons') { corpo.periodo_ini = ed.periodoIni; corpo.periodo_fim = ed.periodoFim || ed.periodoIni; }
     if (k === 'rem') {
       if (ed.substituir) { corpo.substituir = true; corpo.original_remessa = ed.original || nome; }
@@ -3327,7 +3355,16 @@ async function salvarDataRemessa(inp) {
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
   const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
-  $('#btnNovaRemessa').onclick = () => edAbrir('rem');
+  $('#btnNovaRemessaCarga').onclick = () => edAbrir('rem', 'CARGA');
+  $('#btnNovaRemessaFixador').onclick = () => edAbrir('rem', 'FIXADOR');
+  $('#segRemTipo').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-rem-tipo]');
+    if (!b || b.dataset.remTipo === remTipoSel) return;
+    if (estEdit.rem) { toast('Salve ou cancele a remessa aberta antes de trocar de tipo.', true); return; }
+    remTipoSel = b.dataset.remTipo;
+    try { localStorage.setItem('remTipoSel', remTipoSel); } catch (e) { /* sem armazenamento */ }
+    renderEstRemessas();
+  });
   $('#btnNovoConsumo').onclick = () => edAbrir('cons');
   sec.addEventListener('input', ev => {
     const el = ev.target, k = el.dataset.ed;

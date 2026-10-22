@@ -873,6 +873,18 @@ function estoque_material(array &$dados, $tag)
     return null;
 }
 
+// Remessa de CARGA (estrutura) ou de FIXADOR: são pedidos/entregas diferentes, então cada remessa tem um tipo
+// (remessas.tipos[nome]); remessa antiga sem tipo continua valendo e a tela deduz pelo que ela tem.
+function remessa_tag_eh_fixador(array $dados, $tag)
+{
+    $i = estoque_material($dados, $tag);
+    $m = $i !== null ? $dados['materiais'][$i] : [];
+    if (!$m) {
+        $m = q('SELECT codigo, material, tipo_material, obs FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: [];
+    }
+    return material_eh_fixador(['tipo_material' => $m['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $m['material'] ?? ($m['produto'] ?? ''), 'obs' => $m['obs'] ?? '']);
+}
+
 function acao_estoque_remessa(array $corpo)
 {
     $dados = estoque_planilha_ler();
@@ -885,6 +897,27 @@ function acao_estoque_remessa(array $corpo)
     }
     $original = trim((string)($corpo['original_remessa'] ?? ''));
     $substituir = !empty($corpo['substituir']);
+    $tipoRem = mb_strtoupper(trim((string)($corpo['tipo'] ?? '')));
+    if ($tipoRem !== '' && !in_array($tipoRem, ['CARGA', 'FIXADOR'], true)) {
+        throw new ErroValidacao('Tipo de remessa inválido (CARGA ou FIXADOR).');
+    }
+    $tiposRem = is_array($dados['remessas']['tipos'] ?? null) ? $dados['remessas']['tipos'] : [];
+    $tipoAtual = $tiposRem[$substituir && $original !== '' ? $original : $nome] ?? '';
+    if ($tipoRem !== '' && $tipoAtual !== '' && $tipoAtual !== $tipoRem) {
+        throw new ErroValidacao('A remessa "' . ($substituir && $original !== '' ? $original : $nome) . '" é de ' . ($tipoAtual === 'FIXADOR' ? 'fixador' : 'carga') . '. Use outro nº para a remessa de ' . ($tipoRem === 'FIXADOR' ? 'fixador' : 'carga') . '.');
+    }
+    if ($tipoRem !== '' && $tipoAtual === '' && !$substituir && in_array($nome, $dados['remessas']['colunas'] ?? [], true)) {
+        $existeOutro = false;
+        foreach ($dados['remessas']['itens'] as $it0) {
+            if (!empty($it0['qtd_por_remessa'][$nome]) && remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') !== ($tipoRem === 'FIXADOR')) {
+                $existeOutro = true;
+                break;
+            }
+        }
+        if ($existeOutro) {
+            throw new ErroValidacao('Já existe uma remessa "' . $nome . '" do outro tipo. Use outro nº.');
+        }
+    }
     if ($substituir) {
         $alvo = $original !== '' ? $original : $nome;
         if (!in_array($alvo, $dados['remessas']['colunas'] ?? [], true)) {
@@ -898,6 +931,10 @@ function acao_estoque_remessa(array $corpo)
                 $dados['remessas']['datas'][$nome] = $dados['remessas']['datas'][$alvo];
             }
             unset($dados['remessas']['datas'][$alvo]);
+            if (isset($tiposRem[$alvo])) {
+                $tiposRem[$nome] = $tiposRem[$alvo];
+                unset($tiposRem[$alvo]);
+            }
             foreach ($dados['remessas']['itens'] as &$it0) {
                 if (isset($it0['qtd_por_remessa'][$alvo]) && !isset($it0['qtd_por_remessa'][$nome])) {
                     $it0['qtd_por_remessa'][$nome] = $it0['qtd_por_remessa'][$alvo];
@@ -907,7 +944,10 @@ function acao_estoque_remessa(array $corpo)
             unset($it0);
         }
         foreach ($dados['remessas']['itens'] as &$it0) {
-            unset($it0['qtd_por_remessa'][$nome]);
+            // com tipo informado só limpa os itens do mesmo tipo (remessa antiga mista não perde o outro tipo)
+            if ($tipoRem === '' || remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') === ($tipoRem === 'FIXADOR')) {
+                unset($it0['qtd_por_remessa'][$nome]);
+            }
         }
         unset($it0);
     }
@@ -956,10 +996,28 @@ function acao_estoque_remessa(array $corpo)
                 ];
             }
         }
+        if ($tipoRem !== '' && remessa_tag_eh_fixador($dados, $tag) !== ($tipoRem === 'FIXADOR')) {
+            throw new ErroValidacao("Item $n: a TAG $tag " . ($tipoRem === 'FIXADOR' ? 'não é fixador; lance-a numa remessa de carga.' : 'é fixador; lance-o numa remessa de fixador.'));
+        }
         $lancamentos[$tag] = ($lancamentos[$tag] ?? 0) + qtd_positiva($it, $n);
     }
     if (!in_array($nome, $dados['remessas']['colunas'], true)) {
         $dados['remessas']['colunas'][] = $nome;
+    }
+    if ($tipoRem !== '') {
+        $mista = false;   // remessa antiga com itens dos dois tipos continua sem tipo (aparece nas duas telas)
+        foreach ($dados['remessas']['itens'] as $it0) {
+            if (!empty($it0['qtd_por_remessa'][$nome]) && remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') !== ($tipoRem === 'FIXADOR')) {
+                $mista = true;
+                break;
+            }
+        }
+        if (!$mista) {
+            $tiposRem[$nome] = $tipoRem;
+        }
+    }
+    if ($tiposRem) {
+        $dados['remessas']['tipos'] = $tiposRem;
     }
     // Datas opcionais da remessa (prevista chegada, emissão NF, chegada obra)
     $datasNova = is_array($corpo['datas'] ?? null) ? $corpo['datas'] : [];
