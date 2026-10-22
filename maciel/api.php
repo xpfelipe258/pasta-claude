@@ -77,6 +77,12 @@ try {
         if ($rota === 'planos') {
             responder_json(200, planos_ler());
         }
+        if ($rota === 'tarefas') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, tarefas_listar($usuario));
+        }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
             responder_json(200, is_array($d) ? $d : ['setores' => []]);
@@ -103,6 +109,16 @@ try {
     }
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
+    }
+    if ($rota === 'tarefas') {   // tarefas são pessoais/da gestão: não mexem nos dados da obra nem na versão do modelo
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+        }
+        $corpoT = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoT)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_tarefas($corpoT, $usuario));
     }
     if ($usuario['perfil'] === 'leitura') {
         responder_json(403, ['erro' => 'Seu usuário é somente leitura.']);
@@ -160,6 +176,139 @@ try {
 } catch (Exception $e) {
     error_log('obra198: ' . $e->getMessage());
     responder_json(500, ['erro' => 'Falha ao gravar no banco de dados.']);
+}
+
+// ----------------------------------------------------------------- tarefas a fazer
+
+// (listas em funções: o roteador acima roda antes de as constantes deste arquivo serem definidas)
+function tarefa_status()
+{
+    return ['pendente', 'andamento', 'concluida', 'cancelada'];
+}
+function tarefa_prioridades()
+{
+    return ['baixa', 'normal', 'alta', 'urgente'];
+}
+
+function tarefa_agora_brt()
+{
+    return (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+}
+
+// Administrador vê todas; os demais veem as que foram atribuídas a eles ou que eles mesmos criaram.
+function tarefas_listar(array $usuario)
+{
+    garantir_tarefas();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome FROM tarefas t
+        LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
+    $params = [];
+    if (!$admin) {
+        $sql .= ' WHERE t.responsavel_id = ? OR t.criado_por = ?';
+        $params = [(int)$usuario['id'], (int)$usuario['id']];
+    }
+    $sql .= ' ORDER BY t.data_fim, t.id';
+    $linhas = q_global($sql, $params)->fetchAll();
+    foreach ($linhas as &$l) {
+        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias'] as $k) {
+            $l[$k] = (int)$l[$k];
+        }
+        $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
+        $l['pode_editar'] = $admin || $l['criado_por'] === (int)$usuario['id'];
+    }
+    unset($l);
+    $usuarios = $admin ? q_global('SELECT id, nome, empresa FROM usuarios WHERE ativo = 1 ORDER BY nome')->fetchAll()
+        : [['id' => (int)$usuario['id'], 'nome' => $usuario['nome'], 'empresa' => $usuario['empresa'] ?? null]];
+    foreach ($usuarios as &$u) {
+        $u['id'] = (int)$u['id'];
+    }
+    unset($u);
+    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas];
+}
+
+function acao_tarefas(array $corpo, array $usuario)
+{
+    garantir_tarefas();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $eu = (int)$usuario['id'];
+    $acao = (string)($corpo['acao'] ?? '');
+    $id = isset($corpo['id']) ? (int)$corpo['id'] : 0;
+    $t = $id ? q_global('SELECT * FROM tarefas WHERE id = ?', [$id])->fetch() : null;
+    if ($id && !$t) {
+        throw new ErroValidacao('Tarefa não encontrada. Recarregue a tela.');
+    }
+    $agora = tarefa_agora_brt();
+    if ($acao === 'salvar') {
+        if ($t && !$admin && (int)$t['criado_por'] !== $eu) {
+            throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode alterar os dados dela. Você pode mudar o andamento e escrever o retorno.');
+        }
+        $titulo = trim((string)($corpo['titulo'] ?? ''));
+        if ($titulo === '' || mb_strlen($titulo) > 200) {
+            throw new ErroValidacao('Informe o título da tarefa (até 200 caracteres).');
+        }
+        $ini = (string)($corpo['data_inicio'] ?? '');
+        $fim = (string)($corpo['data_fim'] ?? '');
+        if (!data_valida($ini)) {
+            throw new ErroValidacao('Informe a data de início.');
+        }
+        if (!data_valida($fim)) {
+            throw new ErroValidacao('Informe a data de conclusão.');
+        }
+        if ($fim < $ini) {
+            throw new ErroValidacao('A data de conclusão não pode ser anterior à data de início.');
+        }
+        $aviso = isset($corpo['aviso_dias']) && $corpo['aviso_dias'] !== '' ? (int)$corpo['aviso_dias'] : 2;
+        if ($aviso < 0 || $aviso > 60) {
+            throw new ErroValidacao('O aviso deve ser de 0 a 60 dias antes da conclusão.');
+        }
+        $prio = (string)($corpo['prioridade'] ?? 'normal');
+        if (!in_array($prio, tarefa_prioridades(), true)) {
+            throw new ErroValidacao('Prioridade inválida.');
+        }
+        $resp = $eu;   // quem não é administrador só cria lembrete para si
+        if ($admin && !empty($corpo['responsavel_id'])) {
+            $resp = (int)$corpo['responsavel_id'];
+            if (!q_global('SELECT id FROM usuarios WHERE id = ? AND ativo = 1', [$resp])->fetch()) {
+                throw new ErroValidacao('Responsável inválido.');
+            }
+        } elseif ($t && !$admin) {
+            $resp = (int)$t["responsavel_id"];
+        }
+        $desc = trim((string)($corpo['descricao'] ?? ''));
+        if ($t) {
+            q_global('UPDATE tarefas SET titulo=?, descricao=?, responsavel_id=?, data_inicio=?, data_fim=?, aviso_dias=?, prioridade=?, atualizado_em=? WHERE id=?',
+                [$titulo, $desc !== '' ? $desc : null, $resp, $ini, $fim, $aviso, $prio, $agora, $id]);
+        } else {
+            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora]);
+        }
+    } elseif ($acao === 'status') {
+        if (!$t) {
+            throw new ErroValidacao('Tarefa não encontrada.');
+        }
+        if (!$admin && (int)$t['criado_por'] !== $eu && (int)$t['responsavel_id'] !== $eu) {
+            throw new ErroValidacao('Esta tarefa não é sua.');
+        }
+        $st = (string)($corpo['status'] ?? '');
+        if (!in_array($st, tarefa_status(), true)) {
+            throw new ErroValidacao('Situação inválida.');
+        }
+        $retorno = array_key_exists('retorno', $corpo) ? trim((string)$corpo['retorno']) : (string)($t['retorno'] ?? '');
+        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, atualizado_em=? WHERE id=?',
+            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $agora, $id]);
+    } elseif ($acao === 'excluir') {
+        if (!$t) {
+            throw new ErroValidacao('Tarefa não encontrada.');
+        }
+        if (!$admin && (int)$t['criado_por'] !== $eu) {
+            throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode excluí-la.');
+        }
+        q_global('DELETE FROM tarefas WHERE id = ?', [$id]);
+    } else {
+        throw new ErroValidacao('Ação de tarefa inválida.');
+    }
+    return tarefas_listar($usuario);
 }
 
 // ----------------------------------------------------------------- ações

@@ -9,7 +9,7 @@ let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
 let eqFiltroEmp = '', eqFiltroNome = '', eqFiltroUso = 'todos';
-let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'painel';
+let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'tarefas';   // a primeira tela é sempre a das tarefas
 let empSel = null;
 let filtroImp = 'abertos';
 let dpEmpSel = null;
@@ -566,7 +566,7 @@ function renderTudo() {
 function renderAba() {
   if (!M) return;
   try {
-  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
+  ({ tarefas: renderTarefas, painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
      equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont,
      plan: renderPlanejamento })[abaAtual]();
@@ -7458,13 +7458,9 @@ function ligarEventos() {
   ligarEventos();
   // Se a navegação veio do Dashboard (?aba=...), essa aba tem prioridade.
   // Caso contrário, restaura a última aba usada pelo usuário.
-  let aba = abaAtual || 'painel';
+  // A aba de Tarefas é fixa: ao entrar no sistema ela é sempre a primeira tela (só um link com ?aba=... a troca).
   const abaUrl = new URLSearchParams(window.location.search).get('aba');
-  if (!abaUrl) {
-    try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
-  } else {
-    aba = abaUrl;
-  }
+  let aba = abaUrl || 'tarefas';
   if (aba === 'estoque') aba = 'estmat';   // a aba única de estoque virou uma aba por assunto
   $('#refData').value = ref;
   const s = segunda(ref);
@@ -7473,7 +7469,8 @@ function ligarEventos() {
   catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
-  mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
+  mudarAba(document.getElementById('aba-' + aba) ? aba : 'tarefas');
+  tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });

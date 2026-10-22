@@ -1154,3 +1154,31 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 .mat-ed-in{width:100%;min-width:150px}
 #tabEstMat td:has(input[data-mat-campo=planejado]) .mat-ed-in{min-width:96px}
 #tabEstMat tr.mat-editando .btn{white-space:nowrap}
+
+/* ---- Tarefas a fazer (aba fixa de abertura) ---- */
+.f-azul { background: #e0ecff; color: #1e4fa8; }
+#dlgTarefa { width: min(720px, 94vw); }
+#dlgTarefa .largo, .tf-rapido .largo { grid-column: 1 / -1; }
+#dlgTarefa label { display: flex; flex-direction: column; gap: 4px; font-size: .75rem; font-weight: 600; color: var(--fg2); }
+#dlgTarefa textarea { width: 100%; resize: vertical; font: inherit; padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); }
+#tfAndamentoBox { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 0; }
+.tf-rapido { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; padding: 8px 10px; border: 1px dashed var(--linha-forte); border-radius: 8px; }
+.tf-rapido input[type=text] { flex: 1 1 280px; min-width: 200px; }
+.tf-rapido label { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--fg2); }
+.tf-alertas { margin: 8px 0 12px; padding: 10px 14px; border: 1px solid #f1c27d; background: var(--amarelo-bg); border-radius: 8px; }
+.tf-alertas.tf-ok { border-color: #b7e0c2; background: var(--verde-bg, #eaf7ee); color: var(--fg2); }
+.tf-alerta-tit { font-weight: 700; margin-bottom: 6px; }
+.tf-alertas ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.tf-alertas li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+#tabTarefas .tf-titulo { min-width: 260px; }
+#tabTarefas .tf-titulo a { color: inherit; text-decoration: none; }
+#tabTarefas .tf-desc, #tabTarefas .tf-ret { max-width: 520px; white-space: pre-wrap; }
+#tabTarefas tr.tf-fechada td { opacity: .62; }
+#tabTarefas tr.tf-fechada .tf-titulo b { text-decoration: line-through; }
+.tf-prio { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: .7rem; font-weight: 700; background: var(--pend-bg); color: var(--pend); }
+.tf-prio-alta { background: var(--amarelo-bg); color: var(--amarelo); }
+.tf-prio-urgente { background: var(--vermelho-bg); color: var(--vermelho); }
+.tf-status { padding: 3px 6px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--card); color: var(--fg); }
+.perigo-txt { color: var(--vermelho); }
+.sidebar-tarefas button { font-weight: 700; }
+.tf-alertas a { color: inherit; font-weight: 700; }

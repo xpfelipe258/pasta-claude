@@ -136,7 +136,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 18;
+const ESQUEMA_VERSAO = 19;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -218,6 +218,26 @@ function renomear_telhar_v15(PDO $pdo)
     }
 }
 
+// Tarefas a fazer (aba fixa de abertura): globais do sistema, atribuídas a usuários; não dependem da obra aberta.
+function tarefas_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS tarefas (id $pk, titulo VARCHAR(200) NOT NULL, descricao $longo NULL,
+        criado_por INT NOT NULL, responsavel_id INT NOT NULL, data_inicio DATE NULL, data_fim DATE NULL,
+        aviso_dias INT NOT NULL DEFAULT 2, prioridade VARCHAR(10) NOT NULL DEFAULT 'normal', status VARCHAR(15) NOT NULL DEFAULT 'pendente',
+        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL)$fim";
+}
+function garantir_tarefas()
+{
+    static $ok = false;
+    if ($ok) {
+        return;
+    }
+    $driver = config()['driver'] ?? 'mysql';
+    bd()->exec(tarefas_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
+        $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
+    $ok = true;
+}
+
 function criar_esquema(PDO $pdo, $driver)
 {
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
@@ -256,6 +276,7 @@ function criar_esquema(PDO $pdo, $driver)
         "CREATE TABLE IF NOT EXISTS obra_config (obra_id INT NOT NULL, chave VARCHAR(50) NOT NULL, valor $longo NULL,
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
+        tarefas_sql($pk, $longo, $fim),
         "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
     ];

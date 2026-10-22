@@ -31,6 +31,11 @@
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar">
   <nav class="sidebar-nav" id="abas">
+    <div class="sidebar-grupo sidebar-dashboard sidebar-tarefas">
+      <div class="sidebar-itens aberto">
+        <button data-aba="tarefas" class="ativa">Tarefas a fazer <span class="contador" id="tarefasCont" hidden></span></button>
+      </div>
+    </div>
     <div class="sidebar-grupo sidebar-dashboard">
       <div class="sidebar-itens aberto">
         <button type="button" id="menuDashboardGeral" onclick="window.location.href='dashboard_admin.php'">Dashboard</button>
@@ -41,7 +46,7 @@
         <span class="sidebar-icone">&#9783;</span>Produção<span class="seta-grupo">&#8249;</span>
       </div>
       <div class="sidebar-itens aberto" id="grp-producao">
-        <button data-aba="painel" class="ativa">Painel</button>
+        <button data-aba="painel">Painel</button>
         <button data-aba="semana">Programação semanal</button>
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
         <button data-aba="apont">Apontar montagem</button>
@@ -140,8 +145,28 @@
 </div>
 
 <main>
+  <!-- TAREFAS A FAZER (aba fixa: primeira tela ao entrar) -->
+  <section id="aba-tarefas">
+    <div class="bloco-cab"><h2>Tarefas a fazer</h2><div class="acoes"><button class="btn primario" id="btnNovaTarefa">+ Nova tarefa</button></div></div>
+    <div id="tfAlertas"></div>
+    <div class="tiles" id="tfCards"></div>
+    <div class="tf-rapido">
+      <input type="text" id="tfRapidoTit" maxlength="200" placeholder="Lembrete rápido: o que preciso fazer?" autocomplete="off">
+      <label>até <input type="date" id="tfRapidoFim"></label>
+      <button class="btn" id="tfRapidoAdd" type="button">Adicionar lembrete</button>
+    </div>
+    <div class="barra-acoes">
+      <div class="seg" id="tfVistas"></div>
+      <div class="seg" id="tfFiltros"></div>
+      <select id="tfResp" class="input-filtro" hidden></select>
+      <input type="search" id="tfBusca" class="input-filtro" placeholder="Buscar tarefa, responsável…" autocomplete="off">
+    </div>
+    <div id="tfCorpo"><div class="bloco"><div class="tabela-rolagem"><table id="tabTarefas"></table></div></div></div>
+    <div class="bloco" id="tfCarga" hidden></div>
+  </section>
+
   <!-- PAINEL -->
-  <section id="aba-painel">
+  <section id="aba-painel" hidden>
     <div class="barra-acoes" id="painelFiltroBar">
       <div class="seg" id="segPainelEmp"></div>
       <div class="re-barra" title="Relatório do painel escolhido (Geral = todas as empresas) no período ao lado">
@@ -759,6 +784,33 @@
   </form>
 </dialog>
 
+<dialog id="dlgTarefa">
+  <form id="tfForm" method="dialog">
+    <div class="bloco-cab"><h2 id="tfTit">Nova tarefa</h2><button type="button" class="btn-icone" id="tfFechar" aria-label="Fechar">×</button></div>
+    <div class="campos">
+      <label class="largo"><span class="obrig">Título</span><input name="titulo" type="text" maxlength="200" required></label>
+      <label class="largo"><span>Descrição / detalhes</span><textarea name="descricao" rows="3"></textarea></label>
+      <label id="tfRespBox"><span class="obrig">Atribuir a</span><select name="responsavel_id"></select></label>
+      <span class="nota" id="tfPessoalNota">Esta tarefa é um lembrete seu.</span>
+      <label><span class="obrig">Data de início</span><input name="data_inicio" type="date" required></label>
+      <label><span class="obrig">Data de conclusão</span><input name="data_fim" type="date" required></label>
+      <label><span>Avisar quantos dias antes da conclusão</span><input name="aviso_dias" type="number" min="0" max="60" value="2"></label>
+      <label><span>Prioridade</span><select name="prioridade"><option value="baixa">Baixa</option><option value="normal" selected>Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+      <div id="tfAndamentoBox" class="largo campos-linha">
+        <label><span>Situação</span><select name="status"><option value="pendente">A fazer</option><option value="andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label>
+        <label class="largo"><span>Retorno / observação de quem executa</span><textarea name="retorno" rows="2"></textarea></label>
+      </div>
+      <span class="nota largo" id="tfNotaSomenteAndamento" hidden>Esta tarefa foi atribuída a você: você pode mudar a situação e escrever o retorno. Os demais dados só quem criou ou o administrador altera.</span>
+    </div>
+    <div class="acoes">
+      <button type="button" class="btn perigo" id="tfExcluir" hidden>Excluir</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn" id="tfCancelar">Cancelar</button>
+      <button type="submit" class="btn primario" id="tfSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlgJoistTipo">
   <form id="dlgJoistForm" method="dialog">
     <div class="bloco-cab">
@@ -797,6 +849,7 @@
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>
+<script src="tarefas.js"></script>
 <script src="vinculos.js"></script>
 <script src="tabelas.js"></script>
 </body>
