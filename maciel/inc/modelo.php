@@ -183,10 +183,18 @@ function montar_modelo()
     ];
 }
 
-// Parafusos lidos dos modelos TRB (quantidade por tipo e por local), gerado por ferramentas/trb_parafusos.py
-function carregar_ifc_parafusos()
+// Dado de projeto da OBRA ABERTA (regras de baixa, parafusos, anexos…): vale o que foi gravado para ela pela importação automática
+// (obra_config); só a obra com dados_legados = 1 (obra 198) cai nos arquivos fixos de inc/. Obra nova nunca herda os dados de outra.
+function dado_json_da_obra($chave, $arquivoLegado)
 {
-    $p = __DIR__ . '/ifc_parafusos.json';
+    $salvo = json_decode((string)q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), $chave])->fetchColumn(), true);
+    if (is_array($salvo)) {
+        return $salvo;
+    }
+    if (sistema_ler('dados_legados', '0') !== '1') {
+        return null;
+    }
+    $p = __DIR__ . '/' . $arquivoLegado;
     if (!is_file($p)) {
         return null;
     }
@@ -194,15 +202,16 @@ function carregar_ifc_parafusos()
     return is_array($d) ? $d : null;
 }
 
+// Parafusos lidos dos modelos TRB (quantidade por tipo e por local), gerado por ferramentas/trb_parafusos.py
+function carregar_ifc_parafusos()
+{
+    return dado_json_da_obra('ifc_parafusos', 'ifc_parafusos.json');
+}
+
 // Peças por local e família dos IFCs dos anexos (Eclusa, Portaria, Refeitório, Vestiário), gerado por ferramentas/ifc_anexos.py
 function carregar_ifc_anexos()
 {
-    $p = __DIR__ . '/ifc_anexos.json';
-    if (!is_file($p)) {
-        return null;
-    }
-    $d = json_decode(file_get_contents($p), true);
-    return is_array($d) ? $d : null;
+    return dado_json_da_obra('ifc_anexos', 'ifc_anexos.json');
 }
 
 // O estoque importado da planilha (materiais, remessas, consumo físico, inventário) fica guardado como JSON:
@@ -250,12 +259,7 @@ function carregar_inventario_ifc()
 
 function carregar_regras_baixa()
 {
-    $p = __DIR__ . '/regras_baixa.json';
-    if (!is_file($p)) {
-        return null;
-    }
-    $d = json_decode(file_get_contents($p), true);
-    return is_array($d) ? $d : null;
+    return dado_json_da_obra('regras_baixa', 'regras_baixa.json');
 }
 
 // Converte as linhas do apontamento de montagem nos eventos que o motor de baixa entende

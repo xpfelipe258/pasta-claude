@@ -136,7 +136,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 19;
+const ESQUEMA_VERSAO = 20;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -226,6 +226,13 @@ function tarefas_sql($pk, $longo, $fim)
         aviso_dias INT NOT NULL DEFAULT 2, prioridade VARCHAR(10) NOT NULL DEFAULT 'normal', status VARCHAR(15) NOT NULL DEFAULT 'pendente',
         retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL)$fim";
 }
+// Documentos enviados para a importação automática de uma obra nova (IFC, fixadores, cronograma, orçamento, projetos).
+function importacao_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS obra_documentos (id $pk, obra_id INT NOT NULL, tipo VARCHAR(20) NOT NULL, nome_original VARCHAR(255) NOT NULL,
+        arquivo VARCHAR(255) NOT NULL, tamanho BIGINT NOT NULL DEFAULT 0, sha256 VARCHAR(64) NULL, status VARCHAR(15) NOT NULL DEFAULT 'recebido',
+        mensagens $longo NULL, resumo $longo NULL, profunda_status VARCHAR(15) NULL, profunda $longo NULL, enviado_por INT NULL, enviado_em VARCHAR(19) NOT NULL)$fim";
+}
 function garantir_tarefas()
 {
     static $ok = false;
@@ -277,6 +284,7 @@ function criar_esquema(PDO $pdo, $driver)
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         tarefas_sql($pk, $longo, $fim),
+        importacao_sql($pk, $longo, $fim),
         "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
     ];
@@ -293,6 +301,9 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_multiobra($pdo, $driver);
     garantir_autenticacao_estendida($pdo, $driver);
     garantir_obras_detalhes($pdo, $driver);
+    if (!in_array('importacao', colunas_tabela($pdo, $driver, 'obras'), true)) {   // fase da importação automática (rascunho, aguardando_leitura…); vazio = obra comum
+        $pdo->exec("ALTER TABLE obras ADD COLUMN importacao VARCHAR(25) NULL");
+    }
     if (!in_array('empresas', colunas_tabela($pdo, $driver, 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN empresas VARCHAR(255) NULL");
     }

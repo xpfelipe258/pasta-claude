@@ -54,11 +54,11 @@ try {
                 'intervalo' => 0, 'resultado' => 'online', 'detalhe' => 'Sistema online: sempre na versão publicada.']);
         }
         if ($rota === 'regras-baixa') {
-            $p = __DIR__ . '/inc/regras_baixa.json';
-            if (!is_file($p)) {
-                responder_json(404, ['erro' => 'regras_baixa.json não encontrado.']);
+            $d = carregar_regras_baixa();
+            if ($d === null) {
+                responder_json(404, ['erro' => 'Esta obra ainda não tem regras de baixa (vêm da importação automática).']);
             }
-            responder_json(200, json_decode(file_get_contents($p), true));
+            responder_json(200, $d);
         }
         if ($rota === 'frentes-montagem') {
             $d = frentes_montagem();
@@ -68,11 +68,11 @@ try {
             responder_json(200, $d);
         }
         if ($rota === 'parafusos-locais') {
-            $p = __DIR__ . '/inc/ifc_parafusos_locais.json';
-            if (!is_file($p)) {
-                responder_json(404, ['erro' => 'ifc_parafusos_locais.json não encontrado.']);
+            $d = dado_json_da_obra('ifc_parafusos_locais', 'ifc_parafusos_locais.json');
+            if ($d === null) {
+                responder_json(404, ['erro' => 'Esta obra não tem a lista de parafusos por local.']);
             }
-            responder_json(200, json_decode(file_get_contents($p), true));
+            responder_json(200, $d);
         }
         if ($rota === 'planos') {
             responder_json(200, planos_ler());
