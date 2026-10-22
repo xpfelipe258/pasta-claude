@@ -3148,24 +3148,10 @@ function renderEstMateriais() {
     if (s === 'Crítico') return 'vermelho';
     return 'pendente';
   };
-  const ed = matEdit;
-  const inp = (campo, valor, extra = '') => `<input class="ed-in mat-ed-in" data-mat-campo="${campo}" value="${esc(valor ?? '')}" ${extra} aria-label="${campo}">`;
-  const optsLocal = `<datalist id="matDlLocal">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist><datalist id="matDlEtapa">${etapas.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
   $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
-      const acoes = m.linha ? `<button class="link" data-editar-reg="materiais" data-linha="${m.linha}">Editar / excluir</button>` : '<span class="nota">importado</span>';
+      const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button>`;
       const tagBtn = `<button type="button" class="link mat-tag" data-mat-edit="${esc(m.tag)}" title="Clique para editar este item (tipo, nome, local, etapa, planejado)"><b>${esc(m.tag)}</b></button>`;
-      if (ed && ed.tag === m.tag) {
-        const v = ed.vals;
-        const tipoSel = [...new Set(['ESTRUTURA', 'FIXADOR', 'CONSUMO', 'OUTROS', ...itens.map(x => (x.tipo_material || '').toUpperCase()).filter(Boolean), v.tipo_material])].sort().map(t => `<option ${v.tipo_material === t ? 'selected' : ''}>${t}</option>`).join('');
-        return `<tr class="mat-editando">
-      <td><b>${esc(m.tag)}</b></td><td>${inp('material', v.material)}</td><td>${inp('produto', v.produto)}</td>
-      <td><select class="ed-in mat-ed-in" data-mat-campo="tipo_material" aria-label="Tipo">${tipoSel}</select></td>
-      <td>${inp('local', v.local, 'list="matDlLocal"')}</td><td>${inp('etapa', v.etapa, 'list="matDlEtapa"')}</td>
-      <td class="n">${inp('planejado', v.planejado, 'inputmode="decimal"')}${m.planejado_trb ? `<br><span class="nota">+ projeto ${nf(m.planejado_trb)} (somado à parte)</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
-      <td class="n">${nf(posBaixaDe(m))}</td><td class="n" colspan="3"><span class="nota">Enter salva · Esc cancela</span></td>
-      <td><button type="button" class="btn primario" data-mat-salvar>Salvar</button> <button type="button" class="btn" data-mat-cancelar>Cancelar</button></td></tr>`;
-      }
       return `<tr>
       <td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
       <td>${esc(m.local || '—')}</td><td>${esc(m.etapa)}</td>
@@ -3175,34 +3161,20 @@ function renderEstMateriais() {
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
       <td>${esc(m.prioridade || '')}</td><td>${acoes}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="14" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>' + optsLocal;
+    : '<tr><td colspan="14" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 
-// ---- edição inline de um item da aba Materiais (clicar na TAG): tipo, nome, produto, local, etapa e planejado
-let matEdit = null;   // { tag, vals: {...}, original }
+// ---- editar um item da aba Materiais (clicar na TAG): abre o mesmo pop-up do cadastro, já preenchido
 function matAbrirEdicao(tag) {
   if (document.body.classList.contains('somente-leitura')) return;
   const m = estMateriaisComCadastros().find(x => x.tag === tag);
   if (!m) return;
+  const cad = (T.materiais || []).find(x => String(x.codigo || '').trim().toUpperCase() === String(tag).toUpperCase());
   const planBase = m.planejado_trb ? m.planejado_cad : m.planejado;   // o que vem do projeto (TRB) é somado à parte e não se edita aqui
-  matEdit = { tag, vals: { material: m.material || '', produto: m.produto || '', tipo_material: (m.tipo_material || 'ESTRUTURA').toUpperCase(), local: m.local || '', etapa: m.etapa || '', planejado: planBase ? String(planBase).replace('.', ',') : '' } };
-  renderEstMateriais();
-  document.querySelector('#tabEstMat .mat-ed-in[data-mat-campo="material"]')?.focus();
-}
-function matFecharEdicao() { matEdit = null; renderEstMateriais(); }
-async function matSalvarEdicao() {
-  const ed = matEdit;
-  if (!ed) return;
-  const v = ed.vals, plan = String(v.planejado ?? '').trim() === '' ? 0 : edNum(v.planejado);
-  if (!String(v.material).trim()) { toast('O nome do material não pode ficar vazio.', true); return; }
-  if (!(plan >= 0)) { toast('Planejado inválido.', true); return; }
-  const b = document.querySelector('#tabEstMat [data-mat-salvar]'); if (b) b.disabled = true;
-  try {
-    await postar(API + 'estoque-planilha/material', { tag: ed.tag, campos: { material: v.material, produto: v.produto, tipo_material: v.tipo_material, local: v.local, etapa: v.etapa, planejado: plan } });
-    matEdit = null;
-    await carregar();
-    toast(`Item ${ed.tag} atualizado ${ONDE}`);
-  } catch (err) { toast(err.message, true); if (b) b.disabled = false; }
+  abrirDialogo('materiais_edit', cad ? cad.linha : null, {
+    ...(cad || {}), codigo: m.tag, material: m.material || '', produto: m.produto || '', tipo_material: (m.tipo_material || 'ESTRUTURA').toUpperCase(),
+    local: m.local || '', etapa: m.etapa || '', saldo_inicial: planBase || '',
+  });
 }
 
 // Remessa de CARGA (estrutura) e remessa de FIXADOR são separadas: cada uma tem o seu tipo (EP.remessas.tipos[nome]);
@@ -3397,21 +3369,7 @@ async function salvarDataRemessa(inp) {
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
   const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
-  const secMat = $('#aba-estmat');
-  if (secMat) {
-    secMat.addEventListener('click', ev => {
-      const t = ev.target.closest('[data-mat-edit]');
-      if (t) { if (matEdit && matEdit.tag !== t.dataset.matEdit) { toast('Salve ou cancele o item que está aberto.', true); return; } matAbrirEdicao(t.dataset.matEdit); return; }
-      if (ev.target.closest('[data-mat-salvar]')) matSalvarEdicao();
-      else if (ev.target.closest('[data-mat-cancelar]')) matFecharEdicao();
-    });
-    secMat.addEventListener('input', ev => { const c = ev.target.closest('.mat-ed-in'); if (c && matEdit) matEdit.vals[c.dataset.matCampo] = c.value; });
-    secMat.addEventListener('change', ev => { const c = ev.target.closest('select.mat-ed-in'); if (c && matEdit) matEdit.vals[c.dataset.matCampo] = c.value; });
-    secMat.addEventListener('keydown', ev => {
-      if (!matEdit || !ev.target.closest('.mat-ed-in')) return;
-      if (ev.key === 'Enter') { ev.preventDefault(); matSalvarEdicao(); } else if (ev.key === 'Escape') { ev.preventDefault(); matFecharEdicao(); }
-    });
-  }
+  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); });
   $('#btnNovaRemessaCarga').onclick = () => edAbrir('rem', 'CARGA');
   $('#btnNovaRemessaFixador').onclick = () => edAbrir('rem', 'FIXADOR');
   $('#segRemTipo').addEventListener('click', ev => {
@@ -5940,6 +5898,13 @@ const FORMS = {
     ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
     ['saldo_inicial', 'Quantidade planejada', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
     ['fornecedor', 'Fornecedor', 'text'], ['prazo_reposicao', 'Prazo de reposição (dias úteis)', 'num'], ['obs', 'Observação', 'text', 0, 'largo']] },
+  materiais_edit: { tit: 'material', base: 'materiais', sempreEditar: true, endpoint: 'estoque-planilha/material', recarregar: true,
+    envelope: c => ({ tag: c.codigo, campos: c }), campos: [
+    ['codigo', 'TAG / Código (não muda)', 'ro'], ['material', 'Nome do material', 'text', 1], ['produto', 'Produto / descrição', 'text'], ['unidade', 'Unidade (pç, kg, m², m)', 'text'],
+    ['tipo_material', 'Tipo de material', 'select:ESTRUTURA,FIXADOR,CONSUMO,OUTROS'], ['local', 'Local / grupo', 'text'], ['etapa', 'Etapa / aplicação', 'text'],
+    ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
+    ['saldo_inicial', 'Quantidade planejada', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
+    ['fornecedor', 'Fornecedor', 'text'], ['prazo_reposicao', 'Prazo de reposição (dias úteis)', 'num'], ['obs', 'Observação', 'text', 0, 'largo']] },
   movimentos: { tit: 'movimentação', campos: [
     ['data', 'Data', 'date', 1], ['codigo', 'Material', 'material', 1], ['tipo', 'Tipo', 'select:ENTRADA,SAÍDA,AJUSTE', 1],
     ['quantidade', 'Quantidade (ajuste aceita negativo)', 'num', 1], ['documento', 'Documento (NF / romaneio)', 'text'], ['empresa', 'Empresa', 'empresa'],
@@ -6007,17 +5972,18 @@ const FORMS = {
 
 function abrirDialogo(tabela, linha, preset = {}) {
   const def = FORMS[tabela];
-  const reg = linha ? T[tabela].find(r => r.linha === linha) : null;
+  const reg = linha ? T[def.base || tabela].find(r => r.linha === linha) : null;
   const dados = { ...(reg || {}), ...preset };
   if (!reg && !dados.data && def.campos.some(c => c[0] === 'data')) dados.data = minD(ref, hoje());
   const dlg = $('#dlg');
   dlg.dataset.tabela = tabela; dlg.dataset.linha = linha || '';
-  $('#dlgTit').textContent = (reg ? 'Editar ' : 'Novo(a) ') + def.tit;
+  $('#dlgTit').textContent = (reg || def.sempreEditar ? 'Editar ' : 'Novo(a) ') + def.tit;
   $('#dlgCampos').innerHTML = def.campos.map(([k, rot, tipo, obrig, cls]) => {
     const v = dados[k] ?? '';
     const req = obrig ? 'required' : '';
     let inp;
-    if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${tipo.slice(7).split(',').map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
+    if (tipo === 'ro') inp = `<input name="${k}" type="text" value="${esc(v)}" readonly>`;
+    else if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${[...new Set([...tipo.slice(7).split(','), ...(v ? [String(v)] : [])])].map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
     else if (tipo === 'material') inp = `<select name="${k}" ${req}>${T.materiais.map(m => `<option value="${esc(m.codigo)}" ${m.codigo === v ? 'selected' : ''}>${esc(m.codigo)} — ${esc(m.material)}</option>`).join('')}</select>`;
     else {
       const lista = { servico: 'listaServicos', empresa: 'listaEmpresas', equipamento: 'listaEquip' }[tipo];
@@ -6028,7 +5994,7 @@ function abrirDialogo(tabela, linha, preset = {}) {
   }).join('');
   $('#dlgExcluir').hidden = !reg;
   $('#dlgExcluir').dataset.confirmar = '';
-  $('#dlgExcluir').textContent = tabela === 'materiais' ? 'Excluir material' : 'Excluir';
+  $('#dlgExcluir').textContent = (def.base || tabela) === 'materiais' ? 'Excluir material' : 'Excluir';
   if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
   dlg.showModal();
   patchDatas();
@@ -6056,14 +6022,16 @@ async function salvarDialogo(ev) {
   FORMS[tabela].campos.forEach(([k, , tipo]) => {
     let v = f.elements.namedItem(k).value.trim();   // namedItem: o campo "item" (BM) colidia com form.elements.item()
     if (tipo === 'num' && v && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
-    if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && !['obs', 'material', 'atividade', 'item_desc', 'descricao', 'unidade'].includes(k)) v = v.toUpperCase();
+    if (tipo === 'ro') { campos[k] = v; return; }
+    if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && !['obs', 'material', 'atividade', 'item_desc', 'descricao', 'unidade'].includes(k) && !(tabela === 'materiais_edit' && ['produto', 'local', 'etapa', 'fornecedor'].includes(k))) v = v.toUpperCase();
     campos[k] = v || null;
   });
   try {
     const def = FORMS[tabela];
     if (def.endpoint) {
-      await postar(API + def.endpoint, campos);
+      await postar(API + def.endpoint, def.envelope ? def.envelope(campos) : campos);
       dlg.close();
+      if (def.recarregar) { await carregar(); toast(`Salvo ${ONDE}`); return; }
       const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
       if (j) EP = j;
       renderEstoquePlanilha();
@@ -6080,10 +6048,10 @@ async function excluirDialogo() {
   const b = $('#dlgExcluir'), dlg = $('#dlg');
   if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão'; return; }
   try {
-    await postar(API + 'registro', { tabela: dlg.dataset.tabela, linha: +dlg.dataset.linha, excluir: true });
+    await postar(API + 'registro', { tabela: FORMS[dlg.dataset.tabela]?.base || dlg.dataset.tabela, linha: +dlg.dataset.linha, excluir: true });
     dlg.close();
     await carregar();
-    toast(dlg.dataset.tabela === 'materiais' ? 'Material excluído' : 'Registro excluído da planilha');
+    toast((FORMS[dlg.dataset.tabela]?.base || dlg.dataset.tabela) === 'materiais' ? 'Material excluído' : 'Registro excluído da planilha');
   } catch (err) { toast(err.message, true); }
 }
 

@@ -1111,6 +1111,9 @@ function acao_estoque_material(array $corpo)
         throw new ErroValidacao('Informe o tipo do material (ex.: ESTRUTURA, FIXADOR, JOIST, CONSUMO).');
     }
     $planejado = (float)($mat['planejado'] ?? 0);
+    if (!array_key_exists('planejado', $c) && array_key_exists('saldo_inicial', $c)) {
+        $c['planejado'] = $c['saldo_inicial'];   // o pop-up chama a quantidade planejada de saldo_inicial
+    }
     if (array_key_exists('planejado', $c)) {
         $p = trim((string)$c['planejado']) === '' ? 0.0 : numero($c['planejado']);
         if ($p === null || $p < 0) {
@@ -1168,9 +1171,35 @@ function acao_estoque_material(array $corpo)
         }
     }
     estoque_planilha_gravar($dados);
+    // campos que só o cadastro tem (o pop-up de edição é o mesmo do "+ Cadastrar material")
+    $extra = [];
+    foreach (['unidade' => 'txt', 'servico' => 'txt', 'empresa' => 'txt', 'coef' => 'num', 'data_saldo' => 'data', 'minimo' => 'num', 'fornecedor' => 'txt', 'prazo_reposicao' => 'num', 'obs' => 'txt'] as $k => $t) {
+        if (!array_key_exists($k, $c)) {
+            continue;
+        }
+        $v = $c[$k];
+        if ($v === null || trim((string)$v) === '') {
+            $extra[$k] = null;
+        } elseif ($t === 'num') {
+            $n = numero($v);
+            if ($n === null) {
+                throw new ErroValidacao("Valor numérico inválido em '$k'.");
+            }
+            $extra[$k] = $n;
+        } elseif ($t === 'data') {
+            if (!data_valida($v)) {
+                throw new ErroValidacao("Data inválida em '$k'.");
+            }
+            $extra[$k] = $v;
+        } else {
+            $extra[$k] = mb_substr(trim((string)$v), 0, 255);
+        }
+    }
+    $base = ['material' => $nome, 'tipo_material' => $tipo, 'local' => $local !== '' ? $local : null, 'etapa' => $etapa !== '' ? $etapa : null, 'saldo_inicial' => $planejado];
     if ($cad) {
-        gravar_linha('materiais', (int)$cad['id'], ['material' => $nome, 'tipo_material' => $tipo, 'local' => $local !== '' ? $local : null,
-            'etapa' => $etapa !== '' ? $etapa : null, 'saldo_inicial' => $planejado]);
+        gravar_linha('materiais', (int)$cad['id'], $base + $extra);
+    } elseif (array_filter($extra, function ($v) { return $v !== null; })) {
+        gravar_linha('materiais', null, ['codigo' => $tag] + $base + $extra);   // só cria o cadastro se a pessoa preencheu algo que é do cadastro
     }
     if ($viraFix) {   // fixador também existe no Consumo físico e no Inventário
         estoque_incluir_cadastro(['codigo' => $tag, 'material' => $nome, 'local' => $local, 'etapa' => $etapa, 'tipo_material' => 'FIXADOR', 'saldo_inicial' => $planejado, 'tipo_editado' => true]);
