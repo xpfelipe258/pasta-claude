@@ -223,13 +223,20 @@ pagina_inicio('Central de obras');
     <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
 
     <?php if ($rascunhos): ?>
+    <style>
+      .imp-item { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border:1px solid var(--portal-line,#e4e7ec); border-radius:13px; background:#fbfcfd; }
+      .imp-item b { display:block; color:#101828; font-size:1rem; }
+      .imp-item small { display:block; margin-top:3px; color:#667085; }
+      .imp-continuar { display:inline-flex; align-items:center; justify-content:center; min-height:41px; padding:0 18px; border-radius:10px; background:var(--portal-primary,#d97706); color:#fff !important; font-weight:700; font-size:.9rem; text-decoration:none !important; white-space:nowrap; }
+      .imp-continuar:hover { filter:brightness(.95); }
+    </style>
     <section class="bloco painel-form" style="margin:22px 0">
       <h3>Obras em importação</h3><p class="nota">Ainda não abrem: faltam documentos ou a leitura automática.</p>
       <div class="manage-grid">
       <?php foreach ($rascunhos as $o): $faseImp = $o['importacao'] ?? 'rascunho'; ?>
-        <div class="user-access"><b><?= h($o['nome']) ?></b>
-          <small><?= $faseImp === 'aguardando_leitura' ? 'Documentos enviados — aguardando leitura automática' : 'Rascunho — faltam documentos' ?></small>
-          <a class="btn primario" href="obra_importar.php?obra=<?= (int)$o['id'] ?>">Continuar importação →</a></div>
+        <div class="imp-item"><div><b><?= h($o['nome']) ?></b>
+          <small><?= $faseImp === 'aguardando_leitura' ? 'Documentos enviados — aguardando leitura automática' : 'Rascunho — faltam documentos' ?></small></div>
+          <a class="imp-continuar" href="obra_importar.php?obra=<?= (int)$o['id'] ?>">Continuar importação →</a></div>
       <?php endforeach; ?></div>
     </section>
     <?php endif; ?>
