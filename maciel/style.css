@@ -1148,3 +1148,9 @@ details.vc-fx>summary{cursor:pointer;padding:4px 0}
   :root[data-menu="topo"][data-theme="salvia"] .sidebar-nav button.ativa { background:#2f6f5b; color:#fff; }
   :root[data-menu="topo"][data-theme="nevoa"] .sidebar { background:rgba(255,255,255,.92); backdrop-filter:blur(10px); }
 }
+.somente-leitura .mat-tag{pointer-events:none;color:inherit;text-decoration:none}
+.mat-tag{padding:0;text-decoration:underline dotted}
+tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
+.mat-ed-in{width:100%;min-width:150px}
+#tabEstMat td:has(input[data-mat-campo=planejado]) .mat-ed-in{min-width:96px}
+#tabEstMat tr.mat-editando .btn{white-space:nowrap}

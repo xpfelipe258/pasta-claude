@@ -113,7 +113,7 @@ try {
     }
     $moduloRota = [
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
-        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
+        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
@@ -129,7 +129,7 @@ try {
         'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
-        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
         'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
@@ -388,6 +388,9 @@ function gravar_linha($tabela, $id, array $vals)
 // (mesma TAG), para poder receber consumo e ser conferido sem precisar importar a planilha de novo.
 function material_eh_fixador(array $m)
 {
+    if (!empty($m['tipo_editado'])) {   // tipo escolhido à mão na aba Materiais vale mais que o palpite pelo nome
+        return mb_strtoupper(trim((string)($m['tipo_material'] ?? ''))) === 'FIXADOR';
+    }
     $txt = mb_strtoupper(($m['tipo_material'] ?? '') . ' ' . ($m['codigo'] ?? '') . ' ' . ($m['material'] ?? '') . ' ' . ($m['obs'] ?? ''));
     foreach (['FIXADOR', 'PARAFUS', 'CHUMBADOR', 'ARRUELA', 'PORCA'] as $k) {
         if (mb_strpos($txt, $k) !== false) {
@@ -882,7 +885,7 @@ function remessa_tag_eh_fixador(array $dados, $tag)
     if (!$m) {
         $m = q('SELECT codigo, material, tipo_material, obs FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: [];
     }
-    return material_eh_fixador(['tipo_material' => $m['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $m['material'] ?? ($m['produto'] ?? ''), 'obs' => $m['obs'] ?? '']);
+    return material_eh_fixador(['tipo_material' => $m['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $m['material'] ?? ($m['produto'] ?? ''), 'obs' => $m['obs'] ?? '', 'tipo_editado' => $m['tipo_editado'] ?? false]);
 }
 
 function acao_estoque_remessa(array $corpo)
@@ -1068,6 +1071,112 @@ function acao_estoque_remessa(array $corpo)
     return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos), 'substituido' => $substituir];
 }
 
+
+// Edição de um item da aba Materiais (tipo, nome, produto, local, etapa e planejado), venha ele da planilha importada ou do cadastro.
+// Grava na planilha de estoque (que manda na tela) e, se a TAG também está no cadastro, no cadastro; mantém Remessas, Consumo físico e Inventário coerentes.
+function acao_estoque_material(array $corpo)
+{
+    $tag = mb_strtoupper(trim((string)($corpo['tag'] ?? '')));
+    $c = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
+    if ($tag === '') {
+        throw new ErroValidacao('Informe a TAG do material.');
+    }
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $cad = q('SELECT * FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: null;
+    if (estoque_material($dados, $tag) === null) {
+        if (!$cad) {
+            throw new ErroValidacao("Material $tag não encontrado.");
+        }
+        estoque_incluir_cadastro($cad);   // cadastro que ainda não está na planilha entra primeiro
+        $dados = estoque_planilha_ler();
+    }
+    $i = estoque_material($dados, $tag);
+    if ($i === null) {
+        throw new ErroValidacao("Material $tag não encontrado.");
+    }
+    $mat = $dados['materiais'][$i];
+    $nome = array_key_exists('material', $c) ? trim((string)$c['material']) : (string)($mat['material'] ?? $tag);
+    if ($nome === '') {
+        throw new ErroValidacao('O nome do material não pode ficar vazio.');
+    }
+    $produto = array_key_exists('produto', $c) ? trim((string)$c['produto']) : (string)($mat['produto'] ?? $nome);
+    $produto = $produto !== '' ? $produto : $nome;
+    $local = array_key_exists('local', $c) ? trim((string)$c['local']) : (string)($mat['local'] ?? '');
+    $etapa = array_key_exists('etapa', $c) ? trim((string)$c['etapa']) : (string)($mat['etapa'] ?? '');
+    $tipo = array_key_exists('tipo_material', $c) ? mb_strtoupper(trim((string)$c['tipo_material'])) : mb_strtoupper((string)($mat['tipo_material'] ?? 'ESTRUTURA'));
+    if ($tipo === '' || mb_strlen($tipo) > 40) {
+        throw new ErroValidacao('Informe o tipo do material (ex.: ESTRUTURA, FIXADOR, JOIST, CONSUMO).');
+    }
+    $planejado = (float)($mat['planejado'] ?? 0);
+    if (array_key_exists('planejado', $c)) {
+        $p = trim((string)$c['planejado']) === '' ? 0.0 : numero($c['planejado']);
+        if ($p === null || $p < 0) {
+            throw new ErroValidacao('Planejado deve ser um número maior ou igual a zero.');
+        }
+        $planejado = (float)$p;
+    }
+    // trocar entre fixador e carga não pode deixar o item recebido numa remessa do outro tipo
+    $eraFix = material_eh_fixador(['tipo_material' => $mat['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $mat['material'] ?? '', 'tipo_editado' => $mat['tipo_editado'] ?? false]);
+    $viraFix = $tipo === 'FIXADOR';
+    if ($eraFix !== $viraFix) {
+        $tipos = is_array($dados['remessas']['tipos'] ?? null) ? $dados['remessas']['tipos'] : [];
+        foreach ($dados['remessas']['itens'] ?? [] as $it) {
+            if (mb_strtoupper((string)($it['tag'] ?? '')) !== $tag) {
+                continue;
+            }
+            foreach ($it['qtd_por_remessa'] ?? [] as $rem => $q) {
+                if ((float)$q > 0 && isset($tipos[$rem]) && ($tipos[$rem] === 'FIXADOR') !== $viraFix) {
+                    throw new ErroValidacao("A TAG $tag já recebeu quantidade na remessa \"$rem\" (" . ($tipos[$rem] === 'FIXADOR' ? 'fixador' : 'carga') . "); mude o tipo só depois de corrigir essa remessa.");
+                }
+            }
+        }
+    }
+    $m =& $dados['materiais'][$i];
+    $m['material'] = $nome;
+    $m['produto'] = $produto;
+    $m['local'] = $local;
+    $m['etapa'] = $etapa;
+    $m['tipo_material'] = $tipo;
+    $m['tipo_editado'] = true;
+    $m['planejado'] = $planejado;
+    $m['prioridade'] = $viraFix ? 'FIXADOR' : (($m['prioridade'] ?? '') === 'FIXADOR' ? '' : ($m['prioridade'] ?? ''));
+    $chegou = (float)($m['chegou'] ?? 0);
+    $m['atendimento'] = $planejado ? $chegou / $planejado : null;
+    $m['status_logistico'] = ($planejado && $chegou / $planejado >= 1) ? 'Atendido' : ($chegou > 0 ? 'Recebimento Parcial' : ($planejado ? 'Crítico' : 'Cadastrado'));
+    unset($m);
+    foreach ($dados['remessas']['itens'] as &$r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $r['material'] = $nome;
+            $r['produto'] = $produto;
+            $r['etapa'] = $etapa !== '' ? $etapa : ($r['etapa'] ?? '');
+        }
+    }
+    unset($r);
+    foreach ($dados['consumo_fisico']['itens'] ?? [] as $k => $r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $dados['consumo_fisico']['itens'][$k]['produto'] = $produto;
+        }
+    }
+    foreach ($dados['inventario'] ?? [] as $k => $r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $dados['inventario'][$k]['material'] = $nome;
+            $dados['inventario'][$k]['produto'] = $produto;
+            $dados['inventario'][$k]['planejado'] = $planejado;
+        }
+    }
+    estoque_planilha_gravar($dados);
+    if ($cad) {
+        gravar_linha('materiais', (int)$cad['id'], ['material' => $nome, 'tipo_material' => $tipo, 'local' => $local !== '' ? $local : null,
+            'etapa' => $etapa !== '' ? $etapa : null, 'saldo_inicial' => $planejado]);
+    }
+    if ($viraFix) {   // fixador também existe no Consumo físico e no Inventário
+        estoque_incluir_cadastro(['codigo' => $tag, 'material' => $nome, 'local' => $local, 'etapa' => $etapa, 'tipo_material' => 'FIXADOR', 'saldo_inicial' => $planejado, 'tipo_editado' => true]);
+    }
+    return ['salvos' => 1];
+}
 
 function acao_estoque_remessa_datas(array $corpo)
 {
