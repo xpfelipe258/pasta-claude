@@ -6627,17 +6627,23 @@ function baixarRelDP(ini, fim, empFiltro = []) {
   }
   // Tabela resumo consolidado
   const funcGlobal = [...new Set(linhas.map(r => String(r.funcao || '').trim().toUpperCase()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const resumoRows = empsRel.map(emp => {
-    const fCells = funcGlobal.map(f => {
-      const v = soma0(linhas.filter(r => normEmp(r.empresa) === emp && String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0);
-      return `<td class="n">${v || ''}</td>`;
+  // Resumo = PICO por cargo: maior efetivo lançado em um único dia no período (não a soma dos dias). Total = soma dos picos dos cargos.
+  const picoFuncao = (emp, f) => {
+    const porDia = new Map();
+    linhas.forEach(r => {
+      if ((emp && normEmp(r.empresa) !== emp) || String(r.funcao || '').trim().toUpperCase() !== f) return;
+      porDia.set(r.data, (porDia.get(r.data) || 0) + (r.quantidade || 0));
     });
-    const totEmp = soma0(linhas.filter(r => normEmp(r.empresa) === emp), r => r.quantidade || 0);
-    return totEmp ? `<tr><td>${esc(emp)}</td>${fCells.join('')}<td class="n"><b>${nf(totEmp,0)}</b></td></tr>` : '';
+    return Math.max(0, ...porDia.values());
+  };
+  const resumoRows = empsRel.map(emp => {
+    const picos = funcGlobal.map(f => picoFuncao(emp, f));
+    const totEmp = picos.reduce((a, b) => a + b, 0);
+    return totEmp ? `<tr><td>${esc(emp)}</td>${picos.map(v => `<td class="n">${v || ''}</td>`).join('')}<td class="n"><b>${nf(totEmp,0)}</b></td></tr>` : '';
   }).filter(Boolean).join('');
-  const totGFuncs = funcGlobal.map(f => soma0(linhas.filter(r => String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0));
-  const resumoFoot = `<tfoot><tr class="totrow"><th>TOTAL GERAL</th>${totGFuncs.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(totalGeral,0)}</td></tr></tfoot>`;
-  const resumoHtml = `<h2>Resumo consolidado por empresa</h2><table><thead><tr><th>Empresa</th>${funcGlobal.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${resumoRows || '<tr><td colspan="'+(funcGlobal.length+2)+'">Sem lançamentos no período.</td></tr>'}</tbody>${funcGlobal.length ? resumoFoot : ''}</table>`;
+  const picosGeral = funcGlobal.map(f => picoFuncao('', f));
+  const resumoFoot = `<tfoot><tr class="totrow"><th>TOTAL GERAL</th>${picosGeral.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(picosGeral.reduce((a, b) => a + b, 0),0)}</td></tr></tfoot>`;
+  const resumoHtml = `<h2>Resumo consolidado por empresa — pico por cargo</h2><table><thead><tr><th>Empresa</th>${funcGlobal.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${resumoRows || '<tr><td colspan="'+(funcGlobal.length+2)+'">Sem lançamentos no período.</td></tr>'}</tbody>${funcGlobal.length ? resumoFoot : ''}</table><p class="sub">Cada cargo mostra o maior efetivo lançado em um único dia do período; o total é a soma dos picos dos cargos.</p>`;
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Efetivo ${ini} a ${fim}</title>${css}</head><body>
   <h1>Relatório de Efetivo — ${esc(obra)}</h1>
   <p class="sub">Período: ${fdA(ini)} a ${fdA(fim)} · Empresas: ${empsComDados.length ? esc(empsComDados.join(', ')) : 'Nenhuma'} · Gerado em ${new Date().toLocaleString('pt-BR')}</p>
