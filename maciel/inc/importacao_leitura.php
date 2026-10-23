@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/leitura_pacote.php';
 // Importação automática de obra nova — fase 2: leitura completa (serviço Python) e publicação do pacote na obra.
 // O serviço devolve um "pacote" JSON (modelo do IFC, BM, cronograma, fixadores, pranchas). Aqui ele é guardado, revisado e publicado.
 
@@ -495,4 +496,152 @@ function importacao_gravar_mapa($obraId, array $modelo, array $faseItem)
         $faseIdx[] = ['fase' => $f['fase'], 'codigo' => $f['codigo'], 'titulo' => $f['titulo'], 'conjuntos' => $f['conjuntos'], 'item' => $faseItem[$f['fase']] ?? ''];
     }
     sistema_gravar('frentes_montagem_obra', json_encode(['versao' => 1, 'malha' => $modelo['malha'], 'fases' => $faseIdx, 'pecas' => $pecas], JSON_UNESCAPED_UNICODE));
+}
+
+// ------------------------------------------------------------------ leitura dentro do sistema (PHP): lê tudo e gera a obra
+
+// Caminho do arquivo guardado de cada documento válido, por tipo: [tipo => [[nome original, caminho], ...]].
+function importacao_arquivos_por_tipo($obraId)
+{
+    $porTipo = [];
+    foreach (importacao_documentos($obraId) as $d) {
+        if ($d['status'] !== 'valido') {
+            continue;
+        }
+        $c = importacao_diretorio($obraId) . '/' . basename((string)$d['arquivo']);
+        if (is_file($c)) {
+            $porTipo[$d['tipo']][] = [$d['nome_original'], $c];
+        }
+    }
+    return $porTipo;
+}
+
+/**
+ * Lê todos os documentos da obra (IFC, orçamento/BM, cronograma, fixadores, pranchas) e monta o pacote.
+ * Tudo roda no próprio PHP, em fluxo: o IFC é lido linha a linha (a CPDA, 11 arquivos, leva menos de 1 s).
+ */
+function importacao_ler_documentos($obraId, $nomeObra = '')
+{
+    @set_time_limit(300);
+    @ini_set('memory_limit', '768M');
+    $docs = importacao_arquivos_por_tipo($obraId);
+    $tmp = importacao_diretorio($obraId) . '/_leitura';
+    if (!is_dir($tmp)) {
+        @mkdir($tmp, 0755, true);
+    }
+    $limpar = [];
+    try {
+        // IFC: aceita .ifc e .zip com vários .ifc
+        $arquivosIfc = [];
+        foreach ($docs['ifc'] ?? [] as list($nome, $caminho)) {
+            if (importacao_extensao($nome) === 'zip') {
+                $z = new ZipArchive();
+                if ($z->open($caminho) !== true) {
+                    throw new RuntimeException("Não consegui abrir o .zip $nome.");
+                }
+                for ($i = 0; $i < $z->numFiles; $i++) {
+                    $n = $z->getNameIndex($i);
+                    if (strtolower(pathinfo($n, PATHINFO_EXTENSION)) !== 'ifc') {
+                        continue;
+                    }
+                    $alvo = $tmp . '/' . count($arquivosIfc) . '.ifc';
+                    $in = $z->getStream($n);
+                    $out = fopen($alvo, 'wb');
+                    stream_copy_to_stream($in, $out);
+                    fclose($in);
+                    fclose($out);
+                    $limpar[] = $alvo;
+                    $arquivosIfc[] = [basename($n), $alvo];
+                }
+                $z->close();
+            } else {
+                $arquivosIfc[] = [$nome, $caminho];
+            }
+        }
+        if (!$arquivosIfc) {
+            throw new RuntimeException('Nenhum IFC para ler.');
+        }
+        $leituras = [];
+        foreach ($arquivosIfc as list($nome, $caminho)) {
+            $leituras[] = ifc_ler_arquivo($caminho, $nome);
+            gc_collect_cycles();
+        }
+        $modelo = leitura_modelo($leituras);
+        unset($leituras);
+
+        // orçamento: a planilha com atividades de medição manda; as demais completam escopo e boletins
+        $bm = ['itens' => [], 'avisos' => [], 'periodos' => [], 'escopo' => [], 'contrato_total' => null, 'aba' => ''];
+        $lidos = [];
+        foreach ($docs['orcamento'] ?? [] as list($nome, $caminho)) {
+            $lidos[] = [$nome, leitura_orcamento($caminho)];
+        }
+        if ($lidos) {
+            usort($lidos, function ($a, $b) {
+                $f = function ($r) { return [-array_sum(array_map(function ($i) { return count($i['atividades']); }, $r['itens'])), -count($r['itens'])]; };
+                return $f($a[1]) <=> $f($b[1]);
+            });
+            $bm = $lidos[0][1];
+            foreach (array_slice($lidos, 1) as list($nome, $outro)) {
+                if (!$bm['periodos'] && $outro['periodos']) {
+                    $bm['periodos'] = $outro['periodos'];
+                }
+                if (!$bm['escopo'] && $outro['escopo']) {
+                    $bm['escopo'] = $outro['escopo'];
+                }
+                $bm['avisos'][] = "Planilha $nome usada só como complemento (a de medição com atividades é {$lidos[0][0]}).";
+            }
+            $temAtiv = false;
+            foreach ($bm['itens'] as $i) {
+                $temAtiv = $temAtiv || $i['atividades'];
+            }
+            if (!$temAtiv) {
+                $bm['avisos'][] = 'Nenhuma planilha de orçamento trouxe as atividades de medição (memorial de cálculo do BM): cada item vira uma única atividade.';
+            }
+        }
+        $crono = ['atividades' => [], 'avisos' => []];
+        if (!empty($docs['cronograma'])) {
+            $crono = leitura_cronograma($docs['cronograma'][0][1], $docs['cronograma'][0][0]);
+        }
+        $fix = ['geral' => [], 'por_joist' => [], 'avisos' => []];
+        foreach ($docs['fixadores'] ?? [] as list($nome, $caminho)) {
+            $r = leitura_fixadores($caminho, $nome);
+            $fix['geral'] = array_merge($fix['geral'], $r['geral']);
+            $fix['por_joist'] = array_merge($fix['por_joist'], $r['por_joist']);
+            $fix['avisos'] = array_merge($fix['avisos'], $r['avisos']);
+        }
+        // pranchas: índice pelo arquivo (o texto dos PDFs do Tekla não dá para ler sem biblioteca de PDF)
+        $pranchas = [];
+        foreach ($docs['projetos'] ?? [] as list($nome, $caminho)) {
+            $bin = (string)file_get_contents($caminho, false, null, 0, 4000000);
+            preg_match_all('/\/Type\s*\/Page[^s]/', $bin, $pg);
+            $pranchas[] = ['arquivo' => $nome, 'codigo' => '', 'titulo' => preg_replace('/\.pdf$/i', '', $nome), 'revisao' => '', 'escala' => '', 'tem_texto' => null, 'assuntos' => [], 'paginas' => max(1, count($pg[0]))];
+        }
+        $pacote = leitura_montar_pacote(['modelo' => $modelo, 'bm' => $bm, 'cronograma' => $crono, 'fixadores' => $fix,
+            'projetos' => ['pranchas' => $pranchas, 'listas_de_material' => [], 'avisos' => $pranchas ? ['Projetos em PDF: arquivados no índice. A leitura do texto das pranchas (títulos e listas de material) ainda não roda dentro do sistema.'] : []]], $nomeObra);
+        return $pacote;
+    } finally {
+        foreach ($limpar as $f) {
+            @unlink($f);
+        }
+        @rmdir($tmp);
+    }
+}
+
+// Um clique: lê os documentos, guarda o pacote (relatório) e cria a obra.
+function importacao_gerar($obraId, array $op)
+{
+    $obra = q_global("SELECT nome FROM obras WHERE id = ? AND status = 'rascunho'", [(int)$obraId])->fetch();
+    if (!$obra) {
+        throw new InvalidArgumentException('Obra não está em rascunho.');
+    }
+    $sit = importacao_situacao($obraId);
+    if (!$sit['pronta']) {
+        throw new InvalidArgumentException('Faltam documentos obrigatórios ou há arquivo recusado.');
+    }
+    $pacote = importacao_ler_documentos($obraId, (string)$obra['nome']);
+    if (!empty($pacote['erros'])) {
+        throw new InvalidArgumentException(implode(' ', $pacote['erros']));
+    }
+    file_put_contents(importacao_pacote_caminho($obraId), json_encode($pacote, JSON_UNESCAPED_UNICODE));
+    return importacao_publicar($obraId, $op);
 }

@@ -37,6 +37,8 @@ Objetivo: no ato de "Nova obra", o usuário envia os documentos do projeto e o s
 | `modelo.conjuntos[].pos` (código de posição Tekla `V23/H10-H9`) | mapa de apontamento por peça (`frentes_montagem_obra`; tela `mapa_obra.js`, rota `apontamento-pecas`) |
 | `projetos.pranchas` | índice de pranchas (fica no pacote) |
 
+> **Atualização (2026-10-23):** a leitura roda **dentro do sistema** (PHP) e o botão "Gerar obra" já cria a obra; o serviço Python virou opcional e a tela de revisão virou relatório pós-geração.
+
 ## Fases
 - **Fase 1 (feita, local, ainda não publicada):** tabela `obra_documentos`, assistente, envio em partes, validação básica e profunda, serviço Python com validadores (IFC, fixadores, cronograma, orçamento, projetos), dados de projeto **por obra** (`dado_json_da_obra`: regras de baixa, parafusos e anexos não vazam mais para obra nova).
 - **Fase 2 (feita, local, ainda não publicada):** `servico_leitura/leitores/` (`ifc_modelo`, `orcamento`, `cronograma`, `fixadores`, `projetos`, `processar`), `/jobs/processar`, `obra_revisao.php`, `inc/importacao_leitura.php`, mapa por peça (`mapa_obra.js`). Testada com os documentos reais da CPDA (11 IFC, 5.995 conjuntos, 803 t).

@@ -261,6 +261,7 @@ pagina_inicio('Central de obras');
         <small class="ultima-atividade"><?= $resumos[$o['id']]['ultima'] ? 'Atualizada em '.h(date('d/m/Y H:i',strtotime($resumos[$o['id']]['ultima']))) : 'Ainda sem movimentação' ?></small>
         <?php if ($o['status'] === 'ativa'): ?><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="abrir"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><button class="btn primario largura">Abrir obra <span>→</span></button></form><?php endif; ?>
         <?php if ($admin): ?><button type="button" class="btn ghost largura" data-obra-editar="obraDlg<?= (int)$o['id'] ?>">✎ Editar dados da obra</button>
+          <?php if (($o['importacao'] ?? '') === 'publicada'): ?><a class="btn ghost largura" href="obra_revisao.php?obra=<?= (int)$o['id'] ?>" style="margin-top:6px">Relatório da importação</a><?php endif; ?>
         <dialog id="obraDlg<?= (int)$o['id'] ?>" class="obra-dialog"><form method="post" enctype="multipart/form-data" class="painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="editar_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>">
           <h3>Dados da obra — <?= h($o['nome']) ?></h3><p class="nota">Só o nome e o responsável da obra são obrigatórios; o restante pode ser preenchido aos poucos.</p>

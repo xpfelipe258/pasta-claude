@@ -20,7 +20,7 @@ if (!config()) {
 garantir_importacao();
 $eu = exigir_admin();
 $obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
-$obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status = 'rascunho'", [$obraId])->fetch() : null;
+$obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND (status = 'rascunho' OR importacao = 'publicada')", [$obraId])->fetch() : null;
 if (!$obra) {
     header('Location: obras.php');
     exit;
@@ -60,7 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $csrf = token_csrf();
 $estado = $obra['importacao'] ?? '';
-$pacote = $estado === 'revisao' ? importacao_pacote($obraId) : null;
+$relatorio = $estado === 'publicada';   // obra já criada: a página vira o relatório do que foi lido
+$pacote = in_array($estado, ['revisao', 'publicada'], true) ? importacao_pacote($obraId) : null;
 pagina_inicio('Revisão da importação');
 
 function n0($v) { return number_format((float)$v, 0, ',', '.'); }
@@ -83,8 +84,8 @@ function brl($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
     <div class="imp-faixa"><b>Motivo:</b> <?= nl2br(h(is_file($erroArq) ? (string)file_get_contents($erroArq) : 'não informado')) ?></div>
     <div class="imp-botoes"><button class="btn primario" id="lerDeNovo">Tentar a leitura de novo</button> <button class="btn ghost" id="voltarDocs">Voltar aos documentos</button></div>
 <?php elseif ($pacote): $r = importacao_resumo_pacote($pacote); $modelo = $pacote['modelo']; $bm = $pacote['bm']; $cruz = $pacote['cruzamentos']; ?>
-    <section class="hero-obras"><div><span class="eyebrow">NOVA OBRA · PASSO 4 DE 4 · REVISÃO</span><h1><?= h($obra['nome']) ?></h1>
-      <p>Confira o que o sistema leu. Nada foi gravado na obra ainda: ao publicar, ele cria empresa e serviços, previsto do cronograma, catálogo do BM, cadastro de materiais, vínculos peça × atividade, baixa automática, parafusos do projeto e o mapa de apontamento. Tudo pode ser ajustado depois nas telas normais.</p></div>
+    <section class="hero-obras"><div><span class="eyebrow"><?= $relatorio ? 'OBRA CRIADA · RELATÓRIO DA IMPORTAÇÃO' : 'NOVA OBRA · REVISÃO' ?></span><h1><?= h($obra['nome']) ?></h1>
+      <p><?= $relatorio ? 'A obra foi gerada a partir dos documentos: empresa e serviços, previsto do cronograma, catálogo do BM, cadastro de materiais, vínculos peça × atividade, baixa automática, parafusos do projeto e mapa de apontamento. Abaixo está tudo o que foi lido; ajuste o que precisar nas telas normais (Vínculos, Materiais, BM).' : 'Confira o que o sistema leu.' ?></p></div>
       <div class="hero-stat"><strong><?= n0($r['conjuntos']) ?></strong><span>peças lidas do IFC</span></div></section>
 
     <div class="rv-cartoes">
@@ -107,14 +108,14 @@ function brl($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
     <form id="formPublicar">
     <section class="bloco rv-sec"><h2>1 · Empresa executora e ligação fase do IFC × item do BM</h2>
       <p class="nota">A sigla vira o prefixo dos códigos do catálogo do BM (ex.: <b>CMM-3.1.1-01</b>). A ligação fase × item é feita pelo número (3.1.1 do modelo = 3.1.1 do orçamento); corrija abaixo o que ficou sem par.</p>
-      <div class="rv-form">
+      <?php if (!$relatorio): ?><div class="rv-form">
         <label>Sigla da empresa executora *<input name="sigla" maxlength="10" required placeholder="ex.: CMM" style="text-transform:uppercase"></label>
         <label>Nome da empresa<input name="empresa" maxlength="100" placeholder="opcional"></label>
-      </div>
+      </div><?php endif; ?>
       <div class="tabela-rolagem"><table><thead><tr><th>Fase do modelo (IFC)</th><th class="n">Peças</th><th class="n">Peso (t)</th><th>Item do BM</th></tr></thead><tbody>
 <?php foreach ($modelo['fases'] as $f): $it = $cruz['fase_para_item'][$f['fase']] ?? ''; ?>
         <tr><td><?= h($f['fase'] ?: '(sem fase)') ?></td><td class="n"><?= n0($f['conjuntos']) ?></td><td class="n"><?= n1($f['peso_kg'] / 1000) ?></td>
-          <td><select name="mapa_fase[<?= h($f['fase']) ?>]"><option value="">— sem item —</option>
+          <td><select name="mapa_fase[<?= h($f['fase']) ?>]" <?= $relatorio ? 'disabled' : '' ?>><option value="">— sem item —</option>
 <?php foreach ($bm['itens'] as $bi): ?><option value="<?= h($bi['codigo']) ?>" <?= $bi['codigo'] === $it ? 'selected' : '' ?>><?= h($bi['codigo'] . ' · ' . mb_substr($bi['descricao'], 0, 50)) ?></option><?php endforeach; ?>
           </select><?= $it ? '' : ' <span class="rv-pend">sem par</span>' ?></td></tr>
 <?php endforeach; ?>
@@ -184,11 +185,16 @@ foreach ($pacote['cronograma']['atividades'] as $t): $l = $lig[$t['nome']] ?? nu
     </section>
 
     <section class="imp-rodape bloco">
+<?php if ($relatorio): ?>
+      <div class="nota">Obra criada. Para abrir, escolha-a na Central de obras.</div>
+      <div class="imp-botoes"><a class="btn primario" href="obras.php">Ir para a Central de obras →</a></div>
+<?php else: ?>
       <div class="nota" id="pubStatus">Ao publicar, a obra sai da lista "Obras em importação" e abre normalmente.</div>
       <div class="imp-botoes">
         <button type="button" class="btn ghost" id="voltarDocs">← Voltar aos documentos</button>
         <button type="submit" class="btn primario" id="btnPublicar">Publicar obra →</button>
       </div>
+<?php endif; ?>
     </section>
     </form>
 <?php else: ?>

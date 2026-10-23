@@ -190,6 +190,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         resp_json(200, estado_json($obraId) + ['importacao' => 'aguardando_leitura']);
     }
+    if ($acao === 'gerar') {   // lê todos os documentos dentro do sistema e já cria a obra
+        try {
+            $r = importacao_gerar($obraId, ['sigla' => $_POST['sigla'] ?? '', 'empresa' => $_POST['empresa'] ?? '']);
+            resp_json(200, ['ok' => true, 'resumo' => $r, 'destino' => 'obra_revisao.php?obra=' . $obraId]);
+        } catch (InvalidArgumentException $e) {
+            resp_json(400, ['erro' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            resp_json(500, ['erro' => 'Falha ao gerar a obra: ' . $e->getMessage()]);
+        }
+    }
     if ($acao === 'ler_agora') {
         $r = importacao_despachar_leitura($obraId);
         resp_json($r['ok'] ? 200 : 502, $r + ['destino' => 'obra_revisao.php?obra=' . $obraId]);
@@ -225,8 +235,8 @@ pagina_inicio('Importar obra');
   </header>
   <main class="portal-main imp-main">
     <section class="hero-obras">
-      <div><span class="eyebrow">NOVA OBRA · PASSO 2 DE 3</span><h1><?= h($obra['nome']) ?></h1>
-        <p>Envie os 5 documentos obrigatórios. O sistema lê tudo e monta a lista de material, o fluxo de baixa, o BM e o mapa de apontamento. Sem os 5 documentos válidos a obra não segue.</p></div>
+      <div><span class="eyebrow">NOVA OBRA · PASSO 2 DE 2</span><h1><?= h($obra['nome']) ?></h1>
+        <p>Envie os 5 documentos obrigatórios. Com os 5 documentos válidos, um clique em "Gerar obra" lê tudo dentro do sistema e cria a lista de material, o fluxo de baixa, o BM e o mapa de apontamento.</p></div>
       <div class="hero-stat"><strong id="impContagem">0/5</strong><span>documentos completos</span></div>
     </section>
     <div id="impAviso"></div>
@@ -236,8 +246,8 @@ pagina_inicio('Importar obra');
       <div class="imp-botoes">
         <button class="btn ghost" id="impDescartar" type="button">Descartar este rascunho</button>
         <button class="btn" id="impVazia" type="button" title="Libera a obra sem leitura automática. Uso temporário até a leitura automática estar validada.">Publicar sem leitura automática (temporário)</button>
-        <button class="btn" id="impLerAgora" type="button" style="display:none">Ler agora</button>
-        <button class="btn primario" id="impEnviar" type="button" disabled>Enviar para leitura →</button>
+        <input id="impSigla" maxlength="10" placeholder="Sigla da empresa (ex.: CMM)" style="text-transform:uppercase;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;width:210px" title="Prefixo dos códigos do catálogo do BM (ex.: CMM-3.1.1-01)">
+        <button class="btn primario" id="impEnviar" type="button" disabled>Gerar obra →</button>
       </div>
     </section>
   </main>
@@ -318,7 +328,6 @@ pagina_inicio('Importar obra');
     var envio = document.getElementById('impEnviar');
     envio.disabled = !ESTADO.pronta || bloqueado || Object.keys(uploads).length > 0;
     var av = '';
-    if (!ESTADO.servico) av += '<div class="imp-faixa">Serviço de leitura ainda não configurado: por enquanto os arquivos passam só pela conferência básica (formato e cabeçalho). A leitura profunda entra quando o serviço estiver ativo.</div>';
     if (bloqueado) av += '<div class="imp-faixa ok"><b>Documentos recebidos e validados.</b> A obra está aguardando a leitura automática (lista de material, baixa, BM e mapa de apontamento).</div>';
     document.getElementById('impAviso').innerHTML = av;
     document.getElementById('impStatus').textContent = ESTADO.pronta ? 'Todos os documentos obrigatórios estão completos.' : 'Faltam ' + (ESTADO.total - ESTADO.completos) + ' documento(s) obrigatório(s).';
@@ -360,7 +369,14 @@ pagina_inicio('Importar obra');
     if (v) post('revalidar', { doc: v.getAttribute('data-revalidar') }).then(function (j) { ESTADO = j; desenhar(); });
   });
   document.getElementById('impEnviar').addEventListener('click', function () {
-    post('enviar').then(function (j) { if (j.erro) { alert(j.erro); return; } if (j.destino) { location.href = j.destino; return; } ESTADO = j; IMPORTACAO = 'aguardando_leitura'; desenhar(); });
+    var sigla = document.getElementById('impSigla').value.trim();
+    if (sigla.length < 2) { alert('Informe a sigla da empresa executora (ex.: CMM): ela vira o prefixo do catálogo do BM.'); document.getElementById('impSigla').focus(); return; }
+    var b = this; b.disabled = true; b.textContent = 'Lendo os documentos e gerando a obra…';
+    document.getElementById('impStatus').textContent = 'Lendo IFC, orçamento, cronograma e fixadores e criando a obra. Pode levar alguns segundos.';
+    post('gerar', { sigla: sigla }).then(function (j) {
+      if (j.erro || !j.ok) { alert(j.erro || 'Não foi possível gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; return; }
+      location.href = j.destino;
+    }).catch(function () { alert('Falha de comunicação ao gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; });
   });
   document.getElementById('impDescartar').addEventListener('click', function () {
     if (confirm('Descartar este rascunho e apagar os documentos enviados?')) post('descartar').then(function (j) { if (j.destino) location.href = j.destino; });
@@ -368,9 +384,6 @@ pagina_inicio('Importar obra');
   document.getElementById('impVazia').addEventListener('click', function () {
     if (confirm('Publicar a obra SEM a leitura automática? Ela abre vazia, para configuração manual. Os documentos enviados ficam guardados.')) post('publicar_vazia').then(function (j) { if (j.destino) location.href = j.destino; });
   });
-  var lerAgora = document.getElementById('impLerAgora');
-  if (ESTADO.servico && IMPORTACAO === 'aguardando_leitura') lerAgora.style.display = '';
-  lerAgora.addEventListener('click', function () { post('ler_agora').then(function (j) { if (j.destino && !j.erro) location.href = j.destino; else alert(j.erro || 'Falha ao chamar o serviço de leitura.'); }); });
   desenhar();
   setInterval(function () { if (!document.hidden && ESTADO.servico && Object.keys(ESTADO.tipos).some(function (k) { return ESTADO.tipos[k].pendente; })) atualizar(); }, 4000);
 })();
