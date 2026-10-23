@@ -3752,6 +3752,17 @@ function consumoVirtualPorTag(regras) {
       if (it.estimado && n > 0) o.estimado = true;
     });
   });
+  // peças das obras importadas: cada TAG, no seu local, baixa (quantidade ÷ quantidade da atividade) por unidade produzida na atividade, até o planejado
+  if (typeof vcRealizadoAtividade === 'function') Object.entries(regras.consumo_por_atividade || {}).forEach(([key, conf]) => {
+    const un = vcRealizadoAtividade(key);
+    if (!(un > 0) || !Array.isArray(conf.itens)) return;
+    conf.itens.forEach(it => {
+      const lim = Number(it.quantidade) > 0 ? Number(it.quantidade) : Infinity;
+      const o = entrada(it.codigo);
+      o.qtd += Math.min(it.por_unidade * un, lim);
+      o.partes.push(`${nf(un, 2)} und de ${key} (${it.local || 'local'}) × ${nf(it.por_unidade, 4)}`);
+    });
+  });
   // fixadores por unidade de cada atividade (Suprimentos › Vínculos › Por atividade): unidades já produzidas na atividade × fixadores por unidade
   if (typeof vcRealizadoAtividade === 'function') Object.entries(M.fixadores_atividade || {}).forEach(([key, cfg]) => {
     const un = vcRealizadoAtividade(key);

@@ -22,11 +22,13 @@ function moIndice() {
   if (MO.idx) return MO.idx;
   const d = MO.dados;
   const V = new Set(d.malha.V || []), H = new Set(d.malha.H || []);
-  d.pecas.forEach(p => { V.add(p[3]); V.add(p[4]); H.add(p[5]); H.add(p[6]); });
+  d.pecas.forEach(p => { if (p[3]) { V.add(p[3]); V.add(p[4]); H.add(p[5]); H.add(p[6]); } });
   const eixosV = [...V].sort(moOrdEixo), eixosH = [...H].sort(moOrdEixo);
   const iv = new Map(eixosV.map((e, i) => [e, i])), ih = new Map(eixosH.map((e, i) => [e, i]));
   // posição em "meia casa": linha do eixo = índice par, vão entre dois eixos = índice ímpar
-  const pecas = d.pecas.map(p => ({ fase: p[0], produto: p[1], marca: p[2], guid: p[7], cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]) }));
+  const pecas = d.pecas.map(p => p[3]
+    ? { fase: p[0], produto: p[1], marca: p[2], tag: p[8] || p[2], guid: p[7], cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]), cel: iv.get(p[3]) + iv.get(p[4]) + ',' + (ih.get(p[5]) + ih.get(p[6])) }
+    : { fase: p[0], produto: p[1], marca: p[2], tag: p[8] || p[2], guid: p[7], cx: -1, cy: -1, cel: 'SP|' + p[1], semPos: true });
   const porFase = new Map();
   pecas.forEach(p => { if (!porFase.has(p.fase)) porFase.set(p.fase, []); porFase.get(p.fase).push(p); });
   MO.idx = { eixosV, eixosH, pecas, porFase };
@@ -34,10 +36,12 @@ function moIndice() {
 }
 
 const moFases = () => MO.dados.fases.filter(f => moIndice().porFase.has(f.fase));
+const moAtivDoProduto = (fase, produto) => (MO.dados.atividades || {})[fase + '|' + produto] || '';
 const moAtividadesDaFase = fase => {
   const f = MO.dados.fases.find(x => x.fase === fase);
   const item = f && f.item;
-  return bmTab('bm_atividades').filter(a => item ? a.item === item : true).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt', { numeric: true }));
+  const ligadas = new Set((moIndice().porFase.get(fase) || []).map(p => moAtivDoProduto(fase, p.produto)).filter(Boolean));   // atividades ligadas aos produtos da fase (mesmo de outro item)
+  return bmTab('bm_atividades').filter(a => item ? (a.item === item || ligadas.has(a.codigo)) : true).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt', { numeric: true }));
 };
 const moApontadas = () => {
   // peça|atividade → linha do apontamento
@@ -48,9 +52,9 @@ const moApontadas = () => {
 
 function moGarantirEstado() {
   const fs = moFases();
-  if (!MO.fase || !fs.some(f => f.fase === MO.fase)) { MO.fase = fs.length ? (fs.find(f => f.item) || fs[0]).fase : ''; MO.produto = ''; MO.sel = new Map(); MO.cel = null; }
+  if (!MO.fase || !fs.some(f => f.fase === MO.fase)) { MO.fase = fs.length ? ([...fs].filter(f => f.item).sort((a, b) => (b.codigo ? 1 : 0) - (a.codigo ? 1 : 0) || b.conjuntos - a.conjuntos)[0] || fs[0]).fase : ''; MO.produto = ''; MO.sel = new Map(); MO.cel = null; }
   const ats = moAtividadesDaFase(MO.fase);
-  if (!ats.some(a => a.codigo === MO.atividade)) MO.atividade = ats.length ? ats[0].codigo : '';
+  if (!ats.some(a => a.codigo === MO.atividade)) { const sug = ats.find(a => a.codigo === moAtivDoProduto(MO.fase, MO.produto || ((moIndice().porFase.get(MO.fase) || [])[0] || {}).produto)); MO.atividade = sug ? sug.codigo : (ats.length ? ats[0].codigo : ''); }
   if (!MO.empresa) { const at = ats.find(a => a.codigo === MO.atividade); MO.empresa = at ? at.empresa : ((M.empresas[0] || {}).nome || ''); }
   if (!MO.data || (M.datas?.length && !M.datas.includes(MO.data))) {   // a data precisa estar no calendário da obra
     const hj = new Date().toISOString().slice(0, 10), ds = M.datas || [];
@@ -74,8 +78,10 @@ function moMapaSvg(apont) {
   const ix = moIndice(), W = 22, Hh = 18, ML = 44, MT = 30;
   const nx = ix.eixosV.length * 2 - 1, ny = ix.eixosH.length * 2 - 1;
   const celulas = new Map();
-  moPecasVisiveis().forEach(p => { const k = p.cx + ',' + p.cy; if (!celulas.has(k)) celulas.set(k, []); celulas.get(k).push(p); });
-  const larg = ML + nx * W + 10, alt = MT + ny * Hh + 10;
+  const semPos = new Map();
+  moPecasVisiveis().forEach(p => { if (p.semPos) { if (!semPos.has(p.cel)) semPos.set(p.cel, []); semPos.get(p.cel).push(p); return; } const k = p.cel; if (!celulas.has(k)) celulas.set(k, []); celulas.get(k).push(p); });
+  const LS = 150, linhasSP = Math.ceil(semPos.size / Math.max(1, Math.floor((ML + nx * W - 10) / LS))), porLinhaSP = Math.max(1, Math.floor((ML + nx * W - 10) / LS)), altSP = semPos.size ? 26 + linhasSP * 24 : 0;
+  const larg = ML + nx * W + 10, alt = MT + ny * Hh + 10 + altSP;
   const yTela = cy => MT + (ny - 1 - cy) * Hh;    // eixo H de maior número fica no topo
   let svg = `<svg id="moSvg" viewBox="0 0 ${larg} ${alt}" width="${larg}" height="${alt}" xmlns="http://www.w3.org/2000/svg" style="font:11px system-ui">`;
   ix.eixosV.forEach((e, i) => { const x = ML + i * 2 * W; svg += `<line x1="${x + W / 2}" x2="${x + W / 2}" y1="${MT - 6}" y2="${alt - 6}" stroke="#d0d5dd" stroke-dasharray="2 3"/><text x="${x + W / 2}" y="${MT - 12}" text-anchor="middle" fill="#475467">${esc(e)}</text>`; });
@@ -87,8 +93,19 @@ function moMapaSvg(apont) {
     const x = ML + cx * W, y = yTela(cy);
     svg += `<g data-mo-cel="${k}" style="cursor:pointer"><rect x="${x}" y="${y}" width="${W - 2}" height="${Hh - 2}" rx="3" fill="${cor}" stroke="${sel ? '#d97706' : '#667085'}" stroke-width="${sel ? 3 : 1}"/>` +
       `<text x="${x + (W - 2) / 2}" y="${y + Hh / 2 + 3}" text-anchor="middle" font-size="9" fill="${st.feitas >= st.total ? '#fff' : '#101828'}">${st.total > 99 ? '99+' : st.total}</text>` +
-      `<title>${esc(`${pecas.length} peça(s) · ${st.feitas} apontada(s) na atividade · ${[...new Set(pecas.map(p => p.produto))].slice(0, 5).join(', ')}`)}</title></g>`;
+      `<title>${esc(`${pecas.length} peça(s) · ${st.feitas} apontada(s) na atividade · ${[...new Set(pecas.map(p => p.produto))].slice(0, 5).join(', ')} · TAGs ${[...new Set(pecas.map(p => p.tag))].slice(0, 8).join(', ')}`)}</title></g>`;
   });
+  if (semPos.size) {   // peças que o modelo não posicionou na malha: uma caixa por produto
+    const y0 = MT + ny * Hh + 22;
+    svg += `<text x="${ML}" y="${y0 - 6}" fill="#475467" font-weight="600">Sem posição na malha do modelo</text>`;
+    [...semPos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).forEach(([k, pecas], i) => {
+      const st = moEstadoCelula(pecas, apont), sel = pecas.some(p => MO.sel.has(p.guid)), x = ML + (i % porLinhaSP) * LS, y = y0 + Math.floor(i / porLinhaSP) * 24;
+      const cor = st.feitas === 0 ? '#ffffff' : st.feitas >= st.total ? '#12b76a' : '#fdb022';
+      svg += `<g data-mo-cel="${esc(k)}" style="cursor:pointer"><rect x="${x}" y="${y}" width="${LS - 6}" height="20" rx="3" fill="${cor}" stroke="${sel ? '#d97706' : '#667085'}" stroke-width="${sel ? 3 : 1}"/>` +
+        `<text x="${x + 6}" y="${y + 14}" font-size="10" fill="${st.feitas >= st.total ? '#fff' : '#101828'}">${esc(pecas[0].produto.slice(0, 18))} · ${st.total}</text>` +
+        `<title>${esc(`${pecas.length} peça(s) sem posição · ${st.feitas} apontada(s) · TAGs ${[...new Set(pecas.map(p => p.tag))].slice(0, 8).join(', ')}`)}</title></g>`;
+    });
+  }
   return svg + '</svg>';
 }
 
@@ -185,6 +202,7 @@ document.addEventListener('change', ev => {
     if (k === 'regular') MO.regular = c.checked;
     else if (k === 'fase') { MO.fase = c.value; MO.produto = ''; MO.sel = new Map(); MO.atividade = ''; MO.empresa = ''; }
     else if (k === 'atividade') { MO.atividade = c.value; MO.empresa = ''; }
+    else if (k === 'produto') { MO.produto = c.value; const sug = moAtivDoProduto(MO.fase, c.value); if (sug) { MO.atividade = sug; MO.empresa = ''; } }
     else MO[k] = c.value;
     return renderApontGenerico();
   }
@@ -199,7 +217,7 @@ document.addEventListener('click', ev => {
   const cel = ev.target.closest('[data-mo-cel]');
   if (cel) {
     const apont = moApontadas();
-    const pecas = moPecasVisiveis().filter(p => `${p.cx},${p.cy}` === cel.dataset.moCel && !apont.has(p.guid + '|' + MO.atividade));
+    const pecas = moPecasVisiveis().filter(p => p.cel === cel.dataset.moCel && !apont.has(p.guid + '|' + MO.atividade));
     const todas = pecas.length && pecas.every(p => MO.sel.has(p.guid));
     pecas.forEach(p => { const k = p.guid; if (todas) MO.sel.delete(k); else MO.sel.set(k, p); });
     return renderApontGenerico();
