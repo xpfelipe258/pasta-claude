@@ -41,6 +41,32 @@ function relPdfRodape(pdf, pw, ph, titulo, pag, total) {
   pdf.text(relPdfTxt(`${titulo} · RÓTULA · ${quando} · pág. ${pag}/${total}`), pw - 6, ph - 3, { align: 'right' });
 }
 
+// Posições de corte das páginas. Empurra o corte para cima até não atravessar nenhuma região protegida; se isso deixar a página quase vazia
+// (< 35% cheia), tenta de novo só com as regiões "duras" (linhas, cartões, figuras) e, por último, corta onde der. `titulos` = títulos + o que vem depois deles.
+function relPdfCortes(H, altPag, duras, titulos) {
+  const empurra = (y, regioes) => {
+    let corte = y + altPag;
+    for (let g = 0, mexeu = true; mexeu && g < 120; g++) {
+      mexeu = false;
+      for (const [t, b] of regioes) if (t > y + 20 && t < corte && b > corte) { corte = t; mexeu = true; }
+    }
+    return corte;
+  };
+  const cortes = [0];
+  let y = 0;
+  while (y < H - 2) {
+    let corte = y + altPag;
+    if (corte >= H - 2) corte = H;
+    else {
+      corte = empurra(y, duras.concat(titulos));
+      if (corte < y + altPag * 0.35) corte = empurra(y, duras);
+      if (corte < y + altPag * 0.35) corte = y + altPag;   // bloco enorme: corta onde der
+    }
+    cortes.push(Math.floor(corte)); y = corte;
+  }
+  return cortes;
+}
+
 async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
   await relPdfLibs();
   const progresso = typeof aoProgredir === 'function' ? aoProgredir : () => {};
@@ -93,35 +119,37 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
     ifr.style.height = H + 'px';
     await new Promise(r => setTimeout(r, 100));
 
-    // regiões que não devem ser cortadas ao meio: linhas de tabela, cartões, figuras e (título + começo do que vem depois)
-    const regioes = [];
-    doc.querySelectorAll('tr, .card, .mapa-fig, figure, svg, img, .aviso, .tpl-ficha, .tpl-capa, h2, h3').forEach(el => {
+    // regiões que não devem ser cortadas ao meio: linhas de tabela, cartões, figuras e (título + o que vem logo depois dele)
+    const duras = [], titulos = [];
+    doc.querySelectorAll('tr, .card, .mapa-fig, figure, svg, img, .aviso, .tpl-ficha, .tpl-capa').forEach(el => {
       const r = el.getBoundingClientRect();
       if (r.height < 1 || r.height > altPag * 0.9) return;   // sem altura ou maior que uma página: não adianta proteger
-      const extra = /^H[23]$/.test(el.tagName) ? 90 : 0;
-      regioes.push([r.top, r.bottom + extra]);
+      duras.push([r.top, r.bottom]);
+    });
+    // título de seção: fica junto do que vem depois dele (nota, legenda, primeira linha de tabela ou a figura inteira), nunca sozinho no fim da página
+    doc.querySelectorAll('h2, h3').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.height < 1) return;
+      let fim = r.bottom, prox = el.nextElementSibling, n = 0;
+      while (prox && n < 3 && !/^H[1-3]$/.test(prox.tagName)) {   // até 3 irmãos seguintes (ex.: nota da fase + figura), enquanto couberem numa página
+        const q = prox.getBoundingClientRect();
+        if (q.bottom - r.top > altPag * 0.9) break;
+        const filhoTab = prox.tagName === 'TABLE' ? prox.querySelector('tbody tr') : null;   // tabela: só o título + cabeçalho + 1ª linha
+        fim = filhoTab ? filhoTab.getBoundingClientRect().bottom : q.bottom;
+        n++;
+        if (prox.tagName === 'TABLE' || prox.classList.contains('mapa-fig') || prox.tagName === 'FIGURE') break;
+        prox = prox.nextElementSibling;
+      }
+      titulos.push([r.top, Math.max(fim, r.bottom + 40)]);
     });
     // bloco de uma atividade na matriz do cronograma (cabeçalho + 10 linhas) não se parte entre páginas
     doc.querySelectorAll('tr.cff-ativ').forEach(tr => {
       let fim = tr, n = 0;
       while (n < 10 && fim.nextElementSibling && !fim.nextElementSibling.classList.contains('grupo')) { fim = fim.nextElementSibling; n++; }
       const a = tr.getBoundingClientRect(), b = fim.getBoundingClientRect();
-      if (b.bottom - a.top <= altPag * 0.9) regioes.push([a.top, b.bottom]);
+      if (b.bottom - a.top <= altPag * 0.9) duras.push([a.top, b.bottom]);
     });
-    const cortes = [0];
-    let y = 0;
-    while (y < H - 2) {
-      let corte = y + altPag;
-      if (corte >= H - 2) corte = H;
-      else {
-        for (let g = 0, mexeu = true; mexeu && g < 80; g++) {
-          mexeu = false;
-          for (const [t, b] of regioes) if (t > y + 20 && t < corte && b > corte) { corte = t; mexeu = true; }
-        }
-        if (corte < y + altPag * 0.35) corte = y + altPag;   // bloco enorme: corta onde der
-      }
-      cortes.push(Math.floor(corte)); y = corte;
-    }
+    const cortes = relPdfCortes(H, altPag, duras, titulos);
     const total = cortes.length - 1;
 
     // pontas cortadas em diagonal (capa e títulos de seção): o html2canvas não aplica clip-path, então refazemos o corte pintando de branco
