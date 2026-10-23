@@ -43,6 +43,38 @@ function rdoProducao(dia) {
   });
   return out;
 }
+// RDO do cliente: atividade igual em empresas diferentes (EJ e CMM têm o mesmo catálogo: EJ-3.1.1-01 = CMM-3.1.1-01) vira UMA linha somada;
+// o acumulado e o contratado somam as empresas (inclusive a que não produziu no dia), e o % é do total acumulado ÷ total contratado.
+const rdoChaveAtiv = cod => String(cod || '').replace(/^(EJ|CMM)-/, '');
+function rdoProducaoSomada(dia, prod) {
+  const dias = new Map(), outros = new Map();
+  prod.forEach(p => {
+    p.itens.forEach(x => x.ats.forEach(t => {
+      const k = rdoChaveAtiv(t.a.codigo);
+      const o = dias.get(k) || { k, item: x.it.item, desc: x.it.desc, atividade: t.a.atividade, unidade: t.a.unidade || '', per: 0, real: 0, qtd: 0, emps: [] };
+      o.per += t.per; if (!o.emps.includes(p.emp)) o.emps.push(p.emp); dias.set(k, o);
+    }));
+    p.outros.forEach(x => {
+      const k = ganNorm(x.nome), o = outros.get(k) || { nome: x.nome, qtd: 0, emps: [] };
+      o.qtd += x.qtd; if (!o.emps.includes(p.emp)) o.emps.push(p.emp); outros.set(k, o);
+    });
+  });
+  (M.empresas || []).forEach(e => {   // acumulado e contratado de todas as empresas que têm a atividade
+    let its = [];
+    try { its = bmItens(e.nome, dia); } catch (err) { console.error('RDO acumulado', e.nome, err); }
+    its.forEach(it => it.ats.forEach(({ a, real }) => {
+      const o = dias.get(rdoChaveAtiv(a.codigo));
+      if (!o) return;
+      o.real += real || 0; o.qtd += Number(a.qtd) || 0;
+      if (!o.emps.includes(e.nome)) o.emps.push(e.nome);
+    }));
+  });
+  const porItem = new Map();
+  [...dias.values()].forEach(o => { const g = porItem.get(o.item) || { item: o.item, desc: o.desc, ats: [] }; g.ats.push(o); porItem.set(o.item, g); });
+  const itens = [...porItem.values()].sort((a, b) => String(a.item).localeCompare(String(b.item), 'pt', { numeric: true }));
+  itens.forEach(g => g.ats.sort((a, b) => a.k.localeCompare(b.k, 'pt', { numeric: true })));
+  return { itens, outros: [...outros.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')), n: dias.size + outros.size };
+}
 function rdoEfetivo(dia) {
   const por = new Map();
   (T.dp_efetivo || []).filter(r => r.data === dia && (r.quantidade || 0) > 0).forEach(r => {
@@ -80,7 +112,7 @@ function renderRdo() {
   const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar();
   const efet = rdoEfetivo(dia), prod = rdoProducao(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const nAtiv = soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0) + p.outros.length);
+  const nAtiv = rdoProducaoSomada(dia, prod).n;
   $('#rdoCorpo').innerHTML = `
     <div class="barra-acoes rdo-barra">
       <button class="btn" data-rdo-dia="-1" title="Dia anterior">‹</button>
@@ -313,25 +345,41 @@ async function rdoHtml(dia, modo) {
   const prod = rdoProducao(dia), efet = rdoEfetivo(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia), fotos = rdoFotos(dia), aps = rdoApontamentos(dia);
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const vazio = (n, t = 'Sem registros neste dia.') => `<tr><td colspan="${n}" class="vazio">${t}</td></tr>`;
-  const pc = v => nf(v * 100, 1) + '%';
-  const nAtiv = soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0) + p.outros.length);
+  const nAtiv = gestao ? soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0) + p.outros.length) : rdoProducaoSomada(dia, prod).n;
   const totEfet = soma0(efet, e => e.total);
   const maquinas = new Set(maq.filter(m => !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0).map(m => m.equipamento));
   const eq = gestao ? (() => { try { return relEquipDados('geral', dia, dia, 'todos'); } catch (e) { return { empresas: [] }; } })() : null;
   const produzido = soma0(prod, p => p.medicao), gastoEq = eq ? soma0(eq.empresas, e => e.custo) : 0, gastoComb = eq ? soma0(eq.empresas, e => e.comb) : 0;
 
-  // 1. produção por empresa e atividade
-  let tProd = '';
-  prod.forEach(p => {
-    tProd += `<tr class="grupo"><td colspan="${gestao ? 6 : 5}"><b>${esc(p.emp)}</b></td></tr>`;
-    p.itens.forEach(x => {
-      tProd += `<tr class="grupo2"><td colspan="${gestao ? 6 : 5}"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
-      x.ats.forEach(t => {
-        tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${nf(t.real, 2)}</td><td class="n">${pc(t.pct)}</td>${gestao ? `<td class="n">${rs2(t.per * t.preco.unit)}</td>` : ''}</tr>`;
+  // 1. produção do dia. Cliente: atividades iguais somadas entre as empresas (acumulado do total); gestão: por empresa
+  let tProd = '', cabProd = '';
+  const pc = v => nf(v * 100, 1) + '%';
+  if (!gestao) {
+    const som = rdoProducaoSomada(dia, prod);
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado (total)</th><th class="n">Contratado</th><th class="n">% do total acumulado</th>';
+    som.itens.forEach(g => {
+      tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
+      g.ats.forEach(o => {
+        tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`;
       });
     });
-    p.outros.forEach(o => { tProd += `<tr><td>${esc(o.nome)}${o.frente ? ` <span class="nota">(${esc(o.frente)})</span>` : ''}</td><td></td><td class="n"><b>${nf(o.qtd, 2)}</b></td><td class="n">—</td><td class="n">—</td>${gestao ? '<td class="n">—</td>' : ''}</tr>`; });
-  });
+    if (som.outros.length) {
+      tProd += '<tr class="grupo2"><td colspan="6"><b>Outros serviços lançados</b> <span class="nota">(sem atividade ligada no catálogo)</span></td></tr>';
+      som.outros.forEach(o => { tProd += `<tr><td>${esc(o.nome)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td></td><td class="n"><b>${nf(o.qtd, 2)}</b></td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>`; });
+    }
+  } else {
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado</th><th class="n">% acumulado da atividade</th><th class="n">Produzido (R$)</th>';
+    prod.forEach(p => {
+      tProd += `<tr class="grupo"><td colspan="6"><b>${esc(p.emp)}</b></td></tr>`;
+      p.itens.forEach(x => {
+        tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+        x.ats.forEach(t => {
+          tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${nf(t.real, 2)}</td><td class="n">${pc(t.pct)}</td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
+        });
+      });
+      p.outros.forEach(o => { tProd += `<tr><td>${esc(o.nome)}${o.frente ? ` <span class="nota">(${esc(o.frente)})</span>` : ''}</td><td></td><td class="n"><b>${nf(o.qtd, 2)}</b></td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>`; });
+    });
+  }
   const apHtml = aps.length ? `<h3>Apontamentos de montagem</h3><table><thead><tr><th>Empresa</th><th>Apontado no mapa</th></tr></thead><tbody>${aps.map(a => `<tr><td>${esc(a.emp)}</td><td>${esc(a.texto)}</td></tr>`).join('')}</tbody></table>` : '';
 
   const mapasHtml = await rdoMapasHtml(dia).catch(e => { console.error('RDO mapas', e); return ''; });
@@ -362,9 +410,10 @@ async function rdoHtml(dia, modo) {
       ${gestao ? card('Gasto no dia', rs2(gastoEq + gastoComb), `equipamentos ${rs2(gastoEq)} + combustível ${rs2(gastoComb)}`, 'vm') : ''}
     </div>
     ${(gestao ? info.obs_cliente || info.obs_gestao : info.obs_cliente) ? `<h2>Observações do dia</h2>${info.obs_cliente ? `<p>${esc(info.obs_cliente).replace(/\n/g, '<br>')}</p>` : ''}${gestao && info.obs_gestao ? `<p><b>Gestão:</b> ${esc(info.obs_gestao).replace(/\n/g, '<br>')}</p>` : ''}` : ''}
-    <h2>Produção do dia por empresa e atividade</h2>
-    <table><thead><tr><th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado</th><th class="n">% acumulado da atividade</th>${gestao ? '<th class="n">Produzido (R$)</th>' : ''}</tr></thead><tbody>${tProd || vazio(gestao ? 6 : 5, 'Nenhuma produção lançada neste dia.')}</tbody>
+    <h2>${gestao ? 'Produção do dia por empresa e atividade' : 'Produção do dia e avanço acumulado (empresas somadas)'}</h2>
+    <table><thead><tr>${cabProd}</tr></thead><tbody>${tProd || vazio(6, 'Nenhuma produção lançada neste dia.')}</tbody>
       ${gestao && prod.length ? `<tfoot><tr><th colspan="5">Total produzido no dia (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
+    ${gestao ? '' : '<p class="nota">Atividades iguais executadas por mais de uma empresa (EJ e CMM) aparecem somadas: o acumulado e o contratado são os totais das empresas, e o % é o avanço do total.</p>'}
     ${apHtml}
     ${mapasHtml}
     <h2>Efetivo</h2>
