@@ -9,7 +9,7 @@ let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
 let eqFiltroEmp = '', eqFiltroNome = '', eqFiltroUso = 'todos';
-let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'painel';
+let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'tarefas';   // a primeira tela é sempre a das tarefas
 let empSel = null;
 let filtroImp = 'abertos';
 let dpEmpSel = null;
@@ -54,7 +54,7 @@ const $ = s => document.querySelector(s);
 const p2 = n => String(n).padStart(2, '0');
 function hoje() { const t = new Date(); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; }
 function dU(s) { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); }
-function add(s, n) { const d = dU(s); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function add(s, n) { const d = dU(s); d.setUTCDate(d.getUTCDate() + n); if (isNaN(d)) throw new RangeError(`Data inválida: "${s}"`); return d.toISOString().slice(0, 10); }
 function dow(s) { return (dU(s).getUTCDay() + 6) % 7; }
 function segunda(s) { return add(s, -dow(s)); }
 function diasEntre(a, b) { return Math.round((dU(b) - dU(a)) / 864e5); }
@@ -90,7 +90,7 @@ function cor(v) { return getComputedStyle(document.documentElement).getPropertyV
 function corEmp(nome) { return `var(${COR_EMP[nome] || '--fg3'})`; }
 function corEmpHex(nome) { return cor(COR_EMP[nome] || '--fg3'); }
 function diaUtil(s) { return dow(s) < 5; }
-function somarDiasUteis(s, n) { let d = s; while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }
+function somarDiasUteis(s, n) { let d = s; n = Math.min(n, 2600); while (n > 0) { d = add(d, 1); if (diaUtil(d)) n--; } return d; }   // teto de ~10 anos: ritmo quase zero gerava ano 10000 e quebrava o Painel
 function contarDiasUteis(a, b) { let n = 0; for (let d = add(a, 1); d <= b; d = add(d, 1)) if (diaUtil(d)) n++; return n; }
 function inicioMes(s) { return ehISO(s) ? s.slice(0, 8) + '01' : hoje().slice(0, 8) + '01'; }
 function fimMes(s) { const d = dU(inicioMes(s)); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); }
@@ -349,6 +349,14 @@ function farolHtml(pct, semMeta) { const [c, t] = farol(pct, semMeta); return `<
 const corte = () => minD(per.fim, ref);
 
 // ------------------------------------------------------------ comunicação
+function saneDatasModelo() {
+  const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(dU(v));
+  const ruins = [];
+  [['M.cliente', M.cliente, ['inicio_plan', 'prazo']], ['M.metas', M.metas, ['inicio', 'fim']]].forEach(([nome, arr, campos]) => {
+    (arr || []).forEach((x, i) => campos.forEach(c => { if (x && x[c] && !iso(x[c])) { ruins.push(`${nome}[${i}].${c} = "${x[c]}"${x.servico ? ' (' + x.servico + ')' : ''}`); x[c] = null; } }));
+  });
+  if (ruins.length) { console.warn('Datas inválidas ignoradas:', ruins); setTimeout(() => toast(`${ruins.length} data(s) inválida(s) ignorada(s): ${ruins.slice(0, 3).join('; ')}. Corrija em Metas.`, true, 15000), 500); }
+}
 async function carregar() {
   const r = await fetch(API + 'dados', { cache: 'no-store' });
   if (r.status === 401) { location.href = 'login.php'; return; }
@@ -356,8 +364,9 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
+  saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
@@ -488,6 +497,9 @@ function preencherListas() {
 function mudarAba(nome) {
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
+  document.querySelectorAll('.top-aberto').forEach(x => x.classList.remove('top-aberto'));   // menu superior: fecha a lista depois de escolher
+  document.querySelectorAll('.sidebar-titulo.area-ativa').forEach(x => x.classList.remove('area-ativa'));
+  document.querySelector('#abas button.ativa')?.closest('.sidebar-grupo')?.querySelector('.sidebar-titulo')?.classList.add('area-ativa');
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
   const emPeriodo = ABAS_PERIODO.has(nome);
   const emProducao = ABAS_PRODUCAO.has(nome);
@@ -553,10 +565,16 @@ function renderTudo() {
 
 function renderAba() {
   if (!M) return;
-  ({ painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
+  try {
+  ({ tarefas: renderTarefas, painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont,
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont, rdo: renderRdo,
      plan: renderPlanejamento })[abaAtual]();
+  } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
+    console.error('Erro ao desenhar a aba', abaAtual, err);
+    const sec = document.getElementById('aba-' + abaAtual);
+    if (sec) { sec.querySelector('.erro-aba')?.remove(); const e = document.createElement('div'); e.className = 'aviso erro-aba'; e.style.cssText = 'margin:12px 0;padding:10px 14px;border:1px solid #b42318;background:#fff1f0;color:#7a1a12;border-radius:6px;font-size:13px'; e.innerHTML = `<b>Não foi possível montar esta tela.</b> ${esc(String(err && err.message || err))}<br><span class="nota">Detalhe: ${esc(String(err && err.stack || '').split('\n').slice(0, 8).join(' | '))}</span>`; sec.prepend(e); }
+  }
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -1588,7 +1606,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
 function ganProducao(itOuServico, empNome) {
   if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
   const fontes = ganServicosFonte(itOuServico), frenteAlvo = typeof itOuServico === 'string' ? null : itOuServico.frente;
-  const ds = [];
+  const ds = [], dsBmAp = [];   // grade e apontamentos do BM separados: o mesmo trabalho pode estar nas duas fontes (telhas apontadas no mapa lançam nas duas)
   M.empresas.forEach(e => {
     if (empNome && e.nome !== empNome) return;
     e.servicos.filter(s => fontes.some(f => ganServicoCombina(f, s.nome) && servicoLancadoPermitido(s, f, frenteAlvo))).forEach(s => Object.keys(e.registros).forEach(d => {
@@ -1604,10 +1622,13 @@ function ganProducao(itOuServico, empNome) {
       T.bm_apontamentos.forEach(x => {
         const a = porCod.get(String(x.codigo));
         if (!a || !x.data || !(Number(x.quantidade) > 0)) return;
-        ds.push([x.data, bmApontamentoServicoValor(a, x.quantidade, f)]);
+        dsBmAp.push([x.data, bmApontamentoServicoValor(a, x.quantidade, f)]);
       });
     });
   }
+  // vale a MAIOR fonte (grade × BM), nunca a soma: antes 1.720 m² lançados na grade e no BM viravam 3.440 no realizado
+  const tot = l => soma0(l, ([, v]) => v);
+  if (tot(dsBmAp) > tot(ds)) return dsBmAp.sort((a, b) => a[0].localeCompare(b[0]));
   return ds.sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -3022,7 +3043,8 @@ function estMateriaisComCadastros() {
     });
     vistos.add(ganNorm(tag));
   });
-  return base;
+  // quantidade de parafusos, arruelas e porcas do projeto (modelos TRB) somada ao planejado das TAGs de fixador (vinculos.js)
+  return typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
 }
 function estRemessasComCadastros() {
   const rem = EP?.remessas || { colunas: [], datas: {}, itens: [] };
@@ -3063,7 +3085,8 @@ function estConsumoComCadastros() {
   return { ...cf, itens };
 }
 function estInventarioComCadastros() {
-  const inv = [...(EP?.inventario || [])];
+  const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
+  const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
   const vistos = new Set(inv.map(i => ganNorm(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
@@ -3125,36 +3148,72 @@ function renderEstMateriais() {
     if (s === 'Crítico') return 'vermelho';
     return 'pendente';
   };
-  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Nome</th><th>Produto</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
+  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
-      const acoes = m.linha ? `<button class="link" data-editar-reg="materiais" data-linha="${m.linha}">Editar / excluir</button>` : '<span class="nota">importado</span>';
+      const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button>`;
+      const tagBtn = `<button type="button" class="link mat-tag" data-mat-edit="${esc(m.tag)}" title="Clique para editar este item (tipo, nome, local, etapa, planejado)"><b>${esc(m.tag)}</b></button>`;
       return `<tr>
-      <td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td>
-      <td>${esc(m.local || '—')}${ehFixador(m) ? ' <span class="nota">fixador</span>' : ''}</td><td>${esc(m.etapa)}</td>
-      <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
+      <td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
+      <td>${esc(m.local || '—')}</td><td>${esc(m.etapa)}</td>
+      <td class="n">${nf(m.planejado)}${m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
       <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
       <td>${esc(m.prioridade || '')}</td><td>${acoes}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+    : '<tr><td colspan="14" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 
+// ---- editar um item da aba Materiais (clicar na TAG): abre o mesmo pop-up do cadastro, já preenchido
+function matAbrirEdicao(tag) {
+  if (document.body.classList.contains('somente-leitura')) return;
+  const m = estMateriaisComCadastros().find(x => x.tag === tag);
+  if (!m) return;
+  const cad = (T.materiais || []).find(x => String(x.codigo || '').trim().toUpperCase() === String(tag).toUpperCase());
+  const planBase = m.planejado_trb ? m.planejado_cad : m.planejado;   // o que vem do projeto (TRB) é somado à parte e não se edita aqui
+  abrirDialogo('materiais_edit', cad ? cad.linha : null, {
+    ...(cad || {}), codigo: m.tag, material: m.material || '', produto: m.produto || '', tipo_material: (m.tipo_material || 'ESTRUTURA').toUpperCase(),
+    local: m.local || '', etapa: m.etapa || '', saldo_inicial: planBase || '',
+  });
+}
+
+// Remessa de CARGA (estrutura) e remessa de FIXADOR são separadas: cada uma tem o seu tipo (EP.remessas.tipos[nome]);
+// remessa antiga sem tipo é deduzida pelos itens que recebeu (só fixadores = FIXADOR, só carga = CARGA, os dois = MISTA, aparece nas duas telas).
+let remTipoSel = 'CARGA';
+try { if (localStorage.getItem('remTipoSel') === 'FIXADOR') remTipoSel = 'FIXADOR'; } catch (e) { /* sem armazenamento */ }
+function remTagsFixador() {
+  const s = new Set();
+  estMateriaisComCadastros().forEach(m => { if (m.tipo_editado ? ehFixador(m) : (ehFixador(m) || ehFixadorCadastro({ tipo_material: m.tipo_material, codigo: m.tag, material: m.material }))) s.add(m.tag); });
+  return s;
+}
+function remTipoDe(rem, nome, fix) {
+  const t = (rem.tipos || {})[nome];
+  if (t === 'CARGA' || t === 'FIXADOR') return t;
+  let f = 0, c = 0;
+  (rem.itens || []).forEach(i => { if ((i.qtd_por_remessa || {})[nome]) (fix.has(i.tag) ? f++ : c++); });
+  return f && c ? 'MISTA' : f ? 'FIXADOR' : 'CARGA';
+}
 function renderEstRemessas() {
   if (!EP) return;
   const rem = estRemessasComCadastros();
-  const cols = rem.colunas;
+  const fix = remTagsFixador(), tipo = remTipoSel, ehFix = tipo === 'FIXADOR';
+  const edTipo = estEdit.rem?.tipo;
+  const cols = rem.colunas.filter(c => { const t = remTipoDe(rem, c, fix); return t === tipo || t === 'MISTA'; });
   const f = ($('#estRemFiltro')?.value || '').toUpperCase();
   const vis = rem.itens.filter(m => {
+    if (fix.has(m.tag) !== ehFix) return false;
     if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f)) return false;
     return true;
   });
+  const segR = $('#segRemTipo');
+  if (segR) segR.innerHTML = [['CARGA', 'Remessas de carga'], ['FIXADOR', 'Remessas de fixador']].map(([k, r]) => `<button type="button" class="${tipo === k ? 'ativa' : ''}" data-rem-tipo="${k}">${r}</button>`).join('');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const totRec = soma0(rem.itens, m => m.total_recebido);
+  const itensTipo = rem.itens.filter(m => fix.has(m.tag) === ehFix);
+  const totRec = soma0(itensTipo, m => m.total_recebido);
   $('#estRemTiles').innerHTML =
-    tile('Itens', rem.itens.length, `${vis.length} visíveis`, 'var(--fg)') +
-    tile('Remessas', cols.length, 'colunas de envio', 'var(--acento)') +
-    tile('Total recebido', nf(totRec), 'soma de todas as remessas', 'var(--verde)');
+    tile('Itens', itensTipo.length, `${vis.length} visíveis`, 'var(--fg)') +
+    tile(ehFix ? 'Remessas de fixador' : 'Remessas de carga', cols.length, 'colunas de envio', 'var(--acento)') +
+    tile('Total recebido', nf(totRec), ehFix ? 'soma das remessas de fixador' : 'soma das remessas de carga', 'var(--verde)');
 
   const abrev = s => s.length > 18 ? s.slice(0, 16) + '…' : s;
   const dataRemInput = (remessa, campo, rot, valor) => `<label class="rem-data rem-data-edit"><span>${rot}</span><input type="text" value="${esc(valor || '')}" placeholder="dd/mm/aaaa" data-remessa-data="${esc(remessa)}" data-remessa-campo="${esc(campo)}"></label>`;
@@ -3176,7 +3235,7 @@ function renderEstRemessas() {
       + novaDataInput('prevista_chegada', 'Prev.', ed.prevista, 'prevista')
       + novaDataInput('emissao_nota', 'NF', ed.emissaoNf, 'emissaoNf')
       + novaDataInput('chegada_obra', 'Obra', ed.chegadaObra, 'chegadaObra')
-      + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
+      + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa de ${ehFix ? 'fixador' : 'carga'}" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
       (!ed ? cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') : '') +
@@ -3220,7 +3279,8 @@ function edBarra(k) {
       ? `<span class="ed-datas"><label>Prev. chegada<input class="ed-dat" data-ed="${k}" data-ed-dat="prevista" placeholder="dd/mm/aaaa" value="${esc(ed.prevista)}"></label>`
         + `<label>Emissão NF<input class="ed-dat" data-ed="${k}" data-ed-dat="emissaoNf" placeholder="dd/mm/aaaa" value="${esc(ed.emissaoNf)}"></label>`
         + `<label>Chegada obra<input class="ed-dat" data-ed="${k}" data-ed-dat="chegadaObra" placeholder="dd/mm/aaaa" value="${esc(ed.chegadaObra)}"></label></span>` : '';
-    box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
+    const tipoTxt = k === 'rem' ? (ed.tipo === 'FIXADOR' ? ' de fixador' : ' de carga') : '';
+    box.innerHTML = `<span><b>${k === 'rem' ? (ed.substituir ? 'Editar remessa' : 'Nova remessa') + tipoTxt : 'Novo consumo'}:</b> ${k === 'rem' && ed.substituir ? 'ajuste quantidades, nome e datas; ao salvar substitui a remessa original.' : 'preencha a coluna no fim da tabela e escreva o ' + (k === 'rem' ? 'nº da remessa' : 'período da semana') + ' no cabeçalho.'}</span>`
       + datasHtml
       + (k === 'cons' ? `<span class="ed-datas"><label>Período do consumo — de<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoIni" value="${esc(ed.periodoIni || '')}"></label><label>até<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoFim" value="${esc(ed.periodoFim || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
@@ -3229,10 +3289,12 @@ function edBarra(k) {
   }
   box.querySelector('.ed-resumo').textContent = resumo;
 }
-function edAbrir(k) {
+function edAbrir(k, tipo) {
   if (!EP) return;
+  if (k === 'rem' && estEdit.rem && tipo && estEdit.rem.tipo !== tipo) { toast('Salve ou cancele a remessa que está aberta antes de abrir outra.', true); return; }
+  if (k === 'rem') { remTipoSel = tipo || remTipoSel; try { localStorage.setItem('remTipoSel', remTipoSel); } catch (e) { /* sem armazenamento */ } }
   if (!estEdit[k]) estEdit[k] = k === 'rem'
-    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false }
+    ? { nome: '', val: new Map(), prevista: '', emissaoNf: '', chegadaObra: '', original: '', substituir: false, tipo: remTipoSel }
     : { nome: '', val: new Map(), periodoIni: '', periodoFim: '' };
   $(ED[k].barra).dataset.pronto = '';
   ED[k].render();
@@ -3246,8 +3308,10 @@ function edAbrirRemessaExistente(nome) {
   if (!EP || !nome) return;
   const rem = estRemessasComCadastros();
   const dt = (rem.datas || {})[nome] || {};
-  const ed = estEdit.rem = { nome, val: new Map(), prevista: dt.prevista_chegada || '', emissaoNf: dt.emissao_nota || '', chegadaObra: dt.chegada_obra || '', original: nome, substituir: true };
+  const ed = estEdit.rem = { nome, val: new Map(), prevista: dt.prevista_chegada || '', emissaoNf: dt.emissao_nota || '', chegadaObra: dt.chegada_obra || '', original: nome, substituir: true, tipo: remTipoSel };
+  const fixEd = remTagsFixador();
   (rem.itens || []).forEach(i => {
+    if (fixEd.has(i.tag) !== (remTipoSel === 'FIXADOR')) return;   // a edição mexe só nos itens do tipo da tela
     const v = (i.qtd_por_remessa || {})[nome];
     if (v != null && v !== '') ed.val.set(i.tag, String(v).replace('.', ','));
   });
@@ -3272,6 +3336,7 @@ async function edSalvar(k) {
   const b = document.querySelector(`[data-ed-salvar="${k}"]`); b.disabled = true;
   try {
     const corpo = { [ED[k].campo]: nome, itens };
+    if (k === 'rem') corpo.tipo = ed.tipo || remTipoSel;
     if (k === 'cons') { corpo.periodo_ini = ed.periodoIni; corpo.periodo_fim = ed.periodoFim || ed.periodoIni; }
     if (k === 'rem') {
       if (ed.substituir) { corpo.substituir = true; corpo.original_remessa = ed.original || nome; }
@@ -3304,7 +3369,17 @@ async function salvarDataRemessa(inp) {
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
   const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
-  $('#btnNovaRemessa').onclick = () => edAbrir('rem');
+  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); });
+  $('#btnNovaRemessaCarga').onclick = () => edAbrir('rem', 'CARGA');
+  $('#btnNovaRemessaFixador').onclick = () => edAbrir('rem', 'FIXADOR');
+  $('#segRemTipo').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-rem-tipo]');
+    if (!b || b.dataset.remTipo === remTipoSel) return;
+    if (estEdit.rem) { toast('Salve ou cancele a remessa aberta antes de trocar de tipo.', true); return; }
+    remTipoSel = b.dataset.remTipo;
+    try { localStorage.setItem('remTipoSel', remTipoSel); } catch (e) { /* sem armazenamento */ }
+    renderEstRemessas();
+  });
   $('#btnNovoConsumo').onclick = () => edAbrir('cons');
   sec.addEventListener('input', ev => {
     const el = ev.target, k = el.dataset.ed;
@@ -3677,6 +3752,27 @@ function consumoVirtualPorTag(regras) {
       if (it.estimado && n > 0) o.estimado = true;
     });
   });
+  // peças das obras importadas: cada TAG, no seu local, baixa (quantidade ÷ quantidade da atividade) por unidade produzida na atividade, até o planejado
+  if (typeof vcRealizadoAtividade === 'function') Object.entries(regras.consumo_por_atividade || {}).forEach(([key, conf]) => {
+    const un = vcRealizadoAtividade(key);
+    if (!(un > 0) || !Array.isArray(conf.itens)) return;
+    conf.itens.forEach(it => {
+      const lim = Number(it.quantidade) > 0 ? Number(it.quantidade) : Infinity;
+      const o = entrada(it.codigo);
+      o.qtd += Math.min(it.por_unidade * un, lim);
+      o.partes.push(`${nf(un, 2)} und de ${key} (${it.local || 'local'}) × ${nf(it.por_unidade, 4)}`);
+    });
+  });
+  // fixadores por unidade de cada atividade (Suprimentos › Vínculos › Por atividade): unidades já produzidas na atividade × fixadores por unidade
+  if (typeof vcRealizadoAtividade === 'function') Object.entries(M.fixadores_atividade || {}).forEach(([key, cfg]) => {
+    const un = vcRealizadoAtividade(key);
+    if (!(un > 0)) return;
+    (cfg.linhas || []).forEach(l => [[l.tag, l.por_unidade], [l.arruela, l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade], [l.porca, l.porca_qtd != null ? l.porca_qtd : l.por_unidade]].forEach(([tag, por]) => {
+      if (!tag || !(por > 0)) return;
+      const o = entrada(tag);
+      o.qtd += por * un; o.partes.push(`${nf(un, 2)} und de ${key} × ${nf(por, 4)}`);
+    }));
+  });
   evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
 
   // fechamento lateral e marquise: cada trecho apontado consome os fixadores do projeto
@@ -3892,7 +3988,7 @@ function renderEstCriticos() {
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
-  frente: new Map(), etapa: '', histSel: new Set(), histTodos: false };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
+  frente: new Map(), etapa: '', histSel: new Set(), histTodos: false, histFiltro: { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }, histTotal: 0 };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
 const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM' };
 function frentesMontagem(refazer) {
@@ -4536,6 +4632,8 @@ const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a
 
 function renderApont() {
   if (!M) return;
+  if (M.mapa_obra && typeof renderApontGenerico === 'function') return renderApontGenerico();   // obra criada pela importação automática: mapa por peça
+  $('#aba-apont').classList.remove('ap-gen-ativo'); $('#apGen').hidden = true;
   const regras = regrasBaixa(renderApont);
   if (!regras) { $('#apForm').innerHTML = '<p class="vazio">Carregando regras...</p>'; return; }
   if (!regras.faixas_posicoes) { $('#apForm').innerHTML = '<p class="vazio">regras_baixa.json sem as regras de apontamento.</p>'; return; }
@@ -4572,9 +4670,49 @@ function renderApont() {
   $('#tabApConc').innerHTML = seguro('a conciliação', () => apConciliacaoHtml(ctx));
   $('#apDefEmp').innerHTML = seguro('a definição de empresa', () => apDefHtml(ctx));
 
-  const histTodas = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  apEst.ctxHist = ctx;
+  apHistRender(ctx);
+  patchDatas();
+  requestAnimationFrame(syncScrollTopo);
+}
+
+// "Últimos apontamentos": filtros por empresa, tipo, produção, período e texto (valem para todo o histórico; a lista continua mostrando 40 até "Ver todos").
+const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
+function apHistPassa(a) {
+  const f = apEst.histFiltro;
+  if (f.emp && a.empresa !== f.emp) return false;
+  if (f.tipo && apHistTipoRot(a) !== f.tipo) return false;
+  if (f.prod && ((a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização') !== f.prod) return false;
+  if (f.ini && (!a.data || a.data < f.ini)) return false;
+  if (f.fim && (!a.data || a.data > f.fim)) return false;
+  if (f.q) {
+    const txt = ganNorm([fdA(a.data), a.empresa, apHistTipoRot(a), a.faixa, a.rua, a.letra, a.slot, a.viga_id, a.obs].join(' '));
+    if (!f.q.split(/\s+/).filter(Boolean).every(t => txt.includes(ganNorm(t)))) return false;
+  }
+  return true;
+}
+function apHistFiltrosHtml(todas) {
+  const el = $('#apHistFiltros');
+  if (!el) return;
+  const f = apEst.histFiltro, unicos = fn => [...new Set(todas.map(fn).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+  const sel = (id, rot, valores, atual) => `<label class="ap-filtro">${rot}<select id="${id}"><option value="">Todos</option>${valores.map(v => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`;
+  const ativo = Object.values(f).some(Boolean);
+  el.innerHTML = `${sel('apHfEmp', 'Empresa', unicos(a => a.empresa), f.emp)}${sel('apHfTipo', 'Tipo', unicos(apHistTipoRot), f.tipo)}${sel('apHfProd', 'Produção', ['soma', 'regularização'], f.prod)}
+    <label class="ap-filtro">De<input type="date" id="apHfIni" value="${esc(f.ini)}"></label><label class="ap-filtro">Até<input type="date" id="apHfFim" value="${esc(f.fim)}"></label>
+    <label class="ap-filtro ap-filtro-q">Buscar<input type="search" id="apHfQ" placeholder="rua, faixa, viga, obs…" value="${esc(f.q)}"></label>
+    <button class="btn" id="apHfLimpar" ${ativo ? '' : 'disabled'}>Limpar filtros</button>`;
+}
+function apHistFiltrar() {   // refaz só a lista (sem redesenhar o mapa); a barra de filtros mantém o foco de quem está digitando
+  const ctx = apEst.ctxHist;
+  if (!ctx) return renderApont();
+  apHistRender(ctx, true);
+}
+function apHistRender(ctx, manterFiltros) {
+  const todasSemFiltro = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  const histTodas = todasSemFiltro.filter(apHistPassa);   // os filtros valem para todo o histórico, não só para as 40 linhas mostradas
+  apEst.histTotal = histTodas.length;
   const hist = apEst.histTodos ? histTodas : histTodas.slice(0, 40);
-  const linhasHist = new Set(histTodas.map(a => String(a.linha)));
+  const linhasHist = new Set(todasSemFiltro.map(a => String(a.linha)));
   apEst.histSel = new Set([...apEst.histSel].filter(l => linhasHist.has(l)));   // some o que já foi excluído
   $('#tabApHist').innerHTML = `<thead><tr><th><input type="checkbox" id="apHistTodos" title="Selecionar todos os apontamentos da lista" aria-label="Selecionar todos"></th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Local</th><th class="n">Qtd</th><th>Produção</th><th>Obs.</th><th></th></tr></thead><tbody>` +
     (hist.length ? hist.map(a => {
@@ -4586,10 +4724,11 @@ function renderApont() {
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
         <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
-    }).join('') : '<tr><td colspan="9" class="vazio">Nenhum apontamento ainda.</td></tr>') + '</tbody>';
+    }).join('') : `<tr><td colspan="9" class="vazio">${todasSemFiltro.length ? 'Nenhum apontamento com esses filtros.' : 'Nenhum apontamento ainda.'}</td></tr>`) + '</tbody>';
   apHistBarra(histTodas.length, hist.length);
+  if (!manterFiltros) apHistFiltrosHtml(todasSemFiltro);
+  else { const b = $('#apHfLimpar'); if (b) b.disabled = !Object.values(apEst.histFiltro).some(Boolean); }
   patchDatas();
-  requestAnimationFrame(syncScrollTopo);
 }
 
 // "Últimos apontamentos": seleção em lote (todos / por linha) e exclusão dos marcados.
@@ -4608,7 +4747,7 @@ function apHistBarra(total, mostrando) {
 }
 function apHistMarcar(linhas, marcar) {
   linhas.forEach(c => { c.checked = marcar; c.closest('tr').classList.toggle('ap-hist-sel', marcar); if (marcar) apEst.histSel.add(c.dataset.apHistSel); else apEst.histSel.delete(c.dataset.apHistSel); });
-  apHistBarra((T.apontamentos || []).length, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
+  apHistBarra(apEst.histTotal, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
 }
 async function apHistExcluir(btn) {
   const linhas = [...apEst.histSel].map(Number);
@@ -4839,6 +4978,7 @@ function ligarApontamento() {
     if (ev.target.id === 'apHistSelTodos') { const vis = apHistLinhasVisiveis(); return apHistMarcar(vis, !(vis.length && vis.every(c => c.checked))); }
     if (ev.target.id === 'apHistVerTodos') { apEst.histTodos = !apEst.histTodos; return renderApont(); }
     if (ev.target.id === 'apHistExcluir') return apHistExcluir(ev.target);
+    if (ev.target.id === 'apHfLimpar') { apEst.histFiltro = { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }; apHistFiltrosHtml([...(T.apontamentos || [])]); return apHistFiltrar(); }
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
       if (!ex.dataset.confirmar) { ex.dataset.confirmar = '1'; ex.textContent = 'Confirmar exclusão'; return; }
@@ -4857,6 +4997,8 @@ function ligarApontamento() {
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
+    const hf = { apHfEmp: 'emp', apHfTipo: 'tipo', apHfProd: 'prod', apHfIni: 'ini', apHfFim: 'fim' }[id];
+    if (hf) { apEst.histFiltro[hf] = ev.target.value; return apHistFiltrar(); }
     if (id === 'apHistTodos') return apHistMarcar(apHistLinhasVisiveis(), ev.target.checked);
     if (ev.target.dataset.apHistSel !== undefined) return apHistMarcar([ev.target], ev.target.checked);
   });
@@ -4908,6 +5050,7 @@ function ligarApontamento() {
   });
   sec.addEventListener('input', ev => {
     if (ev.target.id === 'apObs') apEst.obs = ev.target.value;
+    if (ev.target.id === 'apHfQ') { apEst.histFiltro.q = ev.target.value.trim(); apHistFiltrar(); }
   });
 }
 
@@ -5421,110 +5564,86 @@ function bmImprimir(r, emp, p) {
 
   let linhasItens = '';
   r.itens.forEach(it => {
-    linhasItens += `<tr style="background:#f0f4f8"><td colspan="4" style="padding:5px 8px;font-weight:bold">${esc(it.item)} — ${esc(cap(it.desc))}</td>
-      <td style="text-align:right;padding:5px 8px">${pc(it.pctAnt)}</td><td style="text-align:right;padding:5px 8px">${pc(it.pctPer)}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${pc(it.pct)}</td>
-      <td style="text-align:right;padding:5px 8px">${rs(it.pctAnt * it.valor[R])}</td><td style="text-align:right;padding:5px 8px">${rs(it.pctPer * it.valor[R])}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${rs(it.pct * it.valor[R])}</td>
-      <td style="text-align:right;padding:5px 8px;font-weight:bold">${rs2(it.valor[R])}</td><td></td></tr>`;
+    linhasItens += `<tr class="grupo"><td colspan="4"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td>
+      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td>
+      <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td></tr>`;
     it.ats.forEach(x => {
       const pr = bmPrecoAtividade(it, x.a, R);
-      linhasItens += `<tr><td style="padding:4px 8px 4px 22px;color:#555">${esc(x.a.atividade)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
-        <td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real - x.realAnt, 2)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real, 2)}</td>
-        <td colspan="3" style="text-align:right;padding:4px 8px;color:#555">${pc(x.pct)}</td><td colspan="3"></td>
-        <td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.total)}</td><td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.unit)}</td></tr>`;
+      linhasItens += `<tr><td class="bm-ativ">${esc(x.a.atividade)}</td><td class="n">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
+        <td class="n">${nf(x.real - x.realAnt, 2)}</td><td class="n">${nf(x.real, 2)}</td>
+        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td>
+        <td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td></tr>`;
     });
   });
 
-  let linhasDesc = `<tr style="background:#f0f4f8"><td style="padding:6px 8px;font-weight:bold">Medição do BM${p.n}</td><td style="text-align:right;padding:6px 8px;font-weight:bold">${rs(tot.per)}</td></tr>`;
+  let linhasDesc = `<tr class="grupo"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(tot.per)}</b></td></tr>`;
   const _dailyEquip = dd.equip - dd.mensalEquip;
-  if (dd.sinalAuto) linhasDesc += `<tr><td style="padding:5px 8px">(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td style="text-align:right;padding:5px 8px">${rs(-dd.sinalAuto)}</td></tr>`;
-  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td style="padding:5px 8px">(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
-  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td style="text-align:right;padding:5px 8px">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
+  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
+  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
-    linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-v)}</td></tr>`;
+    linhasDesc += `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td class="n">${rs(-v)}</td></tr>`;
   });
-  linhasDesc += `<tr style="background:#e8f5e9"><td style="padding:7px 8px;font-weight:bold;font-size:14px">VALOR A FATURAR</td><td style="text-align:right;padding:7px 8px;font-weight:bold;font-size:14px;color:#1b5e20">${rs(fat)}</td></tr>`;
+  linhasDesc += `<tr class="bm-fatura"><td><b>VALOR A FATURAR</b></td><td class="n"><b>${rs(fat)}</b></td></tr>`;
 
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-    <title>BM${p.n} · ${esc(emp)} · ${esc(obraNome)}</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 20mm 18mm; }
-      h1 { font-size: 18px; font-weight: bold; color: #1a237e; margin-bottom: 2px; }
-      h2 { font-size: 13px; font-weight: bold; color: #1a237e; border-bottom: 1px solid #1a237e; padding-bottom: 3px; margin: 18px 0 8px; }
-      .cabecalho { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a237e; padding-bottom: 10px; margin-bottom: 14px; }
-      .cab-info { font-size: 11px; color: #555; margin-top: 4px; }
-      .cab-meta { text-align: right; font-size: 11px; color: #555; }
-      .cab-meta b { display: block; font-size: 13px; color: #1a1a1a; }
-      .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-      .tile { border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; }
-      .tile-rot { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: .4px; }
-      .tile-val { font-size: 16px; font-weight: bold; color: #1a1a1a; margin: 2px 0; }
-      .tile-sub { font-size: 10px; color: #777; }
-      .tile.destaque { background: #e8f5e9; border-color: #388e3c; }
-      .tile.destaque .tile-val { color: #1b5e20; }
-      table { width: 100%; border-collapse: collapse; font-size: 11px; }
-      th { background: #1a237e; color: #fff; padding: 5px 8px; text-align: left; font-weight: bold; }
-      th.n { text-align: right; }
-      td { padding: 4px 8px; border-bottom: 1px solid #eee; }
-      tfoot td { font-weight: bold; background: #e8eaf6; border-top: 2px solid #1a237e; }
-      .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 40px; }
-      .assin { border-top: 1px solid #1a1a1a; padding-top: 6px; font-size: 10px; text-align: center; color: #444; }
-      .rodape { margin-top: 20px; font-size: 9px; color: #aaa; text-align: right; border-top: 1px solid #eee; padding-top: 6px; }
-      .status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
-      .status.fechado { background: #e8f5e9; color: #1b5e20; }
-      .status.aberto { background: #fff8e1; color: #e65100; }
-      @media print { body { padding: 10mm 12mm; } }
-    </style></head><body>
-    <div class="cabecalho">
-      <div>
-        <div style="font-size:11px;color:#555;margin-bottom:4px">BOLETIM DE MEDIÇÃO</div>
-        <h1>${esc(obraNome)}</h1>
-        <div class="cab-info"><b>${esc(emp)}</b> &nbsp;·&nbsp; BM${p.n} &nbsp;·&nbsp; Contrato RÓTULA</div>
-        <div class="cab-info" style="margin-top:3px">Período: ${periodoStr}</div>
-        <div style="margin-top:6px"><span class="status ${p.fechado ? 'fechado' : 'aberto'}">${p.fechado ? '● FECHADO em ' + fdA(p.fech.fechado_em) : '● EM ABERTO'}</span></div>
-      </div>
-      <div class="cab-meta"><b>BM${p.n}</b>${fdA(p.fim)}<br><span style="margin-top:4px;display:block">Emitido em ${new Date().toLocaleString('pt-BR')}</span></div>
+  // mesmo layout dos demais relatórios (capa Rótula, ficha da obra, rodapé) e mesmo PDF; o BM é da EMPRESA TERCEIRIZADA e isso aparece em destaque
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const situacao = p.fechado ? `BM FECHADO em ${fdA(p.fech.fechado_em)}` : 'BM EM ABERTO';
+  const corpo = `<section class="emp-sec"><div class="pag">
+    <div class="bm-terc">
+      <div class="bm-terc-rot">Empresa terceirizada · contratada pela RÓTULA</div>
+      <div class="bm-terc-nome">${esc(emp)}</div>
+      <div class="bm-terc-sub">Boletim de medição dos serviços executados pela empresa terceirizada <b>${esc(emp)}</b> na obra ${esc(obraNome)} · BM${p.n} · período ${esc(periodoStr)}</div>
+      <span class="bm-terc-sit ${p.fechado ? 'f' : 'a'}">${esc(situacao)}</span>
     </div>
-    <h2>Resumo do BM${p.n}</h2>
-    <div class="tiles">
-      <div class="tile"><div class="tile-rot">Contrato RÓTULA</div><div class="tile-val">${rs(tot.contrato)}</div><div class="tile-sub">${esc(emp)} · valor total contratado</div></div>
-      <div class="tile"><div class="tile-rot">Medição do BM${p.n}</div><div class="tile-val">${rs(tot.per)}</div><div class="tile-sub">${pc(tot.pctPer)} do contrato neste período</div></div>
-      <div class="tile"><div class="tile-rot">Descontos</div><div class="tile-val">${rs(dd.total[R])}</div><div class="tile-sub">sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}</div></div>
-      <div class="tile destaque"><div class="tile-rot">Valor a faturar</div><div class="tile-val">${rs(fat)}</div><div class="tile-sub">medição − descontos</div></div>
+    <h2>Resumo do BM${p.n} da ${esc(emp)}</h2>
+    <div class="cards">
+      ${card('Contrato RÓTULA × ' + esc(emp), rs(tot.contrato), 'valor total contratado da empresa terceirizada', 'az')}
+      ${card('Medição do BM' + p.n, rs(tot.per), pc(tot.pctPer) + ' do contrato neste período', 'nd')}
+      ${card('Descontos', rs(dd.total[R]), `sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}`, 'am')}
+      ${card('Valor a faturar pela ' + esc(emp), rs(fat), 'medição − descontos', 'vd')}
     </div>
-    <h2>Medição por item e atividade</h2>
-    <table><thead><tr>
+    <h2>Medição por item e atividade — ${esc(emp)}</h2>
+    <div class="bm-tab"><table><thead><tr>
       <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
       <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
       <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
       <th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th>
     </tr></thead><tbody>${linhasItens}</tbody>
-    <tfoot><tr><td colspan="4"><b>Total do contrato</b></td>
-      <td style="text-align:right">${pc(tot.ant / (tot.contrato || 1))}</td><td style="text-align:right">${pc(tot.pctPer)}</td><td style="text-align:right">${pc(tot.pctAcum)}</td>
-      <td style="text-align:right">${rs(tot.ant)}</td><td style="text-align:right">${rs(tot.per)}</td><td style="text-align:right">${rs(tot.acum)}</td>
-      <td style="text-align:right">${rs2(tot.contrato)}</td><td></td>
-    </tr></tfoot></table>
+    <tfoot><tr><th colspan="4">Total do contrato da ${esc(emp)}</th>
+      <th class="n">${pc(tot.ant / (tot.contrato || 1))}</th><th class="n">${pc(tot.pctPer)}</th><th class="n">${pc(tot.pctAcum)}</th>
+      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th>
+      <th class="n">${rs2(tot.contrato)}</th><th></th>
+    </tr></tfoot></table></div>
     <h2>Descontos e valor a faturar</h2>
-    <table><thead><tr><th>Descrição</th><th class="n" style="width:160px">Valor (R$)</th></tr></thead>
+    <table><thead><tr><th>Descrição</th><th class="n" style="width:170px">Valor (R$)</th></tr></thead>
     <tbody>${linhasDesc}</tbody></table>
-    <div class="assinaturas">
-      <div class="assin">Responsável pela medição<br>${esc(emp)}</div>
-      <div class="assin">Fiscalização / Contratante<br>RÓTULA</div>
-      <div class="assin">Aprovação<br>&nbsp;</div>
+    <div class="bm-assin">
+      <div><span>Responsável pela medição</span><b>EMPRESA TERCEIRIZADA · ${esc(emp)}</b></div>
+      <div><span>Fiscalização / Contratante</span><b>RÓTULA</b></div>
+      <div><span>Aprovação</span><b>&nbsp;</b></div>
     </div>
-    <div class="rodape">Gerado pelo sistema de controle de obra · ${esc(obraNome)} · BM${p.n} · ${esc(emp)} · ${new Date().toLocaleString('pt-BR')}</div>
-  </body></html>`;
-
-  // visualização antes de baixar; o PDF (gerado no servidor) só sai quando se clica em "Baixar PDF"
-  const enviarPdf = () => {
-    const f = document.createElement('form');
-    f.method='post'; f.action='pdf_html.php'; f.target='_blank'; f.style.display='none';
-    const campos = {csrf: window.CSRF_TOKEN || '', html, nome: `BM${p.n}-${emp}`};
-    Object.entries(campos).forEach(([k,v]) => { const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
-    document.body.appendChild(f); f.submit(); f.remove();
-  };
-  reAbrirPrevia(html, `BM${p.n}-${emp}.html`, `Boletim de medição · BM${p.n} · ${emp}`, { rotuloBaixar: 'Baixar PDF', baixar: enviarPdf, semTemplate: true });   // o PDF vem do servidor (TCPDF): a visualização é o próprio boletim
+  </div></section>`;
+  const css = `<style>@page{size:A4 landscape}
+    .bm-terc{border:2px solid #b3261e;background:#fdf1f0;border-radius:8px;padding:14px 18px;margin:0 0 14px;display:flex;flex-direction:column;gap:4px}
+    .bm-terc-rot{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#b3261e}
+    .bm-terc-nome{font-size:30px;font-weight:800;line-height:1.1;color:#1c1b18}
+    .bm-terc-sub{font-size:12px;color:#444}
+    .bm-terc-sit{align-self:flex-start;margin-top:4px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+    .bm-terc-sit.f{background:#dcf5e3;color:#15803d}.bm-terc-sit.a{background:#fdf3c4;color:#a16207}
+    .bm-tab table{font-size:9.5px}.bm-tab th,.bm-tab td{padding:3px 5px}
+    .bm-ativ{padding-left:18px!important;color:#444}
+    tr.bm-fatura td{background:#dcf5e3;font-size:13px;color:#14532d}
+    .bm-assin{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:46px}
+    .bm-assin div{border-top:1px solid #1c1b18;padding-top:6px;text-align:center;font-size:10px;color:#444;display:flex;flex-direction:column;gap:2px}
+    .bm-assin b{color:#1c1b18;font-size:11px}
+  </style>`;
+  const html = tplDocumento({ titulo: `Boletim de Medição · BM${p.n}`, subtitulo: `Empresa terceirizada: ${emp} · Contrato RÓTULA · período ${periodoStr}`,
+    meta: `BM da empresa terceirizada ${emp} · ${situacao} · emitido em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, corpo, css });
+  // mesma visualização e mesmo PDF (Baixar PDF) dos demais relatórios
+  reAbrirPrevia(html, `BM${p.n}-${emp}`, `Boletim de medição · BM${p.n} · ${emp} (empresa terceirizada)`);
 }
 
 function renderBM() {
@@ -5593,22 +5712,22 @@ function renderBMBoletim(box) {
 
   const colBms = bmsAteMeusInclusos.map(pm => `<th class="n">BM${pm.n}</th>`).join('');
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
-    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th>
+    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th><th class="n" title="Quanto já representa do valor total do contrato (igual à planilha de medição): % acumulado × valor ÷ contrato">% do contrato</th>
     <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th>${colBms}</tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
-      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
+      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td><td class="n"><b>${pc(tot.contrato ? it.pct * it.valor[R] / tot.contrato : 0)}</b></td>
       <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
     });
   });
-  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
+  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
     <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
@@ -5729,22 +5848,25 @@ function bmSomaSemana(a, ini, fim) {
 
 function renderLancServico(e) {
   const its = bmItens(e.nome, ref);
+  // como na planilha de medição: % do contrato = % da atividade × (valor da atividade ÷ valor total do contrato da empresa)
+  const contratoTotal = soma0(its, it => it.valor['RÓTULA'] || 0), pcC = v => nf(v * 100, 2) + '%';
+  const contribAtiv = (it, a, pct) => contratoTotal ? pct * bmPrecoAtividade(it, a).total / contratoTotal : 0;
   if (!its.length) { $('#tabLanc').innerHTML = '<tbody><tr><td class="vazio">Não há atividades do BM cadastradas para esta empresa (aba Medição (BM) → Catálogo).</td></tr></tbody>'; return; }
   const s = segunda(ref), dias = [0, 1, 2, 3, 4, 5, 6].map(i => add(s, i)), noCal = new Set(M.datas);
   const fechados = bmPeriodos(e.nome).filter(p => p.fechado);
   const marca = d => { const f = fechados.find(p => d >= p.ini && d <= p.fim); return f ? `data-fechado="${f.n}" title="Período do BM${f.n}, já fechado: a correção entra como ajuste no BM em aberto"` : ''; };
   $('#tabLanc').className = 'por-servico';
-  let h = '<colgroup><col style="width:340px"><col style="width:64px"><col style="width:96px">' + '<col style="width:78px">'.repeat(7) + '<col style="width:84px"><col style="width:90px"><col style="width:70px"></colgroup><thead><tr><th class="fixa">Serviço (atividade do BM)</th><th>Un. BM</th><th class="n">Contratado</th>' +
-    dias.map((d, i) => `<th class="n ${i >= 5 ? 'fds' : ''} ${d === ref ? 'hoje' : ''}">${DIAS[i]}<br>${fd(d)}</th>`).join('') + '<th class="n">Semana</th><th class="n">Acumulado</th><th class="n">%</th></tr></thead><tbody>';
+  let h = '<colgroup><col style="width:340px"><col style="width:64px"><col style="width:96px">' + '<col style="width:78px">'.repeat(7) + '<col style="width:84px"><col style="width:90px"><col style="width:70px"><col style="width:84px"></colgroup><thead><tr><th class="fixa">Serviço (atividade do BM)</th><th>Un. BM</th><th class="n">Contratado</th>' +
+    dias.map((d, i) => `<th class="n ${i >= 5 ? 'fds' : ''} ${d === ref ? 'hoje' : ''}">${DIAS[i]}<br>${fd(d)}</th>`).join('') + '<th class="n">Semana</th><th class="n">Acumulado</th><th class="n" title="Avanço da atividade sobre a quantidade contratada">%</th><th class="n" title="Quanto a atividade já representa do valor total do contrato da empresa (igual à planilha de medição)">% do contrato</th></tr></thead><tbody>';
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))} ${it.pesosAjustados ? '<span class="farol f-amarelo" title="Os pesos das atividades não somam 100%">pesos ≠ 100%</span>' : ''}</td><td colspan="9"></td><td class="n"><b>${nf(it.pct * 100, 1)}%</b></td></tr>`;
+    h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))} ${it.pesosAjustados ? '<span class="farol f-amarelo" title="Os pesos das atividades não somam 100%">pesos ≠ 100%</span>' : ''}</td><td colspan="9"></td><td class="n" title="Avanço do próprio item">${nf(it.pct * 100, 1)}%</td><td class="n" title="Quanto este item já representa do contrato (soma das atividades × valor)"><b>${pcC(contratoTotal ? it.pct * (it.valor['RÓTULA'] || 0) / contratoTotal : 0)}</b></td></tr>`;
     it.ats.forEach(({ a, real, pct }) => {
       const ctl = a.controle ? colDe(e, a.controle) : null;
       const semanaUnd = ctl ? soma(e, ctl, s, add(s, 6)) : null;
       const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
       const baseFin = bmAtividadeUsaBaseFinanceira(a);
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ' <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>') : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
@@ -5754,9 +5876,11 @@ function renderLancServico(e) {
           h += `<td><input class="num ${bmPend.has(k) ? 'editado' : ''}" data-bm="1" data-cod="${esc(a.codigo)}" data-d="${d}" value="${esc(v)}" ${marca(d)} inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
         }
       });
-      h += `<td class="n">${bmFmtQtdFinanceira(a, semana, semanaUnd)}</td><td class="n">${bmFmtQtdFinanceira(a, real, acumUnd)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td></tr>`;
+      h += `<td class="n">${bmFmtQtdFinanceira(a, semana, semanaUnd)}</td><td class="n">${bmFmtQtdFinanceira(a, real, acumUnd)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td><td class="n">${pcC(contribAtiv(it, a, pct))}</td></tr>`;
     });
   });
+  const avancoContrato = contratoTotal ? soma0(its, it => it.pct * (it.valor['RÓTULA'] || 0)) / contratoTotal : 0;
+  h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>TOTAL DO CONTRATO — ${esc(e.nome)}</b> <span class="nota">${rs2(contratoTotal)}</span></td><td colspan="10"></td><td class="n"><b>${pcC(avancoContrato)}</b></td></tr>`;
   $('#tabLanc').innerHTML = h + '</tbody>';
 }
 
@@ -5764,6 +5888,13 @@ function renderLancServico(e) {
 const FORMS = {
   materiais: { tit: 'material', campos: [
     ['codigo', 'TAG / Código (automático se vazio; fixador novo: FG### ou FJ###)', 'text'], ['material', 'Nome do material', 'text', 1], ['unidade', 'Unidade (pç, kg, m², m)', 'text', 1],
+    ['tipo_material', 'Tipo de material', 'select:ESTRUTURA,FIXADOR,CONSUMO,OUTROS'], ['local', 'Local / grupo', 'text'], ['etapa', 'Etapa / aplicação', 'text'],
+    ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
+    ['saldo_inicial', 'Quantidade planejada', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
+    ['fornecedor', 'Fornecedor', 'text'], ['prazo_reposicao', 'Prazo de reposição (dias úteis)', 'num'], ['obs', 'Observação', 'text', 0, 'largo']] },
+  materiais_edit: { tit: 'material', base: 'materiais', sempreEditar: true, endpoint: 'estoque-planilha/material', recarregar: true,
+    envelope: c => ({ tag: c.codigo, campos: c }), campos: [
+    ['codigo', 'TAG / Código (não muda)', 'ro'], ['material', 'Nome do material', 'text', 1], ['produto', 'Produto / descrição', 'text'], ['unidade', 'Unidade (pç, kg, m², m)', 'text'],
     ['tipo_material', 'Tipo de material', 'select:ESTRUTURA,FIXADOR,CONSUMO,OUTROS'], ['local', 'Local / grupo', 'text'], ['etapa', 'Etapa / aplicação', 'text'],
     ['servico', 'Serviço vinculado', 'servico'], ['empresa', 'Empresa (vazio = todas)', 'empresa'], ['coef', 'Consumo por unidade de serviço', 'num'],
     ['saldo_inicial', 'Quantidade planejada', 'num'], ['data_saldo', 'Data do saldo inicial', 'date'], ['minimo', 'Estoque mínimo', 'num'],
@@ -5835,17 +5966,18 @@ const FORMS = {
 
 function abrirDialogo(tabela, linha, preset = {}) {
   const def = FORMS[tabela];
-  const reg = linha ? T[tabela].find(r => r.linha === linha) : null;
+  const reg = linha ? T[def.base || tabela].find(r => r.linha === linha) : null;
   const dados = { ...(reg || {}), ...preset };
   if (!reg && !dados.data && def.campos.some(c => c[0] === 'data')) dados.data = minD(ref, hoje());
   const dlg = $('#dlg');
   dlg.dataset.tabela = tabela; dlg.dataset.linha = linha || '';
-  $('#dlgTit').textContent = (reg ? 'Editar ' : 'Novo(a) ') + def.tit;
+  $('#dlgTit').textContent = (reg || def.sempreEditar ? 'Editar ' : 'Novo(a) ') + def.tit;
   $('#dlgCampos').innerHTML = def.campos.map(([k, rot, tipo, obrig, cls]) => {
     const v = dados[k] ?? '';
     const req = obrig ? 'required' : '';
     let inp;
-    if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${tipo.slice(7).split(',').map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
+    if (tipo === 'ro') inp = `<input name="${k}" type="text" value="${esc(v)}" readonly>`;
+    else if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${[...new Set([...tipo.slice(7).split(','), ...(v ? [String(v)] : [])])].map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
     else if (tipo === 'material') inp = `<select name="${k}" ${req}>${T.materiais.map(m => `<option value="${esc(m.codigo)}" ${m.codigo === v ? 'selected' : ''}>${esc(m.codigo)} — ${esc(m.material)}</option>`).join('')}</select>`;
     else {
       const lista = { servico: 'listaServicos', empresa: 'listaEmpresas', equipamento: 'listaEquip' }[tipo];
@@ -5856,7 +5988,7 @@ function abrirDialogo(tabela, linha, preset = {}) {
   }).join('');
   $('#dlgExcluir').hidden = !reg;
   $('#dlgExcluir').dataset.confirmar = '';
-  $('#dlgExcluir').textContent = tabela === 'materiais' ? 'Excluir material' : 'Excluir';
+  $('#dlgExcluir').textContent = (def.base || tabela) === 'materiais' ? 'Excluir material' : 'Excluir';
   if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
   dlg.showModal();
   patchDatas();
@@ -5884,14 +6016,16 @@ async function salvarDialogo(ev) {
   FORMS[tabela].campos.forEach(([k, , tipo]) => {
     let v = f.elements.namedItem(k).value.trim();   // namedItem: o campo "item" (BM) colidia com form.elements.item()
     if (tipo === 'num' && v && v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
-    if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && !['obs', 'material', 'atividade', 'item_desc', 'descricao', 'unidade'].includes(k)) v = v.toUpperCase();
+    if (tipo === 'ro') { campos[k] = v; return; }
+    if (['text', 'empresa', 'equipamento', 'servico'].includes(tipo) && !['obs', 'material', 'atividade', 'item_desc', 'descricao', 'unidade'].includes(k) && !(tabela === 'materiais_edit' && ['produto', 'local', 'etapa', 'fornecedor'].includes(k))) v = v.toUpperCase();
     campos[k] = v || null;
   });
   try {
     const def = FORMS[tabela];
     if (def.endpoint) {
-      await postar(API + def.endpoint, campos);
+      await postar(API + def.endpoint, def.envelope ? def.envelope(campos) : campos);
       dlg.close();
+      if (def.recarregar) { await carregar(); toast(`Salvo ${ONDE}`); return; }
       const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
       if (j) EP = j;
       renderEstoquePlanilha();
@@ -5908,10 +6042,10 @@ async function excluirDialogo() {
   const b = $('#dlgExcluir'), dlg = $('#dlg');
   if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão'; return; }
   try {
-    await postar(API + 'registro', { tabela: dlg.dataset.tabela, linha: +dlg.dataset.linha, excluir: true });
+    await postar(API + 'registro', { tabela: FORMS[dlg.dataset.tabela]?.base || dlg.dataset.tabela, linha: +dlg.dataset.linha, excluir: true });
     dlg.close();
     await carregar();
-    toast(dlg.dataset.tabela === 'materiais' ? 'Material excluído' : 'Registro excluído da planilha');
+    toast((FORMS[dlg.dataset.tabela]?.base || dlg.dataset.tabela) === 'materiais' ? 'Material excluído' : 'Registro excluído da planilha');
   } catch (err) { toast(err.message, true); }
 }
 
@@ -6549,17 +6683,23 @@ function baixarRelDP(ini, fim, empFiltro = []) {
   }
   // Tabela resumo consolidado
   const funcGlobal = [...new Set(linhas.map(r => String(r.funcao || '').trim().toUpperCase()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const resumoRows = empsRel.map(emp => {
-    const fCells = funcGlobal.map(f => {
-      const v = soma0(linhas.filter(r => normEmp(r.empresa) === emp && String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0);
-      return `<td class="n">${v || ''}</td>`;
+  // Resumo = PICO por cargo: maior efetivo lançado em um único dia no período (não a soma dos dias). Total = soma dos picos dos cargos.
+  const picoFuncao = (emp, f) => {
+    const porDia = new Map();
+    linhas.forEach(r => {
+      if ((emp && normEmp(r.empresa) !== emp) || String(r.funcao || '').trim().toUpperCase() !== f) return;
+      porDia.set(r.data, (porDia.get(r.data) || 0) + (r.quantidade || 0));
     });
-    const totEmp = soma0(linhas.filter(r => normEmp(r.empresa) === emp), r => r.quantidade || 0);
-    return totEmp ? `<tr><td>${esc(emp)}</td>${fCells.join('')}<td class="n"><b>${nf(totEmp,0)}</b></td></tr>` : '';
+    return Math.max(0, ...porDia.values());
+  };
+  const resumoRows = empsRel.map(emp => {
+    const picos = funcGlobal.map(f => picoFuncao(emp, f));
+    const totEmp = picos.reduce((a, b) => a + b, 0);
+    return totEmp ? `<tr><td>${esc(emp)}</td>${picos.map(v => `<td class="n">${v || ''}</td>`).join('')}<td class="n"><b>${nf(totEmp,0)}</b></td></tr>` : '';
   }).filter(Boolean).join('');
-  const totGFuncs = funcGlobal.map(f => soma0(linhas.filter(r => String(r.funcao || '').trim().toUpperCase() === f), r => r.quantidade || 0));
-  const resumoFoot = `<tfoot><tr class="totrow"><th>TOTAL GERAL</th>${totGFuncs.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(totalGeral,0)}</td></tr></tfoot>`;
-  const resumoHtml = `<h2>Resumo consolidado por empresa</h2><table><thead><tr><th>Empresa</th>${funcGlobal.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${resumoRows || '<tr><td colspan="'+(funcGlobal.length+2)+'">Sem lançamentos no período.</td></tr>'}</tbody>${funcGlobal.length ? resumoFoot : ''}</table>`;
+  const picosGeral = funcGlobal.map(f => picoFuncao('', f));
+  const resumoFoot = `<tfoot><tr class="totrow"><th>TOTAL GERAL</th>${picosGeral.map(v => `<td class="n">${nf(v,0)}</td>`).join('')}<td class="n">${nf(picosGeral.reduce((a, b) => a + b, 0),0)}</td></tr></tfoot>`;
+  const resumoHtml = `<h2>Resumo consolidado por empresa — pico por cargo</h2><table><thead><tr><th>Empresa</th>${funcGlobal.map(f => `<th class="n">${esc(cap(f))}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${resumoRows || '<tr><td colspan="'+(funcGlobal.length+2)+'">Sem lançamentos no período.</td></tr>'}</tbody>${funcGlobal.length ? resumoFoot : ''}</table><p class="sub">Cada cargo mostra o maior efetivo lançado em um único dia do período; o total é a soma dos picos dos cargos.</p>`;
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Efetivo ${ini} a ${fim}</title>${css}</head><body>
   <h1>Relatório de Efetivo — ${esc(obra)}</h1>
   <p class="sub">Período: ${fdA(ini)} a ${fdA(fim)} · Empresas: ${empsComDados.length ? esc(empsComDados.join(', ')) : 'Nenhuma'} · Gerado em ${new Date().toLocaleString('pt-BR')}</p>
@@ -6779,10 +6919,20 @@ function renderTendencia() {
 // ------------------------------------------------------------ eventos
 function ligarEventos() {
   $('#abas').addEventListener('click', ev => { const b = ev.target.closest('button[data-aba]'); if (b) { mudarAba(b.dataset.aba); const sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('aberta'); } });
+  const menuTopo = () => document.documentElement.dataset.menu === 'topo' && window.innerWidth > 900;
+  const fecharAreasTopo = () => document.querySelectorAll('.top-aberto').forEach(x => x.classList.remove('top-aberto'));
   document.querySelectorAll('.sidebar-titulo').forEach(t => t.addEventListener('click', () => {
     const grp = document.getElementById('grp-' + t.dataset.grupo);
+    if (menuTopo()) {   // menu na barra superior: abre só a lista da área clicada (e fecha as outras)
+      const abrir = grp && !grp.classList.contains('top-aberto');
+      fecharAreasTopo();
+      if (abrir) { grp.classList.add('top-aberto'); t.classList.add('top-aberto'); }
+      return;
+    }
     if (grp) { grp.classList.toggle('aberto'); t.classList.toggle('aberto'); }
   }));
+  document.addEventListener('click', ev => { if (menuTopo() && !ev.target.closest('.sidebar-titulo, .sidebar-itens')) fecharAreasTopo(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fecharAreasTopo(); });
   const sbToggle = document.getElementById('sidebarToggle');
   if (sbToggle) sbToggle.addEventListener('click', () => document.getElementById('sidebar').classList.toggle('aberta'));
   ['estMatFiltro', 'estMatLocal', 'estMatTipo', 'estMatEtapa', 'estMatStatus'].forEach(id => {
@@ -6994,13 +7144,13 @@ function ligarEventos() {
     });
   });
 
-  document.getElementById('btnNovoServico').addEventListener('click', () => {
+  document.getElementById('btnNovoServico')?.addEventListener('click', () => {
     const preset = {};
     if (faseFiltro === '2') preset.frente = 'GALPÃO F2';
     abrirDialogo('cliente', null, preset);
   });
 
-  document.getElementById('btnCriarFase2').addEventListener('click', async () => {
+  document.getElementById('btnCriarFase2')?.addEventListener('click', async () => {
     if (!confirm('Criar serviços e planejamento GALPÃO F2 para eixos 01-10?\n• Escopos IFC: IÇAMENTO JOIST = 430, VIGAS = 130 (eixos 01-10, 10 ruas)\n• Demais serviços: quantidades e prazos copiados de F1 para edição posterior\nRegistros já existentes não serão duplicados.')) return;
     try {
       const [r1, r2] = await Promise.all([
@@ -7302,24 +7452,23 @@ function ligarEventos() {
   ligarEventos();
   // Se a navegação veio do Dashboard (?aba=...), essa aba tem prioridade.
   // Caso contrário, restaura a última aba usada pelo usuário.
-  let aba = abaAtual || 'painel';
+  // A aba de Tarefas é fixa: ao entrar no sistema ela é sempre a primeira tela (só um link com ?aba=... a troca).
   const abaUrl = new URLSearchParams(window.location.search).get('aba');
-  if (!abaUrl) {
-    try { aba = localStorage.getItem('obra198_aba') || 'painel'; } catch { }
-  } else {
-    aba = abaUrl;
-  }
+  let aba = abaUrl || 'tarefas';
   if (aba === 'estoque') aba = 'estmat';   // a aba única de estoque virou uma aba por assunto
   $('#refData').value = ref;
   const s = segunda(ref);
   per = { ini: s, fim: add(s, 6) };
   try { await carregar(); definirRef(ref); }
-  catch (err) { $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; }
+  catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
-  mudarAba(document.getElementById('aba-' + aba) ? aba : 'painel');
-  setInterval(verificarVersao, 4000);
-  mostrarAtualizacao(); setInterval(mostrarAtualizacao, 20000);
+  mudarAba(document.getElementById('aba-' + aba) ? aba : 'tarefas');
+  tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // contador do menu, alertas e aviso ao abrir
+  // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
+  setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });
+  mostrarAtualizacao();   // o sistema online está sempre na versão publicada: uma consulta basta (a repetição a cada 20 s só pesava no servidor)
   $('#btnAtualizar').onclick = verificarAtualizacaoAgora;
 })();
 

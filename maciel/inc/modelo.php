@@ -173,17 +173,69 @@ function montar_modelo()
         'contratos_cliente' => (object)(json_decode((string)sistema_ler('contratos_cliente', '{}'), true) ?: []),   // contrato editado na tela do Dashboard cliente
         'fluxo_config' => (object)(json_decode((string)sistema_ler('fluxo_config', '{}'), true) ?: []),   // dependências entre as etapas do fluxo da obra (Planejamento › Fluxo da obra)
         'vinculos_material' => (object)(json_decode((string)sistema_ler('vinculos_material', '{}'), true) ?: []),   // vínculo TAG/peça do IFC ↔ atividade (Suprimentos › Vínculos)
+        'mapa_obra' => (bool)q_global('SELECT 1 FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), 'frentes_montagem_obra'])->fetchColumn(),   // obra com mapa de peças da importação automática
+        'fixadores_atividade' => (object)(json_decode((string)sistema_ler('fixadores_atividade', '{}'), true) ?: []),   // fixadores por unidade de cada atividade (baixa automática no lançamento)
         'projecao_config' => (object)(json_decode((string)sistema_ler('projecao_config', '{}'), true) ?: []),   // conjunto de equipamentos, dias cobrados e preços da aba Projeção
         'referencia' => sistema_ler('referencia', null),
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
-        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo],
+        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos(), 'parafusos' => carregar_ifc_parafusos()],
     ];
+}
+
+// Dado de projeto da OBRA ABERTA (regras de baixa, parafusos, anexos…): vale o que foi gravado para ela pela importação automática
+// (obra_config); só a obra com dados_legados = 1 (obra 198) cai nos arquivos fixos de inc/. Obra nova nunca herda os dados de outra.
+function dado_json_da_obra($chave, $arquivoLegado)
+{
+    $salvo = json_decode((string)q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), $chave])->fetchColumn(), true);
+    if (is_array($salvo)) {
+        return $salvo;
+    }
+    if (sistema_ler('dados_legados', '0') !== '1') {
+        return null;
+    }
+    $p = __DIR__ . '/' . $arquivoLegado;
+    if (!is_file($p)) {
+        return null;
+    }
+    $d = json_decode(file_get_contents($p), true);
+    return is_array($d) ? $d : null;
+}
+
+// Parafusos lidos dos modelos TRB (quantidade por tipo e por local), gerado por ferramentas/trb_parafusos.py
+function carregar_ifc_parafusos()
+{
+    return dado_json_da_obra('ifc_parafusos', 'ifc_parafusos.json');
+}
+
+// Peças por local e família dos IFCs dos anexos (Eclusa, Portaria, Refeitório, Vestiário), gerado por ferramentas/ifc_anexos.py
+function carregar_ifc_anexos()
+{
+    return dado_json_da_obra('ifc_anexos', 'ifc_anexos.json');
 }
 
 // O estoque importado da planilha (materiais, remessas, consumo físico, inventário) fica guardado como JSON:
 // é um documento só, do mesmo formato que o programa local lê de dados/estoque_obra198.json.
+function obra_preserva_identidade_ifc()
+{
+    static $cache = [];
+    $id = obra_atual_id();
+    if (!array_key_exists($id, $cache)) $cache[$id] = sistema_ler('padrao_identidade_ifc', '0') === '1';
+    return $cache[$id];
+}
+
+function estoque_tag($tag)
+{
+    $tag = trim((string)$tag);
+    return obra_preserva_identidade_ifc() ? $tag : mb_strtoupper($tag);
+}
+
+function estoque_empresas_consumo()
+{
+    return obra_preserva_identidade_ifc() ? q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll(PDO::FETCH_COLUMN) : ['EJ', 'CMM'];
+}
+
 function estoque_planilha_ler()
 {
     $txt = sistema_ler('estoque_planilha', null);
@@ -192,7 +244,12 @@ function estoque_planilha_ler()
         $txt = is_file($p) ? file_get_contents($p) : null;
     }
     $d = $txt === null ? null : json_decode($txt, true);
-    if (!is_array($d)) { return null; }
+    if (!is_array($d)) {
+        // obra nova (sem planilha importada): estoque vazio, para as telas de Suprimentos abrirem e receberem remessas e consumo
+        $empresas = array_map(function ($e) { return $e['nome']; }, q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll());
+        return ['fonte' => 'Obra nova (sem planilha importada)', 'materiais' => [], 'remessas' => ['colunas' => [], 'itens' => [], 'datas' => (object)[]],
+            'consumo_fisico' => ['semanas' => [], 'empresas' => $empresas, 'itens' => [], 'inventarios_datas' => (object)[]], 'inventario' => []];
+    }
     // Retrocompatibilidade: se o dado do banco não tem datas de remessa,
     // mescla as datas do arquivo inicial (que sempre tem a versão atualizada).
     if (!isset($d['remessas']['datas'])) {
@@ -227,12 +284,7 @@ function carregar_inventario_ifc()
 
 function carregar_regras_baixa()
 {
-    $p = __DIR__ . '/regras_baixa.json';
-    if (!is_file($p)) {
-        return null;
-    }
-    $d = json_decode(file_get_contents($p), true);
-    return is_array($d) ? $d : null;
+    return dado_json_da_obra('regras_baixa', 'regras_baixa.json');
 }
 
 // Converte as linhas do apontamento de montagem nos eventos que o motor de baixa entende

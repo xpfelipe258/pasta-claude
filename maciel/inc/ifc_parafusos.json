@@ -1,0 +1,2686 @@
+{
+ "observacao": "Parafusos lidos dos modelos TRB (os IFC R0A saem sem parafuso). TIPO BOLT = parafuso (qtd = NUMBER por conjunto); TIPO HOLE = só furo, não conta como parafuso. Arruela/porca \"FALSA\" do modelo foi excluída das listas e dos totais. Local = prédio das peças vizinhas; coordenadas no sistema do projeto (m).",
+ "fontes": [
+  {
+   "arquivo": "ea3034b5-OF.198_-_LYON_G200_PORTARIA.ifc.trb",
+   "entidades": 17998,
+   "conjuntos_parafuso": 11486
+  },
+  {
+   "arquivo": "50e8e2e1-OF.198_-_LYON_G200_ANEXOS.ifc.trb",
+   "entidades": 17580,
+   "conjuntos_parafuso": 1456
+  },
+  {
+   "arquivo": "3ed81cd8-OF.198_-_LYON_G200_REFEIT_RIO.ifc.trb",
+   "entidades": 5366,
+   "conjuntos_parafuso": 1606
+  },
+  {
+   "arquivo": "b80dc3fa-OF.198_-_LYON_G200_VESTI_RIO.ifc.trb",
+   "entidades": 5849,
+   "conjuntos_parafuso": 1741
+  }
+ ],
+ "por_local": {
+  "Anexos (geral)": {
+   "BOLT_conjuntos": 52,
+   "BOLT_qtd": 104,
+   "arruelas": 0,
+   "porcas": 0
+  },
+  "Eclusa": {
+   "BOLT_conjuntos": 5480,
+   "BOLT_qtd": 6100,
+   "arruelas": 5908,
+   "porcas": 5908,
+   "HOLE_conjuntos": 5744,
+   "HOLE_qtd": 5928
+  },
+  "Marquise Refeitório/Vestiário": {
+   "HOLE_conjuntos": 168,
+   "HOLE_qtd": 228,
+   "BOLT_conjuntos": 98,
+   "BOLT_qtd": 180,
+   "arruelas": 174,
+   "porcas": 174
+  },
+  "Passarela": {
+   "HOLE_conjuntos": 151,
+   "HOLE_qtd": 242,
+   "BOLT_conjuntos": 239,
+   "BOLT_qtd": 602,
+   "arruelas": 464,
+   "porcas": 464
+  },
+  "Ponto de ônibus": {
+   "HOLE_conjuntos": 252,
+   "HOLE_qtd": 448,
+   "BOLT_conjuntos": 496,
+   "BOLT_qtd": 1224,
+   "arruelas": 1224,
+   "porcas": 1224
+  },
+  "Portaria": {
+   "HOLE_conjuntos": 58,
+   "HOLE_qtd": 76,
+   "BOLT_conjuntos": 204,
+   "BOLT_qtd": 450,
+   "arruelas": 358,
+   "porcas": 358
+  },
+  "Refeitório": {
+   "HOLE_conjuntos": 749,
+   "HOLE_qtd": 1109,
+   "BOLT_conjuntos": 857,
+   "BOLT_qtd": 1587,
+   "arruelas": 1236,
+   "porcas": 1236
+  },
+  "Vestiário": {
+   "BOLT_conjuntos": 945,
+   "BOLT_qtd": 1749,
+   "arruelas": 1384,
+   "porcas": 1384,
+   "HOLE_conjuntos": 796,
+   "HOLE_qtd": 1132
+  }
+ },
+ "por_tipo": {
+  "AB 1/4\"X2\"_TCP3": {
+   "diametro_mm": 6.3,
+   "comprimento_mm": 50.8,
+   "qtd": 244,
+   "locais": {
+    "Passarela": 138,
+    "Anexos (geral)": 104,
+    "Marquise Refeitório/Vestiário": 2
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "AB 1/4\"X3/4\"_TCP3": {
+   "diametro_mm": 6.3,
+   "comprimento_mm": 19.0,
+   "qtd": 516,
+   "locais": {
+    "Eclusa": 192,
+    "Refeitório": 152,
+    "Vestiário": 172
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_1/2\"X4\"": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 101.6,
+   "qtd": 8,
+   "locais": {
+    "Portaria": 8
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_1/2\"X4.1/4\"": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 108.0,
+   "qtd": 266,
+   "locais": {
+    "Portaria": 48,
+    "Refeitório": 115,
+    "Vestiário": 103
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_1/2\"X7\"": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 178.0,
+   "qtd": 16,
+   "locais": {
+    "Portaria": 16
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_3/4\"X4.1/4\"": {
+   "diametro_mm": 19.0,
+   "comprimento_mm": 108.0,
+   "qtd": 12,
+   "locais": {
+    "Refeitório": 8,
+    "Vestiário": 4
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_3/8\"X2.1/4\"": {
+   "diametro_mm": 9.6,
+   "comprimento_mm": 57.2,
+   "qtd": 162,
+   "locais": {
+    "Refeitório": 76,
+    "Vestiário": 86
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARABOLT_3/8\"X3.3/4\"": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 95.0,
+   "qtd": 24,
+   "locais": {
+    "Portaria": 20,
+    "Marquise Refeitório/Vestiário": 4
+   },
+   "arruelas": {},
+   "porcas": {}
+  },
+  "PARAF_1/2\"X1\"1/2_A307": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "qtd": 376,
+   "locais": {
+    "Eclusa": 8,
+    "Portaria": 16,
+    "Ponto de ônibus": 104,
+    "Marquise Refeitório/Vestiário": 16,
+    "Passarela": 8,
+    "Refeitório": 128,
+    "Vestiário": 96
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 376
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 376
+   }
+  },
+  "PARAF_1/2\"X1\"1/4_A307": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "qtd": 1052,
+   "locais": {
+    "Eclusa": 244,
+    "Refeitório": 380,
+    "Vestiário": 428
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 1052
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 1052
+   }
+  },
+  "PARAF_1/2\"X1\"1/4_A325": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "qtd": 1424,
+   "locais": {
+    "Eclusa": 128,
+    "Refeitório": 576,
+    "Vestiário": 720
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 1424
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 1424
+   }
+  },
+  "PARAF_1/2\"X1\"3/4_A307": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "qtd": 84,
+   "locais": {
+    "Portaria": 16,
+    "Eclusa": 4,
+    "Refeitório": 32,
+    "Vestiário": 32
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 84
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 84
+   }
+  },
+  "PARAF_1/2\"X1\"3/4_A325": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "qtd": 56,
+   "locais": {
+    "Eclusa": 56
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 56
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 56
+   }
+  },
+  "PARAF_1/2\"X2\"1/2_A325": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 63.5,
+   "qtd": 4,
+   "locais": {
+    "Eclusa": 4
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 4
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 4
+   }
+  },
+  "PARAF_1/2\"X2\"1/4_A307": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 57.2,
+   "qtd": 2,
+   "locais": {
+    "Eclusa": 2
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 2
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 2
+   }
+  },
+  "PARAF_1/2\"X2\"1/4_A325": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 57.2,
+   "qtd": 26,
+   "locais": {
+    "Eclusa": 26
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 26
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 26
+   }
+  },
+  "PARAF_1/2\"X2\"_A307": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 50.8,
+   "qtd": 28,
+   "locais": {
+    "Portaria": 28
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 28
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 28
+   }
+  },
+  "PARAF_1/2\"X2\"_A325": {
+   "diametro_mm": 12.7,
+   "comprimento_mm": 50.8,
+   "qtd": 72,
+   "locais": {
+    "Eclusa": 72
+   },
+   "arruelas": {
+    "ARRUELA_1/2\"_LISA": 72
+   },
+   "porcas": {
+    "PORCA_1/2\"_HEX": 72
+   }
+  },
+  "PARAF_3/8\"X1\"1/2_A307": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 38.1,
+   "qtd": 908,
+   "locais": {
+    "Portaria": 216,
+    "Eclusa": 20,
+    "Ponto de ônibus": 672
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 908
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 908
+   }
+  },
+  "PARAF_3/8\"X1\"1/4_A307": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 31.8,
+   "qtd": 498,
+   "locais": {
+    "Eclusa": 64,
+    "Portaria": 40,
+    "Passarela": 240,
+    "Marquise Refeitório/Vestiário": 154
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 498
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 498
+   }
+  },
+  "PARAF_3/8\"X1\"3/4_A307": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 44.5,
+   "qtd": 28,
+   "locais": {
+    "Eclusa": 28
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 28
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 28
+   }
+  },
+  "PARAF_3/8\"X1\"_A307": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 25.4,
+   "qtd": 48,
+   "locais": {
+    "Portaria": 20,
+    "Marquise Refeitório/Vestiário": 4,
+    "Passarela": 24
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 48
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 48
+   }
+  },
+  "PARAF_3/8\"X1\"_GR.8": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 25.4,
+   "qtd": 144,
+   "locais": {
+    "Eclusa": 144
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 144
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 144
+   }
+  },
+  "PARAF_3/8\"X3/4\"_A307": {
+   "diametro_mm": 9.5,
+   "comprimento_mm": 19.0,
+   "qtd": 5012,
+   "locais": {
+    "Eclusa": 4960,
+    "Refeitório": 24,
+    "Vestiário": 28
+   },
+   "arruelas": {
+    "ARRUELA_3/8\"_LISA": 5012
+   },
+   "porcas": {
+    "PORCA_3/8\"_HEX": 5012
+   }
+  },
+  "PARAF_5/8\"X1\"1/2_A325": {
+   "diametro_mm": 15.9,
+   "comprimento_mm": 38.1,
+   "qtd": 80,
+   "locais": {
+    "Eclusa": 80
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 80
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 80
+   }
+  },
+  "PARAF_5/8\"X1\"1/4_A325": {
+   "diametro_mm": 15.9,
+   "comprimento_mm": 31.8,
+   "qtd": 16,
+   "locais": {
+    "Eclusa": 16
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 16
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 16
+   }
+  },
+  "PARAF_5/8\"X1\"3/4_A325": {
+   "diametro_mm": 15.9,
+   "comprimento_mm": 44.5,
+   "qtd": 310,
+   "locais": {
+    "Portaria": 22,
+    "Passarela": 192,
+    "Refeitório": 64,
+    "Vestiário": 32
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 310
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 310
+   }
+  },
+  "PARAF_5/8\"X2\"1/4_A325": {
+   "diametro_mm": 16.0,
+   "comprimento_mm": 57.2,
+   "qtd": 80,
+   "locais": {
+    "Refeitório": 32,
+    "Vestiário": 48
+   },
+   "arruelas": {
+    "ARRUELA_5/8\"_LISA": 80
+   },
+   "porcas": {
+    "PORCA_5/8\"_HEX": 80
+   }
+  },
+  "PARAF_7/8\"X2\"1/2_A325": {
+   "diametro_mm": 22.2,
+   "comprimento_mm": 63.5,
+   "qtd": 448,
+   "locais": {
+    "Ponto de ônibus": 448
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 448
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 448
+   }
+  },
+  "PARAF_7/8\"X2\"3/4_A325": {
+   "diametro_mm": 22.2,
+   "comprimento_mm": 69.8,
+   "qtd": 32,
+   "locais": {
+    "Eclusa": 32
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 32
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 32
+   }
+  },
+  "PARAF_7/8\"X3\"_A325": {
+   "diametro_mm": 22.2,
+   "comprimento_mm": 76.2,
+   "qtd": 20,
+   "locais": {
+    "Eclusa": 20
+   },
+   "arruelas": {
+    "ARRUELA_7/8\"_LISA": 20
+   },
+   "porcas": {
+    "PORCA_7/8\"_HEX": 20
+   }
+  }
+ },
+ "por_local_fase": {
+  "Anexos (geral)": {
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "AB 1/4\"X2\"_TCP3": 104
+    }
+   }
+  },
+  "Eclusa": {
+   "1.3.1 E.M. COB. ECLUSA": {
+    "parafusos": {
+     "PARAF_3/8\"X3/4\"_A307": 272,
+     "AB 1/4\"X3/4\"_TCP3": 192,
+     "PARAF_1/2\"X1\"3/4_A325": 44,
+     "PARAF_3/8\"X1\"_GR.8": 144,
+     "PARAF_3/8\"X1\"1/4_A307": 16,
+     "PARAF_1/2\"X2\"1/4_A325": 26,
+     "PARAF_1/2\"X2\"_A325": 72,
+     "PARAF_1/2\"X1\"1/4_A325": 4,
+     "PARAF_3/8\"X1\"3/4_A307": 8,
+     "PARAF_7/8\"X2\"3/4_A325": 32,
+     "PARAF_1/2\"X2\"1/2_A325": 4,
+     "PARAF_1/2\"X2\"1/4_A307": 2,
+     "PARAF_7/8\"X3\"_A325": 12
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 440,
+     "ARRUELA_1/2\"_LISA": 152,
+     "ARRUELA_7/8\"_LISA": 44
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 440,
+     "PORCA_1/2\"_HEX": 152,
+     "PORCA_7/8\"_HEX": 44
+    }
+   },
+   "1.3.2 E.M. PLATIBANDA ECLUSA": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A307": 244,
+     "PARAF_1/2\"X1\"1/4_A325": 124,
+     "PARAF_1/2\"X1\"1/2_A307": 8,
+     "PARAF_3/8\"X3/4\"_A307": 64,
+     "PARAF_1/2\"X1\"3/4_A325": 12,
+     "PARAF_3/8\"X1\"1/4_A307": 16,
+     "PARAF_5/8\"X1\"1/2_A325": 80,
+     "PARAF_5/8\"X1\"1/4_A325": 16,
+     "PARAF_3/8\"X1\"1/2_A307": 16,
+     "PARAF_1/2\"X1\"3/4_A307": 4
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 392,
+     "ARRUELA_3/8\"_LISA": 96,
+     "ARRUELA_5/8\"_LISA": 96
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 392,
+     "PORCA_3/8\"_HEX": 96,
+     "PORCA_5/8\"_HEX": 96
+    }
+   },
+   "JOIST_ECLUSA": {
+    "parafusos": {
+     "PARAF_3/8\"X3/4\"_A307": 4624,
+     "PARAF_3/8\"X1\"1/4_A307": 32,
+     "PARAF_3/8\"X1\"3/4_A307": 20,
+     "PARAF_3/8\"X1\"1/2_A307": 4,
+     "PARAF_7/8\"X3\"_A325": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 4680,
+     "ARRUELA_7/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 4680,
+     "PORCA_7/8\"_HEX": 8
+    }
+   }
+  },
+  "Marquise Refeitório/Vestiário": {
+   "1.3.10 TESTEIRA MQ REF. E VEST.": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   },
+   "1.3.13 E.M. COB PASSARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 10,
+     "AB 1/4\"X2\"_TCP3": 2,
+     "PARAF_1/2\"X1\"1/2_A307": 1,
+     "PARAF_3/8\"X1\"_A307": 4,
+     "PARABOLT_3/8\"X3.3/4\"": 4
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 14,
+     "ARRUELA_1/2\"_LISA": 1
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 14,
+     "PORCA_1/2\"_HEX": 1
+    }
+   },
+   "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 140,
+     "PARAF_1/2\"X1\"1/2_A307": 15
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 140,
+     "ARRUELA_1/2\"_LISA": 15
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 140,
+     "PORCA_1/2\"_HEX": 15
+    }
+   },
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   }
+  },
+  "Passarela": {
+   "1.3.13 E.M. COB PASSARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 218,
+     "PARAF_5/8\"X1\"3/4_A325": 192,
+     "AB 1/4\"X2\"_TCP3": 38,
+     "PARAF_1/2\"X1\"1/2_A307": 8,
+     "PARAF_3/8\"X1\"_A307": 24
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 242,
+     "ARRUELA_5/8\"_LISA": 192,
+     "ARRUELA_1/2\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 242,
+     "PORCA_5/8\"_HEX": 192,
+     "PORCA_1/2\"_HEX": 8
+    }
+   },
+   "1.3.14 TESTEIRA PASARELA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   },
+   "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 4
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 4
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 4
+    }
+   },
+   "1.4.1 TELHA COB. ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 2,
+     "AB 1/4\"X2\"_TCP3": 2
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 2
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 2
+    }
+   },
+   "1.4.10 CALHAS ANEXOS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/4_A307": 8,
+     "AB 1/4\"X2\"_TCP3": 98
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   }
+  },
+  "Ponto de ônibus": {
+   "1.3.15 E.M. COB. PONTO DE ÔNIBUS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 664,
+     "PARAF_7/8\"X2\"1/2_A325": 448,
+     "PARAF_1/2\"X1\"1/2_A307": 104
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 664,
+     "ARRUELA_7/8\"_LISA": 448,
+     "ARRUELA_1/2\"_LISA": 104
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 664,
+     "PORCA_7/8\"_HEX": 448,
+     "PORCA_1/2\"_HEX": 104
+    }
+   },
+   "1.3.16 TESTEIRA PONTO DE ÔNIBUS": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 8
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 8
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 8
+    }
+   }
+  },
+  "Portaria": {
+   "1.3.3. E.M. COB. PORTARIA": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/2_A307": 16,
+     "PARAF_3/8\"X1\"_A307": 20,
+     "PARAF_1/2\"X1\"3/4_A307": 16,
+     "PARABOLT_1/2\"X4.1/4\"": 48,
+     "PARAF_3/8\"X1\"1/2_A307": 210,
+     "PARAF_3/8\"X1\"1/4_A307": 34,
+     "PARABOLT_1/2\"X4\"": 8,
+     "PARABOLT_3/8\"X3.3/4\"": 20,
+     "PARAF_5/8\"X1\"3/4_A325": 22,
+     "PARABOLT_1/2\"X7\"": 16,
+     "PARAF_1/2\"X2\"_A307": 28
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 60,
+     "ARRUELA_3/8\"_LISA": 264,
+     "ARRUELA_5/8\"_LISA": 22
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 60,
+     "PORCA_3/8\"_HEX": 264,
+     "PORCA_5/8\"_HEX": 22
+    }
+   },
+   "1.4.10 CALHAS PORTARIA": {
+    "parafusos": {
+     "PARAF_3/8\"X1\"1/2_A307": 6,
+     "PARAF_3/8\"X1\"1/4_A307": 6
+    },
+    "arruelas": {
+     "ARRUELA_3/8\"_LISA": 12
+    },
+    "porcas": {
+     "PORCA_3/8\"_HEX": 12
+    }
+   }
+  },
+  "Refeitório": {
+   "1.3.7 E.M COB. REFEITÓRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A307": 380,
+     "PARAF_1/2\"X1\"1/2_A307": 128,
+     "PARAF_1/2\"X1\"1/4_A325": 560,
+     "PARABOLT_1/2\"X4.1/4\"": 48,
+     "PARAF_3/8\"X3/4\"_A307": 24,
+     "PARAF_1/2\"X1\"3/4_A307": 32,
+     "PARAF_5/8\"X2\"1/4_A325": 32,
+     "PARAF_5/8\"X1\"3/4_A325": 64
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 1100,
+     "ARRUELA_3/8\"_LISA": 24,
+     "ARRUELA_5/8\"_LISA": 96
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 1100,
+     "PORCA_3/8\"_HEX": 24,
+     "PORCA_5/8\"_HEX": 96
+    }
+   },
+   "1.4.10 CALHAS REFEITÓRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A325": 16,
+     "AB 1/4\"X3/4\"_TCP3": 152,
+     "PARABOLT_3/8\"X2.1/4\"": 76
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 16
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 16
+    }
+   },
+   "1.4.9 LINHA DE VIDA ANEXOS": {
+    "parafusos": {
+     "PARABOLT_1/2\"X4.1/4\"": 67,
+     "PARABOLT_3/4\"X4.1/4\"": 8
+    }
+   }
+  },
+  "Vestiário": {
+   "1.3.8 E.M. COB VESTIÁRIO": {
+    "parafusos": {
+     "PARAF_1/2\"X1\"1/4_A325": 696,
+     "PARABOLT_1/2\"X4.1/4\"": 56,
+     "PARAF_1/2\"X1\"1/4_A307": 428,
+     "PARAF_1/2\"X1\"1/2_A307": 96,
+     "PARAF_5/8\"X1\"3/4_A325": 32,
+     "PARAF_1/2\"X1\"3/4_A307": 32,
+     "PARAF_3/8\"X3/4\"_A307": 28,
+     "PARAF_5/8\"X2\"1/4_A325": 48
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 1252,
+     "ARRUELA_5/8\"_LISA": 80,
+     "ARRUELA_3/8\"_LISA": 28
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 1252,
+     "PORCA_5/8\"_HEX": 80,
+     "PORCA_3/8\"_HEX": 28
+    }
+   },
+   "1.4.10 CALHAS VESTIÁRIO": {
+    "parafusos": {
+     "AB 1/4\"X3/4\"_TCP3": 172,
+     "PARAF_1/2\"X1\"1/4_A325": 24,
+     "PARABOLT_3/8\"X2.1/4\"": 86
+    },
+    "arruelas": {
+     "ARRUELA_1/2\"_LISA": 24
+    },
+    "porcas": {
+     "PORCA_1/2\"_HEX": 24
+    }
+   },
+   "1.4.9 LINHA DE VIDA ANEXOS": {
+    "parafusos": {
+     "PARABOLT_1/2\"X4.1/4\"": 47,
+     "PARABOLT_3/4\"X4.1/4\"": 4
+    }
+   }
+  }
+ },
+ "por_arruela": {
+  "ARRUELA_1/2\"_LISA": {
+   "qtd": 3124,
+   "locais": {
+    "Eclusa": 544,
+    "Portaria": 60,
+    "Ponto de ônibus": 104,
+    "Marquise Refeitório/Vestiário": 16,
+    "Passarela": 8,
+    "Refeitório": 1116,
+    "Vestiário": 1276
+   },
+   "parafusos": {
+    "PARAF_1/2\"X1\"1/4_A307": 1052,
+    "PARAF_1/2\"X1\"1/4_A325": 1424,
+    "PARAF_1/2\"X1\"3/4_A325": 56,
+    "PARAF_1/2\"X1\"1/2_A307": 376,
+    "PARAF_1/2\"X1\"3/4_A307": 84,
+    "PARAF_1/2\"X2\"1/4_A325": 26,
+    "PARAF_1/2\"X2\"_A325": 72,
+    "PARAF_1/2\"X2\"1/2_A325": 4,
+    "PARAF_1/2\"X2\"1/4_A307": 2,
+    "PARAF_1/2\"X2\"_A307": 28
+   }
+  },
+  "ARRUELA_3/8\"_LISA": {
+   "qtd": 6638,
+   "locais": {
+    "Eclusa": 5216,
+    "Portaria": 276,
+    "Ponto de ônibus": 672,
+    "Passarela": 264,
+    "Marquise Refeitório/Vestiário": 158,
+    "Refeitório": 24,
+    "Vestiário": 28
+   },
+   "parafusos": {
+    "PARAF_3/8\"X3/4\"_A307": 5012,
+    "PARAF_3/8\"X1\"_A307": 48,
+    "PARAF_3/8\"X1\"_GR.8": 144,
+    "PARAF_3/8\"X1\"1/4_A307": 498,
+    "PARAF_3/8\"X1\"1/2_A307": 908,
+    "PARAF_3/8\"X1\"3/4_A307": 28
+   }
+  },
+  "ARRUELA_5/8\"_LISA": {
+   "qtd": 486,
+   "locais": {
+    "Eclusa": 96,
+    "Portaria": 22,
+    "Passarela": 192,
+    "Refeitório": 96,
+    "Vestiário": 80
+   },
+   "parafusos": {
+    "PARAF_5/8\"X1\"1/2_A325": 80,
+    "PARAF_5/8\"X1\"1/4_A325": 16,
+    "PARAF_5/8\"X1\"3/4_A325": 310,
+    "PARAF_5/8\"X2\"1/4_A325": 80
+   }
+  },
+  "ARRUELA_7/8\"_LISA": {
+   "qtd": 500,
+   "locais": {
+    "Eclusa": 52,
+    "Ponto de ônibus": 448
+   },
+   "parafusos": {
+    "PARAF_7/8\"X2\"3/4_A325": 32,
+    "PARAF_7/8\"X3\"_A325": 20,
+    "PARAF_7/8\"X2\"1/2_A325": 448
+   }
+  }
+ },
+ "por_porca": {
+  "PORCA_1/2\"_HEX": {
+   "qtd": 3124,
+   "locais": {
+    "Eclusa": 544,
+    "Portaria": 60,
+    "Ponto de ônibus": 104,
+    "Marquise Refeitório/Vestiário": 16,
+    "Passarela": 8,
+    "Refeitório": 1116,
+    "Vestiário": 1276
+   },
+   "parafusos": {
+    "PARAF_1/2\"X1\"1/4_A307": 1052,
+    "PARAF_1/2\"X1\"1/4_A325": 1424,
+    "PARAF_1/2\"X1\"3/4_A325": 56,
+    "PARAF_1/2\"X1\"1/2_A307": 376,
+    "PARAF_1/2\"X1\"3/4_A307": 84,
+    "PARAF_1/2\"X2\"1/4_A325": 26,
+    "PARAF_1/2\"X2\"_A325": 72,
+    "PARAF_1/2\"X2\"1/2_A325": 4,
+    "PARAF_1/2\"X2\"1/4_A307": 2,
+    "PARAF_1/2\"X2\"_A307": 28
+   }
+  },
+  "PORCA_3/8\"_HEX": {
+   "qtd": 6638,
+   "locais": {
+    "Eclusa": 5216,
+    "Portaria": 276,
+    "Ponto de ônibus": 672,
+    "Passarela": 264,
+    "Marquise Refeitório/Vestiário": 158,
+    "Refeitório": 24,
+    "Vestiário": 28
+   },
+   "parafusos": {
+    "PARAF_3/8\"X3/4\"_A307": 5012,
+    "PARAF_3/8\"X1\"_A307": 48,
+    "PARAF_3/8\"X1\"_GR.8": 144,
+    "PARAF_3/8\"X1\"1/4_A307": 498,
+    "PARAF_3/8\"X1\"1/2_A307": 908,
+    "PARAF_3/8\"X1\"3/4_A307": 28
+   }
+  },
+  "PORCA_5/8\"_HEX": {
+   "qtd": 486,
+   "locais": {
+    "Eclusa": 96,
+    "Portaria": 22,
+    "Passarela": 192,
+    "Refeitório": 96,
+    "Vestiário": 80
+   },
+   "parafusos": {
+    "PARAF_5/8\"X1\"1/2_A325": 80,
+    "PARAF_5/8\"X1\"1/4_A325": 16,
+    "PARAF_5/8\"X1\"3/4_A325": 310,
+    "PARAF_5/8\"X2\"1/4_A325": 80
+   }
+  },
+  "PORCA_7/8\"_HEX": {
+   "qtd": 500,
+   "locais": {
+    "Eclusa": 52,
+    "Ponto de ônibus": 448
+   },
+   "parafusos": {
+    "PARAF_7/8\"X2\"3/4_A325": 32,
+    "PARAF_7/8\"X3\"_A325": 20,
+    "PARAF_7/8\"X2\"1/2_A325": 448
+   }
+  }
+ },
+ "por_local_tipo": [
+  {
+   "local": "Anexos (geral)",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X2\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 50.8,
+   "conjuntos": 52,
+   "qtd": 104,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 104
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X3/4\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 19.0,
+   "conjuntos": 96,
+   "qtd": 192,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 192
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 4,
+   "qtd": 8,
+   "arruelas": 8,
+   "porcas": 8,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 8,
+   "nome_porca:PORCA_1/2\"_HEX": 8,
+   "em_obra": 8
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 122,
+   "qtd": 244,
+   "arruelas": 244,
+   "porcas": 244,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 244,
+   "nome_porca:PORCA_1/2\"_HEX": 244,
+   "em_obra": 244
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 40,
+   "qtd": 128,
+   "arruelas": 128,
+   "porcas": 128,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 128,
+   "nome_porca:PORCA_1/2\"_HEX": 128,
+   "em_obra": 128
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"3/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "conjuntos": 2,
+   "qtd": 4,
+   "arruelas": 4,
+   "porcas": 4,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 4,
+   "nome_porca:PORCA_1/2\"_HEX": 4,
+   "em_obra": 4
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"3/4_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "conjuntos": 56,
+   "qtd": 56,
+   "arruelas": 56,
+   "porcas": 56,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 56,
+   "nome_porca:PORCA_1/2\"_HEX": 56,
+   "em_obra": 56
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X2\"1/2_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 63.5,
+   "conjuntos": 4,
+   "qtd": 4,
+   "arruelas": 4,
+   "porcas": 4,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 4,
+   "nome_porca:PORCA_1/2\"_HEX": 4,
+   "em_obra": 4
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X2\"1/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 57.2,
+   "conjuntos": 2,
+   "qtd": 2,
+   "arruelas": 2,
+   "porcas": 2,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 2,
+   "nome_porca:PORCA_1/2\"_HEX": 2,
+   "em_obra": 2
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X2\"1/4_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 57.2,
+   "conjuntos": 26,
+   "qtd": 26,
+   "arruelas": 26,
+   "porcas": 26,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 26,
+   "nome_porca:PORCA_1/2\"_HEX": 26,
+   "em_obra": 26
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X2\"_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 50.8,
+   "conjuntos": 72,
+   "qtd": 72,
+   "arruelas": 72,
+   "porcas": 72,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 72,
+   "nome_porca:PORCA_1/2\"_HEX": 72,
+   "em_obra": 72
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/2_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 38.1,
+   "conjuntos": 10,
+   "qtd": 20,
+   "arruelas": 20,
+   "porcas": 20,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 20,
+   "nome_porca:PORCA_3/8\"_HEX": 20,
+   "em_obra": 20
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/4_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 31.8,
+   "conjuntos": 32,
+   "qtd": 64,
+   "arruelas": 64,
+   "porcas": 64,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 64,
+   "nome_porca:PORCA_3/8\"_HEX": 64,
+   "em_obra": 64
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"3/4_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 44.5,
+   "conjuntos": 14,
+   "qtd": 28,
+   "arruelas": 28,
+   "porcas": 28,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 28,
+   "nome_porca:PORCA_3/8\"_HEX": 28,
+   "em_obra": 28
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"_GR.8",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 25.4,
+   "conjuntos": 144,
+   "qtd": 144,
+   "arruelas": 144,
+   "porcas": 144,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 144,
+   "nome_porca:PORCA_3/8\"_HEX": 144,
+   "em_obra": 144
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 19.0,
+   "conjuntos": 4816,
+   "qtd": 4960,
+   "arruelas": 4960,
+   "porcas": 4960,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 4960,
+   "nome_porca:PORCA_3/8\"_HEX": 4960,
+   "em_obra": 4960
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"1/2_A325",
+   "diametro_mm": 15.9,
+   "comprimento_mm": 38.1,
+   "conjuntos": 20,
+   "qtd": 80,
+   "arruelas": 80,
+   "porcas": 80,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 80,
+   "nome_porca:PORCA_5/8\"_HEX": 80,
+   "em_obra": 80
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 15.9,
+   "comprimento_mm": 31.8,
+   "conjuntos": 8,
+   "qtd": 16,
+   "arruelas": 16,
+   "porcas": 16,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 16,
+   "nome_porca:PORCA_5/8\"_HEX": 16,
+   "em_obra": 16
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_7/8\"X2\"3/4_A325",
+   "diametro_mm": 22.2,
+   "comprimento_mm": 69.8,
+   "conjuntos": 8,
+   "qtd": 32,
+   "arruelas": 32,
+   "porcas": 32,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 32,
+   "nome_porca:PORCA_7/8\"_HEX": 32,
+   "em_obra": 32
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "BOLT",
+   "prf": "PARAF_7/8\"X3\"_A325",
+   "diametro_mm": 22.2,
+   "comprimento_mm": 76.2,
+   "conjuntos": 4,
+   "qtd": 20,
+   "arruelas": 20,
+   "porcas": 20,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 20,
+   "nome_porca:PORCA_7/8\"_HEX": 20,
+   "em_obra": 20
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.6,
+   "conjuntos": 72,
+   "qtd": 136,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 136
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.9,
+   "conjuntos": 72,
+   "qtd": 128,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 128
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.4,
+   "conjuntos": 64,
+   "qtd": 64,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 64
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.4,
+   "conjuntos": 8,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 17.7,
+   "conjuntos": 64,
+   "qtd": 64,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 64
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 24.0,
+   "conjuntos": 8,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/4\"X3\"_A325",
+   "diametro_mm": 21.0,
+   "comprimento_mm": 75.5,
+   "conjuntos": 6,
+   "qtd": 12,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
+   "em_obra": 12
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X1\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 24.0,
+   "conjuntos": 22,
+   "qtd": 44,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 44
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 1.0,
+   "conjuntos": 3024,
+   "qtd": 3024,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 3024
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 1.3,
+   "conjuntos": 288,
+   "qtd": 288,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 288
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 1.6,
+   "conjuntos": 1728,
+   "qtd": 1728,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 1728
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 6.4,
+   "conjuntos": 288,
+   "qtd": 288,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 288
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 8.2,
+   "conjuntos": 64,
+   "qtd": 64,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 64
+  },
+  {
+   "local": "Eclusa",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 17.7,
+   "conjuntos": 36,
+   "qtd": 72,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 72
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X2\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 50.8,
+   "conjuntos": 1,
+   "qtd": 2,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 2
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/8\"X3.3/4\"",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 95.0,
+   "conjuntos": 2,
+   "qtd": 4,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 4
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 16,
+   "qtd": 16,
+   "arruelas": 16,
+   "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
+   "em_obra": 16
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/4_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 31.8,
+   "conjuntos": 77,
+   "qtd": 154,
+   "arruelas": 154,
+   "porcas": 154,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 154,
+   "nome_porca:PORCA_3/8\"_HEX": 154,
+   "em_obra": 154
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 25.4,
+   "conjuntos": 2,
+   "qtd": 4,
+   "arruelas": 4,
+   "porcas": 4,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 4,
+   "nome_porca:PORCA_3/8\"_HEX": 4,
+   "em_obra": 4
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 10.3,
+   "conjuntos": 58,
+   "qtd": 58,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 58
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.5,
+   "conjuntos": 16,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.9,
+   "conjuntos": 2,
+   "qtd": 2,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 2
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 16.0,
+   "conjuntos": 72,
+   "qtd": 72,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 72
+  },
+  {
+   "local": "Marquise Refeitório/Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 20.0,
+   "comprimento_mm": 16.0,
+   "conjuntos": 20,
+   "qtd": 80,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 80
+  },
+  {
+   "local": "Passarela",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X2\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 50.8,
+   "conjuntos": 69,
+   "qtd": 138,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 138
+  },
+  {
+   "local": "Passarela",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 8,
+   "qtd": 8,
+   "arruelas": 8,
+   "porcas": 8,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 8,
+   "nome_porca:PORCA_1/2\"_HEX": 8,
+   "em_obra": 8
+  },
+  {
+   "local": "Passarela",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/4_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 31.8,
+   "conjuntos": 120,
+   "qtd": 240,
+   "arruelas": 240,
+   "porcas": 240,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 240,
+   "nome_porca:PORCA_3/8\"_HEX": 240,
+   "em_obra": 240
+  },
+  {
+   "local": "Passarela",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 25.4,
+   "conjuntos": 12,
+   "qtd": 24,
+   "arruelas": 24,
+   "porcas": 24,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 24,
+   "nome_porca:PORCA_3/8\"_HEX": 24,
+   "em_obra": 24
+  },
+  {
+   "local": "Passarela",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"3/4_A325",
+   "diametro_mm": 15.9,
+   "comprimento_mm": 44.5,
+   "conjuntos": 30,
+   "qtd": 192,
+   "arruelas": 192,
+   "porcas": 192,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 192,
+   "nome_porca:PORCA_5/8\"_HEX": 192,
+   "em_obra": 192
+  },
+  {
+   "local": "Passarela",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 10.3,
+   "conjuntos": 24,
+   "qtd": 24,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 24
+  },
+  {
+   "local": "Passarela",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.5,
+   "conjuntos": 8,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Passarela",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.9,
+   "conjuntos": 88,
+   "qtd": 88,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 88
+  },
+  {
+   "local": "Passarela",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 10.3,
+   "conjuntos": 1,
+   "qtd": 2,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 2
+  },
+  {
+   "local": "Passarela",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X4\"1/4_A325",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 106.0,
+   "conjuntos": 30,
+   "qtd": 120,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 120
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 104,
+   "qtd": 104,
+   "arruelas": 104,
+   "porcas": 104,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 104,
+   "nome_porca:PORCA_1/2\"_HEX": 104,
+   "em_obra": 104
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/2_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 38.1,
+   "conjuntos": 336,
+   "qtd": 672,
+   "arruelas": 672,
+   "porcas": 672,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 672,
+   "nome_porca:PORCA_3/8\"_HEX": 672,
+   "em_obra": 672
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "BOLT",
+   "prf": "PARAF_7/8\"X2\"1/2_A325",
+   "diametro_mm": 22.2,
+   "comprimento_mm": 63.5,
+   "conjuntos": 56,
+   "qtd": 448,
+   "arruelas": 448,
+   "porcas": 448,
+   "nome_arruela:ARRUELA_7/8\"_LISA": 448,
+   "nome_porca:PORCA_7/8\"_HEX": 448,
+   "em_obra": 448
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.5,
+   "conjuntos": 104,
+   "qtd": 104,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 104
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.0,
+   "conjuntos": 120,
+   "qtd": 120,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 120
+  },
+  {
+   "local": "Ponto de ônibus",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/4\"X1\"1/2_A325",
+   "diametro_mm": 24.0,
+   "comprimento_mm": 21.0,
+   "conjuntos": 28,
+   "qtd": 224,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
+   "em_obra": 224
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_1/2\"X4\"",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 101.6,
+   "conjuntos": 2,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_1/2\"X4.1/4\"",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 108.0,
+   "conjuntos": 12,
+   "qtd": 48,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 48
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_1/2\"X7\"",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 178.0,
+   "conjuntos": 4,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/8\"X3.3/4\"",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 95.0,
+   "conjuntos": 10,
+   "qtd": 20,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 20
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 16,
+   "qtd": 16,
+   "arruelas": 16,
+   "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
+   "em_obra": 16
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"3/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "conjuntos": 4,
+   "qtd": 16,
+   "arruelas": 16,
+   "porcas": 16,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 16,
+   "nome_porca:PORCA_1/2\"_HEX": 16,
+   "em_obra": 16
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X2\"_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 50.8,
+   "conjuntos": 7,
+   "qtd": 28,
+   "arruelas": 28,
+   "porcas": 28,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 28,
+   "nome_porca:PORCA_1/2\"_HEX": 28,
+   "em_obra": 28
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/2_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 38.1,
+   "conjuntos": 108,
+   "qtd": 216,
+   "arruelas": 216,
+   "porcas": 216,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 216,
+   "nome_porca:PORCA_3/8\"_HEX": 216,
+   "em_obra": 216
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"1/4_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 31.8,
+   "conjuntos": 20,
+   "qtd": 40,
+   "arruelas": 40,
+   "porcas": 40,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 40,
+   "nome_porca:PORCA_3/8\"_HEX": 40,
+   "em_obra": 40
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X1\"_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 25.4,
+   "conjuntos": 10,
+   "qtd": 20,
+   "arruelas": 20,
+   "porcas": 20,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 20,
+   "nome_porca:PORCA_3/8\"_HEX": 20,
+   "em_obra": 20
+  },
+  {
+   "local": "Portaria",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"3/4_A325",
+   "diametro_mm": 15.9,
+   "comprimento_mm": 44.5,
+   "conjuntos": 11,
+   "qtd": 22,
+   "arruelas": 22,
+   "porcas": 22,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 22,
+   "nome_porca:PORCA_5/8\"_HEX": 22,
+   "em_obra": 22
+  },
+  {
+   "local": "Portaria",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.4,
+   "conjuntos": 16,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Portaria",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 14.0,
+   "conjuntos": 24,
+   "qtd": 24,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 24
+  },
+  {
+   "local": "Portaria",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 11.0,
+   "conjuntos": 4,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Portaria",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 16.1,
+   "conjuntos": 12,
+   "qtd": 12,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 12
+  },
+  {
+   "local": "Portaria",
+   "tipo": "HOLE",
+   "prf": "PARAF_5/8\"X1\"1/4_A325",
+   "diametro_mm": 20.0,
+   "comprimento_mm": 16.1,
+   "conjuntos": 2,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 0,
+   "nome_porca:PORCA_5/8\"_HEX": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X3/4\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 16.0,
+   "conjuntos": 76,
+   "qtd": 152,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 152
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_1/2\"X4.1/4\"",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 108.0,
+   "conjuntos": 83,
+   "qtd": 115,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 115
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/4\"X4.1/4\"",
+   "diametro_mm": 19.0,
+   "comprimento_mm": 108.0,
+   "conjuntos": 8,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/8\"X2.1/4\"",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 57.2,
+   "conjuntos": 76,
+   "qtd": 76,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 76
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 80,
+   "qtd": 128,
+   "arruelas": 128,
+   "porcas": 128,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 128,
+   "nome_porca:PORCA_1/2\"_HEX": 128,
+   "em_obra": 128
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 190,
+   "qtd": 380,
+   "arruelas": 380,
+   "porcas": 380,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 380,
+   "nome_porca:PORCA_1/2\"_HEX": 380,
+   "em_obra": 380
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 288,
+   "qtd": 576,
+   "arruelas": 576,
+   "porcas": 576,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 576,
+   "nome_porca:PORCA_1/2\"_HEX": 576,
+   "em_obra": 576
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"3/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "conjuntos": 16,
+   "qtd": 32,
+   "arruelas": 32,
+   "porcas": 32,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 32,
+   "nome_porca:PORCA_1/2\"_HEX": 32,
+   "em_obra": 32
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 9.6,
+   "comprimento_mm": 19.0,
+   "conjuntos": 24,
+   "qtd": 24,
+   "arruelas": 24,
+   "porcas": 24,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 24,
+   "nome_porca:PORCA_3/8\"_HEX": 24,
+   "em_obra": 24
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"3/4_A325",
+   "diametro_mm": 16.0,
+   "comprimento_mm": 44.5,
+   "conjuntos": 8,
+   "qtd": 64,
+   "arruelas": 64,
+   "porcas": 64,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 64,
+   "nome_porca:PORCA_5/8\"_HEX": 64,
+   "em_obra": 64
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X2\"1/4_A325",
+   "diametro_mm": 16.0,
+   "comprimento_mm": 57.2,
+   "conjuntos": 8,
+   "qtd": 32,
+   "arruelas": 32,
+   "porcas": 32,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 32,
+   "nome_porca:PORCA_5/8\"_HEX": 32,
+   "em_obra": 32
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARABOLT_5/8\"X4.1/2\"",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 104.5,
+   "conjuntos": 4,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.3,
+   "conjuntos": 60,
+   "qtd": 120,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 120
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.6,
+   "conjuntos": 180,
+   "qtd": 312,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 312
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.4,
+   "conjuntos": 32,
+   "qtd": 32,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 32
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.0,
+   "conjuntos": 88,
+   "qtd": 232,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 232
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.9,
+   "conjuntos": 56,
+   "qtd": 56,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 56
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/4\"X1\"1/2_A325",
+   "diametro_mm": 24.0,
+   "comprimento_mm": 17.7,
+   "conjuntos": 4,
+   "qtd": 16,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
+   "em_obra": 16
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 8.2,
+   "conjuntos": 21,
+   "qtd": 21,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 21
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A325",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 1.0,
+   "conjuntos": 152,
+   "qtd": 152,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 152
+  },
+  {
+   "local": "Refeitório",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A325",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 3.2,
+   "conjuntos": 152,
+   "qtd": 152,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 152
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "AB 1/4\"X3/4\"_TCP3",
+   "diametro_mm": 6.3,
+   "comprimento_mm": 16.0,
+   "conjuntos": 86,
+   "qtd": 172,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 172
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_1/2\"X4.1/4\"",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 108.0,
+   "conjuntos": 63,
+   "qtd": 103,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 103
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/4\"X4.1/4\"",
+   "diametro_mm": 19.0,
+   "comprimento_mm": 108.0,
+   "conjuntos": 4,
+   "qtd": 4,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 4
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARABOLT_3/8\"X2.1/4\"",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 57.2,
+   "conjuntos": 86,
+   "qtd": 86,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 86
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/2_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 38.1,
+   "conjuntos": 72,
+   "qtd": 96,
+   "arruelas": 96,
+   "porcas": 96,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 96,
+   "nome_porca:PORCA_1/2\"_HEX": 96,
+   "em_obra": 96
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 214,
+   "qtd": 428,
+   "arruelas": 428,
+   "porcas": 428,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 428,
+   "nome_porca:PORCA_1/2\"_HEX": 428,
+   "em_obra": 428
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"1/4_A325",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 31.8,
+   "conjuntos": 360,
+   "qtd": 720,
+   "arruelas": 720,
+   "porcas": 720,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 720,
+   "nome_porca:PORCA_1/2\"_HEX": 720,
+   "em_obra": 720
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_1/2\"X1\"3/4_A307",
+   "diametro_mm": 12.7,
+   "comprimento_mm": 44.5,
+   "conjuntos": 16,
+   "qtd": 32,
+   "arruelas": 32,
+   "porcas": 32,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 32,
+   "nome_porca:PORCA_1/2\"_HEX": 32,
+   "em_obra": 32
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 9.5,
+   "comprimento_mm": 19.0,
+   "conjuntos": 28,
+   "qtd": 28,
+   "arruelas": 28,
+   "porcas": 28,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 28,
+   "nome_porca:PORCA_3/8\"_HEX": 28,
+   "em_obra": 28
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X1\"3/4_A325",
+   "diametro_mm": 16.0,
+   "comprimento_mm": 44.5,
+   "conjuntos": 4,
+   "qtd": 32,
+   "arruelas": 32,
+   "porcas": 32,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 32,
+   "nome_porca:PORCA_5/8\"_HEX": 32,
+   "em_obra": 32
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "BOLT",
+   "prf": "PARAF_5/8\"X2\"1/4_A325",
+   "diametro_mm": 16.0,
+   "comprimento_mm": 57.2,
+   "conjuntos": 12,
+   "qtd": 48,
+   "arruelas": 48,
+   "porcas": 48,
+   "nome_arruela:ARRUELA_5/8\"_LISA": 48,
+   "nome_porca:PORCA_5/8\"_HEX": 48,
+   "em_obra": 48
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARABOLT_5/8\"X4.1/2\"",
+   "diametro_mm": 18.0,
+   "comprimento_mm": 104.5,
+   "conjuntos": 2,
+   "qtd": 8,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:": 0,
+   "nome_porca:": 0,
+   "em_obra": 8
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.3,
+   "conjuntos": 168,
+   "qtd": 336,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 336
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 12.0,
+   "comprimento_mm": 6.6,
+   "conjuntos": 96,
+   "qtd": 168,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 168
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 11.4,
+   "conjuntos": 48,
+   "qtd": 48,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 48
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.0,
+   "conjuntos": 72,
+   "qtd": 144,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 144
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_1/2\"X1\"1/4_A307",
+   "diametro_mm": 14.0,
+   "comprimento_mm": 13.9,
+   "conjuntos": 32,
+   "qtd": 32,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_1/2\"_LISA": 0,
+   "nome_porca:PORCA_1/2\"_HEX": 0,
+   "em_obra": 32
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/4\"X1\"1/2_A325",
+   "diametro_mm": 24.0,
+   "comprimento_mm": 17.7,
+   "conjuntos": 6,
+   "qtd": 24,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/4\"_LISA": 0,
+   "nome_porca:PORCA_3/4\"_HEX": 0,
+   "em_obra": 24
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A307",
+   "diametro_mm": 11.0,
+   "comprimento_mm": 8.2,
+   "conjuntos": 28,
+   "qtd": 28,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 28
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A325",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 1.0,
+   "conjuntos": 172,
+   "qtd": 172,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 172
+  },
+  {
+   "local": "Vestiário",
+   "tipo": "HOLE",
+   "prf": "PARAF_3/8\"X3/4\"_A325",
+   "diametro_mm": 10.0,
+   "comprimento_mm": 3.2,
+   "conjuntos": 172,
+   "qtd": 172,
+   "arruelas": 0,
+   "porcas": 0,
+   "nome_arruela:ARRUELA_3/8\"_LISA": 0,
+   "nome_porca:PORCA_3/8\"_HEX": 0,
+   "em_obra": 172
+  }
+ ]
+}

@@ -54,11 +54,18 @@ try {
                 'intervalo' => 0, 'resultado' => 'online', 'detalhe' => 'Sistema online: sempre na versão publicada.']);
         }
         if ($rota === 'regras-baixa') {
-            $p = __DIR__ . '/inc/regras_baixa.json';
-            if (!is_file($p)) {
-                responder_json(404, ['erro' => 'regras_baixa.json não encontrado.']);
+            $d = carregar_regras_baixa();
+            if ($d === null) {
+                responder_json(404, ['erro' => 'Esta obra ainda não tem regras de baixa (vêm da importação automática).']);
             }
-            responder_json(200, json_decode(file_get_contents($p), true));
+            responder_json(200, $d);
+        }
+        if ($rota === 'mapa-obra') {   // mapa de peças da importação automática (posição de cada conjunto na malha V × H)
+            $d = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+            if (!is_array($d)) {
+                responder_json(404, ['erro' => 'Esta obra não tem o mapa de peças.']);
+            }
+            responder_json(200, $d);
         }
         if ($rota === 'frentes-montagem') {
             $d = frentes_montagem();
@@ -67,8 +74,21 @@ try {
             }
             responder_json(200, $d);
         }
+        if ($rota === 'parafusos-locais') {
+            $d = dado_json_da_obra('ifc_parafusos_locais', 'ifc_parafusos_locais.json');
+            if ($d === null) {
+                responder_json(404, ['erro' => 'Esta obra não tem a lista de parafusos por local.']);
+            }
+            responder_json(200, $d);
+        }
         if ($rota === 'planos') {
             responder_json(200, planos_ler());
+        }
+        if ($rota === 'tarefas') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, tarefas_listar($usuario));
         }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
@@ -97,6 +117,16 @@ try {
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
     }
+    if ($rota === 'tarefas') {   // tarefas são pessoais/da gestão: não mexem nos dados da obra nem na versão do modelo
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+        }
+        $corpoT = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoT)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_tarefas($corpoT, $usuario));
+    }
     if ($usuario['perfil'] === 'leitura') {
         responder_json(403, ['erro' => 'Seu usuário é somente leitura.']);
     }
@@ -105,8 +135,8 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos',
-        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
+        'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
@@ -119,11 +149,11 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
-        'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
+        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
-        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos',
+        'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -153,6 +183,139 @@ try {
 } catch (Exception $e) {
     error_log('obra198: ' . $e->getMessage());
     responder_json(500, ['erro' => 'Falha ao gravar no banco de dados.']);
+}
+
+// ----------------------------------------------------------------- tarefas a fazer
+
+// (listas em funções: o roteador acima roda antes de as constantes deste arquivo serem definidas)
+function tarefa_status()
+{
+    return ['pendente', 'andamento', 'concluida', 'cancelada'];
+}
+function tarefa_prioridades()
+{
+    return ['baixa', 'normal', 'alta', 'urgente'];
+}
+
+function tarefa_agora_brt()
+{
+    return (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
+}
+
+// Administrador vê todas; os demais veem as que foram atribuídas a eles ou que eles mesmos criaram.
+function tarefas_listar(array $usuario)
+{
+    garantir_tarefas();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome FROM tarefas t
+        LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
+    $params = [];
+    if (!$admin) {
+        $sql .= ' WHERE t.responsavel_id = ? OR t.criado_por = ?';
+        $params = [(int)$usuario['id'], (int)$usuario['id']];
+    }
+    $sql .= ' ORDER BY t.data_fim, t.id';
+    $linhas = q_global($sql, $params)->fetchAll();
+    foreach ($linhas as &$l) {
+        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias'] as $k) {
+            $l[$k] = (int)$l[$k];
+        }
+        $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
+        $l['pode_editar'] = $admin || $l['criado_por'] === (int)$usuario['id'];
+    }
+    unset($l);
+    $usuarios = $admin ? q_global('SELECT id, nome, empresa FROM usuarios WHERE ativo = 1 ORDER BY nome')->fetchAll()
+        : [['id' => (int)$usuario['id'], 'nome' => $usuario['nome'], 'empresa' => $usuario['empresa'] ?? null]];
+    foreach ($usuarios as &$u) {
+        $u['id'] = (int)$u['id'];
+    }
+    unset($u);
+    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas];
+}
+
+function acao_tarefas(array $corpo, array $usuario)
+{
+    garantir_tarefas();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $eu = (int)$usuario['id'];
+    $acao = (string)($corpo['acao'] ?? '');
+    $id = isset($corpo['id']) ? (int)$corpo['id'] : 0;
+    $t = $id ? q_global('SELECT * FROM tarefas WHERE id = ?', [$id])->fetch() : null;
+    if ($id && !$t) {
+        throw new ErroValidacao('Tarefa não encontrada. Recarregue a tela.');
+    }
+    $agora = tarefa_agora_brt();
+    if ($acao === 'salvar') {
+        if ($t && !$admin && (int)$t['criado_por'] !== $eu) {
+            throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode alterar os dados dela. Você pode mudar o andamento e escrever o retorno.');
+        }
+        $titulo = trim((string)($corpo['titulo'] ?? ''));
+        if ($titulo === '' || mb_strlen($titulo) > 200) {
+            throw new ErroValidacao('Informe o título da tarefa (até 200 caracteres).');
+        }
+        $ini = (string)($corpo['data_inicio'] ?? '');
+        $fim = (string)($corpo['data_fim'] ?? '');
+        if (!data_valida($ini)) {
+            throw new ErroValidacao('Informe a data de início.');
+        }
+        if (!data_valida($fim)) {
+            throw new ErroValidacao('Informe a data de conclusão.');
+        }
+        if ($fim < $ini) {
+            throw new ErroValidacao('A data de conclusão não pode ser anterior à data de início.');
+        }
+        $aviso = isset($corpo['aviso_dias']) && $corpo['aviso_dias'] !== '' ? (int)$corpo['aviso_dias'] : 2;
+        if ($aviso < 0 || $aviso > 60) {
+            throw new ErroValidacao('O aviso deve ser de 0 a 60 dias antes da conclusão.');
+        }
+        $prio = (string)($corpo['prioridade'] ?? 'normal');
+        if (!in_array($prio, tarefa_prioridades(), true)) {
+            throw new ErroValidacao('Prioridade inválida.');
+        }
+        $resp = $eu;   // quem não é administrador só cria lembrete para si
+        if ($admin && !empty($corpo['responsavel_id'])) {
+            $resp = (int)$corpo['responsavel_id'];
+            if (!q_global('SELECT id FROM usuarios WHERE id = ? AND ativo = 1', [$resp])->fetch()) {
+                throw new ErroValidacao('Responsável inválido.');
+            }
+        } elseif ($t && !$admin) {
+            $resp = (int)$t["responsavel_id"];
+        }
+        $desc = trim((string)($corpo['descricao'] ?? ''));
+        if ($t) {
+            q_global('UPDATE tarefas SET titulo=?, descricao=?, responsavel_id=?, data_inicio=?, data_fim=?, aviso_dias=?, prioridade=?, atualizado_em=? WHERE id=?',
+                [$titulo, $desc !== '' ? $desc : null, $resp, $ini, $fim, $aviso, $prio, $agora, $id]);
+        } else {
+            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora]);
+        }
+    } elseif ($acao === 'status') {
+        if (!$t) {
+            throw new ErroValidacao('Tarefa não encontrada.');
+        }
+        if (!$admin && (int)$t['criado_por'] !== $eu && (int)$t['responsavel_id'] !== $eu) {
+            throw new ErroValidacao('Esta tarefa não é sua.');
+        }
+        $st = (string)($corpo['status'] ?? '');
+        if (!in_array($st, tarefa_status(), true)) {
+            throw new ErroValidacao('Situação inválida.');
+        }
+        $retorno = array_key_exists('retorno', $corpo) ? trim((string)$corpo['retorno']) : (string)($t['retorno'] ?? '');
+        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, atualizado_em=? WHERE id=?',
+            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $agora, $id]);
+    } elseif ($acao === 'excluir') {
+        if (!$t) {
+            throw new ErroValidacao('Tarefa não encontrada.');
+        }
+        if (!$admin && (int)$t['criado_por'] !== $eu) {
+            throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode excluí-la.');
+        }
+        q_global('DELETE FROM tarefas WHERE id = ?', [$id]);
+    } else {
+        throw new ErroValidacao('Ação de tarefa inválida.');
+    }
+    return tarefas_listar($usuario);
 }
 
 // ----------------------------------------------------------------- ações
@@ -381,6 +544,9 @@ function gravar_linha($tabela, $id, array $vals)
 // (mesma TAG), para poder receber consumo e ser conferido sem precisar importar a planilha de novo.
 function material_eh_fixador(array $m)
 {
+    if (!empty($m['tipo_editado'])) {   // tipo escolhido à mão na aba Materiais vale mais que o palpite pelo nome
+        return mb_strtoupper(trim((string)($m['tipo_material'] ?? ''))) === 'FIXADOR';
+    }
     $txt = mb_strtoupper(($m['tipo_material'] ?? '') . ' ' . ($m['codigo'] ?? '') . ' ' . ($m['material'] ?? '') . ' ' . ($m['obs'] ?? ''));
     foreach (['FIXADOR', 'PARAFUS', 'CHUMBADOR', 'ARRUELA', 'PORCA'] as $k) {
         if (mb_strpos($txt, $k) !== false) {
@@ -627,7 +793,7 @@ function acao_registro(array $corpo)
             }
             $vals[$c] = $v;
         } else {
-            $vals[$c] = mb_substr(trim((string)$v), 0, 255);
+            $vals[$c] = mb_substr(trim((string)$v), 0, $tipo === 'longo' ? 4000 : 255);
         }
     }
     $resultado = gravar_linha($tabela, $id, $vals);
@@ -866,6 +1032,18 @@ function estoque_material(array &$dados, $tag)
     return null;
 }
 
+// Remessa de CARGA (estrutura) ou de FIXADOR: são pedidos/entregas diferentes, então cada remessa tem um tipo
+// (remessas.tipos[nome]); remessa antiga sem tipo continua valendo e a tela deduz pelo que ela tem.
+function remessa_tag_eh_fixador(array $dados, $tag)
+{
+    $i = estoque_material($dados, $tag);
+    $m = $i !== null ? $dados['materiais'][$i] : [];
+    if (!$m) {
+        $m = q('SELECT codigo, material, tipo_material, obs FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: [];
+    }
+    return material_eh_fixador(['tipo_material' => $m['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $m['material'] ?? ($m['produto'] ?? ''), 'obs' => $m['obs'] ?? '', 'tipo_editado' => $m['tipo_editado'] ?? false]);
+}
+
 function acao_estoque_remessa(array $corpo)
 {
     $dados = estoque_planilha_ler();
@@ -878,6 +1056,27 @@ function acao_estoque_remessa(array $corpo)
     }
     $original = trim((string)($corpo['original_remessa'] ?? ''));
     $substituir = !empty($corpo['substituir']);
+    $tipoRem = mb_strtoupper(trim((string)($corpo['tipo'] ?? '')));
+    if ($tipoRem !== '' && !in_array($tipoRem, ['CARGA', 'FIXADOR'], true)) {
+        throw new ErroValidacao('Tipo de remessa inválido (CARGA ou FIXADOR).');
+    }
+    $tiposRem = is_array($dados['remessas']['tipos'] ?? null) ? $dados['remessas']['tipos'] : [];
+    $tipoAtual = $tiposRem[$substituir && $original !== '' ? $original : $nome] ?? '';
+    if ($tipoRem !== '' && $tipoAtual !== '' && $tipoAtual !== $tipoRem) {
+        throw new ErroValidacao('A remessa "' . ($substituir && $original !== '' ? $original : $nome) . '" é de ' . ($tipoAtual === 'FIXADOR' ? 'fixador' : 'carga') . '. Use outro nº para a remessa de ' . ($tipoRem === 'FIXADOR' ? 'fixador' : 'carga') . '.');
+    }
+    if ($tipoRem !== '' && $tipoAtual === '' && !$substituir && in_array($nome, $dados['remessas']['colunas'] ?? [], true)) {
+        $existeOutro = false;
+        foreach ($dados['remessas']['itens'] as $it0) {
+            if (!empty($it0['qtd_por_remessa'][$nome]) && remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') !== ($tipoRem === 'FIXADOR')) {
+                $existeOutro = true;
+                break;
+            }
+        }
+        if ($existeOutro) {
+            throw new ErroValidacao('Já existe uma remessa "' . $nome . '" do outro tipo. Use outro nº.');
+        }
+    }
     if ($substituir) {
         $alvo = $original !== '' ? $original : $nome;
         if (!in_array($alvo, $dados['remessas']['colunas'] ?? [], true)) {
@@ -891,6 +1090,10 @@ function acao_estoque_remessa(array $corpo)
                 $dados['remessas']['datas'][$nome] = $dados['remessas']['datas'][$alvo];
             }
             unset($dados['remessas']['datas'][$alvo]);
+            if (isset($tiposRem[$alvo])) {
+                $tiposRem[$nome] = $tiposRem[$alvo];
+                unset($tiposRem[$alvo]);
+            }
             foreach ($dados['remessas']['itens'] as &$it0) {
                 if (isset($it0['qtd_por_remessa'][$alvo]) && !isset($it0['qtd_por_remessa'][$nome])) {
                     $it0['qtd_por_remessa'][$nome] = $it0['qtd_por_remessa'][$alvo];
@@ -900,7 +1103,10 @@ function acao_estoque_remessa(array $corpo)
             unset($it0);
         }
         foreach ($dados['remessas']['itens'] as &$it0) {
-            unset($it0['qtd_por_remessa'][$nome]);
+            // com tipo informado só limpa os itens do mesmo tipo (remessa antiga mista não perde o outro tipo)
+            if ($tipoRem === '' || remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') === ($tipoRem === 'FIXADOR')) {
+                unset($it0['qtd_por_remessa'][$nome]);
+            }
         }
         unset($it0);
     }
@@ -949,10 +1155,28 @@ function acao_estoque_remessa(array $corpo)
                 ];
             }
         }
+        if ($tipoRem !== '' && remessa_tag_eh_fixador($dados, $tag) !== ($tipoRem === 'FIXADOR')) {
+            throw new ErroValidacao("Item $n: a TAG $tag " . ($tipoRem === 'FIXADOR' ? 'não é fixador; lance-a numa remessa de carga.' : 'é fixador; lance-o numa remessa de fixador.'));
+        }
         $lancamentos[$tag] = ($lancamentos[$tag] ?? 0) + qtd_positiva($it, $n);
     }
     if (!in_array($nome, $dados['remessas']['colunas'], true)) {
         $dados['remessas']['colunas'][] = $nome;
+    }
+    if ($tipoRem !== '') {
+        $mista = false;   // remessa antiga com itens dos dois tipos continua sem tipo (aparece nas duas telas)
+        foreach ($dados['remessas']['itens'] as $it0) {
+            if (!empty($it0['qtd_por_remessa'][$nome]) && remessa_tag_eh_fixador($dados, $it0['tag'] ?? '') !== ($tipoRem === 'FIXADOR')) {
+                $mista = true;
+                break;
+            }
+        }
+        if (!$mista) {
+            $tiposRem[$nome] = $tipoRem;
+        }
+    }
+    if ($tiposRem) {
+        $dados['remessas']['tipos'] = $tiposRem;
     }
     // Datas opcionais da remessa (prevista chegada, emissão NF, chegada obra)
     $datasNova = is_array($corpo['datas'] ?? null) ? $corpo['datas'] : [];
@@ -1003,6 +1227,141 @@ function acao_estoque_remessa(array $corpo)
     return ['celulas' => count($lancamentos), 'salvos' => count($lancamentos), 'substituido' => $substituir];
 }
 
+
+// Edição de um item da aba Materiais (tipo, nome, produto, local, etapa e planejado), venha ele da planilha importada ou do cadastro.
+// Grava na planilha de estoque (que manda na tela) e, se a TAG também está no cadastro, no cadastro; mantém Remessas, Consumo físico e Inventário coerentes.
+function acao_estoque_material(array $corpo)
+{
+    $tag = mb_strtoupper(trim((string)($corpo['tag'] ?? '')));
+    $c = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
+    if ($tag === '') {
+        throw new ErroValidacao('Informe a TAG do material.');
+    }
+    $dados = estoque_planilha_ler();
+    if ($dados === null) {
+        throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    $cad = q('SELECT * FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: null;
+    if (estoque_material($dados, $tag) === null) {
+        if (!$cad) {
+            throw new ErroValidacao("Material $tag não encontrado.");
+        }
+        estoque_incluir_cadastro($cad);   // cadastro que ainda não está na planilha entra primeiro
+        $dados = estoque_planilha_ler();
+    }
+    $i = estoque_material($dados, $tag);
+    if ($i === null) {
+        throw new ErroValidacao("Material $tag não encontrado.");
+    }
+    $mat = $dados['materiais'][$i];
+    $nome = array_key_exists('material', $c) ? trim((string)$c['material']) : (string)($mat['material'] ?? $tag);
+    if ($nome === '') {
+        throw new ErroValidacao('O nome do material não pode ficar vazio.');
+    }
+    $produto = array_key_exists('produto', $c) ? trim((string)$c['produto']) : (string)($mat['produto'] ?? $nome);
+    $produto = $produto !== '' ? $produto : $nome;
+    $local = array_key_exists('local', $c) ? trim((string)$c['local']) : (string)($mat['local'] ?? '');
+    $etapa = array_key_exists('etapa', $c) ? trim((string)$c['etapa']) : (string)($mat['etapa'] ?? '');
+    $tipo = array_key_exists('tipo_material', $c) ? mb_strtoupper(trim((string)$c['tipo_material'])) : mb_strtoupper((string)($mat['tipo_material'] ?? 'ESTRUTURA'));
+    if ($tipo === '' || mb_strlen($tipo) > 40) {
+        throw new ErroValidacao('Informe o tipo do material (ex.: ESTRUTURA, FIXADOR, JOIST, CONSUMO).');
+    }
+    $planejado = (float)($mat['planejado'] ?? 0);
+    if (!array_key_exists('planejado', $c) && array_key_exists('saldo_inicial', $c)) {
+        $c['planejado'] = $c['saldo_inicial'];   // o pop-up chama a quantidade planejada de saldo_inicial
+    }
+    if (array_key_exists('planejado', $c)) {
+        $p = trim((string)$c['planejado']) === '' ? 0.0 : numero($c['planejado']);
+        if ($p === null || $p < 0) {
+            throw new ErroValidacao('Planejado deve ser um número maior ou igual a zero.');
+        }
+        $planejado = (float)$p;
+    }
+    // trocar entre fixador e carga não pode deixar o item recebido numa remessa do outro tipo
+    $eraFix = material_eh_fixador(['tipo_material' => $mat['tipo_material'] ?? '', 'codigo' => $tag, 'material' => $mat['material'] ?? '', 'tipo_editado' => $mat['tipo_editado'] ?? false]);
+    $viraFix = $tipo === 'FIXADOR';
+    if ($eraFix !== $viraFix) {
+        $tipos = is_array($dados['remessas']['tipos'] ?? null) ? $dados['remessas']['tipos'] : [];
+        foreach ($dados['remessas']['itens'] ?? [] as $it) {
+            if (mb_strtoupper((string)($it['tag'] ?? '')) !== $tag) {
+                continue;
+            }
+            foreach ($it['qtd_por_remessa'] ?? [] as $rem => $q) {
+                if ((float)$q > 0 && isset($tipos[$rem]) && ($tipos[$rem] === 'FIXADOR') !== $viraFix) {
+                    throw new ErroValidacao("A TAG $tag já recebeu quantidade na remessa \"$rem\" (" . ($tipos[$rem] === 'FIXADOR' ? 'fixador' : 'carga') . "); mude o tipo só depois de corrigir essa remessa.");
+                }
+            }
+        }
+    }
+    $m =& $dados['materiais'][$i];
+    $m['material'] = $nome;
+    $m['produto'] = $produto;
+    $m['local'] = $local;
+    $m['etapa'] = $etapa;
+    $m['tipo_material'] = $tipo;
+    $m['tipo_editado'] = true;
+    $m['planejado'] = $planejado;
+    $m['prioridade'] = $viraFix ? 'FIXADOR' : (($m['prioridade'] ?? '') === 'FIXADOR' ? '' : ($m['prioridade'] ?? ''));
+    $chegou = (float)($m['chegou'] ?? 0);
+    $m['atendimento'] = $planejado ? $chegou / $planejado : null;
+    $m['status_logistico'] = ($planejado && $chegou / $planejado >= 1) ? 'Atendido' : ($chegou > 0 ? 'Recebimento Parcial' : ($planejado ? 'Crítico' : 'Cadastrado'));
+    unset($m);
+    foreach ($dados['remessas']['itens'] as &$r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $r['material'] = $nome;
+            $r['produto'] = $produto;
+            $r['etapa'] = $etapa !== '' ? $etapa : ($r['etapa'] ?? '');
+        }
+    }
+    unset($r);
+    foreach ($dados['consumo_fisico']['itens'] ?? [] as $k => $r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $dados['consumo_fisico']['itens'][$k]['produto'] = $produto;
+        }
+    }
+    foreach ($dados['inventario'] ?? [] as $k => $r) {
+        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+            $dados['inventario'][$k]['material'] = $nome;
+            $dados['inventario'][$k]['produto'] = $produto;
+            $dados['inventario'][$k]['planejado'] = $planejado;
+        }
+    }
+    estoque_planilha_gravar($dados);
+    // campos que só o cadastro tem (o pop-up de edição é o mesmo do "+ Cadastrar material")
+    $extra = [];
+    foreach (['unidade' => 'txt', 'servico' => 'txt', 'empresa' => 'txt', 'coef' => 'num', 'data_saldo' => 'data', 'minimo' => 'num', 'fornecedor' => 'txt', 'prazo_reposicao' => 'num', 'obs' => 'txt'] as $k => $t) {
+        if (!array_key_exists($k, $c)) {
+            continue;
+        }
+        $v = $c[$k];
+        if ($v === null || trim((string)$v) === '') {
+            $extra[$k] = null;
+        } elseif ($t === 'num') {
+            $n = numero($v);
+            if ($n === null) {
+                throw new ErroValidacao("Valor numérico inválido em '$k'.");
+            }
+            $extra[$k] = $n;
+        } elseif ($t === 'data') {
+            if (!data_valida($v)) {
+                throw new ErroValidacao("Data inválida em '$k'.");
+            }
+            $extra[$k] = $v;
+        } else {
+            $extra[$k] = mb_substr(trim((string)$v), 0, 255);
+        }
+    }
+    $base = ['material' => $nome, 'tipo_material' => $tipo, 'local' => $local !== '' ? $local : null, 'etapa' => $etapa !== '' ? $etapa : null, 'saldo_inicial' => $planejado];
+    if ($cad) {
+        gravar_linha('materiais', (int)$cad['id'], $base + $extra);
+    } elseif (array_filter($extra, function ($v) { return $v !== null; })) {
+        gravar_linha('materiais', null, ['codigo' => $tag] + $base + $extra);   // só cria o cadastro se a pessoa preencheu algo que é do cadastro
+    }
+    if ($viraFix) {   // fixador também existe no Consumo físico e no Inventário
+        estoque_incluir_cadastro(['codigo' => $tag, 'material' => $nome, 'local' => $local, 'etapa' => $etapa, 'tipo_material' => 'FIXADOR', 'saldo_inicial' => $planejado, 'tipo_editado' => true]);
+    }
+    return ['salvos' => 1];
+}
 
 function acao_estoque_remessa_datas(array $corpo)
 {
@@ -1346,14 +1705,29 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
     if (!empty($usuario['empresa']) && $usuario['empresa'] !== $emp['nome']) {
         throw new ErroValidacao('Seu usuário só pode apontar montagem da empresa ' . $usuario['empresa'] . '.');
     }
-    // Tenta localizar o serviço na frente específica; se não existir, cai para busca sem frente (retrocompatível).
+    // Lançamento é TOTAL (galpão inteiro): a fase (F1/F2) fica só no apontamento, para rastreio. A produção vai sempre
+    // para a coluna principal do serviço (a que não é "GALPÃO F2").
+    $linhas = q('SELECT col, frente FROM servicos WHERE empresa_id = ? AND nome = ? ORDER BY ordem, id', [$emp['id'], $servico])->fetchAll();
     $col = null;
-    if ($frente !== null) {
-        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ? AND frente = ?',
-            [$emp['id'], $servico, $frente])->fetchColumn() ?: null;
+    $colsF2 = [];
+    foreach ($linhas as $l) {
+        if (stripos((string)$l['frente'], 'GALPÃO F2') === 0) {
+            $colsF2[] = $l['col'];
+        } elseif ($col === null) {
+            $col = $l['col'];
+        }
     }
-    if (!$col) {
-        $col = q('SELECT col FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $servico])->fetchColumn();
+    if ($col === null && $colsF2) {
+        $col = array_shift($colsF2);
+    }
+    if ($col) {   // o que já tiver caído em coluna "Fase 2" volta para o total
+        foreach ($colsF2 as $c2) {
+            foreach (q('SELECT data, valor_num FROM producao WHERE empresa_id = ? AND col = ? AND valor_num IS NOT NULL AND valor_txt IS NULL', [$emp['id'], $c2])->fetchAll() as $r) {
+                $ja = (float)q('SELECT valor_num FROM producao WHERE empresa_id = ? AND data = ? AND col = ?', [$emp['id'], $r['data'], $col])->fetchColumn();
+                q('DELETE FROM producao WHERE empresa_id = ? AND data = ? AND col IN (?, ?)', [$emp['id'], $r['data'], $col, $c2]);
+                q('INSERT INTO producao (empresa_id, data, col, valor_num) VALUES (?, ?, ?, ?)', [$emp['id'], $r['data'], $col, $ja + (float)$r['valor_num']]);
+            }
+        }
     }
     if (!$col && stripos((string)$servico, 'PERFILAGEM') === 0) {   // o banco guarda "PERFILAÇÃO"; a tela mostra "PERFILAGEM DE TELHAS" (modelo.php)
         $col = q("SELECT col FROM servicos WHERE empresa_id = ? AND nome LIKE 'PERFILA%'", [$emp['id']])->fetchColumn();
@@ -1453,6 +1827,114 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
         q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : 'telhas') . ' apontadas no mapa de montagem']);
     }
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
+}
+
+// ---- Apontamento por peça (obras criadas pela importação automática): cada conjunto do IFC é apontado numa atividade do catálogo do BM.
+// A produção vai para o serviço do controle ligado à atividade (campo "controle") ou, sem ele, para os apontamentos do BM.
+function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
+{
+    if (abs($delta) < 1e-9) {
+        return null;
+    }
+    if (!empty($atv['controle'])) {
+        return ['grade' => soma_producao($empresa, $atv['controle'], $data, $delta, $usuario)];
+    }
+    $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$empresa, $atv['codigo'], $data])->fetch();
+    $novo = round(max(0, (float)($ex['quantidade'] ?? 0) + $delta), 4);
+    if ($ex) {
+        if ($novo > 0) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+        } else {
+            q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+        }
+    } elseif ($novo > 0) {
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $atv['codigo'], $novo, 'peças apontadas no mapa de montagem']);
+    }
+    return ['bm' => ['codigo' => $atv['codigo'], 'data' => $data, 'total' => $novo, 'delta' => $delta]];
+}
+
+function acao_apontamento_pecas(array $corpo, array $usuario)
+{
+    $mapa = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+    if (!is_array($mapa)) {
+        throw new ErroValidacao('Esta obra não tem o mapa de peças (vem da importação automática).');
+    }
+    if (!empty($corpo['excluir'])) {
+        $ids = array_values(array_unique(array_map('intval', (array)($corpo['linhas'] ?? []))));
+        if (!$ids) {
+            throw new ErroValidacao('Nenhum apontamento informado.');
+        }
+        $somas = [];
+        foreach ($ids as $id) {
+            $r = q("SELECT * FROM apontamentos WHERE id = ? AND tipo = 'PECA'", [$id])->fetch();
+            if (!$r) {
+                throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
+            }
+            if (mb_strtoupper((string)$r['lanca_producao']) === 'SIM') {
+                $k = $r['empresa'] . '|' . $r['eixo'] . '|' . $r['data'];
+                $somas[$k] = ($somas[$k] ?? 0) + (float)$r['qtd'];
+            }
+            q('DELETE FROM apontamentos WHERE id = ?', [$id]);
+        }
+        $lanc = [];
+        foreach ($somas as $k => $v) {
+            list($emp, $cod, $dia) = explode('|', $k, 3);
+            $atv = q('SELECT * FROM bm_atividades WHERE codigo = ?', [$cod])->fetch();
+            if ($atv) {
+                $lanc[] = pecas_credito($emp, $atv, $dia, -$v, $usuario);
+            }
+        }
+        return ['excluidos' => count($ids), 'lancamentos' => array_values(array_filter($lanc))];
+    }
+    $data = (string)($corpo['data'] ?? '');
+    $o = obra_info();
+    if (!data_valida($data) || $data < $o['data_inicio'] || $data > $o['data_fim']) {
+        throw new ErroValidacao('Data fora do calendário da obra.');
+    }
+    $atv = q('SELECT * FROM bm_atividades WHERE codigo = ?', [(string)($corpo['atividade'] ?? '')])->fetch();
+    if (!$atv) {
+        throw new ErroValidacao('Escolha a atividade do catálogo do BM.');
+    }
+    $empresa = (string)$atv['empresa'];
+    $pecas = is_array($corpo['pecas'] ?? null) ? $corpo['pecas'] : [];
+    if (!$pecas || count($pecas) > 3000) {
+        throw new ErroValidacao('Selecione de 1 a 3.000 peças no mapa.');
+    }
+    $validas = [];   // guid da peça => [fase, produto, marca] (a marca do Tekla se repete entre peças iguais; o GUID é único)
+    foreach ($mapa['pecas'] ?? [] as $p) {
+        if (!empty($p[7])) {
+            $validas[$p[7]] = [$p[0], $p[1], $p[2]];
+        }
+    }
+    $ja = [];
+    foreach (q("SELECT letra FROM apontamentos WHERE tipo = 'PECA' AND eixo = ?", [$atv['codigo']])->fetchAll() as $r) {
+        $ja[$r['letra']] = true;
+    }
+    $novas = [];
+    foreach ($pecas as $p) {
+        $g = (string)($p['guid'] ?? '');
+        if (!isset($validas[$g])) {
+            throw new ErroValidacao('Peça fora do mapa da obra. Recarregue a tela.');
+        }
+        if (isset($ja[$g])) {
+            throw new ErroValidacao('A peça ' . $validas[$g][2] . ' (' . $validas[$g][1] . ') já foi apontada nesta atividade.');
+        }
+        $ja[$g] = true;
+        $novas[] = [$validas[$g][0], $validas[$g][1], $validas[$g][2], $g];
+    }
+    $n = count($novas);
+    $lanca = !array_key_exists('lanca_producao', $corpo) || !empty($corpo['lanca_producao']);
+    $qtdTotal = array_key_exists('quantidade', $corpo) && $corpo['quantidade'] !== null && $corpo['quantidade'] !== '' ? (float)$corpo['quantidade'] : (float)$n;
+    if ($qtdTotal < 0) {
+        throw new ErroValidacao('Quantidade inválida.');
+    }
+    $porPeca = $qtdTotal / $n;
+    foreach ($novas as $p) {
+        gravar_linha('apontamentos', null, ['data' => $data, 'empresa' => $empresa, 'tipo' => 'PECA', 'rua' => $p[0], 'faixa' => $p[1], 'eixo' => $atv['codigo'], 'letra' => $p[3],
+            'viga_id' => $p[2], 'qtd' => $porPeca, 'lanca_producao' => $lanca ? 'SIM' : 'NAO', 'obs' => ($corpo['obs'] ?? null) ?: null, 'slot' => null]);
+    }
+    $lanc = $lanca ? pecas_credito($empresa, $atv, $data, $qtdTotal, $usuario) : null;
+    return ['salvos' => $n, 'empresa' => $empresa, 'quantidade' => $qtdTotal, 'unidade' => $atv['unidade'], 'lancamentos' => $lanc ? [$lanc] : []];
 }
 
 function frente_item(array $item, array $frentes, array &$ja, array $base, $data)
@@ -2067,6 +2549,76 @@ function acao_vinculos(array $corpo)
     sistema_gravar('vinculos_material', json_encode((object)$atual, JSON_UNESCAPED_UNICODE));
     registrar_alteracao('vinculos_material', ['alterados' => $n, 'total' => count($atual)]);
     return ['salvos' => $n, 'config' => (object)$atual];
+}
+
+// Fixadores por unidade de cada atividade do catálogo do BM: quando a produção da atividade é lançada, o consumo virtual
+// de cada TAG sobe (por_unidade × unidades produzidas). Guardado em sistema.fixadores_atividade: {atividade: {linhas, por, em}}.
+function fixadores_atividade_ler()
+{
+    $d = json_decode((string)sistema_ler('fixadores_atividade', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+
+function acao_fixadores_atividade(array $corpo)
+{
+    $ativ = trim((string)($corpo['atividade'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9_.\-]{3,40}$/', $ativ)) {
+        throw new ErroValidacao('Atividade inválida.');
+    }
+    $tag = function ($v, $rotulo) {
+        $v = mb_strtoupper(trim((string)($v ?? '')));
+        if ($v === '') {
+            return '';
+        }
+        if (!preg_match('/^[A-Z0-9_.\-]{2,20}$/', $v)) {
+            throw new ErroValidacao("TAG inválida em $rotulo: $v");
+        }
+        return $v;
+    };
+    $qtd = function ($v, $rotulo) {
+        $n = numero($v);
+        if ($n === null || $n < 0 || $n > 1000000) {
+            throw new ErroValidacao("Quantidade inválida em $rotulo.");
+        }
+        return round($n, 4);
+    };
+    $linhas = [];
+    foreach (array_slice(is_array($corpo['linhas'] ?? null) ? $corpo['linhas'] : [], 0, 60) as $l) {
+        if (!is_array($l)) {
+            continue;
+        }
+        $t = $tag($l['tag'] ?? '', 'fixador');
+        if ($t === '') {
+            continue;
+        }
+        $por = $qtd($l['por_unidade'] ?? 0, "fixador $t");
+        if ($por <= 0) {
+            continue;
+        }
+        $linha = ['tag' => $t, 'por_unidade' => $por];
+        foreach (['arruela', 'porca'] as $k) {
+            $tk = $tag($l[$k] ?? '', $k);
+            if ($tk !== '') {
+                $linha[$k] = $tk;
+                $linha[$k . '_qtd'] = $qtd($l[$k . '_qtd'] ?? $por, $k . ' de ' . $t);
+            }
+        }
+        $linha['obs'] = mb_substr(trim((string)($l['obs'] ?? '')), 0, 160);
+        $linhas[] = $linha;
+    }
+    $atual = fixadores_atividade_ler();
+    if ($linhas) {
+        $atual[$ativ] = [
+            'linhas' => $linhas,
+            'por' => trim((string)($GLOBALS['usuario']['nome'] ?? '')),
+            'em' => (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i'),
+        ];
+    } else {
+        unset($atual[$ativ]);
+    }
+    sistema_gravar('fixadores_atividade', json_encode((object)$atual, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('fixadores_atividade', ['atividade' => $ativ, 'linhas' => count($linhas)]);
+    return ['config' => (object)$atual];
 }
 
 function planos_ler()

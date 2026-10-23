@@ -1,11 +1,13 @@
 <?php
 require __DIR__ . '/inc/nucleo.php';
+require __DIR__ . '/inc/importacao.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 $eu = exigir_login_pagina();
 $admin = $eu['perfil'] === 'admin';
 garantir_obras_detalhes(bd(), config()['driver']);   // instalações que ainda não rodaram a migração do esquema 16
+garantir_importacao();   // tabela de documentos e coluna de fase da importação
 $msg = '';
 $erro = '';
 
@@ -26,7 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
 
-        if ($acao === 'criar_obra') {
+        if ($acao === 'criar_obra' || $acao === 'criar_obra_importacao') {
+            $comImportacao = $acao === 'criar_obra_importacao';   // obra nova com importação automática: nasce em rascunho até os documentos serem enviados
             $d = dados_obra_do_post();
             $nome = $d['nome'];
             $ini = $d['data_inicio'] ?: date('Y-m-d');
@@ -34,13 +37,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $logo = imagem_upload_para_data_uri('logo_obra');
             $cols = ['nome', 'responsavel', 'codigo', 'cliente', 'responsavel_cliente', 'cidade', 'endereco', 'encarregado', 'valor_contrato', 'contrato_numero', 'duracao_meses', 'art', 'area_m2', 'telefone', 'email', 'observacoes'];
             $vals = array_map(function ($c) use ($d) { return $d[$c]; }, $cols);
-            q_global('INSERT INTO obras (' . implode(',', $cols) . ", data_inicio, data_fim, status, cor_primaria, cor_secundaria, logo, criado_em) VALUES (" . implode(',', array_fill(0, count($cols), '?')) . ", ?, ?, 'ativa', ?, ?, ?, ?)",
-                array_merge($vals, [$ini, $fim, cor_segura($_POST['cor_primaria'] ?? '', '#d97706'), cor_segura($_POST['cor_secundaria'] ?? '', '#111827'), $logo, agora()]));
+            q_global('INSERT INTO obras (' . implode(',', $cols) . ", data_inicio, data_fim, status, importacao, cor_primaria, cor_secundaria, logo, criado_em) VALUES (" . implode(',', array_fill(0, count($cols), '?')) . ", ?, ?, ?, ?, ?, ?, ?, ?)",
+                array_merge($vals, [$ini, $fim, $comImportacao ? 'rascunho' : 'ativa', $comImportacao ? 'rascunho' : null, cor_segura($_POST['cor_primaria'] ?? '', '#d97706'), cor_segura($_POST['cor_secundaria'] ?? '', '#111827'), $logo, agora()]));
             $id = (int)bd()->lastInsertId();
             foreach (['obra_nome' => $nome, 'data_inicio' => $ini, 'data_fim' => $fim, 'versao' => '0', 'modificado' => date('c'), 'dados_legados' => '0'] as $k => $v) {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$id, $k, $v]);
             }
             q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [(int)$eu['id'], $id]);
+            if ($comImportacao) {
+                registrar_global('obra_criada_rascunho', ['obra_id' => $id, 'nome' => $nome]);
+                header('Location: obra_importar.php?obra=' . $id);
+                exit;
+            }
             if (!empty($_POST['copiar_estrutura']) && obra_atual_id() > 0) {
                 copiar_estrutura_obra(obra_atual_id(), $id);
             }
@@ -66,10 +74,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($acao === 'status_obra') {
             $id = (int)($_POST['obra_id'] ?? 0);
             $status = ($_POST['status'] ?? '') === 'arquivada' ? 'arquivada' : 'ativa';
+            if (q_global("SELECT 1 FROM obras WHERE id = ? AND status = 'rascunho'", [$id])->fetchColumn()) {
+                throw new InvalidArgumentException('Esta obra ainda está em importação: conclua ou descarte o rascunho.');
+            }
             q_global('UPDATE obras SET status=? WHERE id=?', [$status, $id]);
             if (obra_atual_id() === $id && $status !== 'ativa') { definir_obra_atual(0); }
             registrar_global('obra_status', ['obra_id' => $id, 'status' => $status]);
             $msg = 'Situação da obra alterada.';
+        } elseif ($acao === 'excluir_obra') {   // exclusão definitiva: apaga a obra e TODOS os dados dela (produção, estoque, BM, apontamentos, documentos)
+            $id = (int)($_POST['obra_id'] ?? 0);
+            $o = q_global('SELECT * FROM obras WHERE id = ?', [$id])->fetch();
+            if (!$o) { throw new InvalidArgumentException('Obra não encontrada.'); }
+            if (trim((string)($_POST['confirmar_nome'] ?? '')) !== trim((string)$o['nome'])) {
+                throw new InvalidArgumentException('Para excluir, digite o nome da obra exatamente como está (' . $o['nome'] . ').');
+            }
+            $pdo = bd();
+            $pdo->beginTransaction();
+            try {
+                foreach (tabelas_da_obra() as $t) {
+                    q_global("DELETE FROM `$t` WHERE obra_id = ?", [$id]);
+                }
+                foreach (['obra_config', 'usuarios_obras', 'obra_documentos'] as $t) {
+                    q_global("DELETE FROM `$t` WHERE obra_id = ?", [$id]);
+                }
+                q_global('DELETE FROM obras WHERE id = ?', [$id]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) { $pdo->rollBack(); }
+                throw $e;
+            }
+            importacao_apagar_pasta($id);   // documentos enviados na importação
+            if (obra_atual_id() === $id) { definir_obra_atual(0); }
+            registrar_global('obra_excluida', ['obra_id' => $id, 'nome' => $o['nome']]);
+            $msg = 'Obra “' . $o['nome'] . '” excluída definitivamente, com todos os dados.';
         } elseif ($acao === 'identidade') {
             $logo = !empty($_POST['remover_logo']) ? '' : imagem_upload_para_data_uri('logo_global', global_ler('logo', ''));
             global_gravar('nome_sistema', trim((string)($_POST['nome_sistema'] ?? '')) ?: 'Núcleo de Obras');
@@ -185,6 +222,8 @@ foreach ($obras as $o) {
     ];
 }
 $usuarios = $admin ? q_global("SELECT id,nome,login,perfil FROM usuarios WHERE ativo=1 ORDER BY nome")->fetchAll() : [];
+$rascunhos = $admin ? q_global("SELECT * FROM obras WHERE status = 'rascunho' ORDER BY id DESC")->fetchAll() : [];
+$todas = array_values(array_filter($todas, function ($o) { return $o['status'] !== 'rascunho'; }));
 $acessos = [];
 if ($admin) {
     foreach (q_global('SELECT usuario_id,obra_id FROM usuarios_obras')->fetchAll() as $a) { $acessos[$a['usuario_id']][] = (int)$a['obra_id']; }
@@ -209,6 +248,25 @@ pagina_inicio('Central de obras');
     <?php if ($msg): ?><div class="toast ok-faixa"><?= h($msg) ?></div><?php endif; ?>
     <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
 
+    <?php if ($rascunhos): ?>
+    <style>
+      .imp-item { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border:1px solid var(--portal-line,#e4e7ec); border-radius:13px; background:#fbfcfd; }
+      .imp-item b { display:block; color:#101828; font-size:1rem; }
+      .imp-item small { display:block; margin-top:3px; color:#667085; }
+      .imp-continuar { display:inline-flex; align-items:center; justify-content:center; min-height:41px; padding:0 18px; border-radius:10px; background:var(--portal-primary,#d97706); color:#fff !important; font-weight:700; font-size:.9rem; text-decoration:none !important; white-space:nowrap; }
+      .imp-continuar:hover { filter:brightness(.95); }
+    </style>
+    <section class="bloco painel-form" style="margin:22px 0">
+      <h3>Obras em importação</h3><p class="nota">Ainda não abrem: faltam documentos ou a leitura automática.</p>
+      <div class="manage-grid">
+      <?php foreach ($rascunhos as $o): $faseImp = $o['importacao'] ?? 'rascunho'; ?>
+        <div class="imp-item"><div><b><?= h($o['nome']) ?></b>
+          <small><?= h(['aguardando_leitura' => 'Documentos enviados — pronta para gerar a obra', 'lendo' => 'Lendo os documentos…', 'revisao' => 'Leitura pronta — falta revisar e publicar', 'erro_leitura' => 'A leitura não terminou — tente de novo'][$faseImp] ?? 'Rascunho — faltam documentos') ?></small></div>
+          <a class="imp-continuar" href="<?= in_array($faseImp, ['lendo', 'revisao', 'erro_leitura'], true) ? 'obra_revisao.php' : 'obra_importar.php' ?>?obra=<?= (int)$o['id'] ?>"><?= $faseImp === 'revisao' ? 'Revisar e publicar →' : 'Continuar importação →' ?></a></div>
+      <?php endforeach; ?></div>
+    </section>
+    <?php endif; ?>
+
     <div class="obra-grid">
       <?php foreach ($obras as $o): ?>
       <article class="obra-card" style="--obra-cor:<?= h(cor_segura($o['cor_primaria'] ?? '', '#d97706')) ?>">
@@ -229,6 +287,7 @@ pagina_inicio('Central de obras');
         <small class="ultima-atividade"><?= $resumos[$o['id']]['ultima'] ? 'Atualizada em '.h(date('d/m/Y H:i',strtotime($resumos[$o['id']]['ultima']))) : 'Ainda sem movimentação' ?></small>
         <?php if ($o['status'] === 'ativa'): ?><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="abrir"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><button class="btn primario largura">Abrir obra <span>→</span></button></form><?php endif; ?>
         <?php if ($admin): ?><button type="button" class="btn ghost largura" data-obra-editar="obraDlg<?= (int)$o['id'] ?>">✎ Editar dados da obra</button>
+          <?php if (($o['importacao'] ?? '') === 'publicada'): ?><a class="btn ghost largura" href="obra_revisao.php?obra=<?= (int)$o['id'] ?>" style="margin-top:6px">Relatório da importação</a><?php endif; ?>
         <dialog id="obraDlg<?= (int)$o['id'] ?>" class="obra-dialog"><form method="post" enctype="multipart/form-data" class="painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="editar_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>">
           <h3>Dados da obra — <?= h($o['nome']) ?></h3><p class="nota">Só o nome e o responsável da obra são obrigatórios; o restante pode ser preenchido aos poucos.</p>
@@ -254,13 +313,22 @@ pagina_inicio('Central de obras');
           <label class="check"><input type="checkbox" name="remover_logo" value="1"> Remover logo atual</label><button class="btn primario">Salvar identidade</button>
         </form>
         <form method="post" enctype="multipart/form-data" class="bloco painel-form">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_obra_importacao">
+          <h3>Nova obra</h3><p class="nota">Passo 1 de 3: dados da obra. No passo 2 você envia os documentos obrigatórios (IFC, fixadores, cronograma, orçamento e projetos) e o sistema monta a obra a partir deles.</p>
+          <?= campos_obra() ?>
+          <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="#d97706"></label><label>Cor escura<input type="color" name="cor_secundaria" value="#111827"></label></div>
+          <label>Logo da obra<input type="file" name="logo_obra" accept="image/png,image/jpeg,image/webp"></label>
+          <button class="btn primario">Criar e enviar documentos →</button>
+        </form>
+        <form method="post" enctype="multipart/form-data" class="bloco painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_obra">
-          <h3>Nova obra</h3><p class="nota">Crie um ambiente independente e vazio.</p>
+          <details><summary><b>Criar obra vazia (sem importação)</b> <small>— temporário</small></summary>
+          <p class="nota">Cria um ambiente independente e vazio, para configurar manualmente. Será removido quando a leitura automática estiver validada.</p>
           <?= campos_obra() ?>
           <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="#d97706"></label><label>Cor escura<input type="color" name="cor_secundaria" value="#111827"></label></div>
           <label>Logo da obra<input type="file" name="logo_obra" accept="image/png,image/jpeg,image/webp"></label>
           <?php if (obra_atual_id()): ?><label class="check"><input type="checkbox" name="copiar_estrutura" value="1"> Copiar apenas empresas e serviços da obra aberta (sem produção)</label><?php endif; ?>
-          <button class="btn primario">Criar obra</button>
+          <button class="btn">Criar obra vazia</button></details>
         </form>
       </div>
 
@@ -268,6 +336,12 @@ pagina_inicio('Central de obras');
         <?php foreach ($todas as $o): ?><details><summary><b><?= h($o['nome']) ?></b><span><?= h($o['status']) ?></span></summary>
           <p class="nota">Para alterar os dados desta obra use o botão “Editar dados da obra” no cartão dela.</p>
           <form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="status_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><input type="hidden" name="status" value="<?= $o['status']==='ativa'?'arquivada':'ativa' ?>"><button class="btn ghost"><?= $o['status']==='ativa'?'Arquivar':'Reativar' ?></button></form>
+          <form method="post" class="excluir-obra" onsubmit="return confirm('EXCLUIR DEFINITIVAMENTE a obra <?= h(addslashes($o['nome'])) ?> e todos os dados dela (produção, estoque, BM, apontamentos, documentos)? Não dá para desfazer.');" style="margin-top:14px;padding-top:12px;border-top:1px solid #fecdca">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="excluir_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>">
+            <p class="nota" style="color:#b42318;margin:0 0 6px"><b>Excluir obra</b> — apaga a obra e todos os dados dela, sem volta. Dica: se só quiser tirar da lista, use Arquivar.</p>
+            <input name="confirmar_nome" placeholder="Digite o nome da obra para confirmar" autocomplete="off" required style="width:100%;padding:8px 10px;border:1px solid #fda29b;border-radius:8px;margin-bottom:8px">
+            <button class="btn" style="background:#d92d20;color:#fff;border-color:#d92d20">Excluir obra definitivamente</button>
+          </form>
         </details><?php endforeach; ?>
       </div></section>
 

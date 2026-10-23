@@ -41,7 +41,7 @@ function sincronizar_para_github(array $cfg): array
     // Arquivos e prefixos excluídos da sincronização
     $excArq = ['inc/config.php', 'tcpdf.php', 'tcpdf_autoconfig.php',
                'tcpdf_barcodes_1d.php', 'tcpdf_barcodes_2d.php', 'chart.umd.js'];
-    $excPfx = ['dados/sessoes/', 'fonts/', 'include/', 'config/'];
+    $excPfx = ['dados/sessoes/', 'dados_obras/', 'fonts/', 'include/', 'config/'];
 
     // Extensões que identificam arquivos de código/dados (exclui binários e icc)
     $extsOk = ['php','js','css','html','json','sql','txt','htaccess','gitignore'];

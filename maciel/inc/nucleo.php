@@ -128,6 +128,9 @@ function tabelas_spec()
         'apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'tipo' => 'txt', 'rua' => 'txt', 'faixa' => 'txt',
             'eixo' => 'txt', 'letra' => 'txt', 'viga_id' => 'txt', 'qtd' => 'num', 'lanca_producao' => 'txt',
             'obs' => 'txt', 'slot' => 'num'],
+        // Relatório diário de obra (RDO): observações do dia e fotos com legenda (o arquivo fica em dados_obras/{obra}/rdo, servido por rdo_foto.php)
+        'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
+        'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
             'peso' => 'num', 'frente' => 'txt'],
@@ -136,7 +139,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 17;
+const ESQUEMA_VERSAO = 21;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -218,11 +221,38 @@ function renomear_telhar_v15(PDO $pdo)
     }
 }
 
+// Tarefas a fazer (aba fixa de abertura): globais do sistema, atribuídas a usuários; não dependem da obra aberta.
+function tarefas_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS tarefas (id $pk, titulo VARCHAR(200) NOT NULL, descricao $longo NULL,
+        criado_por INT NOT NULL, responsavel_id INT NOT NULL, data_inicio DATE NULL, data_fim DATE NULL,
+        aviso_dias INT NOT NULL DEFAULT 2, prioridade VARCHAR(10) NOT NULL DEFAULT 'normal', status VARCHAR(15) NOT NULL DEFAULT 'pendente',
+        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL)$fim";
+}
+// Documentos enviados para a importação automática de uma obra nova (IFC, fixadores, cronograma, orçamento, projetos).
+function importacao_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS obra_documentos (id $pk, obra_id INT NOT NULL, tipo VARCHAR(20) NOT NULL, nome_original VARCHAR(255) NOT NULL,
+        arquivo VARCHAR(255) NOT NULL, tamanho BIGINT NOT NULL DEFAULT 0, sha256 VARCHAR(64) NULL, status VARCHAR(15) NOT NULL DEFAULT 'recebido',
+        mensagens $longo NULL, resumo $longo NULL, profunda_status VARCHAR(15) NULL, profunda $longo NULL, enviado_por INT NULL, enviado_em VARCHAR(19) NOT NULL)$fim";
+}
+function garantir_tarefas()
+{
+    static $ok = false;
+    if ($ok) {
+        return;
+    }
+    $driver = config()['driver'] ?? 'mysql';
+    bd()->exec(tarefas_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
+        $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
+    $ok = true;
+}
+
 function criar_esquema(PDO $pdo, $driver)
 {
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     $fim = $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : '';
-    $tipos = ['txt' => 'VARCHAR(255) NULL', 'num' => 'DOUBLE NULL', 'data' => 'DATE NULL'];
+    $tipos = ['txt' => 'VARCHAR(255) NULL', 'longo' => 'TEXT NULL', 'num' => 'DOUBLE NULL', 'data' => 'DATE NULL'];
     $longo = $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT';
     $sql = [
         "CREATE TABLE IF NOT EXISTS sistema (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
@@ -256,6 +286,8 @@ function criar_esquema(PDO $pdo, $driver)
         "CREATE TABLE IF NOT EXISTS obra_config (obra_id INT NOT NULL, chave VARCHAR(50) NOT NULL, valor $longo NULL,
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
+        tarefas_sql($pk, $longo, $fim),
+        importacao_sql($pk, $longo, $fim),
         "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
     ];
@@ -272,6 +304,9 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_multiobra($pdo, $driver);
     garantir_autenticacao_estendida($pdo, $driver);
     garantir_obras_detalhes($pdo, $driver);
+    if (!in_array('importacao', colunas_tabela($pdo, $driver, 'obras'), true)) {   // fase da importação automática (rascunho, aguardando_leitura…); vazio = obra comum
+        $pdo->exec("ALTER TABLE obras ADD COLUMN importacao VARCHAR(25) NULL");
+    }
     if (!in_array('empresas', colunas_tabela($pdo, $driver, 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN empresas VARCHAR(255) NULL");
     }
@@ -336,6 +371,9 @@ function garantir_autenticacao_estendida(PDO $pdo, $driver)
     }
     if (!in_array('tema', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // tema visual de cada usuário: light | dark | space (vazio = automático)
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN tema VARCHAR(20) NULL");
+    }
+    if (!in_array('menu_pos', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // posição do menu de cada usuário: lateral | topo (vazio = lateral)
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN menu_pos VARCHAR(10) NULL");
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS redefinicoes_senha (id $pk, usuario_id INT NOT NULL, token_hash VARCHAR(128) NOT NULL, expira_em VARCHAR(19) NOT NULL, usado_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, ip VARCHAR(64) NULL)$fim");
     $temIndice = false;
@@ -676,9 +714,13 @@ function usuario_atual()
         }
         $_SESSION['ultimo'] = time();
         try {
-            $linha = q('SELECT id, nome, login, perfil, empresa, email, tema FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
-        } catch (Throwable $e) {   // banco ainda sem a coluna tema (antes da migração)
-            $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            $linha = q('SELECT id, nome, login, perfil, empresa, email, tema, menu_pos FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+        } catch (Throwable $e) {   // banco ainda sem as colunas tema/menu_pos (antes da migração)
+            try {
+                $linha = q('SELECT id, nome, login, perfil, empresa, email, tema FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            } catch (Throwable $e2) {
+                $linha = q('SELECT id, nome, login, perfil, empresa, email FROM usuarios WHERE id = ? AND ativo = 1', [$_SESSION['uid']])->fetch();
+            }
         }
         $u = $linha ?: null;
     }
@@ -728,7 +770,8 @@ function conferir_csrf()
 }
 
 // Tema visual do usuário logado: 'light' (branco), 'dark' (preto) ou 'space' (espacial); vazio = automático (segue o aparelho).
-const TEMAS_VALIDOS = ['light', 'dark', 'space'];
+const TEMAS_VALIDOS = ['light', 'dark', 'space', 'nevoa', 'grafite', 'salvia'];   // nevoa/grafite/salvia = propostas de visual suave (2026-10-21)
+const MENUS_VALIDOS = ['lateral', 'topo'];
 function tema_do_usuario()
 {
     if (isset($GLOBALS['tema_override'])) {
@@ -738,23 +781,37 @@ function tema_do_usuario()
     $t = (string)($u['tema'] ?? '');
     return in_array($t, TEMAS_VALIDOS, true) ? $t : '';
 }
+// Posição do menu: 'lateral' (padrão) ou 'topo' (abas das áreas na barra superior). Só a tela principal (index.php) usa.
+function menu_do_usuario()
+{
+    if (isset($GLOBALS['menu_override'])) {
+        return $GLOBALS['menu_override'] === 'topo' ? 'topo' : 'lateral';
+    }
+    $u = function_exists('usuario_atual') ? usuario_atual() : null;
+    return (($u['menu_pos'] ?? '') === 'topo') ? 'topo' : 'lateral';
+}
+function menu_attr()
+{
+    return menu_do_usuario() === 'topo' ? ' data-menu="topo"' : '';
+}
 function tema_attr()
 {
     $t = tema_do_usuario();
     return $t !== '' ? ' data-theme="' . $t . '"' : '';
 }
 
-function pagina_inicio($titulo)
+// $app = tela do sistema (Dashboard geral): usa o tema E a posição do menu do usuário e não carrega o visual do portal.
+function pagina_inicio($titulo, $app = false)
 {
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
     $logo = config() ? global_ler('logo', '') : '';
-    echo '<!doctype html><html lang="pt-BR"' . tema_attr() . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
-    echo '<link rel="stylesheet" href="style.css?v=20261005auth1"><link rel="stylesheet" href="portal.css?v=20261003v7"><style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
+    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261003v7">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 
 

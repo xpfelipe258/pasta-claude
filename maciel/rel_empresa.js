@@ -39,7 +39,7 @@ function rePlanoItens(emp, ini, fim) {
   rePlanosDoPeriodo(ini, fim).forEach(p => {
     const pc = plPlanoCombinado([p], emp);
     if (!pc) return;
-    const ce = pjDaEmpresa(plCalc(pc), emp, pc);
+    const ce = emp ? pjDaEmpresa(plCalc(pc), emp, pc) : plCalc(pc);   // sem empresa = relatório geral: a obra inteira, sem dividir as atividades
     ce.itens.forEach(x => out.push({ plano: p, c: ce, x }));
   });
   return out;
@@ -194,7 +194,7 @@ function rePlanos(emp, ini, fim, c) {
   rePlanosDoPeriodo(ini, fim).forEach(p => {
     const pc = plPlanoCombinado([p], emp);
     if (!pc) return;
-    const c0 = plCalc(pc), ce = pjDaEmpresa(c0, emp, pc), v = rePctItens(ce.itens), st = plStatusPlano({ ...c0, ...v, itens: ce.itens, concl: ce.itens.filter(x => x.status === 'CONCLUÍDO').length });
+    const c0 = plCalc(pc), ce = emp ? pjDaEmpresa(c0, emp, pc) : c0, v = rePctItens(ce.itens), st = plStatusPlano({ ...c0, ...v, itens: ce.itens, concl: ce.itens.filter(x => x.status === 'CONCLUÍDO').length });
     const encerrado = p.fim <= c, atingido = v.pctReal >= 99.5;
     const veredito = atingido ? ['vd', 'PLANO ATINGIDO'] : encerrado ? ['vm', 'PLANO NÃO ATINGIDO'] : v.desvio >= -1 ? ['vd', 'NO RITMO DO PLANO'] : v.desvio >= -5 ? ['am', 'ABAIXO DO PLANEJADO'] : ['vm', 'MUITO ABAIXO DO PLANEJADO'];
     rows.push({ plano: p, c: { ...c0, ...v }, st, veredito, itens: ce.itens });
@@ -227,7 +227,7 @@ function reBM(emp, ini, fim, c) {
 function reProjecao(emp, bm) {
   const pl = plPlanoCombinado(pjPlanosAtivos(), emp);
   if (pl) {
-    const c0 = plCalc(pl), c = pjDaEmpresa(c0, emp, pl), r = pjCalc(pl, c, 1, 'RÓTULA');
+    const c0 = plCalc(pl), c = emp ? pjDaEmpresa(c0, emp, pl) : c0, r = pjCalc(pl, c, 1, 'RÓTULA');
     const semanas = new Map();
     r.itens.forEach(i => i.proj.forEach((v, d) => { if (d > r.base) semanas.set(segunda(d), (semanas.get(segunda(d)) || 0) + v * i.p); }));
     const brutas = r.itens.map(i => {
@@ -248,15 +248,15 @@ function reProjecao(emp, bm) {
   }
   if (!bm || bm.sem) return { base: 'nenhuma' };
   // sem plano 5W2H: ritmo financeiro dos últimos 14 dias de calendário → quando o saldo do catálogo seria medido
-  const c = minD(ref, M.referencia || ref), ant = bmItens(emp, add(c, -14)), atual = bmItens(emp, c);
-  const v14 = soma0(atual, i => i.pct * (i.valor.RÓTULA || 0)) - soma0(ant, i => i.pct * (i.valor.RÓTULA || 0)), porDia = v14 / 14;
+  const c = minD(ref, M.referencia || ref), nomes = emp ? [emp] : (M.empresas || []).map(e => e.nome).filter(Boolean);
+  const v14 = soma0(nomes, n => soma0(bmItens(n, c), i => i.pct * (i.valor.RÓTULA || 0)) - soma0(bmItens(n, add(c, -14)), i => i.pct * (i.valor.RÓTULA || 0))), porDia = v14 / 14;
   const dias = porDia > 0 ? Math.ceil(bm.saldo / porDia) : null;
   return { base: 'catalogo', saldo: bm.saldo, porDia, termina: dias != null && dias < 1500 ? add(c, dias) : null, v14 };
 }
 
 // ---------------------------------------------------------------- 8. equipamentos e abastecimento: período, histórico dos BMs e projeção
 function reAbastecimento(emp, c, horizonteSemanas) {
-  const us = ratear((T.usos || []).filter(u => u.data && u.data <= c && (ganNorm(u.uso).includes('ABASTECIMENTO') || (u.litros || 0) > 0 || (u.custo_combustivel || 0) > 0))).filter(r => r.empAjust === emp);
+  const us = ratear((T.usos || []).filter(u => u.data && u.data <= c && (ganNorm(u.uso).includes('ABASTECIMENTO') || (u.litros || 0) > 0 || (u.custo_combustivel || 0) > 0))).filter(r => !emp || r.empAjust === emp);
   const porDia = new Map();
   us.forEach(r => {
     const o = porDia.get(r.data) || { data: r.data, litros: 0, valor: 0 };
@@ -311,7 +311,7 @@ function reProjEquip(emp, ini, fim, c, ls) {
   let fonte = 'plano 5W2H';
   if (!its.length) {
     fonte = 'cronograma';
-    ls.filter(l => { const n = ganNorm(l.it.servico); return (/ICAMENTO/.test(n) || n === 'VIGAS') && !ehFrenteAnexa(l.it.frente) && l.status !== 'CONCLUÍDO' && (plEmpresasDe(l.it).includes(emp) || (l.porEmp || []).some(y => y.nome === emp)); })
+    ls.filter(l => { const n = ganNorm(l.it.servico); return (/ICAMENTO/.test(n) || n === 'VIGAS') && !ehFrenteAnexa(l.it.frente) && l.status !== 'CONCLUÍDO' && (!emp || plEmpresasDe(l.it).includes(emp) || (l.porEmp || []).some(y => y.nome === emp)); })
       .forEach(l => dias.forEach(d => { if (l.ini && l.ini <= d && (l.prazo || '9999-12-31') >= d) prev.add(d); }));
   }
   const prevDias = [...prev].sort(), maxGui = Math.min(du, Math.max(1, Math.round(du * 2 / 5)));
@@ -320,7 +320,9 @@ function reProjEquip(emp, ini, fim, c, ls) {
   return { du, de, ate: ateJan, dias, pta, gui, ptaDias: dias.length, guiDias: diasGui, guiPrevistos: prevDias.length, maxGui, custoPta, custoGui, total: custoPta + custoGui, fonte };
 }
 function reEquipamentos(emp, ini, fim, c, atv, ls) {
-  const dados = relEquipDados(emp, ini, fim, 'todos'), tot = dados.empresas.find(x => x.empresa === emp) || { custo: 0, litros: 0, comb: 0, total: 0, dias: new Set() };
+  const dados = relEquipDados(emp, ini, fim, 'todos'), vazio = { custo: 0, litros: 0, comb: 0, total: 0, dias: new Set() };
+  const tot = emp ? (dados.empresas.find(x => x.empresa === emp) || vazio)
+    : { custo: soma0(dados.empresas, x => x.custo), litros: soma0(dados.empresas, x => x.litros), comb: soma0(dados.empresas, x => x.comb), total: soma0(dados.empresas, x => x.total), dias: new Set(dados.empresas.flatMap(x => [...x.dias])) };
   const proj = reProjEquip(emp, ini, fim, c, ls);
   const abast = reAbastecimento(emp, c, 1);
   if (!abast.sem) { abast.janela = abast.custoSemana * proj.du / 5; abast.janelaLitros = abast.litrosSemana * proj.du / 5; }   // abastecimento da semana seguinte (proporcional aos dias úteis do período)
@@ -342,22 +344,23 @@ function reImpactos(emp, ini, fim, c) {
   const lim = { ini, fim: c };
   const todos = impactosComAutomaticos().filter(i => { const p = periodoImpacto(i); return p.ini <= fim && p.fim >= ini; });
   const forn = new Map(todos.map(i => [i, reFornecedorMencionado(i)]));
-  const gerou = i => forn.get(i).some(n => ganNorm(n) === ganNorm(emp));
+  const gerou = i => (emp ? forn.get(i).some(n => ganNorm(n) === ganNorm(emp)) : forn.get(i).length > 0);   // geral: todo impacto com fornecedor mencionado é GERADO
   const gerados = todos.filter(gerou);
-  const sofridos = todos.filter(i => impactoEmpresas(i).includes(emp) && !gerou(i));
+  const sofridos = todos.filter(i => (!emp || impactoEmpresas(i).includes(emp)) && !gerou(i));
   const semEmpresa = todos.filter(i => !impactoEmpresas(i).length).length;
-  const rk = rankingImpactos(sofridos, [emp], lim), me = rk.empresas.find(x => x.nome === emp);
+  const rk = emp ? rankingImpactos(sofridos, [emp], lim) : null, me = rk && rk.empresas.find(x => x.nome === emp);
   const linha = (i, tipo) => ({ tipo, i, forn: forn.get(i), dias: somaMapa(diasPorImpacto(i, lim)) });
   const linhas = [...sofridos.map(i => linha(i, 'SOFRIDO')), ...gerados.map(i => linha(i, 'GERADO'))].sort((a, b) => String(a.i.data).localeCompare(String(b.i.data)));
   const comForn = todos.filter(i => fornecedorDeSetor(impactoSetor(i)).isForn);
-  return { linhas, sofridos: sofridos.length, gerados: gerados.length, diasDiretos: me ? me.dias : 0, diasCascata: me ? me.indireto : 0, diasGerados: somaMapa(mapaImpactos(gerados, lim)), semEmpresa, lim,
+  return { linhas, sofridos: sofridos.length, gerados: gerados.length, diasDiretos: emp ? (me ? me.dias : 0) : somaMapa(mapaImpactos(sofridos, lim)), diasCascata: me ? me.indireto : 0, diasGerados: somaMapa(mapaImpactos(gerados, lim)), semEmpresa, lim,
     fornTotal: comForn.length, fornOutra: comForn.filter(i => forn.get(i).length && !gerou(i)).length, fornSemNome: comForn.filter(i => !forn.get(i).length).length };
 }
 
 // ---------------------------------------------------------------- 10. tendência de efetivo
 function reEfetivo(emp, ini, fim, c, ls) {
-  const semAt = w => ls.filter(l => (plEmpresasDe(l.it).includes(emp) || (l.porEmp || []).some(x => x.nome === emp)) && l.ini && l.ini <= w.fim && (l.prazo || '9999-12-31') >= w.ini && l.status !== 'CONCLUÍDO');
-  const media = w => { const ds = []; for (let d = w.ini; d <= w.fim && d <= c; d = add(d, 1)) if (diaUtil(d)) { const t = efetivoEmpresaDia(emp, d).total; if (t > 0) ds.push(t); } return ds.length ? soma0(ds, x => x) / ds.length : null; };
+  const efDia = d => (emp ? efetivoEmpresaDia(emp, d).total : soma0((T.dp_efetivo || []).filter(r => r.data === d), r => r.quantidade || 0));   // sem empresa = efetivo total da obra
+  const semAt = w => ls.filter(l => (!emp || plEmpresasDe(l.it).includes(emp) || (l.porEmp || []).some(x => x.nome === emp)) && l.ini && l.ini <= w.fim && (l.prazo || '9999-12-31') >= w.ini && l.status !== 'CONCLUÍDO');
+  const media = w => { const ds = []; for (let d = w.ini; d <= w.fim && d <= c; d = add(d, 1)) if (diaUtil(d)) { const t = efDia(d); if (t > 0) ds.push(t); } return ds.length ? soma0(ds, x => x) / ds.length : null; };
   const segAtual = segunda(c), hist = [];
   for (let k = 5; k >= 0; k--) { const sg = add(segAtual, -7 * k); const w = { ini: sg, fim: add(sg, 6), seg: sg }; hist.push({ ...w, m: media(w) }); }
   const pts = hist.map((h, k) => [k, h.m]).filter(p => p[1] != null);
@@ -379,9 +382,9 @@ function reEfetivo(emp, ini, fim, c, ls) {
     const efetivo = lancado != null ? lancado : proj(k);
     semanas.push({ ...w, lancado, projetado: lancado == null, efetivo, atv: distintas.map(l => cap(l.it.servico_exib || l.it.servico)), necessario, saldo: efetivo - necessario });
   });
-  const regs = (T.dp_efetivo || []).filter(r => normEmp(r.empresa) === emp && r.data && r.data >= ini && r.data <= fim);
+  const regs = (T.dp_efetivo || []).filter(r => (!emp || normEmp(r.empresa) === emp) && r.data && r.data >= ini && r.data <= fim);
   const dias = new Set(regs.map(r => r.data)), hd = soma0(regs, r => r.quantidade || 0);
-  const pico = Math.max(0, ...[...dias].map(d => efetivoEmpresaDia(emp, d).total));
+  const pico = Math.max(0, ...[...dias].map(efDia));
   return { hist, semanas, tendencia: b, base: pts.length, homemDia: hd, mediaDia: dias.size ? hd / dias.size : null, pico };
 }
 
@@ -390,24 +393,25 @@ function reEfetivo(emp, ini, fim, c, ls) {
 // nomeada; a data de cada semana vem de Estoque › Consumo físico (✎ Editar coluna) ou, se faltar, do intervalo escrito no nome.
 function reSuprimentos(emp, ini, fim, c) {
   const cf = estConsumoComCadastros(), regras = M.estoque_ifc?.regras || {}, servs = regras.consumo_por_servico || {};
-  if (!(cf.empresas || []).includes(emp)) return { sem: 'O consumo físico de material só é lançado para ' + (cf.empresas || []).join(' e ') + '.' };
+  const emps = emp ? [emp] : (cf.empresas || []);   // sem empresa = relatório geral: soma das empresas com consumo físico
+  if (!emps.length || (emp && !(cf.empresas || []).includes(emp))) return { sem: 'O consumo físico de material só é lançado para ' + (cf.empresas || []).join(' e ') + '.' };
   const mats = new Map(estMateriaisComCadastros().map(m => [ganNorm(m.tag), m]));
   const datas = consSemanasDatas(cf), nSem = reSemanas(ini, fim).length, alvoFim = add(segunda(ini), -1), alvoIni = add(segunda(ini), -7 * nSem);
   const alvo = (cf.semanas || []).filter(n => { const d = datas.get(n); return d && d.data >= alvoIni && d.data <= alvoFim; });
   const modo = alvo.length ? 'semana' : 'acumulado';   // sem semana datada antes do período: cai no acumulado e avisa
   const de = modo === 'semana' ? ini : '0000-01-01';
-  const prodCache = new Map(), prod = nome => { if (!prodCache.has(nome)) prodCache.set(nome, prodServico(nome, emp, de, c)); return prodCache.get(nome); };
-  const temServ = nome => !nome.startsWith('_') && M.empresas.some(e => e.nome === emp && e.servicos.some(s => s.nome === nome));
+  const prodCache = new Map(), prod = nome => { if (!prodCache.has(nome)) prodCache.set(nome, soma0(emps.filter(e => temServ(nome, e)), e => prodServico(nome, e, de, c))); return prodCache.get(nome); };
+  const temServ = (nome, e0) => !nome.startsWith('_') && M.empresas.some(e => (e0 ? e.nome === e0 : emps.includes(e.nome)) && e.servicos.some(s => s.nome === nome));
   // Ø1/2": 8 parafusos + 8 porcas + 8 arruelas por joist içada; o parafuso (FG005/FG006/FG007) é o específico da posição da joist (criterio_por_letra) e vem do apontamento
   const crit = (window._regras_baixa || {}).criterio_por_letra || regras.criterio_por_letra || {};
-  const apJ = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'JOIST' && a.empresa === emp && (!a.data || (a.data <= c && a.data >= de)));
+  const apJ = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'JOIST' && emps.includes(a.empresa) && (!a.data || (a.data <= c && a.data >= de)));
   const joistsAp = soma0(apJ, a => a.qtd || 0), parafusoAp = new Map();
   apJ.forEach(a => { const cod = (crit[String(a.letra || '').toUpperCase()] || {}).parafuso; if (cod) parafusoAp.set(cod, (parafusoAp.get(cod) || 0) + 8 * (a.qtd || 0)); });
   const itens = [];
   (cf.itens || []).forEach(m => {
-    const retirado = soma0(Object.entries(m.consumo_semanas || {}).filter(([n]) => modo === 'acumulado' || alvo.includes(n)), ([, d]) => Number(d?.[emp]) || 0);
+    const retirado = soma0(Object.entries(m.consumo_semanas || {}).filter(([n]) => modo === 'acumulado' || alvo.includes(n)), ([, d]) => soma0(emps, e => Number(d?.[e]) || 0));
     if (!(retirado > 0)) return;
-    const refs = Object.entries(servs).filter(([nome, conf]) => temServ(nome) && (conf.itens || []).some(x => ganNorm(x.codigo) === ganNorm(m.tag)))
+    const refs = Object.entries(servs).filter(([nome, conf]) => temServ(nome, null) && (conf.itens || []).some(x => ganNorm(x.codigo) === ganNorm(m.tag)))
       .map(([nome, conf]) => ({ nome, por: Number(conf.itens.find(x => ganNorm(x.codigo) === ganNorm(m.tag)).por_unidade) || 0, real: prod(nome) })).filter(x => x.por > 0);
     let esperado = soma0(refs, x => x.por * x.real), exato = false;
     const realizadas = soma0(refs, x => x.real), refIc = refs.find(x => /ICAMENTO/.test(ganNorm(x.nome)));
@@ -430,9 +434,10 @@ function reSuprimentos(emp, ini, fim, c) {
 // Mesma planta dos apontamentos de montagem, em SVG estático: cada peça é pintada pelo que foi apontado até a data de corte —
 // cor forte da empresa = montada por ela NO PERÍODO; cor clara = montada por ela antes do período; cinza = montada por outra empresa; branco = pendente.
 const RE_COR_OUTRA = '#b8c2cc';
-const reEstadoPeca = (row, emp, ini) => (!row ? 'pend' : row.empresa === emp ? (row.data >= ini ? 'per' : 'ant') : 'outra');
-const rePinta = (est, cores) => ({ pend: 'fill="#ffffff" stroke="#c4cdd8"', ant: `fill="${cores.forte}" fill-opacity=".35" stroke="${cores.forte}" stroke-opacity=".6"`,
-  per: `fill="${cores.forte}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est];
+const reEstadoPeca = (row, emp, ini, validas) => (!row ? 'pend' : (emp ? row.empresa === emp : (!validas || validas.has(row.empresa))) ? (row.data >= ini ? 'per' : 'ant') : 'outra');   // geral: só empresas com montagem (validas) pintam a peça; as demais ficam em cinza   // sem empresa (geral): toda peça apontada é das empresas, na cor de quem montou
+const reCorPeca = (cores, row) => (cores.porEmp && row && row.empresa ? (corEmpHex(row.empresa) || cores.forte) : cores.forte);
+const rePinta = (est, cores, row) => { const f = reCorPeca(cores, row); return ({ pend: 'fill="#ffffff" stroke="#c4cdd8"', ant: `fill="${f}" fill-opacity=".35" stroke="${f}" stroke-opacity=".6"`,
+  per: `fill="${f}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est]; };
 const reTxt = (x, y, t, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="#51606f" font-family="Arial,Helvetica,sans-serif" ${o}>${esc(t)}</text>`;
 
 function reMapaPlanta(ctx, emp, ini, cores) {
@@ -461,16 +466,16 @@ function reMapaPlanta(ctx, emp, ini, cores) {
   eixos.slice(0, -1).forEach((e, i) => {
     const rua = `${e}-${eixos[i + 1]}`, xl = xEixo(e) + pad, xr = xEixo(eixos[i + 1]) - pad;
     for (let k = 1; k <= n; k++) {
-      const st = reEstadoPeca(ctx.slotRow.get(`${rua}|${k}`), emp, ini); nJ[st]++;
-      out.push(`<rect x="${xl}" y="${mTop + (k - 1) * passo + 1}" width="${xr - xl}" height="${barH}" rx="2" ${rePinta(st, cores)} stroke-width=".7"/>`);
+      const row = ctx.slotRow.get(`${rua}|${k}`), st = reEstadoPeca(row, emp, ini, cores.validas); nJ[st]++;
+      out.push(`<rect x="${xl}" y="${mTop + (k - 1) * passo + 1}" width="${xr - xl}" height="${barH}" rx="2" ${rePinta(st, cores, row)} stroke-width=".7"/>`);
     }
     out.push(reTxt((xEixo(e) + xEixo(eixos[i + 1])) / 2, yFim + 18, `${ctx.totalRua.get(rua) || 0}/${ctx.limRua}`, 'text-anchor="middle"'));
   });
   out.push(reTxt(mEsq - 8, yFim + 18, 'joists/rua', 'text-anchor="end"'));
   eixos.forEach(e => ctx.letrasEixo(e).forEach(l => {
-    const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(e, l)), st = reEstadoPeca(m, emp, ini); nV[st]++;
+    const c = ctx.crit[l], m = ctx.vigaMontada.get(ctx.vigaId(e, l)), st = reEstadoPeca(m, emp, ini, cores.validas); nV[st]++;
     const yv = c.oitao ? yOitao(c.posicao_estacao) : yEst(l), tam = c.oitao || c.evento_viga === 'VIGA_INTERM_MONTADA' ? 7 : 11;
-    out.push(`<rect x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="1.5" ${rePinta(st, cores)} stroke-width="1"/>`);
+    out.push(`<rect x="${xEixo(e) - tam / 2}" y="${yv - tam / 2}" width="${tam}" height="${tam}" rx="1.5" ${rePinta(st, cores, m)} stroke-width="1"/>`);
   }));
   return { svg: out.join('') + '</svg>', nJ, nV };
 }
@@ -501,9 +506,9 @@ function reMapaContrav(emp, ini, cores, feitas) {
   el.paineis.forEach(p => {
     if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
     const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b), y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
-    const st = reEstadoPeca(feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), emp, ini); n[st]++;
-    const traco = st === 'pend' ? '#c4cdd8' : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : cores.forte;
-    o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores)} stroke-width=".6"/>`,
+    const row = feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), st = reEstadoPeca(row, emp, ini, cores.validas); n[st]++;
+    const traco = st === 'pend' ? '#c4cdd8' : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : reCorPeca(cores, row);
+    o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores, row)} stroke-width=".6"/>`,
       `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/>`);
   });
   return { svg: o.join('') + '</svg>', n, total: el.paineis.filter(p => comCth.has(p.rua)).length };
@@ -523,8 +528,8 @@ function reMapaTelhas(emp, ini, cores, ate, chave, tipo) {
     const o = [`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(nome)}">`];
     Object.entries(estMm).filter(([l]) => /^[A-H]$/.test(l)).forEach(([l, y]) => { const yy = mTop + y / largMm * alto; o.push(`<line x1="${mEsq}" x2="${mEsq + nv * px}" y1="${yy}" y2="${yy}" stroke="#e5eaf0" stroke-width=".6" stroke-dasharray="3 3"/>`, reTxt(mEsq - 6, yy + 3, l, 'text-anchor="end"')); });
     for (let i = de; i <= atei; i++) {
-      const st = reEstadoPeca(feitas.get(String(i).padStart(4, '0')), emp, ini); cont[st]++;
-      o.push(`<rect x="${X(i)}" y="${mTop}" width="${px - .5}" height="${alto}" ${rePinta(st, cores)} stroke-width=".2" shape-rendering="crispEdges"/>`);
+      const row = feitas.get(String(i).padStart(4, '0')), st = reEstadoPeca(row, emp, ini); cont[st]++;
+      o.push(`<rect x="${X(i)}" y="${mTop}" width="${px - .5}" height="${alto}" ${rePinta(st, cores, row)} stroke-width=".2" shape-rendering="crispEdges"/>`);
     }
     Object.keys(em).filter(k => k.length === 2).sort().forEach(e => { const i = em[e] / lar + 1; if (i >= de && i <= atei + 1) { const x = X(i); o.push(`<line x1="${x}" x2="${x}" y1="${mTop - 8}" y2="${mTop + alto + 4}" stroke="#94a3b8" stroke-width=".8"/>`, reTxt(x, mTop - 12, e, 'text-anchor="middle" font-weight="700"')); } });
     return { nome, svg: o.join('') + '</svg>' };
@@ -534,16 +539,23 @@ function reMapaTelhas(emp, ini, cores, ate, chave, tipo) {
 }
 
 function reMapa(emp, ini, c) {
-  const regras = window._regras_baixa, e = empresa(emp);
+  const regras = window._regras_baixa, es = emp ? [empresa(emp)].filter(Boolean) : (M.empresas || []);   // sem empresa = geral: vale o catálogo de qualquer empresa
   const cfgAp = (regras && regras.apontamento) || {};
-  const temJoist = !!(e && regras && e.servicos.some(s => s.nome === cfgAp.servico_joist || s.nome === cfgAp.servico_viga));
-  const temTelha = !!(e && e.servicos.some(s => ehTelhar(ganNorm(s.nome)))), temPerfil = !!(e && e.servicos.some(s => ganNorm(s.nome).includes('PERFILAGEM')));
+  const temJoist = !!(regras && es.some(e => e.servicos.some(s => s.nome === cfgAp.servico_joist || s.nome === cfgAp.servico_viga)));
+  const temTelha = es.some(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome)))), temPerfil = es.some(e => e.servicos.some(s => ganNorm(s.nome).includes('PERFILAGEM')));
   if (!temJoist && !temTelha && !temPerfil) return null;   // sem montagem em mapa no catálogo da empresa: a seção não aparece
   const todos = T.apontamentos || [], ate = todos.filter(a => !a.data || a.data <= c);
-  const forte = corEmpHex(emp) || '#2563eb', cores = { forte }, out = { cores };
+  // geral: montagem de joist, viga e contraventamento é só das empresas que têm esse serviço (EJ e CMM); apontamento de outra empresa não pinta o mapa
+  const validas = !emp && temJoist ? new Set(es.filter(e => e.servicos.some(sv => sv.nome === cfgAp.servico_joist || sv.nome === cfgAp.servico_viga)).map(e => e.nome)) : null;
+  const forte = (emp && corEmpHex(emp)) || '#2563eb', cores = { forte, porEmp: !emp, validas }, out = { cores };
   const tipo = t => ate.filter(a => (a.tipo || '').toUpperCase() === t);
-  const meus = (t, de) => tipo(t).filter(a => a.empresa === emp && (de ? a.data >= ini : a.data < ini));
+  const tipoOk = t => tipo(t).filter(a => !validas || validas.has(a.empresa));   // total da obra só com as empresas que montam
+  const meus = (t, de) => tipo(t).filter(a => (emp ? a.empresa === emp : (!validas || t === 'TELHA' || t === 'PERFILAGEM' || validas.has(a.empresa))) && (de ? a.data >= ini : a.data < ini));
   const qJ = lista => soma0(lista, a => a.qtd || 0);
+  if (validas) {
+    out.legEmp = [...validas];
+    out.foraMontagem = ate.filter(a => ['JOIST', 'VIGA', 'CONTRAVENTAMENTO'].includes((a.tipo || '').toUpperCase()) && !validas.has(a.empresa));
+  }
   if (temJoist) {   // joists, vigas e contraventamentos (catálogo da EJ e da CMM)
     if (!regras.apontamento) return { sem: 'As regras de montagem (mapa de apontamento) não estão disponíveis.' };
     let ctx;
@@ -552,9 +564,9 @@ function reMapa(emp, ini, c) {
     const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
     const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
     Object.assign(out, { planta: pl, contrav: cv, ctx,
-      joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipo('JOIST')) },
-      viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipo('VIGA').length },
-      cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipo('CONTRAVENTAMENTO').length } });
+      joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipoOk('JOIST')) },
+      viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipoOk('VIGA').length },
+      cont: { per: meus('CONTRAVENTAMENTO', true).length, ant: meus('CONTRAVENTAMENTO', false).length, total: cv ? cv.total : 0, feitas: tipoOk('CONTRAVENTAMENTO').length } });
   }
   [[temTelha, 'telha', 'TELHA'], [temPerfil, 'perfilagem', 'PERFILAGEM']].forEach(([tem, chave, tp]) => {   // telhas e perfilagem (catálogo da Globo Aços)
     if (!tem) return;
@@ -581,6 +593,122 @@ function reDados(emp, ini, fim, ls) {
   d.sup = reTry(() => reSuprimentos(emp, ini, fim, c), 'suprimentos');
   return d;
 }
+
+// ---------------------------------------------------------------- relatório GERAL: todas as empresas num único documento, sem dividir por empresa
+// Produção, meta semanal, atividades a iniciar, previsto × realizado e BM são calculados por empresa e SOMADOS por serviço/atividade/item;
+// planos 5W2H, projeção, equipamentos, impactos, efetivo, suprimentos e mapa são calculados direto sobre a obra inteira (emp = '').
+const RE_GERAL = 'Geral — todas as empresas';
+const reValidos = xs => xs.filter(x => x && !x.erro && !x.sem);
+const reErroDe = xs => xs.find(x => x && x.erro) || null;
+function reMesclarProducao(ps) {
+  const ok = ps.filter(p => p && !p.erro);
+  if (!ok.length) return reErroDe(ps) || { linhas: [], prev: 0, real: 0, total: 0, pct: null, atingidas: 0, comMeta: 0, base: 'metas cadastradas' };
+  const m = new Map();
+  ok.forEach(p => p.linhas.forEach(k => {
+    const o = m.get(k.servNorm);
+    if (!o) { m.set(k.servNorm, { ...k, fontes: new Set([k.fonte]) }); return; }
+    o.fontes.add(k.fonte); o.real += k.real;
+    ['meta', 'prev'].forEach(f => { if (k[f] != null) o[f] = (o[f] == null ? 0 : o[f]) + k[f]; });
+    if (!o.un) o.un = k.un;
+  }));
+  const linhas = [...m.values()].map(o => ({ ...o, fonte: [...o.fontes].join(' / '), desvio: o.prev == null ? null : o.real - o.prev, pct: o.prev > 0 ? o.real / o.prev * 100 : null }));
+  linhas.sort((a, b) => (b.real > 0) - (a.real > 0) || a.serv.localeCompare(b.serv));
+  const comMeta = linhas.filter(o => o.meta > 0), prev = soma0(comMeta, o => o.prev), real = soma0(comMeta, o => o.real);
+  return { linhas, prev, real, total: soma0(comMeta, o => o.meta), pct: prev > 0 ? real / prev * 100 : null,
+    atingidas: comMeta.filter(o => o.real >= o.meta * .999).length, comMeta: comMeta.length, base: ok.some(p => p.base === 'plano 5W2H') ? 'plano 5W2H' : 'metas cadastradas' };
+}
+function reMesclarSemanas(ss) {
+  const ok = ss.filter(Array.isArray);
+  if (!ok.length) return reErroDe(ss) || [];
+  return ok[0].map((w, i) => {
+    const m = new Map();
+    ok.forEach(s => ((s[i] || {}).ks || []).forEach(k => { const key = ganNorm(k.serv), o = m.get(key); if (o) { o.prevTotal += k.prevTotal; o.real += k.real; } else m.set(key, { ...k }); }));
+    const ks = [...m.values()], atingidas = ks.filter(k => k.real >= k.prevTotal * .999).length, tot = soma0(ks, k => k.prevTotal);
+    return { ...w, ks, atingidas, total: ks.length, plano: ok.some(s => s[i] && s[i].plano), ok: ks.length ? atingidas === ks.length : null,
+      pct: tot > 0 ? soma0(ks, k => Math.min(k.real, k.prevTotal)) / tot * 100 : null };
+  });
+}
+function reMesclarAtividades(as) {
+  const ok = as.filter(a => a && !a.erro);
+  if (!ok.length) return reErroDe(as) || { linhas: [], naoIniciadas: 0, iniciadas: 0 };
+  const m = new Map();
+  ok.forEach(a => a.linhas.forEach(x => {
+    const k = `${ganNorm(x.nome)}|${ganNorm(x.frente)}`, o = m.get(k);
+    if (!o) { m.set(k, { ...x, bm: x.bm ? { ...x.bm, cods: [...x.bm.cods] } : null, _pct: x.bm && x.bm.qtd != null ? [[x.bm.pct, x.bm.qtd]] : [] }); return; }
+    o.ate += x.ate; o.per += x.per; o.qtd = Math.max(o.qtd, x.qtd);
+    if (x.ini < o.ini) o.ini = x.ini;
+    if (x.prazo && (!o.prazo || x.prazo > o.prazo)) o.prazo = x.prazo;
+    if (x.primeira && (!o.primeira || x.primeira < o.primeira)) o.primeira = x.primeira;
+    o.iniciada = o.iniciada || x.iniciada; o.noPeriodo = o.noPeriodo && x.noPeriodo;
+    o.status = reStatusPior([o.status, x.status]); o.atrasadaDeInicio = !o.iniciada && (o.atrasadaDeInicio || x.atrasadaDeInicio);
+    if (x.bm) {   // catálogos das empresas se somam (cada empresa tem o seu); % = média ponderada pela quantidade
+      if (!o.bm) o.bm = { ...x.bm, cods: [...x.bm.cods] };
+      else {
+        const a1 = o.bm, b1 = x.bm, igual = a1.qtd != null && b1.qtd != null && a1.un === b1.un;
+        o.bm = { qtd: igual ? a1.qtd + b1.qtd : null, real: igual ? a1.real + b1.real : null, pct: a1.pct, un: a1.un === b1.un ? a1.un : [a1.un, b1.un].filter(Boolean).join(' / '), cods: [...a1.cods, ...b1.cods], n: a1.n + b1.n };
+      }
+      if (x.bm.qtd != null) o._pct.push([x.bm.pct, x.bm.qtd]);
+    }
+  }));
+  const linhas = [...m.values()].map(o => {
+    if (o.bm && o._pct.length > 1) { const q = soma0(o._pct, y => y[1]); if (q > 0) o.bm.pct = soma0(o._pct, y => y[0] * y[1]) / q; }
+    delete o._pct;
+    o.iniciada = o.iniciada || !!(o.bm && o.bm.pct > 0);
+    return o;
+  });
+  linhas.sort((a, b) => (a.iniciada - b.iniciada) || a.ini.localeCompare(b.ini) || a.nome.localeCompare(b.nome));
+  return { linhas, naoIniciadas: linhas.filter(x => !x.iniciada).length, iniciadas: linhas.filter(x => x.iniciada).length };
+}
+function reMesclarPrevisto(ps) {
+  const ok = ps.filter(p => p && !p.erro);
+  if (!ok.length) return reErroDe(ps) || { rows: [] };
+  const m = new Map();
+  ok.forEach(p => p.rows.forEach(r => {
+    const k = ganNorm(r.serv), o = m.get(k);
+    if (!o) m.set(k, { ...r }); else { o.previsto += r.previsto; o.real += r.real; o.acum += r.acum; if (!o.un) o.un = r.un; }
+  }));
+  const rows = [...m.values()].map(o => ({ ...o, pct: o.previsto ? o.real / o.previsto * 100 : null }));
+  rows.sort((a, b) => a.serv.localeCompare(b.serv));
+  return { rows };
+}
+function reMesclarBM(bs) {
+  const ok = reValidos(bs);
+  if (!ok.length) return reErroDe(bs) || { sem: true };
+  const itens = new Map();
+  ok.forEach(b => b.itens.forEach(it => {
+    const o = itens.get(it.item);
+    if (!o) { itens.set(it.item, { ...it, ats: [...it.ats], _ant: it.pctAnt * it.valor }); return; }
+    o.valor += it.valor; o.medido += it.medido; o.medidoPer += it.medidoPer; o._ant += it.pctAnt * it.valor; o.ats.push(...it.ats);
+  }));
+  const lista = [...itens.values()].map(o => { const pctAnt = o.valor ? o._ant / o.valor : 0, pct = o.valor ? o.medido / o.valor : 0; delete o._ant; return { ...o, pctAnt, pct, pctPer: pct - pctAnt }; });
+  lista.sort((a, b) => String(a.item).localeCompare(String(b.item), 'pt-BR', { numeric: true }));
+  const contrato = soma0(ok, b => b.contrato), acum = soma0(ok, b => b.acum), per = soma0(ok, b => b.per);
+  const bms = new Map();
+  ok.forEach(b => b.bms.forEach(x => {
+    const o = bms.get(x.p.n);
+    if (!o) bms.set(x.p.n, { p: x.p, medidoPer: x.medidoPer, faturar: x.faturar, acumV: x.pctAcum * b.contrato, fechado: x.fechado });
+    else { o.medidoPer += x.medidoPer; o.faturar += x.faturar; o.acumV += x.pctAcum * b.contrato; o.fechado = o.fechado && x.fechado; }
+  }));
+  return { itens: lista, contrato, acum, per, pctAcum: contrato ? acum / contrato : 0, pctPer: contrato ? per / contrato : 0, saldo: contrato - acum, desdeInicio: ok[0].desdeInicio,
+    bms: [...bms.values()].sort((a, b) => a.p.n - b.p.n).map(o => ({ p: o.p, medidoPer: o.medidoPer, pctPer: contrato ? o.medidoPer / contrato : 0, pctAcum: contrato ? o.acumV / contrato : 0, faturar: o.faturar, fechado: o.fechado })) };
+}
+function reDadosGeral(emps, ini, fim, ls) {
+  const c = minD(fim, ref), g = { emp: RE_GERAL, geral: true, emps, ini, fim, corte: c };
+  const cada = fn => emps.map(e => reTry(() => fn(e), e));
+  g.producao = reTry(() => reMesclarProducao(cada(e => reProducao(e, ini, fim, c, ls))), 'produção');
+  g.mapa = reTry(() => reMapa('', ini, c), 'mapa de montagem');
+  g.semanas = reTry(() => reMesclarSemanas(cada(e => reMetaSemanal(e, ini, fim, c))), 'meta semanal');
+  g.atividades = reTry(() => reMesclarAtividades(cada(e => reAtividades(e, ini, fim, c, ls))), 'atividades');
+  g.previstoReal = reTry(() => reMesclarPrevisto(cada(e => rePrevistoRealizado(e, ini, fim, c))), 'previsto × realizado');
+  g.planos = reTry(() => rePlanos('', ini, fim, c), 'planos');
+  g.bm = reTry(() => reMesclarBM(cada(e => reBM(e, ini, fim, c))), 'avanço físico e financeiro');
+  g.proj = reTry(() => reProjecao('', g.bm), 'projeção financeira');
+  g.equip = reTry(() => reEquipamentos('', ini, fim, c, g.atividades.erro ? { linhas: [] } : g.atividades, ls), 'equipamentos');
+  g.impactos = reTry(() => reImpactos('', ini, fim, c), 'impactos');
+  g.efetivo = reTry(() => reEfetivo('', ini, fim, c, ls), 'efetivo');
+  g.sup = reTry(() => reSuprimentos('', ini, fim, c), 'suprimentos');
+  return g;
+}
 const reErro = x => (x && x.erro ? `<p class="aviso">Não foi possível montar esta parte: ${esc(x.erro)}</p>` : '');
 const reTab = (cab, linhas, rodape = '') => `<table><thead><tr>${cab.map(h => `<th${/^(#n)/.test(h) ? ' class="n"' : ''}>${h.replace(/^#n/, '')}</th>`).join('')}</tr></thead><tbody>${linhas.join('') || `<tr><td colspan="${cab.length}" class="vazio">Sem registros no período.</td></tr>`}</tbody>${rodape}</table>`;
 
@@ -593,7 +721,7 @@ function reSecResumo(d) {
     ${card('Produção no período', p.erro ? '—' : rePct(p.pct), p.erro ? '' : `${nf(p.real, 1)} realizados de ${nf(p.prev, 1)} previstos até ${fd(d.corte)}`, fp[0])}
     ${card('Metas dos serviços', p.erro ? '—' : `${p.atingidas}/${p.comMeta}`, 'serviços com a meta do período atingida', p.erro || !p.comMeta ? 'nd' : p.atingidas === p.comMeta ? 'vd' : p.atingidas ? 'am' : 'vm')}
     ${card('Atividades a iniciar', at.erro ? '—' : `${at.naoIniciadas} não iniciada(s)`, at.erro ? '' : `${at.iniciadas} iniciada(s) de ${at.linhas.length}`, at.erro ? 'nd' : at.naoIniciadas ? 'vm' : 'vd')}
-    ${card('Plano 5W2H', planoGeral ? planoGeral.veredito[1] : 'sem plano', planoGeral ? `${rePct(planoGeral.pctReal)} realizado × ${rePct(planoGeral.pctPlan)} planejado · ${planoGeral.atividades} atividade(s) em ${planoGeral.n} plano(s)` : 'nenhum plano da empresa no período', planoGeral ? planoGeral.veredito[0] : 'nd')}
+    ${card('Plano 5W2H', planoGeral ? planoGeral.veredito[1] : 'sem plano', planoGeral ? `${rePct(planoGeral.pctReal)} realizado × ${rePct(planoGeral.pctPlan)} planejado · ${planoGeral.atividades} atividade(s) em ${planoGeral.n} plano(s)` : (d.geral ? 'nenhum plano no período' : 'nenhum plano da empresa no período'), planoGeral ? planoGeral.veredito[0] : 'nd')}
     ${card('Avanço físico (catálogo BM)', !bm.erro && !bm.sem ? rePct(bm.pctAcum * 100, 1) : '—', !bm.erro && !bm.sem ? `${rePct(bm.pctPer * 100, 1)} no período` : 'sem catálogo de atividades', 'az')}
     ${card('Previsão de medição do período', !bm.erro && !bm.sem ? reMoeda(bm.per) : '—', !bm.erro && !bm.sem ? `${rePct(bm.pctPer * 100, 1)} do contrato${bm.desdeInicio ? ` · acumulado ${reMoeda(bm.acum)} (${rePct(bm.pctAcum * 100, 1)}) · saldo ${reMoeda(bm.saldo)}` : ''}` : '', 'az')}
     ${card('Impactos', im.erro ? '—' : `${fmtD(im.diasDiretos + im.diasCascata)} sofridos`, im.erro ? '' : `${im.sofridos} sofrido(s) · ${im.gerados} gerado(s)${im.diasGerados ? ' (' + fmtD(im.diasGerados) + ' gerados)' : ''}`, !im.erro && (im.diasDiretos + im.diasCascata + im.diasGerados) > 0 ? 'am' : 'vd')}
@@ -614,21 +742,24 @@ function reMapaHtml(d) {
   if (!m) return '';
   if (m.erro) return reErro(m);
   if (m.sem) return `<p class="nota">${esc(m.sem)}</p>`;
-  const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' || un === 'telhas' ? 'as' : 'os'} por ${esc(d.emp)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
+  const quem = d.geral ? 'todas as empresas' : d.emp;
+  const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' || un === 'telhas' ? 'as' : 'os'} por ${esc(quem)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
   const leg = (cor, txt, st = '') => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px"><i style="width:14px;height:10px;border-radius:2px;display:inline-block;background:${cor};border:1px solid #6b7886;${st}"></i>${txt}</span>`;
   const f = m.cores.forte;
   let h = `<h3>Mapa de montagem — o que foi montado</h3><div class="cards">${m.planta ? card('Joists', m.joist, 'joists') + card('Vigas', m.viga, 'vigas') + card('Contraventamentos (kits)', m.cont, 'kits') : ''}${[['Telhas', m.telha], ['Perfilagem', m.perfil]].map(([rot, x]) => x ? card(rot, { per: x.per, ant: x.ant, feitas: x.feitas, total: x.total }, 'telhas').replace('</div></div>', ` · ≈ ${nf(x.per * x.m2, 0)} m² no período · ${nf(x.feitas * x.m2, 0)} m² na obra</div></div>`) : '').join('')}</div>
-    <p class="nota mapa-leg">${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}</p>`;
+    <p class="nota mapa-leg">${d.geral
+      ? `${[...(m.legEmp || (M.empresas || []).map(e => e.nome)), ...((m.telha || m.perfil) ? (M.empresas || []).filter(e => e.servicos.some(sv => ehTelhar(ganNorm(sv.nome)) || ganNorm(sv.nome).includes('PERFILAGEM'))).map(e => e.nome) : [])].filter((n, i, a) => n && a.indexOf(n) === i).map(n => leg(corEmpHex(n) || f, `montado por ${esc(n)}`)).join('')}${m.foraMontagem && m.foraMontagem.length ? leg(RE_COR_OUTRA, 'apontado por empresa sem montagem') : ''}${leg('#fff', 'pendente')}<br>${m.foraMontagem && m.foraMontagem.length ? `<b class="neg">${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s) de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço (${esc([...new Set(m.foraMontagem.map(a => a.empresa || 'sem empresa'))].join(', '))}) — não entram nos totais; corrija em Apontar montagem › conciliação.</b><br>` : ''}Cor forte = montado no período (${fd(d.ini)} a ${fd(d.corte)}) · cor clara = montado antes do período.`
+      : `${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}`}</p>`;
   if (m.planta) {
     h += `<h3>Joists e vigas (planta do galpão)</h3><div class="mapa-fig">${m.planta.svg}</div>
-    <p class="nota">Cada retângulo é uma joist (43 por rua, da estação A no topo à H na base); os quadrados nos eixos são as vigas. Embaixo de cada rua: joists apontadas/${m.ctx.limRua}. Peças deste período: ${nf(m.planta.nJ.per, 0)} joists e ${nf(m.planta.nV.per, 0)} vigas desta empresa.</p>
+    <p class="nota">Cada retângulo é uma joist (43 por rua, da estação A no topo à H na base); os quadrados nos eixos são as vigas. Embaixo de cada rua: joists apontadas/${m.ctx.limRua}. Peças deste período: ${nf(m.planta.nJ.per, 0)} joists e ${nf(m.planta.nV.per, 0)} vigas ${d.geral ? 'das empresas' : 'desta empresa'}.</p>
     ${m.contrav ? `<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div>
-    <p class="nota">Cada X é um kit de contraventamento; ${nf(m.contrav.n.per, 0)} kit(s) montado(s) por esta empresa no período, ${nf(m.contrav.n.ant, 0)} antes, ${nf(m.contrav.n.outra, 0)} por outra empresa e ${nf(m.contrav.n.pend, 0)} pendente(s). Fonte: apontamentos de montagem.</p>` : ''}`;
+    <p class="nota">Cada X é um kit de contraventamento; ${nf(m.contrav.n.per, 0)} kit(s) montado(s) por ${d.geral ? 'as empresas' : 'esta empresa'} no período, ${nf(m.contrav.n.ant, 0)} antes, ${nf(m.contrav.n.outra, 0)} por outra empresa e ${nf(m.contrav.n.pend, 0)} pendente(s). Fonte: apontamentos de montagem.</p>` : ''}`;
   }
   [['Telhas da cobertura', m.telha, 'telha'], ['Perfilagem das telhas', m.perfil, 'perfilagem']].forEach(([tit, t, kind]) => {
     if (!t) return;
     h += `<h3>${tit} (do eixo 01 ao 20)</h3>` + t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p><div class="mapa-fig">${f.svg}</div>`).join('') +
-      `<p class="nota">Cada faixa é ${kind === 'telha' ? 'uma telha' : 'uma fiada de perfilagem'} (177,32 m do eixo A ao H × 0,485 m de largura = ${nf(t.m2, 2)} m²), numerada a partir do eixo 01: ${nf(t.n.per, 0)} feita(s) por esta empresa no período (≈ ${nf(t.n.per * t.m2, 0)} m²), ${nf(t.n.ant, 0)} antes, ${nf(t.n.outra, 0)} por outra empresa e ${nf(t.n.pend, 0)} pendente(s) de ${nf(t.total, 0)}. Fonte: apontamentos de montagem (lançados em m² em Lançamentos e no BM).</p>`;
+      `<p class="nota">Cada faixa é ${kind === 'telha' ? 'uma telha' : 'uma fiada de perfilagem'} (177,32 m do eixo A ao H × 0,485 m de largura = ${nf(t.m2, 2)} m²), numerada a partir do eixo 01: ${nf(t.n.per, 0)} feita(s) por ${d.geral ? 'as empresas' : 'esta empresa'} no período (≈ ${nf(t.n.per * t.m2, 0)} m²), ${nf(t.n.ant, 0)} antes, ${nf(t.n.outra, 0)} por outra empresa e ${nf(t.n.pend, 0)} pendente(s) de ${nf(t.total, 0)}. Fonte: apontamentos de montagem (lançados em m² em Lançamentos e no BM).</p>`;
   });
   return h;
 }
@@ -654,9 +785,9 @@ function reSecAtividades(d) {
     return `<tr><td><b>${esc(x.nome)}</b><div class="nota">${esc(cap(x.frente))}</div></td><td>${fdA(x.ini)}${x.noPeriodo ? '' : '<div class="nota">anterior ao período</div>'}</td><td>${fdA(x.prazo)}</td><td>${st}</td>
       <td class="n">${nf(x.per, 1)} ${esc(x.un)}</td><td class="n">${acum}</td><td class="n">${b ? '<b>' + rePct(b.pct, 1) + '</b>' : '—'}</td></tr>`;
   });
-  return `<p>${a.naoIniciadas ? `<b class="neg">${a.naoIniciadas} atividade(s) que a empresa deveria ter iniciado ainda não foi(ram) iniciada(s).</b>` : '<b class="pos">Todas as atividades previstas para iniciar já foram iniciadas.</b>'} ${a.iniciadas} iniciada(s).</p>`
+  return `<p>${a.naoIniciadas ? `<b class="neg">${a.naoIniciadas} atividade(s) que ${d.geral ? 'deveria(m) ter sido iniciada(s)' : 'a empresa deveria ter iniciado'} ainda não foi(ram) iniciada(s).</b>` : '<b class="pos">Todas as atividades previstas para iniciar já foram iniciadas.</b>'} ${a.iniciadas} iniciada(s).</p>`
     + reTab(['Atividade', 'Início previsto', 'Prazo', 'Situação', '#nRealizado no período', '#nAcumulado (catálogo de atividades)', '#n% acumulada (medição)'], linhas)
-    + '<p class="nota">Acumulado, quantidade contratada e % acumulada vêm do catálogo de atividades do BM (Financeiro › Medição) da própria empresa. Fase 1 e Fase 2 do mesmo serviço aparecem somadas numa única linha (a Fase 2 só começa depois do saldo da Fase 1).</p>';
+    + `<p class="nota">Acumulado, quantidade contratada e % acumulada vêm do catálogo de atividades do BM (Financeiro › Medição) ${d.geral ? 'de cada empresa (somados)' : 'da própria empresa'}. Fase 1 e Fase 2 do mesmo serviço aparecem somadas numa única linha (a Fase 2 só começa depois do saldo da Fase 1).</p>`;
 }
 function reSecPrevisto(d) {
   const p = d.previstoReal;
@@ -677,9 +808,9 @@ function reItensSomados(itens) {
 function reSecPlanos(d) {
   const p = d.planos;
   if (p.erro) return reErro(p);
-  if (!p.rows.length) return '<p class="nota">Nenhum plano 5W2H da empresa cruza este período.</p>';
+  if (!p.rows.length) return `<p class="nota">Nenhum plano 5W2H ${d.geral ? '' : 'da empresa '}cruza este período.</p>`;
   const g = p.geral;
-  return `<p><b>Resumo dos planos da empresa:</b> ${reSm(g.veredito[0], g.veredito[1])} — realizado ${rePct(g.pctReal, 1)} × planejado até hoje ${rePct(g.pctPlan, 1)} (desvio ${g.desvio >= 0 ? '+' : ''}${nf(g.desvio, 1)} p.p.) em ${g.atividades} atividade(s) de ${g.n} plano(s).</p>`
+  return `<p><b>Resumo dos planos${d.geral ? '' : ' da empresa'}:</b> ${reSm(g.veredito[0], g.veredito[1])} — realizado ${rePct(g.pctReal, 1)} × planejado até hoje ${rePct(g.pctPlan, 1)} (desvio ${g.desvio >= 0 ? '+' : ''}${nf(g.desvio, 1)} p.p.) em ${g.atividades} atividade(s) de ${g.n} plano(s).</p>`
     + p.rows.map(r => `<h3>${esc(r.plano.nome)} <span class="nota">${fdA(r.plano.inicio)} a ${fdA(r.plano.fim)}</span> ${reSm(r.veredito[0], r.veredito[1])}</h3>
     <p class="nota">Realizado ${rePct(r.c.pctReal, 1)} × planejado até hoje ${rePct(r.c.pctPlan, 1)} (desvio ${r.c.desvio >= 0 ? '+' : ''}${nf(r.c.desvio, 1)} p.p.) · situação ${esc(r.st)}${r.c.terminaEm ? ` · no ritmo atual termina em ${fdA(r.c.terminaEm)}` : ''}.</p>`
     + reTab(['Atividade', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
@@ -687,7 +818,7 @@ function reSecPlanos(d) {
 function reSecBM(d) {
   const b = d.bm;
   if (b.erro) return reErro(b);
-  if (b.sem) return '<p class="nota">A empresa não tem catálogo de atividades no BM.</p>';
+  if (b.sem) return '<p class="nota">Nenhuma empresa tem catálogo de atividades no BM.</p>';
   const linhas = [];
   b.itens.forEach(it => {
     linhas.push(`<tr class="grupo"><td colspan="6"><b>${esc(it.item)} · ${esc(cap(it.desc || ''))}</b> — contrato ${reMoeda(it.valor)} · avanço ${rePct(it.pct * 100, 1)} (período ${it.pctPer >= 0 ? '+' : ''}${nf(it.pctPer * 100, 1)} p.p.) · medido ${reMoeda(it.medido)}</td></tr>`);
@@ -732,7 +863,7 @@ function reSecEquip(d) {
     <div class="card az"><div class="rot">Projeção de equipamentos · ${jan}</div><div class="val">${reMoeda(pj.total)}</div><div class="sub">PTA ${pj.ptaDias} diária(s) + guindaste ${pj.guiDias.length} diária(s)</div></div>
     <div class="card az"><div class="rot">Projeção de abastecimento · ${jan}</div><div class="val">${ab.sem ? '—' : reMoeda(ab.janela)}</div><div class="sub">${ab.sem ? 'sem registros de abastecimento' : `${nf(ab.janelaLitros, 0)} litros em ${pj.du} dia(s) útil(eis)`}</div></div></div>`;
   h += '<h3>Equipamentos usados no período</h3>' + reTab(['Equipamento', 'Responsável', '#nDias', '#nCusto equip.', '#nLitros', '#nCombustível'],
-    q.dados.equipamentos.filter(x => x.emps.has(d.emp)).map(x => `<tr><td>${esc(x.equipamento)}</td><td>${esc(x.resp)}</td><td class="n">${x.dias.size}</td><td class="n">${reMoeda(x.custo)}</td><td class="n">${nf(x.litros, 0)}</td><td class="n">${reMoeda(x.comb)}</td></tr>`));
+    q.dados.equipamentos.filter(x => d.geral || x.emps.has(d.emp)).map(x => `<tr><td>${esc(x.equipamento)}</td><td>${esc(x.resp)}</td><td class="n">${x.dias.size}</td><td class="n">${reMoeda(x.custo)}</td><td class="n">${nf(x.litros, 0)}</td><td class="n">${reMoeda(x.comb)}</td></tr>`));
   h += `<h3>Projeção de equipamentos — semana seguinte (${jan})</h3>`;
   h += reTab(['Equipamento', '#nDiária (R$)', '#nDiárias', '#nCusto (R$)', 'Quando'], [
     `<tr><td><b>Plataforma (PTA)</b><div class="nota">${esc(pj.pta.nomes.join(' + ') || 'nenhuma plataforma no conjunto de equipamentos')}</div></td><td class="n">${reMoeda(pj.pta.diaria)}</td><td class="n">${pj.ptaDias}</td><td class="n"><b>${reMoeda(pj.custoPta)}</b></td><td>todos os dias úteis da janela</td></tr>`,
@@ -749,6 +880,9 @@ function reSecImpactos(d) {
   const m = d.impactos;
   if (m.erro) return reErro(m);
   const linhas = m.linhas.map(x => `<tr><td>${fdA(x.i.data)}</td><td>${reSm(x.tipo === 'GERADO' ? 'am' : 'vm', x.tipo)}</td><td>${esc(x.i.servico || '—')}</td><td>${esc(impactoSetor(x.i))}${x.forn.length ? `<div class="nota">fornecedor mencionado: ${esc(x.forn.join(' / '))}</div>` : ''}</td><td>${esc(impactoEmpresasTexto(x.i))}</td><td>${esc(x.i.motivo || '')}</td><td class="n"><b>${fmtD(x.dias)}</b></td><td>${x.i.solucionado ? 'solucionado ' + fdA(x.i.solucionado) : '<b class="neg">em aberto</b>'}</td></tr>`);
+  if (d.geral) return `<p><b>${m.sofridos + m.gerados}</b> impacto(s) no período (${m.sofridos} de setores internos/externos e ${m.gerados} com fornecedor mencionado). Dias úteis com algum impacto: <b>${fmtD(m.diasDiretos)}</b>${m.gerados ? `; dias úteis com impacto de fornecedor: <b>${fmtD(m.diasGerados)}</b>` : ''}.${m.semEmpresa ? ` ${m.semEmpresa} deles sem empresa específica definida (valem para a obra toda).` : ''}</p>`
+    + reTab(['Data', 'Tipo', 'Atividade', 'Setor responsável', 'Empresa(s) afetada(s)', 'Motivo', '#nDias úteis no período', 'Situação'], linhas)
+    + `<p class="nota">Tipo GERADO = setor Fornecedor com fornecedor mencionado; os demais são SOFRIDOS pelas empresas afetadas. Dias úteis reais do calendário dentro de ${fdA(m.lim.ini)} a ${fdA(m.lim.fim)}; cada dia conta uma vez, mesmo com vários impactos. O efeito cascata por empresa está nos relatórios de cada empresa.</p>`;
   return `<p><b>${m.sofridos}</b> impacto(s) sofrido(s) e <b>${m.gerados}</b> gerado(s) pela empresa (setor “Fornecedor — ${esc(d.emp)}”) no período. Dias úteis sofridos: <b>${fmtD(m.diasDiretos)}</b> direto${m.diasCascata ? ` + <b>${fmtD(m.diasCascata)}</b> por efeito cascata (atividades anteriores do fluxo atrasaram o início)` : ''}; dias úteis gerados: <b>${fmtD(m.diasGerados)}</b>.${m.semEmpresa ? ` Há ${m.semEmpresa} impacto(s) sem empresa definida (não entram nesta lista).` : ''} Impactos do período com setor Fornecedor: ${m.fornTotal} (${m.gerados} mencionando ${esc(d.emp)}, ${m.fornOutra} mencionando outra empresa${m.fornSemNome ? `, ${m.fornSemNome} sem fornecedor identificado` : ''}).</p>`
     + reTab(['Data', 'Tipo', 'Atividade', 'Setor responsável', 'Empresa(s) afetada(s)', 'Motivo', '#nDias úteis no período', 'Situação'], linhas)
     + `<p class="nota">Regra: setor Fornecedor + fornecedor mencionado = impacto GERADO pela empresa mencionada (e não sofrido, mesmo quando ela própria é a afetada na montagem); o fornecedor vem do setor (“Fornecedor — ${esc(d.emp)}”) ou, se o setor for só “Fornecedor”, do nome da empresa citado no motivo; os demais impactos que atingem a empresa são SOFRIDOS. Dias úteis reais do calendário dentro de ${fdA(m.lim.ini)} a ${fdA(m.lim.fim)}; cada dia conta uma vez, mesmo com vários impactos.</p>`;
@@ -802,14 +936,14 @@ th{background:#eef2f7}td.n,th.n{text-align:right;white-space:nowrap}tr.grupo td{
 function reSecao(titulo, html) { return `<h2>${titulo}</h2>${html}`; }
 function reHtmlEmpresa(d) {
   return `<section class="emp-sec"><div class="pag">
-    <h1>${esc(d.emp)}</h1><p class="sub-cab">Relatório da empresa · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (data de referência)</p>
+    <h1>${esc(d.emp)}</h1><p class="sub-cab">${d.geral ? `Relatório geral da obra (${esc(d.emps.join(' · '))})` : 'Relatório da empresa'} · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (data de referência)</p>
     ${reSecao('Resumo executivo', reSecResumo(d))}
     ${reSecao('1. Resumo de produção do período', reSecProducao(d))}
     ${reSecao('2. Meta da semana — atingimento', reSecSemanas(d))}
-    ${reSecao('3. Atividades que a empresa precisava iniciar', reSecAtividades(d))}
+    ${reSecao(d.geral ? '3. Atividades que precisavam ser iniciadas' : '3. Atividades que a empresa precisava iniciar', reSecAtividades(d))}
     ${reSecao('4. Plano 5W2H — atingimento', reSecPlanos(d))}
     ${reSecao('5. Avanço físico × catálogo de atividades (BM)', reSecBM(d))}
-    ${reSecao('6. Previsto × realizado nas atividades da empresa', reSecPrevisto(d))}
+    ${reSecao(d.geral ? '6. Previsto × realizado nas atividades' : '6. Previsto × realizado nas atividades da empresa', reSecPrevisto(d))}
     ${reSecao('7. Resumo financeiro e projeção', reSecFinanceiro(d))}
     ${reSecao('8. Equipamentos e abastecimento — custos e projeção', reSecEquip(d))}
     ${reSecao('9. Impactos gerados e sofridos', reSecImpactos(d))}
@@ -817,15 +951,15 @@ function reHtmlEmpresa(d) {
     ${reSecao('11. Suprimentos — retirada da semana antecedente × joists realizados', reSecSuprimentos(d))}
   </div></section>`;
 }
-async function reHtml(ini, fim, emps) {
+async function reHtml(ini, fim, emps, geral = false) {
   if (typeof PL !== 'undefined') PL._atv = null;
   await plCarregar(true).catch(() => {});
   if (!window._regras_baixa) { regrasBaixa(() => {}); await window._regras_pend; }   // regras e IFC do mapa de montagem
   if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
   const c = minD(fim, ref), ls = reLinhas(c);
-  const dados = emps.map(emp => reDados(emp, ini, fim, ls));
+  const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));   // geral = um documento só, sem seção por empresa
   await tplLogosCarregar();
-  return tplDocumento({ titulo: 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join('') });
+  return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join('') });
 }
 
 // ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)
@@ -837,7 +971,7 @@ function reSincronizarBarra() {   // chamada a cada desenho do Painel: as datas 
   const k = `${per.ini}|${per.fim}`;
   if (reBarPer !== k) { reBarPer = k; a.value = per.ini; b.value = per.fim; }
   const btn = document.getElementById('btnRelEmpresas');
-  if (btn) btn.textContent = painelEmpFiltro ? `Relatório · ${painelEmpFiltro}` : 'Relatório das empresas';
+  if (btn) btn.textContent = painelEmpFiltro ? `Relatório · ${painelEmpFiltro}` : 'Relatório geral';
 }
 // Antes de baixar, abre uma janela com a visualização do relatório (o próprio HTML, rolável); dali se baixa, imprime/salva em PDF ou fecha.
 let reUltimo = null;
@@ -871,9 +1005,9 @@ async function reGerar() {
   const emps = painelEmpFiltro ? [painelEmpFiltro] : (M.empresas || []).map(e => e.nome).filter(Boolean);
   const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
-    const html = await reHtml(ini, fim, emps);
-    reAbrirPrevia(html, `relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'empresas'}-${ini}_a_${fim}.html`,
-      `${painelEmpFiltro || 'Todas as empresas'} · ${fdA(ini)} a ${fdA(fim)}`);
+    const html = await reHtml(ini, fim, emps, !painelEmpFiltro);
+    reAbrirPrevia(html, `relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'geral'}-${ini}_a_${fim}.html`,
+      `${painelEmpFiltro || 'Geral — todas as empresas'} · ${fdA(ini)} a ${fdA(fim)}`);
   } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }
   finally { btn.disabled = false; btn.textContent = rot; }
 }

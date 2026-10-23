@@ -14,7 +14,7 @@ foreach (modulos_sistema() as $moduloMenu) {
         $html = preg_replace($padrao, '<div class="sidebar-grupo" hidden>$1', $html, 1);
     }
 }
-$html = str_replace('<html lang="pt-BR">', '<html lang="pt-BR"' . tema_attr() . '>', $html);
+$html = str_replace('<html lang="pt-BR">', '<html lang="pt-BR"' . tema_attr() . menu_attr() . '>', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $html = str_replace('src="planos.js"', 'src="planos.js?v=' . @filemtime(__DIR__ . '/planos.js') . '"', $html);
@@ -22,9 +22,12 @@ $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(
 $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @filemtime(__DIR__ . '/pdf_relatorio.js') . '"', $html);
 $html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
+$html = str_replace('src="rdo.js"', 'src="rdo.js?v=' . @filemtime(__DIR__ . '/rdo.js') . '"', $html);
 $html = str_replace('src="rel_lanc.js"', 'src="rel_lanc.js?v=' . @filemtime(__DIR__ . '/rel_lanc.js') . '"', $html);
 $html = str_replace('src="bm_resumo.js"', 'src="bm_resumo.js?v=' . @filemtime(__DIR__ . '/bm_resumo.js') . '"', $html);
+$html = str_replace('src="mapa_obra.js"', 'src="mapa_obra.js?v=' . @filemtime(__DIR__ . '/mapa_obra.js') . '"', $html);
 $html = str_replace('src="tabelas.js"', 'src="tabelas.js?v=' . @filemtime(__DIR__ . '/tabelas.js') . '"', $html);
+$html = str_replace('src="tarefas.js"', 'src="tarefas.js?v=' . @filemtime(__DIR__ . '/tarefas.js') . '"', $html);
 $html = str_replace('src="cff.js"', 'src="cff.js?v=' . @filemtime(__DIR__ . '/cff.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);
