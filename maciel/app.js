@@ -5564,110 +5564,86 @@ function bmImprimir(r, emp, p) {
 
   let linhasItens = '';
   r.itens.forEach(it => {
-    linhasItens += `<tr style="background:#f0f4f8"><td colspan="4" style="padding:5px 8px;font-weight:bold">${esc(it.item)} — ${esc(cap(it.desc))}</td>
-      <td style="text-align:right;padding:5px 8px">${pc(it.pctAnt)}</td><td style="text-align:right;padding:5px 8px">${pc(it.pctPer)}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${pc(it.pct)}</td>
-      <td style="text-align:right;padding:5px 8px">${rs(it.pctAnt * it.valor[R])}</td><td style="text-align:right;padding:5px 8px">${rs(it.pctPer * it.valor[R])}</td><td style="text-align:right;padding:5px 8px;font-weight:bold">${rs(it.pct * it.valor[R])}</td>
-      <td style="text-align:right;padding:5px 8px;font-weight:bold">${rs2(it.valor[R])}</td><td></td></tr>`;
+    linhasItens += `<tr class="grupo"><td colspan="4"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td>
+      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td>
+      <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td></tr>`;
     it.ats.forEach(x => {
       const pr = bmPrecoAtividade(it, x.a, R);
-      linhasItens += `<tr><td style="padding:4px 8px 4px 22px;color:#555">${esc(x.a.atividade)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
-        <td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real - x.realAnt, 2)}</td><td style="text-align:right;padding:4px 8px;color:#555">${nf(x.real, 2)}</td>
-        <td colspan="3" style="text-align:right;padding:4px 8px;color:#555">${pc(x.pct)}</td><td colspan="3"></td>
-        <td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.total)}</td><td style="text-align:right;padding:4px 8px;color:#555">${rs2(pr.unit)}</td></tr>`;
+      linhasItens += `<tr><td class="bm-ativ">${esc(x.a.atividade)}</td><td class="n">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
+        <td class="n">${nf(x.real - x.realAnt, 2)}</td><td class="n">${nf(x.real, 2)}</td>
+        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td>
+        <td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td></tr>`;
     });
   });
 
-  let linhasDesc = `<tr style="background:#f0f4f8"><td style="padding:6px 8px;font-weight:bold">Medição do BM${p.n}</td><td style="text-align:right;padding:6px 8px;font-weight:bold">${rs(tot.per)}</td></tr>`;
+  let linhasDesc = `<tr class="grupo"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(tot.per)}</b></td></tr>`;
   const _dailyEquip = dd.equip - dd.mensalEquip;
-  if (dd.sinalAuto) linhasDesc += `<tr><td style="padding:5px 8px">(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td style="text-align:right;padding:5px 8px">${rs(-dd.sinalAuto)}</td></tr>`;
-  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td style="padding:5px 8px">(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
-  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td style="text-align:right;padding:5px 8px">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
+  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
+  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
-    linhasDesc += `<tr><td style="padding:5px 8px">(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td style="text-align:right;padding:5px 8px">${rs(-v)}</td></tr>`;
+    linhasDesc += `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td class="n">${rs(-v)}</td></tr>`;
   });
-  linhasDesc += `<tr style="background:#e8f5e9"><td style="padding:7px 8px;font-weight:bold;font-size:14px">VALOR A FATURAR</td><td style="text-align:right;padding:7px 8px;font-weight:bold;font-size:14px;color:#1b5e20">${rs(fat)}</td></tr>`;
+  linhasDesc += `<tr class="bm-fatura"><td><b>VALOR A FATURAR</b></td><td class="n"><b>${rs(fat)}</b></td></tr>`;
 
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-    <title>BM${p.n} · ${esc(emp)} · ${esc(obraNome)}</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 20mm 18mm; }
-      h1 { font-size: 18px; font-weight: bold; color: #1a237e; margin-bottom: 2px; }
-      h2 { font-size: 13px; font-weight: bold; color: #1a237e; border-bottom: 1px solid #1a237e; padding-bottom: 3px; margin: 18px 0 8px; }
-      .cabecalho { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a237e; padding-bottom: 10px; margin-bottom: 14px; }
-      .cab-info { font-size: 11px; color: #555; margin-top: 4px; }
-      .cab-meta { text-align: right; font-size: 11px; color: #555; }
-      .cab-meta b { display: block; font-size: 13px; color: #1a1a1a; }
-      .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-      .tile { border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; }
-      .tile-rot { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: .4px; }
-      .tile-val { font-size: 16px; font-weight: bold; color: #1a1a1a; margin: 2px 0; }
-      .tile-sub { font-size: 10px; color: #777; }
-      .tile.destaque { background: #e8f5e9; border-color: #388e3c; }
-      .tile.destaque .tile-val { color: #1b5e20; }
-      table { width: 100%; border-collapse: collapse; font-size: 11px; }
-      th { background: #1a237e; color: #fff; padding: 5px 8px; text-align: left; font-weight: bold; }
-      th.n { text-align: right; }
-      td { padding: 4px 8px; border-bottom: 1px solid #eee; }
-      tfoot td { font-weight: bold; background: #e8eaf6; border-top: 2px solid #1a237e; }
-      .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 40px; }
-      .assin { border-top: 1px solid #1a1a1a; padding-top: 6px; font-size: 10px; text-align: center; color: #444; }
-      .rodape { margin-top: 20px; font-size: 9px; color: #aaa; text-align: right; border-top: 1px solid #eee; padding-top: 6px; }
-      .status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
-      .status.fechado { background: #e8f5e9; color: #1b5e20; }
-      .status.aberto { background: #fff8e1; color: #e65100; }
-      @media print { body { padding: 10mm 12mm; } }
-    </style></head><body>
-    <div class="cabecalho">
-      <div>
-        <div style="font-size:11px;color:#555;margin-bottom:4px">BOLETIM DE MEDIÇÃO</div>
-        <h1>${esc(obraNome)}</h1>
-        <div class="cab-info"><b>${esc(emp)}</b> &nbsp;·&nbsp; BM${p.n} &nbsp;·&nbsp; Contrato RÓTULA</div>
-        <div class="cab-info" style="margin-top:3px">Período: ${periodoStr}</div>
-        <div style="margin-top:6px"><span class="status ${p.fechado ? 'fechado' : 'aberto'}">${p.fechado ? '● FECHADO em ' + fdA(p.fech.fechado_em) : '● EM ABERTO'}</span></div>
-      </div>
-      <div class="cab-meta"><b>BM${p.n}</b>${fdA(p.fim)}<br><span style="margin-top:4px;display:block">Emitido em ${new Date().toLocaleString('pt-BR')}</span></div>
+  // mesmo layout dos demais relatórios (capa Rótula, ficha da obra, rodapé) e mesmo PDF; o BM é da EMPRESA TERCEIRIZADA e isso aparece em destaque
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const situacao = p.fechado ? `BM FECHADO em ${fdA(p.fech.fechado_em)}` : 'BM EM ABERTO';
+  const corpo = `<section class="emp-sec"><div class="pag">
+    <div class="bm-terc">
+      <div class="bm-terc-rot">Empresa terceirizada · contratada pela RÓTULA</div>
+      <div class="bm-terc-nome">${esc(emp)}</div>
+      <div class="bm-terc-sub">Boletim de medição dos serviços executados pela empresa terceirizada <b>${esc(emp)}</b> na obra ${esc(obraNome)} · BM${p.n} · período ${esc(periodoStr)}</div>
+      <span class="bm-terc-sit ${p.fechado ? 'f' : 'a'}">${esc(situacao)}</span>
     </div>
-    <h2>Resumo do BM${p.n}</h2>
-    <div class="tiles">
-      <div class="tile"><div class="tile-rot">Contrato RÓTULA</div><div class="tile-val">${rs(tot.contrato)}</div><div class="tile-sub">${esc(emp)} · valor total contratado</div></div>
-      <div class="tile"><div class="tile-rot">Medição do BM${p.n}</div><div class="tile-val">${rs(tot.per)}</div><div class="tile-sub">${pc(tot.pctPer)} do contrato neste período</div></div>
-      <div class="tile"><div class="tile-rot">Descontos</div><div class="tile-val">${rs(dd.total[R])}</div><div class="tile-sub">sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}</div></div>
-      <div class="tile destaque"><div class="tile-rot">Valor a faturar</div><div class="tile-val">${rs(fat)}</div><div class="tile-sub">medição − descontos</div></div>
+    <h2>Resumo do BM${p.n} da ${esc(emp)}</h2>
+    <div class="cards">
+      ${card('Contrato RÓTULA × ' + esc(emp), rs(tot.contrato), 'valor total contratado da empresa terceirizada', 'az')}
+      ${card('Medição do BM' + p.n, rs(tot.per), pc(tot.pctPer) + ' do contrato neste período', 'nd')}
+      ${card('Descontos', rs(dd.total[R]), `sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}`, 'am')}
+      ${card('Valor a faturar pela ' + esc(emp), rs(fat), 'medição − descontos', 'vd')}
     </div>
-    <h2>Medição por item e atividade</h2>
-    <table><thead><tr>
+    <h2>Medição por item e atividade — ${esc(emp)}</h2>
+    <div class="bm-tab"><table><thead><tr>
       <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
       <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
       <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
       <th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th>
     </tr></thead><tbody>${linhasItens}</tbody>
-    <tfoot><tr><td colspan="4"><b>Total do contrato</b></td>
-      <td style="text-align:right">${pc(tot.ant / (tot.contrato || 1))}</td><td style="text-align:right">${pc(tot.pctPer)}</td><td style="text-align:right">${pc(tot.pctAcum)}</td>
-      <td style="text-align:right">${rs(tot.ant)}</td><td style="text-align:right">${rs(tot.per)}</td><td style="text-align:right">${rs(tot.acum)}</td>
-      <td style="text-align:right">${rs2(tot.contrato)}</td><td></td>
-    </tr></tfoot></table>
+    <tfoot><tr><th colspan="4">Total do contrato da ${esc(emp)}</th>
+      <th class="n">${pc(tot.ant / (tot.contrato || 1))}</th><th class="n">${pc(tot.pctPer)}</th><th class="n">${pc(tot.pctAcum)}</th>
+      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th>
+      <th class="n">${rs2(tot.contrato)}</th><th></th>
+    </tr></tfoot></table></div>
     <h2>Descontos e valor a faturar</h2>
-    <table><thead><tr><th>Descrição</th><th class="n" style="width:160px">Valor (R$)</th></tr></thead>
+    <table><thead><tr><th>Descrição</th><th class="n" style="width:170px">Valor (R$)</th></tr></thead>
     <tbody>${linhasDesc}</tbody></table>
-    <div class="assinaturas">
-      <div class="assin">Responsável pela medição<br>${esc(emp)}</div>
-      <div class="assin">Fiscalização / Contratante<br>RÓTULA</div>
-      <div class="assin">Aprovação<br>&nbsp;</div>
+    <div class="bm-assin">
+      <div><span>Responsável pela medição</span><b>EMPRESA TERCEIRIZADA · ${esc(emp)}</b></div>
+      <div><span>Fiscalização / Contratante</span><b>RÓTULA</b></div>
+      <div><span>Aprovação</span><b>&nbsp;</b></div>
     </div>
-    <div class="rodape">Gerado pelo sistema de controle de obra · ${esc(obraNome)} · BM${p.n} · ${esc(emp)} · ${new Date().toLocaleString('pt-BR')}</div>
-  </body></html>`;
-
-  // visualização antes de baixar; o PDF (gerado no servidor) só sai quando se clica em "Baixar PDF"
-  const enviarPdf = () => {
-    const f = document.createElement('form');
-    f.method='post'; f.action='pdf_html.php'; f.target='_blank'; f.style.display='none';
-    const campos = {csrf: window.CSRF_TOKEN || '', html, nome: `BM${p.n}-${emp}`};
-    Object.entries(campos).forEach(([k,v]) => { const i=document.createElement('input'); i.type='hidden'; i.name=k; i.value=v; f.appendChild(i); });
-    document.body.appendChild(f); f.submit(); f.remove();
-  };
-  reAbrirPrevia(html, `BM${p.n}-${emp}.html`, `Boletim de medição · BM${p.n} · ${emp}`, { rotuloBaixar: 'Baixar PDF', baixar: enviarPdf, semTemplate: true });   // o PDF vem do servidor (TCPDF): a visualização é o próprio boletim
+  </div></section>`;
+  const css = `<style>@page{size:A4 landscape}
+    .bm-terc{border:2px solid #b3261e;background:#fdf1f0;border-radius:8px;padding:14px 18px;margin:0 0 14px;display:flex;flex-direction:column;gap:4px}
+    .bm-terc-rot{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#b3261e}
+    .bm-terc-nome{font-size:30px;font-weight:800;line-height:1.1;color:#1c1b18}
+    .bm-terc-sub{font-size:12px;color:#444}
+    .bm-terc-sit{align-self:flex-start;margin-top:4px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+    .bm-terc-sit.f{background:#dcf5e3;color:#15803d}.bm-terc-sit.a{background:#fdf3c4;color:#a16207}
+    .bm-tab table{font-size:9.5px}.bm-tab th,.bm-tab td{padding:3px 5px}
+    .bm-ativ{padding-left:18px!important;color:#444}
+    tr.bm-fatura td{background:#dcf5e3;font-size:13px;color:#14532d}
+    .bm-assin{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:46px}
+    .bm-assin div{border-top:1px solid #1c1b18;padding-top:6px;text-align:center;font-size:10px;color:#444;display:flex;flex-direction:column;gap:2px}
+    .bm-assin b{color:#1c1b18;font-size:11px}
+  </style>`;
+  const html = tplDocumento({ titulo: `Boletim de Medição · BM${p.n}`, subtitulo: `Empresa terceirizada: ${emp} · Contrato RÓTULA · período ${periodoStr}`,
+    meta: `BM da empresa terceirizada ${emp} · ${situacao} · emitido em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, corpo, css });
+  // mesma visualização e mesmo PDF (Baixar PDF) dos demais relatórios
+  reAbrirPrevia(html, `BM${p.n}-${emp}`, `Boletim de medição · BM${p.n} · ${emp} (empresa terceirizada)`);
 }
 
 function renderBM() {
