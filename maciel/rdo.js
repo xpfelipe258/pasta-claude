@@ -289,7 +289,10 @@ function rdoMapaPecas(dia) {
   const W = 22, Hh = 18, ML = 44, MT = 30, nx = ix.eixosV.length * 2 - 1, ny = ix.eixosH.length * 2 - 1;
   const svgFase = f => {
     const cel = new Map(), sp = new Map();
-    f.pecas.forEach(p => { const m = p.semPos ? sp : cel; if (!m.has(p.cel)) m.set(p.cel, []); m.get(p.cel).push(p); });
+    f.pecas.forEach(p => {   // peça sem posição na malha do modelo: uma caixa por produto (serve tanto à versão antiga, semPos, quanto à nova, posicionada)
+      const pos = p.posicionada !== undefined ? p.posicionada : !p.semPos, k = pos ? `${p.cx},${p.cy}` : 'SP|' + p.produto, m = pos ? cel : sp;
+      if (!m.has(k)) m.set(k, []); m.get(k).push(p);
+    });
     const LS = 150, porL = Math.max(1, Math.floor((ML + nx * W - 10) / LS)), altSP = sp.size ? 26 + Math.ceil(sp.size / porL) * 24 : 0;
     const larg = ML + nx * W + 10, alt = MT + ny * Hh + 10 + altSP, yT = cy => MT + (ny - 1 - cy) * Hh;
     let o = `<svg viewBox="0 0 ${larg} ${alt}" style="width:100%;height:auto;font:10px Arial,Helvetica,sans-serif" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(f.fase)}">`;

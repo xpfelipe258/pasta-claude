@@ -2845,6 +2845,7 @@ function renderEstoque() {
 // ---------------------------------------- BAIXA POR IFC (regras × eventos) ----
 function renderEstoqueIfc() {
   const box = M && M.estoque_ifc;
+  if (box?.regras?.versao_identidade === 1) return renderBaixaIdentidadeIfc();
   const nota = $('#estIfcNota'), tiles = $('#estIfcTiles'), resumo = $('#estIfcResumo');
   const tabMat = $('#tabEstIfc'), tabRuas = $('#tabEstIfcRuas'), tabEv = $('#tabEstEventos'), al = $('#estIfcAlertas');
   if (!box || !box.inventario || !box.regras) {
@@ -3001,6 +3002,7 @@ function renderEstoquePlanilha() {
   renderEstConsumo();
   renderEstInventario();
   renderEstCriticos();
+  if (M?.estoque_ifc?.regras?.versao_identidade === 1 && abaAtual === 'estsis') renderEstoqueIfc();
 }
 
 function _filtroMat() { return ($('#estMatFiltro')?.value || '').toUpperCase(); }
@@ -3017,12 +3019,13 @@ function ehFixadorCadastro(m) {
 function matCadastroProduto(m) { return m.material || m.produto || m.codigo || ''; }
 function matCadastroEtapa(m) { return m.etapa || m.servico || (ehFixadorCadastro(m) ? 'FIXADORES' : 'CADASTRO MANUAL'); }
 function matCadastroLocal(m) { return m.local || (ehFixadorCadastro(m) ? 'FIXADORES' : 'SUPRIMENTOS'); }
+const matChaveTag = tag => M?.estoque_ifc?.regras?.versao_identidade === 1 ? String(tag || '').trim() : ganNorm(tag);
 function estMateriaisComCadastros() {
   const base = EP && Array.isArray(EP.materiais) ? EP.materiais.map(m => ({ ...m })) : [];
-  const vistos = new Set(base.map(m => ganNorm(m.tag)));
+  const vistos = new Set(base.map(m => matChaveTag(m.tag)));
   (T?.materiais || []).forEach(m => {
     const tag = String(m.codigo || '').trim();
-    if (!tag || vistos.has(ganNorm(tag))) return;
+    if (!tag || vistos.has(matChaveTag(tag))) return;
     const planejado = Number(m.saldo_inicial || 0) || 0;
     base.push({
       linha: m.linha,
@@ -3041,7 +3044,7 @@ function estMateriaisComCadastros() {
       prioridade: ehFixadorCadastro(m) ? 'FIXADOR' : '',
       origem_cadastro: 'manual',
     });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   // quantidade de parafusos, arruelas e porcas do projeto (modelos TRB) somada ao planejado das TAGs de fixador (vinculos.js)
   return typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
@@ -3049,10 +3052,10 @@ function estMateriaisComCadastros() {
 function estRemessasComCadastros() {
   const rem = EP?.remessas || { colunas: [], datas: {}, itens: [] };
   const out = { ...rem, colunas: [...(rem.colunas || [])], datas: { ...(rem.datas || {}) }, itens: (rem.itens || []).map(i => ({ ...i, qtd_por_remessa: { ...(i.qtd_por_remessa || {}) } })) };
-  const vistos = new Set(out.itens.map(i => ganNorm(i.tag)));
+  const vistos = new Set(out.itens.map(i => matChaveTag(i.tag)));
   (T?.materiais || []).forEach(m => {
     const tag = String(m.codigo || '').trim();
-    if (!tag || vistos.has(ganNorm(tag))) return;
+    if (!tag || vistos.has(matChaveTag(tag))) return;
     out.itens.push({
       tag,
       material: m.material || tag,
@@ -3062,7 +3065,7 @@ function estRemessasComCadastros() {
       total_recebido: 0,
       origem_cadastro: 'manual',
     });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return out;
 }
@@ -3070,31 +3073,31 @@ function estRemessasComCadastros() {
 // Fixadores cadastrados em Materiais (T.materiais) entram também no Consumo físico e no Inventário, com a mesma TAG,
 // mesmo que a planilha importada não os tenha (o servidor também cria essas linhas ao cadastrar o fixador).
 function fixadoresCadastrados() {
-  return (T?.materiais || []).filter(m => String(m.codigo || '').trim() && ehFixadorCadastro(m));
+  return (T?.materiais || []).filter(m => String(m.codigo || '').trim() && (M?.estoque_ifc?.regras?.versao_identidade === 1 || ehFixadorCadastro(m)));
 }
 function estConsumoComCadastros() {
   const cf = EP?.consumo_fisico || { semanas: [], empresas: [], itens: [], inventarios_datas: [] };
   const itens = [...(cf.itens || [])];
-  const vistos = new Set(itens.map(i => ganNorm(i.tag)));
+  const vistos = new Set(itens.map(i => matChaveTag(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
-    if (vistos.has(ganNorm(tag))) return;
+    if (vistos.has(matChaveTag(tag))) return;
     itens.push({ tag, produto: matCadastroProduto(m), consumo_semanas: {}, total_consumo: 0, inventarios_fisicos: {}, origem_cadastro: 'manual' });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return { ...cf, itens };
 }
 function estInventarioComCadastros() {
   const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
   const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
-  const vistos = new Set(inv.map(i => ganNorm(i.tag)));
+  const vistos = new Set(inv.map(i => matChaveTag(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
-    if (vistos.has(ganNorm(tag))) return;
+    if (vistos.has(matChaveTag(tag))) return;
     inv.push({ tag, material: m.material || tag, produto: matCadastroProduto(m), planejado: Number(m.saldo_inicial || 0) || 0,
       estoque_virtual_base: 0, estoque_fisico: 0, consumo_virtual: 0, consumo_fisico: 0, estoque_virtual_atual: 0, dif_estoque: 0,
       perda_real: 0, taxa_perda: 0, acuracidade: 1, status: 'CONFORME', acao: 'OK', obs: '', origem_cadastro: 'manual' });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return inv;
 }
@@ -3169,7 +3172,7 @@ function matAbrirEdicao(tag) {
   if (document.body.classList.contains('somente-leitura')) return;
   const m = estMateriaisComCadastros().find(x => x.tag === tag);
   if (!m) return;
-  const cad = (T.materiais || []).find(x => String(x.codigo || '').trim().toUpperCase() === String(tag).toUpperCase());
+  const cad = (T.materiais || []).find(x => matChaveTag(x.codigo) === matChaveTag(tag));
   const planBase = m.planejado_trb ? m.planejado_cad : m.planejado;   // o que vem do projeto (TRB) é somado à parte e não se edita aqui
   abrirDialogo('materiais_edit', cad ? cad.linha : null, {
     ...(cad || {}), codigo: m.tag, material: m.material || '', produto: m.produto || '', tipo_material: (m.tipo_material || 'ESTRUTURA').toUpperCase(),
@@ -3565,7 +3568,7 @@ const consSem = { semana: '', originais: new Map(), novos: new Map(), dataOrig: 
 function abrirConsSemana(semana) {
   const cf = estConsumoComCadastros();
   consSem.semana = semana; consSem.novos = new Map(); consSem.originais = new Map();
-  cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, { EJ: Number(d.EJ) || 0, CMM: Number(d.CMM) || 0 }); });
+  cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, Object.fromEntries(relConsEmpresas().map(e => [e, Number(d[e]) || 0]))); });
   $('#tituloConsSemana').textContent = `Editar coluna — ${semana}`;
   $('#consSemNome').value = semana; $('#consSemBusca').value = '';
   const dt = consSemanasDatas(cf).get(semana), per = consSemanasPeriodos(cf)[semana], salva = (per && per.ini) || (cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas[semana] : '') || '';
@@ -3582,9 +3585,9 @@ function consSemDesenhar() {
   const cf = estConsumoComCadastros(), f = ganNorm($('#consSemBusca').value || '');
   const vis = cf.itens.filter(m => !f || ganNorm(m.tag + ' ' + (m.produto || '')).includes(f));
   const val = (tag, emp) => { const n = consSem.novos.get(tag); const v = n && emp in n ? n[emp] : consSem.originais.get(tag)[emp]; return v ? String(v).replace('.', ',') : ''; };
-  $('#tabConsSemana').innerHTML = '<thead><tr><th>TAG</th><th>Produto</th><th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th></tr></thead><tbody>' +
+  $('#tabConsSemana').innerHTML = '<thead><tr><th>TAG</th><th>Produto</th>' + relConsEmpresas().map(e => `<th class="n">${esc(e)}</th>`).join('') + '</tr></thead><tbody>' +
     (vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto || '')}</td>` +
-      ['EJ', 'CMM'].map(e => `<td class="n"><input type="text" inputmode="decimal" data-cs-tag="${esc(m.tag)}" data-cs-emp="${e}" value="${esc(val(m.tag, e))}" aria-label="${esc(m.tag)} ${e}"></td>`).join('') + '</tr>').join('')
+      relConsEmpresas().map(e => `<td class="n"><input type="text" inputmode="decimal" data-cs-tag="${esc(m.tag)}" data-cs-emp="${esc(e)}" value="${esc(val(m.tag, e))}" aria-label="${esc(m.tag)} ${esc(e)}"></td>`).join('') + '</tr>').join('')
       || '<tr><td colspan="4" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 async function salvarConsSemana() {
@@ -3593,7 +3596,7 @@ async function salvarConsSemana() {
   const valores = [];
   consSem.novos.forEach((n, tag) => {
     const o = consSem.originais.get(tag), v = { tag };
-    ['EJ', 'CMM'].forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
+    relConsEmpresas().forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
     if (Object.keys(v).length > 1) valores.push(v);
   });
   const dataNova = $('#consSemData').value || '', fimNovo = $('#consSemFim').value || '';
@@ -3728,6 +3731,9 @@ function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
 }
 
 function consumoVirtualPorTag(regras) {
+  if (regras.versao_identidade === 1) {
+    return consumoIdentidadeIfc(regras, M.vinculos_material || {}, bmTab('bm_atividades'), T.apontamentos || [], a => bmRealizado(a, '9999-12-31'), M.fixadores_atividade || {});
+  }
   const servicos = regras.consumo_por_servico || {};
   const cfgAp = regras.apontamento || {};
   const aps = T.apontamentos || [];
@@ -3842,6 +3848,7 @@ function renderEstInventario() {
   const pendJ = Math.max(0, ic - soma0(aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd));
   const pendV = Math.max(0, prodServico(cfgAp.servico_viga || 'VIGAS', null, '0000-01-01', '9999-12-31') - aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length);
   $('#estInvNota').textContent = `Consumo virtual = produção acumulada (${nf(prem)} joists pré-montadas, ${nf(ic)} içadas) × regras de baixa, com o tipo exato vindo do Apontamento de montagem. Faltam apontar ${nf(pendJ)} joists (quadrante) e ${nf(pendV)} vigas (tipo): por isso ≈ (parafusos estimados) e ≥ (fixadores de viga parciais).`;
+  if (regras.versao_identidade === 1) $('#estInvNota').textContent = 'Consumo por TAG e local do IFC, ligado ao catálogo. ≈ indica distribuição estimada de produção sem peça identificada; apontar no mapa concilia a parcela exata.';
   $('#estInvTiles').innerHTML =
     tile('Itens avaliados', avaliados.length, `${vis.length} visíveis`, 'var(--fg)') +
     tile('Acuracidade média', nf(acuMedia, 1) + '%', 'meta >= 98%', 'var(--acento)') +
@@ -5313,6 +5320,7 @@ const bmChave = (emp, cod, d) => `${emp}|${cod}|${d}`;
 const bmTile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
 const bmNormUn = u => String(u || '').trim().toUpperCase().replace('²', '2').replace('³', '3');
 function bmAtividadeUsaBaseFinanceira(a) {
+  if (M?.estoque_ifc?.regras?.versao_identidade === 1) return true;
   const un = bmNormUn(a?.unidade || '');
   const txt = ganNorm(`${a?.item_desc || ''} ${a?.atividade || ''} ${a?.controle || ''}`);
   const alvo = txt.includes('COBERTURA') || txt.includes('TELHA') || txt.includes('TELHAR') || txt.includes('FACEFELT') || txt.includes('FECHAMENTO LATERAL');
