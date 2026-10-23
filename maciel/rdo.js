@@ -192,13 +192,120 @@ async function rdoFotoDataUri(id) {   // a foto vai embutida no relatório (assi
 }
 
 const RDO_CSS = `<style>
-.rdo-fotos{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.rdo-fotos figure{margin:0;border:1px solid #d0d5dd;border-radius:6px;overflow:hidden;background:#fff}
-.rdo-fotos img{width:100%;display:block}
-.rdo-fotos figcaption{padding:7px 10px;font-size:12px;color:#344054}
-.rdo-fotos figcaption b{color:#101828}
+.rdo-fotos{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.rdo-fotos figure{margin:0;border:3px solid #1f3a5f;border-radius:8px;background:#fff;padding:8px;box-shadow:0 2px 6px rgba(16,24,40,.18);break-inside:avoid}
+.rdo-fotos .rdo-quadro{border:1px solid #98a2b3;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:150px;padding:4px}
+.rdo-fotos img{max-width:100%;max-height:300px;width:auto;height:auto;display:block}
+.rdo-fotos figcaption{padding:8px 4px 2px;font-size:12px;color:#344054;display:flex;gap:8px;align-items:flex-start}
+.rdo-fotos figcaption b{background:#1f3a5f;color:#fff;border-radius:3px;padding:1px 7px;white-space:nowrap;font-size:11px}
+.rdo-fotos figcaption span{flex:1}
 .rdo-sem{color:#667085;font-style:italic}
+.rdo-leg{margin:6px 0 8px;font-size:11px}.rdo-leg span{display:inline-flex;align-items:center;gap:5px;margin-right:16px}
+.rdo-leg i{width:16px;height:11px;border-radius:2px;display:inline-block;border:1px solid #6b7886}
+.rdo-barra-emp{display:flex;height:11px;min-width:150px;border:1px solid #98a2b3;border-radius:3px;overflow:hidden;background:#fecaca}
+.rdo-barra-emp i{display:block;height:100%}
+.mapa-fig{border:1px solid #d3dbe4;border-radius:4px;padding:6px;background:#fff;margin:6px 0;break-inside:avoid}
 </style>`;
+
+// ---------------------------------------------------------------- mapas de montagem do dia
+// Três estados, sempre nas mesmas cores: FEITO NO DIA (verde), JÁ TINHA (azul: apontado antes do dia) e FALTA (rosa: ainda não apontado).
+const RDO_COR = { dia: '#16a34a', ant: '#60a5fa', antTr: '#2563eb', falta: '#fecaca', faltaTr: '#f87171' };
+const RDO_COR_MAPA = { forte: RDO_COR.dia, porEmp: false, ant: RDO_COR.ant, antTr: RDO_COR.antTr, pend: RDO_COR.falta, pendTr: RDO_COR.faltaTr };
+const rdoLegenda = (extra = '') => `<div class="rdo-leg"><span><i style="background:${RDO_COR.dia};border-color:#14202b"></i><b>Feito no dia</b></span><span><i style="background:${RDO_COR.ant};border-color:${RDO_COR.antTr}"></i><b>Já tinha</b> (apontado antes do dia)</span><span><i style="background:${RDO_COR.falta};border-color:${RDO_COR.faltaTr}"></i><b>Falta</b> (ainda não apontado)</span>${extra}</div>`;
+const rdoBarraEmp = (n, tot) => tot > 0 ? `<div class="rdo-barra-emp" title="verde = feito no dia · azul = já tinha · rosa = falta"><i style="width:${n.ant / tot * 100}%;background:${RDO_COR.ant}"></i><i style="width:${n.per / tot * 100}%;background:${RDO_COR.dia}"></i></div>` : '';
+
+// uma linha da tabela-resumo; n = {per, ant, pend, outra?}
+function rdoLinhaMapa(rot, n, un = '', fator = 1) {
+  const tot = n.per + n.ant + n.pend + (n.outra || 0), feito = n.per + n.ant, f = v => nf(v * fator, fator === 1 ? 0 : 0) + (un ? ' ' + un : '');
+  return `<tr><td><b>${esc(rot)}</b></td><td class="n">${f(tot)}</td><td class="n"><b style="color:#15803d">${f(n.per)}</b></td><td class="n">${f(n.ant)}</td><td class="n"><b style="color:#b42318">${f(n.pend)}</b></td><td class="n">${tot ? nf(feito / tot * 100, 1) + '%' : '—'}</td><td>${rdoBarraEmp(n, tot)}</td></tr>`;
+}
+
+// obra antiga (G200): reaproveita os mapas do relatório das empresas, com data de corte = o próprio dia
+function rdoMapasLegado(dia) {
+  const m = reMapa('', dia, dia, RDO_COR_MAPA);
+  if (!m) return null;
+  if (m.sem) return { aviso: m.sem };
+  const linhas = [], figs = [];
+  if (m.planta) {
+    linhas.push(rdoLinhaMapa('Joists', m.planta.nJ), rdoLinhaMapa('Vigas', m.planta.nV));
+    figs.push(`<h3>Joists e vigas (planta do galpão)</h3><div class="mapa-fig">${m.planta.svg}</div><p class="nota">Cada retângulo é uma joist (43 por rua); os quadrados nos eixos são as vigas.</p>`);
+    if (m.contrav) { linhas.push(rdoLinhaMapa('Contraventamento (kits)', m.contrav.n)); figs.push(`<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div><p class="nota">Cada X é um kit de contraventamento.</p>`); }
+  }
+  [['Telhas da cobertura (m²)', m.telha], ['Perfilagem das telhas (m²)', m.perfil]].forEach(([rot, t]) => {
+    if (!t) return;
+    linhas.push(rdoLinhaMapa(rot, t.n, 'm²', t.m2));
+    figs.push(`<h3>${esc(rot.replace(' (m²)', ''))} (do eixo 01 ao 20)</h3>` + t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p><div class="mapa-fig">${f.svg}</div>`).join('') + `<p class="nota">Cada faixa é ${rot.startsWith('Telhas') ? 'uma telha' : 'uma fiada de perfilagem'} (${nf(t.m2, 2)} m²), numerada a partir do eixo 01.</p>`);
+  });
+  const fora = m.foraMontagem && m.foraMontagem.length ? `<p class="nota"><b>${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s)</b> de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço ficam em cinza e fora dos totais.</p>` : '';
+  const cinza = [m.planta && m.planta.nJ.outra, m.planta && m.planta.nV.outra, m.contrav && m.contrav.n.outra].some(v => v > 0);
+  return { linhas, figs, fora, extraLeg: cinza ? `<span><i style="background:${RE_COR_OUTRA}"></i>Apontado por empresa sem esse serviço</span>` : '' };
+}
+
+// obra criada pela importação (mapa por peça do IFC): cada peça é "feita" quando tem apontamento em alguma atividade
+function rdoMapaPecas(dia) {
+  if (typeof moIndice !== 'function' || !MO.dados || !(MO.dados.pecas || []).length) return null;
+  const ix = moIndice(), prim = new Map();
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA' && (!a.data || a.data <= dia)).forEach(a => { const d = a.data || ''; if (!prim.has(a.letra) || d < prim.get(a.letra)) prim.set(a.letra, d); });
+  const est = p => (!prim.has(p.guid) ? 'pend' : prim.get(p.guid) === dia ? 'per' : 'ant');
+  const fases = MO.dados.fases.filter(f => ix.porFase.has(f.fase)).map(f => {
+    const pecas = ix.porFase.get(f.fase), n = { per: 0, ant: 0, pend: 0 };
+    pecas.forEach(p => n[est(p)]++);
+    return { fase: f.fase, pecas, n };
+  });
+  const tot = { per: 0, ant: 0, pend: 0 };
+  fases.forEach(f => ['per', 'ant', 'pend'].forEach(k => { tot[k] += f.n[k]; }));
+  const W = 22, Hh = 18, ML = 44, MT = 30, nx = ix.eixosV.length * 2 - 1, ny = ix.eixosH.length * 2 - 1;
+  const svgFase = f => {
+    const cel = new Map(), sp = new Map();
+    f.pecas.forEach(p => { const m = p.semPos ? sp : cel; if (!m.has(p.cel)) m.set(p.cel, []); m.get(p.cel).push(p); });
+    const LS = 150, porL = Math.max(1, Math.floor((ML + nx * W - 10) / LS)), altSP = sp.size ? 26 + Math.ceil(sp.size / porL) * 24 : 0;
+    const larg = ML + nx * W + 10, alt = MT + ny * Hh + 10 + altSP, yT = cy => MT + (ny - 1 - cy) * Hh;
+    let o = `<svg viewBox="0 0 ${larg} ${alt}" style="width:100%;height:auto;font:10px Arial,Helvetica,sans-serif" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(f.fase)}">`;
+    ix.eixosV.forEach((e, i) => { const x = ML + i * 2 * W; o += `<line x1="${x + W / 2}" x2="${x + W / 2}" y1="${MT - 6}" y2="${MT + ny * Hh}" stroke="#d0d5dd" stroke-dasharray="2 3"/><text x="${x + W / 2}" y="${MT - 12}" text-anchor="middle" fill="#475467">${esc(e)}</text>`; });
+    ix.eixosH.forEach((e, j) => { const y = yT(j * 2); o += `<line x1="${ML - 6}" x2="${larg - 6}" y1="${y + Hh / 2}" y2="${y + Hh / 2}" stroke="#d0d5dd" stroke-dasharray="2 3"/><text x="${ML - 10}" y="${y + Hh / 2 + 4}" text-anchor="end" fill="#475467">${esc(e)}</text>`; });
+    // a célula mostra a proporção: rosa = falta (fundo), azul = já tinha (de baixo para cima), verde = feito no dia (em cima do azul)
+    const caixa = (x, y, w, h, ps, rot) => {
+      const n = { per: 0, ant: 0, pend: 0 }; ps.forEach(p => n[est(p)]++);
+      const hA = h * n.ant / ps.length, hP = h * n.per / ps.length;
+      return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${RDO_COR.falta}"/>` +
+        (hA ? `<rect x="${x}" y="${y + h - hA}" width="${w}" height="${hA}" fill="${RDO_COR.ant}"/>` : '') + (hP ? `<rect x="${x}" y="${y + h - hA - hP}" width="${w}" height="${hP}" fill="${RDO_COR.dia}"/>` : '') +
+        `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="none" stroke="${n.per ? '#14202b' : n.pend ? RDO_COR.faltaTr : RDO_COR.antTr}" stroke-width="${n.per ? 1.6 : 1}"/>${rot}</g>`;
+    };
+    cel.forEach((ps, k) => { const [cx, cy] = k.split(',').map(Number), x = ML + cx * W, y = yT(cy); o += caixa(x, y, W - 2, Hh - 2, ps, `<text x="${x + (W - 2) / 2}" y="${y + Hh / 2 + 3}" text-anchor="middle" font-size="8" fill="#101828">${ps.length > 99 ? '99+' : ps.length}</text>`); });
+    if (sp.size) {
+      const y0 = MT + ny * Hh + 22;
+      o += `<text x="${ML}" y="${y0 - 6}" fill="#475467" font-weight="600">Sem posição na malha do modelo</text>`;
+      [...sp.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).forEach(([k, ps], i) => { const x = ML + (i % porL) * LS, y = y0 + Math.floor(i / porL) * 24; o += caixa(x, y, LS - 6, 20, ps, `<text x="${x + 6}" y="${y + 14}" font-size="10" fill="#101828">${esc(ps[0].produto.slice(0, 18))} · ${ps.length}</text>`); });
+    }
+    return o + '</svg>';
+  };
+  return { fases, tot, svgFase };
+}
+
+async function rdoMapasHtml(dia) {
+  if (!window._regras_baixa && typeof regrasBaixa === 'function') { regrasBaixa(() => {}); await window._regras_pend; }   // regras e IFC do mapa de montagem
+  if (!window._frentes && typeof frentesMontagem === 'function') { frentesMontagem(() => {}); await window._frentes_pend; }
+  let linhas = [], figs = [], notas = '', extraLeg = '';
+  if (M.mapa_obra && typeof moCarregar === 'function') {   // obra gerada pela importação: mapa por peça
+    if (!moCarregar(() => {})) await MO.pend;
+    const mp = rdoMapaPecas(dia);
+    if (!mp) return '';
+    mp.fases.forEach(f => linhas.push(rdoLinhaMapa(f.fase, f.n)));
+    linhas.push(rdoLinhaMapa('TOTAL DE PEÇAS', mp.tot));
+    const dia_ = mp.fases.filter(f => f.n.per > 0);
+    figs = dia_.map(f => `<h3>${esc(f.fase)} — ${nf(f.n.per, 0)} peça(s) no dia</h3><div class="mapa-fig">${mp.svgFase(f)}</div>`);
+    notas = `<p class="nota">Peça "feita" = com apontamento em alguma atividade (mapa de apontamento por peça). Cada célula do mapa agrupa as peças do mesmo ponto da malha de eixos e mostra a proporção: verde = feito no dia, azul = já tinha, rosa = falta.${dia_.length ? '' : ' Nenhuma peça foi apontada neste dia, por isso só o resumo é mostrado.'}</p>`;
+  } else {
+    const lg = (() => { try { return rdoMapasLegado(dia); } catch (e) { console.error('RDO mapas', e); return { aviso: 'Não foi possível montar os mapas: ' + (e.message || e) }; } })();
+    if (!lg) return '';
+    if (lg.aviso) return `<h2>Mapas de montagem</h2><p class="nota">${esc(lg.aviso)}</p>`;
+    ({ linhas, figs } = lg); extraLeg = lg.extraLeg; notas = lg.fora;
+  }
+  return `<h2>Mapas de montagem — situação em ${esc(fdA(dia))}</h2>
+    ${rdoLegenda(extraLeg)}
+    <table><thead><tr><th>Frente</th><th class="n">Total</th><th class="n">Feito no dia</th><th class="n">Já tinha</th><th class="n">Falta</th><th class="n">% concluído</th><th>Situação</th></tr></thead><tbody>${linhas.join('') || '<tr><td colspan="7" class="vazio">Sem peças mapeadas.</td></tr>'}</tbody></table>
+    ${notas}${figs.join('')}`;
+}
 
 async function rdoHtml(dia, modo) {
   await tplLogosCarregar();
@@ -227,6 +334,8 @@ async function rdoHtml(dia, modo) {
   });
   const apHtml = aps.length ? `<h3>Apontamentos de montagem</h3><table><thead><tr><th>Empresa</th><th>Apontado no mapa</th></tr></thead><tbody>${aps.map(a => `<tr><td>${esc(a.emp)}</td><td>${esc(a.texto)}</td></tr>`).join('')}</tbody></table>` : '';
 
+  const mapasHtml = await rdoMapasHtml(dia).catch(e => { console.error('RDO mapas', e); return ''; });
+
   // 2. efetivo
   const tEfet = efet.map(e => `<tr class="grupo"><td colspan="2"><b>${esc(e.emp)}</b></td><td class="n"><b>${nf(e.total, 0)}</b></td></tr>${e.linhas.map(l => `<tr><td></td><td>${esc(l.funcao)}${l.obs ? ` <span class="nota">${esc(l.obs)}</span>` : ''}</td><td class="n">${nf(l.qtd, 0)}</td></tr>`).join('')}`).join('');
 
@@ -236,7 +345,7 @@ async function rdoHtml(dia, modo) {
 
   // 4. fotos (embutidas)
   const uris = await Promise.all(fotos.map(f => rdoFotoDataUri(f.linha).catch(() => '')));
-  const tFotos = fotos.map((f, i) => `<figure>${uris[i] ? `<img src="${uris[i]}" alt="Foto ${i + 1}">` : '<div class="rdo-sem" style="padding:30px">foto indisponível</div>'}<figcaption><b>Foto ${i + 1}</b>${f.legenda ? ` — ${esc(f.legenda)}` : ''}</figcaption></figure>`).join('');
+  const tFotos = fotos.map((f, i) => `<figure><div class="rdo-quadro">${uris[i] ? `<img src="${uris[i]}" alt="Foto ${i + 1}">` : '<div class="rdo-sem" style="padding:30px">foto indisponível</div>'}</div><figcaption><b>Foto ${i + 1} de ${fotos.length}</b><span>${f.legenda ? esc(f.legenda) : '<i class="rdo-sem">sem comentário</i>'}</span></figcaption></figure>`).join('');
 
   // gestão: impactos em aberto (só a informação)
   const imp = gestao ? rdoImpactosAbertos(dia) : [];
@@ -257,6 +366,7 @@ async function rdoHtml(dia, modo) {
     <table><thead><tr><th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado</th><th class="n">% acumulado da atividade</th>${gestao ? '<th class="n">Produzido (R$)</th>' : ''}</tr></thead><tbody>${tProd || vazio(gestao ? 6 : 5, 'Nenhuma produção lançada neste dia.')}</tbody>
       ${gestao && prod.length ? `<tfoot><tr><th colspan="5">Total produzido no dia (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
     ${apHtml}
+    ${mapasHtml}
     <h2>Efetivo</h2>
     <table><thead><tr><th>Empresa</th><th>Função</th><th class="n">Pessoas</th></tr></thead><tbody>${tEfet || vazio(3, 'Sem efetivo lançado neste dia.')}</tbody>${efet.length ? `<tfoot><tr><th colspan="2">Total do dia</th><th class="n">${nf(totEfet, 0)}</th></tr></tfoot>` : ''}</table>
     <h2>Máquinas e equipamentos</h2>
