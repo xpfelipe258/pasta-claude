@@ -31,15 +31,8 @@ function rdoProducao(dia) {
   (M.empresas || []).forEach(e => {
     let d = null;
     try { d = lcDados(e.nome, dia, dia); } catch (err) { console.error('RDO produção', e.nome, err); }
-    const usados = new Set();
-    const itens = d ? d.itens : [];
-    itens.forEach(x => x.ats.forEach(t => { if (t.a.controle) usados.add(ganNorm(t.a.controle)); }));
-    const outros = [];
-    e.servicos.forEach(s => {
-      const q = soma(e, s.col, dia, dia);
-      if (q > 0 && !usados.has(ganNorm(s.nome))) outros.push({ nome: s.nome, frente: s.frente || '', qtd: q });
-    });
-    if (itens.length || outros.length) out.push({ emp: e.nome, itens, outros, medicao: d ? d.medicao : 0 });
+    const itens = d ? d.itens : [];   // só atividades do catálogo do BM (serviço solto da grade sem atividade ligada não entra: duplicaria o apontamento)
+    if (itens.length) out.push({ emp: e.nome, itens, medicao: d ? d.medicao : 0 });
   });
   return out;
 }
@@ -47,17 +40,13 @@ function rdoProducao(dia) {
 // o acumulado e o contratado somam as empresas (inclusive a que não produziu no dia), e o % é do total acumulado ÷ total contratado.
 const rdoChaveAtiv = cod => String(cod || '').replace(/^(EJ|CMM)-/, '');
 function rdoProducaoSomada(dia, prod) {
-  const dias = new Map(), outros = new Map();
+  const dias = new Map();
   prod.forEach(p => {
     p.itens.forEach(x => x.ats.forEach(t => {
       const k = rdoChaveAtiv(t.a.codigo);
       const o = dias.get(k) || { k, item: x.it.item, desc: x.it.desc, atividade: t.a.atividade, unidade: t.a.unidade || '', per: 0, real: 0, qtd: 0, emps: [] };
       o.per += t.per; if (!o.emps.includes(p.emp)) o.emps.push(p.emp); dias.set(k, o);
     }));
-    p.outros.forEach(x => {
-      const k = ganNorm(x.nome), o = outros.get(k) || { nome: x.nome, qtd: 0, emps: [] };
-      o.qtd += x.qtd; if (!o.emps.includes(p.emp)) o.emps.push(p.emp); outros.set(k, o);
-    });
   });
   (M.empresas || []).forEach(e => {   // acumulado e contratado de todas as empresas que têm a atividade
     let its = [];
@@ -73,7 +62,7 @@ function rdoProducaoSomada(dia, prod) {
   [...dias.values()].forEach(o => { const g = porItem.get(o.item) || { item: o.item, desc: o.desc, ats: [] }; g.ats.push(o); porItem.set(o.item, g); });
   const itens = [...porItem.values()].sort((a, b) => String(a.item).localeCompare(String(b.item), 'pt', { numeric: true }));
   itens.forEach(g => g.ats.sort((a, b) => a.k.localeCompare(b.k, 'pt', { numeric: true })));
-  return { itens, outros: [...outros.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')), n: dias.size + outros.size };
+  return { itens, n: dias.size };
 }
 function rdoEfetivo(dia) {
   const por = new Map();
@@ -348,7 +337,7 @@ async function rdoHtml(dia, modo) {
   const prod = rdoProducao(dia), efet = rdoEfetivo(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia), fotos = rdoFotos(dia), aps = rdoApontamentos(dia);
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const vazio = (n, t = 'Sem registros neste dia.') => `<tr><td colspan="${n}" class="vazio">${t}</td></tr>`;
-  const nAtiv = gestao ? soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0) + p.outros.length) : rdoProducaoSomada(dia, prod).n;
+  const nAtiv = gestao ? soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0)) : rdoProducaoSomada(dia, prod).n;
   const totEfet = soma0(efet, e => e.total);
   const maquinas = new Set(maq.filter(m => !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0).map(m => m.equipamento));
   const eq = gestao ? (() => { try { return relEquipDados('geral', dia, dia, 'todos'); } catch (e) { return { empresas: [] }; } })() : null;
@@ -366,21 +355,17 @@ async function rdoHtml(dia, modo) {
         tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`;
       });
     });
-    if (som.outros.length) {
-      tProd += '<tr class="grupo2"><td colspan="6"><b>Outros serviços lançados</b> <span class="nota">(sem atividade ligada no catálogo)</span></td></tr>';
-      som.outros.forEach(o => { tProd += `<tr><td>${esc(o.nome)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td></td><td class="n"><b>${nf(o.qtd, 2)}</b></td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>`; });
-    }
   } else {
-    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado</th><th class="n">% acumulado da atividade</th><th class="n">Produzido (R$)</th>';
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">No dia</th><th class="n">% no dia</th><th class="n">Acumulado</th><th class="n">% executada (acumulado)</th><th class="n">Produzido (R$)</th>';
     prod.forEach(p => {
-      tProd += `<tr class="grupo"><td colspan="6"><b>${esc(p.emp)}</b></td></tr>`;
+      tProd += `<tr class="grupo"><td colspan="8"><b>${esc(p.emp)}</b> <span class="nota">· contratado de cada atividade da empresa</span></td></tr>`;
       p.itens.forEach(x => {
-        tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+        tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
         x.ats.forEach(t => {
-          tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${nf(t.real, 2)}</td><td class="n">${pc(t.pct)}</td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
+          const qtd = Number(t.a.qtd) || 0;
+          tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${qtd ? nf(qtd, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${qtd ? pc(t.per / qtd) : '—'}</td><td class="n">${nf(t.real, 2)}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
         });
       });
-      p.outros.forEach(o => { tProd += `<tr><td>${esc(o.nome)}${o.frente ? ` <span class="nota">(${esc(o.frente)})</span>` : ''}</td><td></td><td class="n"><b>${nf(o.qtd, 2)}</b></td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>`; });
     });
   }
   const apHtml = aps.length ? `<h3>Apontamentos de montagem</h3><table><thead><tr><th>Empresa</th><th>Apontado no mapa</th></tr></thead><tbody>${aps.map(a => `<tr><td>${esc(a.emp)}</td><td>${esc(a.texto)}</td></tr>`).join('')}</tbody></table>` : '';
@@ -414,10 +399,10 @@ async function rdoHtml(dia, modo) {
     </div>
     ${(gestao ? info.obs_cliente || info.obs_gestao : info.obs_cliente) ? `<h2>Observações do dia</h2>${info.obs_cliente ? `<p>${esc(info.obs_cliente).replace(/\n/g, '<br>')}</p>` : ''}${gestao && info.obs_gestao ? `<p><b>Gestão:</b> ${esc(info.obs_gestao).replace(/\n/g, '<br>')}</p>` : ''}` : ''}
     <h2>${gestao ? 'Produção do dia por empresa e atividade' : 'Produção do dia e avanço acumulado (empresas somadas)'}</h2>
-    <table><thead><tr>${cabProd}</tr></thead><tbody>${tProd || vazio(6, 'Nenhuma produção lançada neste dia.')}</tbody>
-      ${gestao && prod.length ? `<tfoot><tr><th colspan="5">Total produzido no dia (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
+    <table><thead><tr>${cabProd}</tr></thead><tbody>${tProd || vazio(gestao ? 8 : 6, 'Nenhuma produção lançada neste dia.')}</tbody>
+      ${gestao && prod.length ? `<tfoot><tr><th colspan="7">Total produzido no dia (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
     ${gestao ? '' : '<p class="nota">Atividades iguais executadas por mais de uma empresa (EJ e CMM) aparecem somadas: o acumulado e o contratado são os totais das empresas, e o % é o avanço do total.</p>'}
-    ${apHtml}
+    ${gestao ? apHtml : ''}
     ${mapasHtml}
     <h2>Efetivo</h2>
     <table><thead><tr><th>Empresa</th><th>Função</th><th class="n">Pessoas</th></tr></thead><tbody>${tEfet || vazio(3, 'Sem efetivo lançado neste dia.')}</tbody>${efet.length ? `<tfoot><tr><th colspan="2">Total do dia</th><th class="n">${nf(totEfet, 0)}</th></tr></tfoot>` : ''}</table>
