@@ -2,6 +2,7 @@
 // Assistente de importação da obra nova: envio dos documentos obrigatórios, validação e fila para o serviço de leitura (Python).
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
+require __DIR__ . '/inc/importacao_leitura.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 function resp_json($cod, array $d)
@@ -59,6 +60,19 @@ if ($acao === 'callback') {
     resp_json(200, ['ok' => true]);
 }
 
+if ($acao === 'callback_pacote') {
+    $bruto = (string)file_get_contents('php://input');
+    $sig = (string)($_SERVER['HTTP_X_ASSINATURA'] ?? '');
+    if (!importacao_servico_ativo() || !hash_equals(importacao_assinar($bruto), $sig)) {
+        resp_json(403, ['erro' => 'Assinatura inválida.']);
+    }
+    $j = json_decode($bruto, true);
+    if (!is_array($j) || empty($j['obra_id'])) {
+        resp_json(400, ['erro' => 'Corpo inválido.']);
+    }
+    resp_json(200, ['ok' => importacao_guardar_pacote((int)$j['obra_id'], $j)]);
+}
+
 // ---- daqui em diante: só administrador logado
 $eu = exigir_admin();
 $obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
@@ -66,6 +80,12 @@ $obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status = 'rascu
 if (!$obra) {
     header('Location: obras.php');
     exit;
+}
+if (in_array($obra['importacao'] ?? '', ['lendo', 'revisao', 'erro_leitura'], true) && ($acao === '' || $acao === 'estado')) {
+    if ($acao === '') {
+        header('Location: obra_revisao.php?obra=' . $obraId);
+        exit;
+    }
 }
 
 function estado_json($obraId)
@@ -164,7 +184,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         q_global("UPDATE obras SET importacao = 'aguardando_leitura' WHERE id = ?", [$obraId]);
         registrar_global('obra_importacao_enviada', ['obra_id' => $obraId]);
+        if (importacao_servico_ativo()) {
+            $r = importacao_despachar_leitura($obraId);
+            resp_json(200, estado_json($obraId) + ['importacao' => $r['ok'] ? 'lendo' : 'erro_leitura', 'destino' => 'obra_revisao.php?obra=' . $obraId]);
+        }
         resp_json(200, estado_json($obraId) + ['importacao' => 'aguardando_leitura']);
+    }
+    if ($acao === 'ler_agora') {
+        $r = importacao_despachar_leitura($obraId);
+        resp_json($r['ok'] ? 200 : 502, $r + ['destino' => 'obra_revisao.php?obra=' . $obraId]);
     }
     if ($acao === 'publicar_vazia') {   // transitório: libera a obra sem a leitura automática (configuração manual, como era antes)
         q_global("UPDATE obras SET status = 'ativa', importacao = NULL WHERE id = ?", [$obraId]);
@@ -208,6 +236,7 @@ pagina_inicio('Importar obra');
       <div class="imp-botoes">
         <button class="btn ghost" id="impDescartar" type="button">Descartar este rascunho</button>
         <button class="btn" id="impVazia" type="button" title="Libera a obra sem leitura automática. Uso temporário até a leitura automática estar validada.">Publicar sem leitura automática (temporário)</button>
+        <button class="btn" id="impLerAgora" type="button" style="display:none">Ler agora</button>
         <button class="btn primario" id="impEnviar" type="button" disabled>Enviar para leitura →</button>
       </div>
     </section>
@@ -331,7 +360,7 @@ pagina_inicio('Importar obra');
     if (v) post('revalidar', { doc: v.getAttribute('data-revalidar') }).then(function (j) { ESTADO = j; desenhar(); });
   });
   document.getElementById('impEnviar').addEventListener('click', function () {
-    post('enviar').then(function (j) { if (j.erro) { alert(j.erro); return; } ESTADO = j; IMPORTACAO = 'aguardando_leitura'; desenhar(); });
+    post('enviar').then(function (j) { if (j.erro) { alert(j.erro); return; } if (j.destino) { location.href = j.destino; return; } ESTADO = j; IMPORTACAO = 'aguardando_leitura'; desenhar(); });
   });
   document.getElementById('impDescartar').addEventListener('click', function () {
     if (confirm('Descartar este rascunho e apagar os documentos enviados?')) post('descartar').then(function (j) { if (j.destino) location.href = j.destino; });
@@ -339,6 +368,9 @@ pagina_inicio('Importar obra');
   document.getElementById('impVazia').addEventListener('click', function () {
     if (confirm('Publicar a obra SEM a leitura automática? Ela abre vazia, para configuração manual. Os documentos enviados ficam guardados.')) post('publicar_vazia').then(function (j) { if (j.destino) location.href = j.destino; });
   });
+  var lerAgora = document.getElementById('impLerAgora');
+  if (ESTADO.servico && IMPORTACAO === 'aguardando_leitura') lerAgora.style.display = '';
+  lerAgora.addEventListener('click', function () { post('ler_agora').then(function (j) { if (j.destino && !j.erro) location.href = j.destino; else alert(j.erro || 'Falha ao chamar o serviço de leitura.'); }); });
   desenhar();
   setInterval(function () { if (!document.hidden && ESTADO.servico && Object.keys(ESTADO.tipos).some(function (k) { return ESTADO.tipos[k].pendente; })) atualizar(); }, 4000);
 })();

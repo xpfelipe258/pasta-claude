@@ -4621,6 +4621,8 @@ const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a
 
 function renderApont() {
   if (!M) return;
+  if (M.mapa_obra && typeof renderApontGenerico === 'function') return renderApontGenerico();   // obra criada pela importação automática: mapa por peça
+  $('#aba-apont').classList.remove('ap-gen-ativo'); $('#apGen').hidden = true;
   const regras = regrasBaixa(renderApont);
   if (!regras) { $('#apForm').innerHTML = '<p class="vazio">Carregando regras...</p>'; return; }
   if (!regras.faixas_posicoes) { $('#apForm').innerHTML = '<p class="vazio">regras_baixa.json sem as regras de apontamento.</p>'; return; }

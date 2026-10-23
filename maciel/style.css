@@ -1182,3 +1182,12 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 .perigo-txt { color: var(--vermelho); }
 .sidebar-tarefas button { font-weight: 700; }
 .tf-alertas a { color: inherit; font-weight: 700; }
+
+/* Apontar montagem por peça (obras da importação automática) */
+#aba-apont.ap-gen-ativo > :not(#apGen) { display: none; }
+.mo-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
+.mo-filtros label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; }
+.mo-filtros .mo-chk { flex-direction: row; align-items: center; gap: 8px; }
+.mo-acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.mo-barra { height: 8px; width: 160px; border-radius: 6px; background: #eaecf0; overflow: hidden; }
+.mo-barra > i { display: block; height: 100%; background: var(--verde, #12b76a); }

@@ -4,7 +4,7 @@ O sistema PHP envia um pedido assinado (HMAC-SHA256 do corpo com o segredo compa
 link assinado, valida/lê e devolve o resultado para o callback, também assinado.
 
   fase 1: POST /jobs/validar   validação profunda de cada documento enviado
-  fase 2: POST /jobs/processar leitura completa da obra (lista de material, baixa, BM, mapa)  -> ainda não implementado
+  fase 2: POST /jobs/processar leitura completa da obra (lista de material, fixadores, BM, cronograma, pranchas, mapa) -> pacote JSON no callback
 
 Variável de ambiente: SEGREDO_LEITURA (o mesmo valor de config.php → servico_leitura → segredo).
 """
@@ -12,7 +12,9 @@ import hashlib
 import hmac
 import json
 import os
+import shutil
 import tempfile
+import zipfile
 
 import requests
 from fastapi import BackgroundTasks, FastAPI, Request
@@ -104,9 +106,53 @@ async def jobs_validar(req: Request, tarefas: BackgroundTasks):
     return JSONResponse({"ok": True, "aceito": job["documento_id"]}, status_code=202)
 
 
+def _processar_obra(job: dict):
+    """Baixa todos os documentos da obra, monta o pacote e o devolve ao callback (assinado)."""
+    from leitores import processar
+    pasta = tempfile.mkdtemp(prefix="obra_")
+    resultado = {"obra_id": job["obra_id"], "ok": False, "erros": [], "avisos": [], "pacote": None}
+    try:
+        docs = {}
+        for d in job["documentos"]:
+            ext = os.path.splitext(d.get("nome", ""))[1].lower()[:8]
+            fd, caminho = tempfile.mkstemp(dir=pasta, suffix=ext if ext.replace(".", "").isalnum() else ".bin")
+            os.close(fd)
+            sha = _baixar(d["url_download"], caminho, int(d.get("tamanho") or 0))
+            if d.get("sha256") and sha != d["sha256"]:
+                raise ValueError("o arquivo %s recebido difere do enviado (checksum)" % d.get("nome"))
+            if d["tipo"] == "ifc" and zipfile.is_zipfile(caminho):
+                with zipfile.ZipFile(caminho) as z:
+                    for n in z.namelist():
+                        if n.lower().endswith(".ifc"):
+                            alvo = os.path.join(pasta, "%d_%s" % (len(docs.get("ifc", [])), os.path.basename(n)))
+                            with z.open(n) as o, open(alvo, "wb") as f:
+                                shutil.copyfileobj(o, f)
+                            docs.setdefault("ifc", []).append((os.path.basename(n), alvo))
+                continue
+            docs.setdefault(d["tipo"], []).append((d.get("nome", ""), caminho))
+        pacote = processar.montar(docs, job.get("nome_obra", ""))
+        resultado.update(ok=not pacote["erros"], erros=pacote["erros"], avisos=pacote["avisos"], pacote=pacote)
+    except Exception as e:
+        resultado["erros"].append("Falha na leitura completa (%s: %s)." % (type(e).__name__, e))
+    finally:
+        shutil.rmtree(pasta, ignore_errors=True)
+    try:
+        _responder(job["callback"], resultado)
+    except Exception as e:
+        print("Falha ao responder o callback:", e)
+
+
 @app.post("/jobs/processar")
-async def jobs_processar(req: Request):
+async def jobs_processar(req: Request, tarefas: BackgroundTasks):
     corpo = await req.body()
     if not assinatura_valida(corpo, req.headers.get("X-Assinatura", "")):
         return JSONResponse({"erro": "Assinatura inválida."}, status_code=401)
-    return JSONResponse({"erro": "A leitura completa da obra (fase 2) ainda não foi implementada."}, status_code=501)
+    try:
+        job = json.loads(corpo)
+        for k in ("obra_id", "documentos", "callback"):
+            if k not in job:
+                raise KeyError(k)
+    except Exception:
+        return JSONResponse({"erro": "Pedido inválido."}, status_code=400)
+    tarefas.add_task(_processar_obra, job)
+    return JSONResponse({"ok": True, "aceito": job["obra_id"]}, status_code=202)

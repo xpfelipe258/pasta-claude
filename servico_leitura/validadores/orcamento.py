@@ -40,6 +40,14 @@ def validar(caminho, ext):
             valor_total += valor
     r["resumo"] = {"abas_com_itens": ", ".join(abas), "itens": itens_total, "valor_somado": round(valor_total, 2)}
     if not abas:
+        # outros desenhos de planilha (memorial de cálculo do BM, quadro de medição com cabeçalho em duas linhas, escopo da OF): o leitor completo conhece
+        from leitores import orcamento as leitor
+        lido = leitor.ler(caminho)
+        if lido["itens"]:
+            n_ativ = sum(len(i["atividades"]) for i in lido["itens"])
+            r["resumo"] = {"abas_com_itens": lido["aba"] or "escopo", "itens": len(lido["itens"]), "atividades": n_ativ, "valor_somado": round(sum(i.get("valor") or 0 for i in lido["itens"]), 2)}
+            r["avisos"] += lido["avisos"]
+            return fechar(r)
         r["erros"].append("Não encontrei a tabela de itens: preciso de colunas descrição, quantidade, unidade e valor (item opcional).")
         return fechar(r)
     if valor_total == 0:

@@ -60,6 +60,13 @@ try {
             }
             responder_json(200, $d);
         }
+        if ($rota === 'mapa-obra') {   // mapa de peças da importação automática (posição de cada conjunto na malha V × H)
+            $d = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+            if (!is_array($d)) {
+                responder_json(404, ['erro' => 'Esta obra não tem o mapa de peças.']);
+            }
+            responder_json(200, $d);
+        }
         if ($rota === 'frentes-montagem') {
             $d = frentes_montagem();
             if ($d === null) {
@@ -128,7 +135,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -142,7 +149,7 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
-        'apontamento' => 'acao_apontamento', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
+        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
@@ -1820,6 +1827,112 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
         q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : 'telhas') . ' apontadas no mapa de montagem']);
     }
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
+}
+
+// ---- Apontamento por peça (obras criadas pela importação automática): cada conjunto do IFC é apontado numa atividade do catálogo do BM.
+// A produção vai para o serviço do controle ligado à atividade (campo "controle") ou, sem ele, para os apontamentos do BM.
+function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
+{
+    if (abs($delta) < 1e-9) {
+        return null;
+    }
+    if (!empty($atv['controle'])) {
+        return ['grade' => soma_producao($empresa, $atv['controle'], $data, $delta, $usuario)];
+    }
+    $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$empresa, $atv['codigo'], $data])->fetch();
+    $novo = round(max(0, (float)($ex['quantidade'] ?? 0) + $delta), 4);
+    if ($ex) {
+        if ($novo > 0) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+        } else {
+            q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+        }
+    } elseif ($novo > 0) {
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $atv['codigo'], $novo, 'peças apontadas no mapa de montagem']);
+    }
+    return ['bm' => ['codigo' => $atv['codigo'], 'data' => $data, 'total' => $novo, 'delta' => $delta]];
+}
+
+function acao_apontamento_pecas(array $corpo, array $usuario)
+{
+    $mapa = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+    if (!is_array($mapa)) {
+        throw new ErroValidacao('Esta obra não tem o mapa de peças (vem da importação automática).');
+    }
+    if (!empty($corpo['excluir'])) {
+        $ids = array_values(array_unique(array_map('intval', (array)($corpo['linhas'] ?? []))));
+        if (!$ids) {
+            throw new ErroValidacao('Nenhum apontamento informado.');
+        }
+        $somas = [];
+        foreach ($ids as $id) {
+            $r = q("SELECT * FROM apontamentos WHERE id = ? AND tipo = 'PECA'", [$id])->fetch();
+            if (!$r) {
+                throw new ErroValidacao('Apontamento não encontrado (os dados podem ter mudado). Recarregue a tela.');
+            }
+            if (mb_strtoupper((string)$r['lanca_producao']) === 'SIM') {
+                $k = $r['empresa'] . '|' . $r['eixo'] . '|' . $r['data'];
+                $somas[$k] = ($somas[$k] ?? 0) + (float)$r['qtd'];
+            }
+            q('DELETE FROM apontamentos WHERE id = ?', [$id]);
+        }
+        $lanc = [];
+        foreach ($somas as $k => $v) {
+            list($emp, $cod, $dia) = explode('|', $k, 3);
+            $atv = q('SELECT * FROM bm_atividades WHERE codigo = ?', [$cod])->fetch();
+            if ($atv) {
+                $lanc[] = pecas_credito($emp, $atv, $dia, -$v, $usuario);
+            }
+        }
+        return ['excluidos' => count($ids), 'lancamentos' => array_values(array_filter($lanc))];
+    }
+    $data = (string)($corpo['data'] ?? '');
+    $o = obra_info();
+    if (!data_valida($data) || $data < $o['data_inicio'] || $data > $o['data_fim']) {
+        throw new ErroValidacao('Data fora do calendário da obra.');
+    }
+    $atv = q('SELECT * FROM bm_atividades WHERE codigo = ?', [(string)($corpo['atividade'] ?? '')])->fetch();
+    if (!$atv) {
+        throw new ErroValidacao('Escolha a atividade do catálogo do BM.');
+    }
+    $empresa = (string)$atv['empresa'];
+    $pecas = is_array($corpo['pecas'] ?? null) ? $corpo['pecas'] : [];
+    if (!$pecas || count($pecas) > 3000) {
+        throw new ErroValidacao('Selecione de 1 a 3.000 peças no mapa.');
+    }
+    $validas = [];
+    foreach ($mapa['pecas'] ?? [] as $p) {
+        $validas[$p[0] . '|' . $p[1] . '|' . $p[2]] = true;
+    }
+    $ja = [];
+    foreach (q("SELECT rua, faixa, viga_id FROM apontamentos WHERE tipo = 'PECA' AND eixo = ?", [$atv['codigo']])->fetchAll() as $r) {
+        $ja[$r['rua'] . '|' . $r['faixa'] . '|' . $r['viga_id']] = true;
+    }
+    $novas = [];
+    foreach ($pecas as $p) {
+        $k = (string)($p['fase'] ?? '') . '|' . (string)($p['produto'] ?? '') . '|' . (string)($p['marca'] ?? '');
+        if (!isset($validas[$k])) {
+            throw new ErroValidacao('Peça fora do mapa da obra: ' . ($p['marca'] ?? '?') . '. Recarregue a tela.');
+        }
+        if (isset($ja[$k])) {
+            throw new ErroValidacao('A peça ' . $p['marca'] . ' (' . $p['produto'] . ') já foi apontada nesta atividade.');
+        }
+        $ja[$k] = true;
+        $novas[] = [(string)$p['fase'], (string)$p['produto'], (string)$p['marca']];
+    }
+    $n = count($novas);
+    $lanca = !array_key_exists('lanca_producao', $corpo) || !empty($corpo['lanca_producao']);
+    $qtdTotal = array_key_exists('quantidade', $corpo) && $corpo['quantidade'] !== null && $corpo['quantidade'] !== '' ? (float)$corpo['quantidade'] : (float)$n;
+    if ($qtdTotal < 0) {
+        throw new ErroValidacao('Quantidade inválida.');
+    }
+    $porPeca = $qtdTotal / $n;
+    foreach ($novas as $p) {
+        gravar_linha('apontamentos', null, ['data' => $data, 'empresa' => $empresa, 'tipo' => 'PECA', 'rua' => $p[0], 'faixa' => $p[1], 'eixo' => $atv['codigo'], 'letra' => '',
+            'viga_id' => $p[2], 'qtd' => $porPeca, 'lanca_producao' => $lanca ? 'SIM' : 'NAO', 'obs' => ($corpo['obs'] ?? null) ?: null, 'slot' => null]);
+    }
+    $lanc = $lanca ? pecas_credito($empresa, $atv, $data, $qtdTotal, $usuario) : null;
+    return ['salvos' => $n, 'empresa' => $empresa, 'quantidade' => $qtdTotal, 'unidade' => $atv['unidade'], 'lancamentos' => $lanc ? [$lanc] : []];
 }
 
 function frente_item(array $item, array $frentes, array &$ja, array $base, $data)

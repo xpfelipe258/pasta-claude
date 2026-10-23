@@ -173,6 +173,7 @@ function montar_modelo()
         'contratos_cliente' => (object)(json_decode((string)sistema_ler('contratos_cliente', '{}'), true) ?: []),   // contrato editado na tela do Dashboard cliente
         'fluxo_config' => (object)(json_decode((string)sistema_ler('fluxo_config', '{}'), true) ?: []),   // dependências entre as etapas do fluxo da obra (Planejamento › Fluxo da obra)
         'vinculos_material' => (object)(json_decode((string)sistema_ler('vinculos_material', '{}'), true) ?: []),   // vínculo TAG/peça do IFC ↔ atividade (Suprimentos › Vínculos)
+        'mapa_obra' => (bool)q_global('SELECT 1 FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), 'frentes_montagem_obra'])->fetchColumn(),   // obra com mapa de peças da importação automática
         'fixadores_atividade' => (object)(json_decode((string)sistema_ler('fixadores_atividade', '{}'), true) ?: []),   // fixadores por unidade de cada atividade (baixa automática no lançamento)
         'projecao_config' => (object)(json_decode((string)sistema_ler('projecao_config', '{}'), true) ?: []),   // conjunto de equipamentos, dias cobrados e preços da aba Projeção
         'referencia' => sistema_ler('referencia', null),
