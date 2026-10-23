@@ -261,7 +261,7 @@ pagina_inicio('Central de obras');
       <div class="manage-grid">
       <?php foreach ($rascunhos as $o): $faseImp = $o['importacao'] ?? 'rascunho'; ?>
         <div class="imp-item"><div><b><?= h($o['nome']) ?></b>
-          <small><?= h(['aguardando_leitura' => 'Documentos enviados — aguardando leitura automática', 'lendo' => 'Lendo os documentos…', 'revisao' => 'Leitura pronta — falta revisar e publicar', 'erro_leitura' => 'A leitura não terminou — tente de novo'][$faseImp] ?? 'Rascunho — faltam documentos') ?></small></div>
+          <small><?= h(['aguardando_leitura' => 'Documentos enviados — pronta para gerar a obra', 'lendo' => 'Lendo os documentos…', 'revisao' => 'Leitura pronta — falta revisar e publicar', 'erro_leitura' => 'A leitura não terminou — tente de novo'][$faseImp] ?? 'Rascunho — faltam documentos') ?></small></div>
           <a class="imp-continuar" href="<?= in_array($faseImp, ['lendo', 'revisao', 'erro_leitura'], true) ? 'obra_revisao.php' : 'obra_importar.php' ?>?obra=<?= (int)$o['id'] ?>"><?= $faseImp === 'revisao' ? 'Revisar e publicar →' : 'Continuar importação →' ?></a></div>
       <?php endforeach; ?></div>
     </section>

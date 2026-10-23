@@ -311,7 +311,7 @@ pagina_inicio('Importar obra');
       '<button type="button" class="btn link-x" data-remover="' + d.id + '">Remover</button></span></div></div>';
   }
   function desenhar() {
-    var bloqueado = IMPORTACAO === 'aguardando_leitura';
+    var bloqueado = false;   // a leitura roda ao clicar em "Gerar obra": rascunho antigo em 'aguardando_leitura' também pode gerar
     document.getElementById('impContagem').textContent = ESTADO.completos + '/' + ESTADO.total;
     var h = '';
     Object.keys(ESTADO.tipos).forEach(function (k) {
@@ -328,7 +328,6 @@ pagina_inicio('Importar obra');
     var envio = document.getElementById('impEnviar');
     envio.disabled = !ESTADO.pronta || bloqueado || Object.keys(uploads).length > 0;
     var av = '';
-    if (bloqueado) av += '<div class="imp-faixa ok"><b>Documentos recebidos e validados.</b> A obra está aguardando a leitura automática (lista de material, baixa, BM e mapa de apontamento).</div>';
     document.getElementById('impAviso').innerHTML = av;
     document.getElementById('impStatus').textContent = ESTADO.pronta ? 'Todos os documentos obrigatórios estão completos.' : 'Faltam ' + (ESTADO.total - ESTADO.completos) + ' documento(s) obrigatório(s).';
   }
