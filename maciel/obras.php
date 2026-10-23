@@ -81,6 +81,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (obra_atual_id() === $id && $status !== 'ativa') { definir_obra_atual(0); }
             registrar_global('obra_status', ['obra_id' => $id, 'status' => $status]);
             $msg = 'Situação da obra alterada.';
+        } elseif ($acao === 'excluir_obra') {   // exclusão definitiva: apaga a obra e TODOS os dados dela (produção, estoque, BM, apontamentos, documentos)
+            $id = (int)($_POST['obra_id'] ?? 0);
+            $o = q_global('SELECT * FROM obras WHERE id = ?', [$id])->fetch();
+            if (!$o) { throw new InvalidArgumentException('Obra não encontrada.'); }
+            if (trim((string)($_POST['confirmar_nome'] ?? '')) !== trim((string)$o['nome'])) {
+                throw new InvalidArgumentException('Para excluir, digite o nome da obra exatamente como está (' . $o['nome'] . ').');
+            }
+            $pdo = bd();
+            $pdo->beginTransaction();
+            try {
+                foreach (tabelas_da_obra() as $t) {
+                    q_global("DELETE FROM `$t` WHERE obra_id = ?", [$id]);
+                }
+                foreach (['obra_config', 'usuarios_obras', 'obra_documentos'] as $t) {
+                    q_global("DELETE FROM `$t` WHERE obra_id = ?", [$id]);
+                }
+                q_global('DELETE FROM obras WHERE id = ?', [$id]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) { $pdo->rollBack(); }
+                throw $e;
+            }
+            importacao_apagar_pasta($id);   // documentos enviados na importação
+            if (obra_atual_id() === $id) { definir_obra_atual(0); }
+            registrar_global('obra_excluida', ['obra_id' => $id, 'nome' => $o['nome']]);
+            $msg = 'Obra “' . $o['nome'] . '” excluída definitivamente, com todos os dados.';
         } elseif ($acao === 'identidade') {
             $logo = !empty($_POST['remover_logo']) ? '' : imagem_upload_para_data_uri('logo_global', global_ler('logo', ''));
             global_gravar('nome_sistema', trim((string)($_POST['nome_sistema'] ?? '')) ?: 'Núcleo de Obras');
@@ -310,6 +336,12 @@ pagina_inicio('Central de obras');
         <?php foreach ($todas as $o): ?><details><summary><b><?= h($o['nome']) ?></b><span><?= h($o['status']) ?></span></summary>
           <p class="nota">Para alterar os dados desta obra use o botão “Editar dados da obra” no cartão dela.</p>
           <form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="status_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><input type="hidden" name="status" value="<?= $o['status']==='ativa'?'arquivada':'ativa' ?>"><button class="btn ghost"><?= $o['status']==='ativa'?'Arquivar':'Reativar' ?></button></form>
+          <form method="post" class="excluir-obra" onsubmit="return confirm('EXCLUIR DEFINITIVAMENTE a obra <?= h(addslashes($o['nome'])) ?> e todos os dados dela (produção, estoque, BM, apontamentos, documentos)? Não dá para desfazer.');" style="margin-top:14px;padding-top:12px;border-top:1px solid #fecdca">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="excluir_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>">
+            <p class="nota" style="color:#b42318;margin:0 0 6px"><b>Excluir obra</b> — apaga a obra e todos os dados dela, sem volta. Dica: se só quiser tirar da lista, use Arquivar.</p>
+            <input name="confirmar_nome" placeholder="Digite o nome da obra para confirmar" autocomplete="off" required style="width:100%;padding:8px 10px;border:1px solid #fda29b;border-radius:8px;margin-bottom:8px">
+            <button class="btn" style="background:#d92d20;color:#fff;border-color:#d92d20">Excluir obra definitivamente</button>
+          </form>
         </details><?php endforeach; ?>
       </div></section>
 
