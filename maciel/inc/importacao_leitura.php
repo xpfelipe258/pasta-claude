@@ -488,7 +488,7 @@ function importacao_gravar_mapa($obraId, array $modelo, array $faseItem)
         if (!$c['pos']) {
             continue;
         }
-        $pecas[] = [$c['fase'], $c['produto'], $c['marca'], $c['pos']['v'][0], $c['pos']['v'][1], $c['pos']['h'][0], $c['pos']['h'][1]];
+        $pecas[] = [$c['fase'], $c['produto'], $c['marca'], $c['pos']['v'][0], $c['pos']['v'][1], $c['pos']['h'][0], $c['pos']['h'][1], $c['guid'] ?? ''];
     }
     $faseIdx = [];
     foreach ($modelo['fases'] as $f) {

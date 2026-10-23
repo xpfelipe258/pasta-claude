@@ -151,7 +151,7 @@ def ler(arquivos):
                         area, larg = float(tq.get("Net surface area") or 0.0), float(tq.get("Width") or 0.0)
             pos = posicao(ta.get("Assembly/Cast unit position code"))
             conjuntos.append({
-                "arquivo": nome_arq, "fase": fase, "produto": nome, "marca": marca, "perfil": perfil, "material": material,
+                "arquivo": nome_arq, "guid": gid, "fase": fase, "produto": nome, "marca": marca, "perfil": perfil, "material": material,
                 "comprimento_mm": round(float(comp or 0), 1), "largura_mm": round(larg, 1), "area_m2": round(area, 3), "peso_kg": round(float(peso or 0), 3), "pos": pos,
                 "cota": (ta.get("Assembly/Cast unit bottom elevation") or "").strip(),
                 "partes": [{"nome": k[0], "perfil": k[1], "material": k[2], "qtd": n} for k, n in partes.items()],

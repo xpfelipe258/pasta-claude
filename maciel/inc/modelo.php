@@ -225,7 +225,12 @@ function estoque_planilha_ler()
         $txt = is_file($p) ? file_get_contents($p) : null;
     }
     $d = $txt === null ? null : json_decode($txt, true);
-    if (!is_array($d)) { return null; }
+    if (!is_array($d)) {
+        // obra nova (sem planilha importada): estoque vazio, para as telas de Suprimentos abrirem e receberem remessas e consumo
+        $empresas = array_map(function ($e) { return $e['nome']; }, q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll());
+        return ['fonte' => 'Obra nova (sem planilha importada)', 'materiais' => [], 'remessas' => ['colunas' => [], 'itens' => [], 'datas' => (object)[]],
+            'consumo_fisico' => ['semanas' => [], 'empresas' => $empresas, 'itens' => [], 'inventarios_datas' => (object)[]], 'inventario' => []];
+    }
     // Retrocompatibilidade: se o dado do banco não tem datas de remessa,
     // mescla as datas do arquivo inicial (que sempre tem a versão atualizada).
     if (!isset($d['remessas']['datas'])) {

@@ -1900,25 +1900,27 @@ function acao_apontamento_pecas(array $corpo, array $usuario)
     if (!$pecas || count($pecas) > 3000) {
         throw new ErroValidacao('Selecione de 1 a 3.000 peças no mapa.');
     }
-    $validas = [];
+    $validas = [];   // guid da peça => [fase, produto, marca] (a marca do Tekla se repete entre peças iguais; o GUID é único)
     foreach ($mapa['pecas'] ?? [] as $p) {
-        $validas[$p[0] . '|' . $p[1] . '|' . $p[2]] = true;
+        if (!empty($p[7])) {
+            $validas[$p[7]] = [$p[0], $p[1], $p[2]];
+        }
     }
     $ja = [];
-    foreach (q("SELECT rua, faixa, viga_id FROM apontamentos WHERE tipo = 'PECA' AND eixo = ?", [$atv['codigo']])->fetchAll() as $r) {
-        $ja[$r['rua'] . '|' . $r['faixa'] . '|' . $r['viga_id']] = true;
+    foreach (q("SELECT letra FROM apontamentos WHERE tipo = 'PECA' AND eixo = ?", [$atv['codigo']])->fetchAll() as $r) {
+        $ja[$r['letra']] = true;
     }
     $novas = [];
     foreach ($pecas as $p) {
-        $k = (string)($p['fase'] ?? '') . '|' . (string)($p['produto'] ?? '') . '|' . (string)($p['marca'] ?? '');
-        if (!isset($validas[$k])) {
-            throw new ErroValidacao('Peça fora do mapa da obra: ' . ($p['marca'] ?? '?') . '. Recarregue a tela.');
+        $g = (string)($p['guid'] ?? '');
+        if (!isset($validas[$g])) {
+            throw new ErroValidacao('Peça fora do mapa da obra. Recarregue a tela.');
         }
-        if (isset($ja[$k])) {
-            throw new ErroValidacao('A peça ' . $p['marca'] . ' (' . $p['produto'] . ') já foi apontada nesta atividade.');
+        if (isset($ja[$g])) {
+            throw new ErroValidacao('A peça ' . $validas[$g][2] . ' (' . $validas[$g][1] . ') já foi apontada nesta atividade.');
         }
-        $ja[$k] = true;
-        $novas[] = [(string)$p['fase'], (string)$p['produto'], (string)$p['marca']];
+        $ja[$g] = true;
+        $novas[] = [$validas[$g][0], $validas[$g][1], $validas[$g][2], $g];
     }
     $n = count($novas);
     $lanca = !array_key_exists('lanca_producao', $corpo) || !empty($corpo['lanca_producao']);
@@ -1928,7 +1930,7 @@ function acao_apontamento_pecas(array $corpo, array $usuario)
     }
     $porPeca = $qtdTotal / $n;
     foreach ($novas as $p) {
-        gravar_linha('apontamentos', null, ['data' => $data, 'empresa' => $empresa, 'tipo' => 'PECA', 'rua' => $p[0], 'faixa' => $p[1], 'eixo' => $atv['codigo'], 'letra' => '',
+        gravar_linha('apontamentos', null, ['data' => $data, 'empresa' => $empresa, 'tipo' => 'PECA', 'rua' => $p[0], 'faixa' => $p[1], 'eixo' => $atv['codigo'], 'letra' => $p[3],
             'viga_id' => $p[2], 'qtd' => $porPeca, 'lanca_producao' => $lanca ? 'SIM' : 'NAO', 'obs' => ($corpo['obs'] ?? null) ?: null, 'slot' => null]);
     }
     $lanc = $lanca ? pecas_credito($empresa, $atv, $data, $qtdTotal, $usuario) : null;

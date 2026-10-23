@@ -6,7 +6,7 @@ const MO = { dados: null, pend: null, fase: '', produto: '', atividade: '', empr
 const moNum = r => { const m = /(\d+)/.exec(String(r || '')); return m ? parseInt(m[1], 10) : 0; };
 const moSufixo = r => (/\d+([A-Za-z]*)/.exec(String(r || '')) || [, ''])[1].toLowerCase();
 const moOrdEixo = (a, b) => moNum(a) - moNum(b) || moSufixo(a).localeCompare(moSufixo(b));
-const moChave = (f, p, m) => `${f}|${p}|${m}`;
+const moChave = guid => guid;
 
 function moCarregar(refazer) {
   if (MO.dados) return MO.dados;
@@ -26,7 +26,7 @@ function moIndice() {
   const eixosV = [...V].sort(moOrdEixo), eixosH = [...H].sort(moOrdEixo);
   const iv = new Map(eixosV.map((e, i) => [e, i])), ih = new Map(eixosH.map((e, i) => [e, i]));
   // posição em "meia casa": linha do eixo = índice par, vão entre dois eixos = índice ímpar
-  const pecas = d.pecas.map(p => ({ fase: p[0], produto: p[1], marca: p[2], cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]) }));
+  const pecas = d.pecas.map(p => ({ fase: p[0], produto: p[1], marca: p[2], guid: p[7], cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]) }));
   const porFase = new Map();
   pecas.forEach(p => { if (!porFase.has(p.fase)) porFase.set(p.fase, []); porFase.get(p.fase).push(p); });
   MO.idx = { eixosV, eixosH, pecas, porFase };
@@ -42,17 +42,20 @@ const moAtividadesDaFase = fase => {
 const moApontadas = () => {
   // peça|atividade → linha do apontamento
   const m = new Map();
-  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').forEach(a => m.set(moChave(a.rua, a.faixa, a.viga_id) + '|' + a.eixo, a));
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').forEach(a => m.set(a.letra + '|' + a.eixo, a));
   return m;
 };
 
 function moGarantirEstado() {
   const fs = moFases();
-  if (!MO.fase || !fs.some(f => f.fase === MO.fase)) { MO.fase = fs.length ? fs[0].fase : ''; MO.produto = ''; MO.sel = new Map(); MO.cel = null; }
+  if (!MO.fase || !fs.some(f => f.fase === MO.fase)) { MO.fase = fs.length ? (fs.find(f => f.item) || fs[0]).fase : ''; MO.produto = ''; MO.sel = new Map(); MO.cel = null; }
   const ats = moAtividadesDaFase(MO.fase);
   if (!ats.some(a => a.codigo === MO.atividade)) MO.atividade = ats.length ? ats[0].codigo : '';
   if (!MO.empresa) { const at = ats.find(a => a.codigo === MO.atividade); MO.empresa = at ? at.empresa : ((M.empresas[0] || {}).nome || ''); }
-  if (!MO.data) MO.data = (typeof hoje === 'function' ? hoje() : new Date().toISOString().slice(0, 10));
+  if (!MO.data || (M.datas?.length && !M.datas.includes(MO.data))) {   // a data precisa estar no calendário da obra
+    const hj = new Date().toISOString().slice(0, 10), ds = M.datas || [];
+    MO.data = !ds.length || ds.includes(hj) ? hj : (hj < ds[0] ? ds[0] : ds[ds.length - 1]);
+  }
 }
 
 function moPecasVisiveis() {
@@ -63,7 +66,7 @@ function moPecasVisiveis() {
 // estado de cada peça na atividade escolhida
 function moEstadoCelula(pecas, apont) {
   let feitas = 0;
-  pecas.forEach(p => { if (apont.has(moChave(p.fase, p.produto, p.marca) + '|' + MO.atividade)) feitas++; });
+  pecas.forEach(p => { if (apont.has(p.guid + '|' + MO.atividade)) feitas++; });
   return { total: pecas.length, feitas };
 }
 
@@ -80,7 +83,7 @@ function moMapaSvg(apont) {
   celulas.forEach((pecas, k) => {
     const [cx, cy] = k.split(',').map(Number), st = moEstadoCelula(pecas, apont);
     const cor = st.feitas === 0 ? '#ffffff' : st.feitas >= st.total ? '#12b76a' : '#fdb022';
-    const sel = pecas.some(p => MO.sel.has(moChave(p.fase, p.produto, p.marca)));
+    const sel = pecas.some(p => MO.sel.has(p.guid));
     const x = ML + cx * W, y = yTela(cy);
     svg += `<g data-mo-cel="${k}" style="cursor:pointer"><rect x="${x}" y="${y}" width="${W - 2}" height="${Hh - 2}" rx="3" fill="${cor}" stroke="${sel ? '#d97706' : '#667085'}" stroke-width="${sel ? 3 : 1}"/>` +
       `<text x="${x + (W - 2) / 2}" y="${y + Hh / 2 + 3}" text-anchor="middle" font-size="9" fill="${st.feitas >= st.total ? '#fff' : '#101828'}">${st.total > 99 ? '99+' : st.total}</text>` +
@@ -93,7 +96,7 @@ function moResumoProdutos(apont) {
   const por = new Map();
   (MO.dados && moIndice().porFase.get(MO.fase) || []).forEach(p => {
     const o = por.get(p.produto) || { total: 0, feitas: 0 };
-    o.total++; if (apont.has(moChave(p.fase, p.produto, p.marca) + '|' + MO.atividade)) o.feitas++;
+    o.total++; if (apont.has(p.guid + '|' + MO.atividade)) o.feitas++;
     por.set(p.produto, o);
   });
   return [...por.entries()].sort((a, b) => b[1].total - a[1].total);
@@ -117,7 +120,7 @@ function moHtml() {
       <label>Fase do modelo<select data-mo="fase">${fases.map(f => opt(f.fase, `${f.fase || '(sem fase)'} · ${nf(f.conjuntos)}`, MO.fase)).join('')}</select></label>
       <label>Produto<select data-mo="produto"><option value="">Todos</option>${prods.map(([p, o]) => opt(p, `${p} · ${nf(o.feitas)}/${nf(o.total)}`, MO.produto)).join('')}</select></label>
       <label>Atividade do BM<select data-mo="atividade">${ats.map(a => opt(a.codigo, `${a.codigo} · ${a.atividade}`, MO.atividade)).join('') || '<option value="">(sem atividades)</option>'}</select></label>
-      <label>Data<input type="date" data-mo="data" value="${esc(MO.data)}"></label>
+      <label>Data<input type="date" data-mo="data" value="${esc(MO.data)}" min="${esc((M.datas || [])[0] || '')}" max="${esc((M.datas || []).slice(-1)[0] || '')}"></label>
       <label>Quantidade a lançar${at ? ` (${esc(at.unidade || 'un')})` : ''}<input type="number" step="any" min="0" data-mo="qtd" value="${esc(MO.qtd !== '' ? MO.qtd : qtdSug)}" placeholder="${nSel && !ehUn ? 'informe' : 'nº de peças'}"></label>
       <label>Observação<input type="text" data-mo="obs" value="${esc(MO.obs)}" maxlength="120"></label>
       <label class="mo-chk"><input type="checkbox" data-mo="regular" ${MO.regular ? 'checked' : ''}> Regularização (não soma produção)</label>
@@ -154,14 +157,14 @@ function renderApontGenerico() {
 
 async function moSalvar() {
   const apont = moApontadas(), at = moAtividadesDaFase(MO.fase).find(a => a.codigo === MO.atividade);
-  const pecas = [...MO.sel.values()].filter(p => !apont.has(moChave(p.fase, p.produto, p.marca) + '|' + MO.atividade));
+  const pecas = [...MO.sel.values()].filter(p => !apont.has(p.guid + '|' + MO.atividade));
   if (!pecas.length) { toast('Selecione ao menos uma peça pendente no mapa.', true); return; }
   if (!at) { toast('Escolha a atividade do BM.', true); return; }
   const ehUn = /^(un|und|unid|pe[cç]a)/i.test(at.unidade || '');
   if (!ehUn && MO.qtd === '') { toast(`A atividade é medida em ${at.unidade || 'outra unidade'}: informe a quantidade a lançar.`, true); return; }
   try {
     const r = await postar(API + 'apontamento-pecas', { data: MO.data, atividade: at.codigo, lanca_producao: !MO.regular, quantidade: MO.qtd !== '' ? +MO.qtd : null, obs: MO.obs.trim() || null,
-      pecas: pecas.map(p => ({ fase: p.fase, produto: p.produto, marca: p.marca })) });
+      pecas: pecas.map(p => ({ guid: p.guid })) });
     MO.sel = new Map(); MO.qtd = ''; MO.obs = '';
     await carregar();
     toast(`${nf(r.salvos)} peça(s) apontada(s) em ${at.codigo}` + (MO.regular ? ' (regularização: não somou produção).' : ` · lançado ${nf(r.quantidade, 2)} ${r.unidade || ''}.`));
@@ -196,9 +199,9 @@ document.addEventListener('click', ev => {
   const cel = ev.target.closest('[data-mo-cel]');
   if (cel) {
     const apont = moApontadas();
-    const pecas = moPecasVisiveis().filter(p => `${p.cx},${p.cy}` === cel.dataset.moCel && !apont.has(moChave(p.fase, p.produto, p.marca) + '|' + MO.atividade));
-    const todas = pecas.length && pecas.every(p => MO.sel.has(moChave(p.fase, p.produto, p.marca)));
-    pecas.forEach(p => { const k = moChave(p.fase, p.produto, p.marca); if (todas) MO.sel.delete(k); else MO.sel.set(k, p); });
+    const pecas = moPecasVisiveis().filter(p => `${p.cx},${p.cy}` === cel.dataset.moCel && !apont.has(p.guid + '|' + MO.atividade));
+    const todas = pecas.length && pecas.every(p => MO.sel.has(p.guid));
+    pecas.forEach(p => { const k = p.guid; if (todas) MO.sel.delete(k); else MO.sel.set(k, p); });
     return renderApontGenerico();
   }
   const b = ev.target.closest('[data-mo-acao]');
@@ -207,7 +210,7 @@ document.addEventListener('click', ev => {
   if (a === 'limpar') { MO.sel = new Map(); renderApontGenerico(); }
   else if (a === 'pendentes') {
     const apont = moApontadas();
-    moPecasVisiveis().forEach(p => { if (!apont.has(moChave(p.fase, p.produto, p.marca) + '|' + MO.atividade)) MO.sel.set(moChave(p.fase, p.produto, p.marca), p); });
+    moPecasVisiveis().forEach(p => { if (!apont.has(p.guid + '|' + MO.atividade)) MO.sel.set(p.guid, p); });
     renderApontGenerico();
   }
   else if (a === 'salvar') moSalvar();
