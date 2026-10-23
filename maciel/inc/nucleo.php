@@ -128,6 +128,9 @@ function tabelas_spec()
         'apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'tipo' => 'txt', 'rua' => 'txt', 'faixa' => 'txt',
             'eixo' => 'txt', 'letra' => 'txt', 'viga_id' => 'txt', 'qtd' => 'num', 'lanca_producao' => 'txt',
             'obs' => 'txt', 'slot' => 'num'],
+        // Relatório diário de obra (RDO): observações do dia e fotos com legenda (o arquivo fica em dados_obras/{obra}/rdo, servido por rdo_foto.php)
+        'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
+        'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
             'peso' => 'num', 'frente' => 'txt'],
@@ -136,7 +139,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 20;
+const ESQUEMA_VERSAO = 21;
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -249,7 +252,7 @@ function criar_esquema(PDO $pdo, $driver)
 {
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     $fim = $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : '';
-    $tipos = ['txt' => 'VARCHAR(255) NULL', 'num' => 'DOUBLE NULL', 'data' => 'DATE NULL'];
+    $tipos = ['txt' => 'VARCHAR(255) NULL', 'longo' => 'TEXT NULL', 'num' => 'DOUBLE NULL', 'data' => 'DATE NULL'];
     $longo = $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT';
     $sql = [
         "CREATE TABLE IF NOT EXISTS sistema (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",

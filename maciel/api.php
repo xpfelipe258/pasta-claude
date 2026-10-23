@@ -793,7 +793,7 @@ function acao_registro(array $corpo)
             }
             $vals[$c] = $v;
         } else {
-            $vals[$c] = mb_substr(trim((string)$v), 0, 255);
+            $vals[$c] = mb_substr(trim((string)$v), 0, $tipo === 'longo' ? 4000 : 255);
         }
     }
     $resultado = gravar_linha($tabela, $id, $vals);

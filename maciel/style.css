@@ -1191,3 +1191,21 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 .mo-acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .mo-barra { height: 8px; width: 160px; border-radius: 6px; background: #eaecf0; overflow: hidden; }
 .mo-barra > i { display: block; height: 100%; background: var(--verde, #12b76a); }
+
+/* ---- Relatório diário de obra (RDO) ---- */
+#aba-rdo .bloco { margin-bottom: 14px; }
+.rdo-barra { justify-content: flex-start; margin-bottom: 12px; }
+.rdo-barra input[type="date"] { padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); color: var(--fg); font: inherit; }
+.rdo-dia-txt { color: var(--fg2); }
+.rdo-dia-txt::first-letter { text-transform: uppercase; }
+#aba-rdo .tiles { margin-bottom: 14px; }
+.rdo-botoes { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.rdo-botoes .btn { padding: 10px 18px; font-weight: 700; }
+.rdo-obs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rdo-obs label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; color: var(--fg2); }
+.rdo-obs input, .rdo-obs textarea, .rdo-foto textarea { padding: 8px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); color: var(--fg); font: inherit; font-weight: 400; resize: vertical; width: 100%; box-sizing: border-box; }
+.rdo-galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
+.rdo-foto { margin: 0; border: 1px solid var(--linha); border-radius: var(--r); overflow: hidden; background: var(--card); }
+.rdo-foto img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--pend-bg); }
+.rdo-foto figcaption { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: .8rem; }
+.rdo-up { cursor: pointer; }

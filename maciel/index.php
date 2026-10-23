@@ -22,6 +22,7 @@ $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(
 $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @filemtime(__DIR__ . '/pdf_relatorio.js') . '"', $html);
 $html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
+$html = str_replace('src="rdo.js"', 'src="rdo.js?v=' . @filemtime(__DIR__ . '/rdo.js') . '"', $html);
 $html = str_replace('src="rel_lanc.js"', 'src="rel_lanc.js?v=' . @filemtime(__DIR__ . '/rel_lanc.js') . '"', $html);
 $html = str_replace('src="bm_resumo.js"', 'src="bm_resumo.js?v=' . @filemtime(__DIR__ . '/bm_resumo.js') . '"', $html);
 $html = str_replace('src="mapa_obra.js"', 'src="mapa_obra.js?v=' . @filemtime(__DIR__ . '/mapa_obra.js') . '"', $html);

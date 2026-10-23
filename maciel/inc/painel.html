@@ -50,6 +50,7 @@
         <button data-aba="semana">Programação semanal</button>
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
         <button data-aba="apont">Apontar montagem</button>
+        <button data-aba="rdo" title="Relatório diário de obra: fotos e RDO do cliente / da gestão">Relatório diário (RDO)</button>
         <button data-aba="plan">Planejamento de montagem</button>
         <button data-aba="avanco">Avanço físico</button>
         <button data-aba="gantt">Cronograma (Gantt)</button>
@@ -242,6 +243,10 @@
   </section>
 
   <!-- AVANÇO -->
+  <section id="aba-rdo" hidden>
+    <div id="rdoCorpo"></div>
+  </section>
+
   <section id="aba-apont" hidden>
     <div id="apGen" hidden></div>
     <div class="tiles" id="apTiles"></div>
@@ -847,6 +852,7 @@
 <script src="pdf_relatorio.js"></script>
 <script src="rel_empresa.js"></script>
 <script src="rel_lanc.js"></script>
+<script src="rdo.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>

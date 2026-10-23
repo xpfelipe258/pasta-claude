@@ -364,7 +364,7 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
@@ -568,7 +568,7 @@ function renderAba() {
   try {
   ({ tarefas: renderTarefas, painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
      estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont,
+     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont, rdo: renderRdo,
      plan: renderPlanejamento })[abaAtual]();
   } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
     console.error('Erro ao desenhar a aba', abaAtual, err);
