@@ -5736,22 +5736,22 @@ function renderBMBoletim(box) {
 
   const colBms = bmsAteMeusInclusos.map(pm => `<th class="n">BM${pm.n}</th>`).join('');
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
-    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th>
+    <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th><th class="n" title="Quanto já representa do valor total do contrato (igual à planilha de medição): % acumulado × valor ÷ contrato">% do contrato</th>
     <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th>${colBms}</tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
-      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
+      <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td><td class="n"><b>${pc(tot.contrato ? it.pct * it.valor[R] / tot.contrato : 0)}</b></td>
       <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
     });
   });
-  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
+  h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
     <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
@@ -5872,15 +5872,18 @@ function bmSomaSemana(a, ini, fim) {
 
 function renderLancServico(e) {
   const its = bmItens(e.nome, ref);
+  // como na planilha de medição: % do contrato = % da atividade × (valor da atividade ÷ valor total do contrato da empresa)
+  const contratoTotal = soma0(its, it => it.valor['RÓTULA'] || 0), pcC = v => nf(v * 100, 2) + '%';
+  const contribAtiv = (it, a, pct) => contratoTotal ? pct * bmPrecoAtividade(it, a).total / contratoTotal : 0;
   if (!its.length) { $('#tabLanc').innerHTML = '<tbody><tr><td class="vazio">Não há atividades do BM cadastradas para esta empresa (aba Medição (BM) → Catálogo).</td></tr></tbody>'; return; }
   const s = segunda(ref), dias = [0, 1, 2, 3, 4, 5, 6].map(i => add(s, i)), noCal = new Set(M.datas);
   const fechados = bmPeriodos(e.nome).filter(p => p.fechado);
   const marca = d => { const f = fechados.find(p => d >= p.ini && d <= p.fim); return f ? `data-fechado="${f.n}" title="Período do BM${f.n}, já fechado: a correção entra como ajuste no BM em aberto"` : ''; };
   $('#tabLanc').className = 'por-servico';
-  let h = '<colgroup><col style="width:340px"><col style="width:64px"><col style="width:96px">' + '<col style="width:78px">'.repeat(7) + '<col style="width:84px"><col style="width:90px"><col style="width:70px"></colgroup><thead><tr><th class="fixa">Serviço (atividade do BM)</th><th>Un. BM</th><th class="n">Contratado</th>' +
-    dias.map((d, i) => `<th class="n ${i >= 5 ? 'fds' : ''} ${d === ref ? 'hoje' : ''}">${DIAS[i]}<br>${fd(d)}</th>`).join('') + '<th class="n">Semana</th><th class="n">Acumulado</th><th class="n">%</th></tr></thead><tbody>';
+  let h = '<colgroup><col style="width:340px"><col style="width:64px"><col style="width:96px">' + '<col style="width:78px">'.repeat(7) + '<col style="width:84px"><col style="width:90px"><col style="width:70px"><col style="width:84px"></colgroup><thead><tr><th class="fixa">Serviço (atividade do BM)</th><th>Un. BM</th><th class="n">Contratado</th>' +
+    dias.map((d, i) => `<th class="n ${i >= 5 ? 'fds' : ''} ${d === ref ? 'hoje' : ''}">${DIAS[i]}<br>${fd(d)}</th>`).join('') + '<th class="n">Semana</th><th class="n">Acumulado</th><th class="n" title="Avanço da atividade sobre a quantidade contratada">%</th><th class="n" title="Quanto a atividade já representa do valor total do contrato da empresa (igual à planilha de medição)">% do contrato</th></tr></thead><tbody>';
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))} ${it.pesosAjustados ? '<span class="farol f-amarelo" title="Os pesos das atividades não somam 100%">pesos ≠ 100%</span>' : ''}</td><td colspan="9"></td><td class="n"><b>${nf(it.pct * 100, 1)}%</b></td></tr>`;
+    h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))} ${it.pesosAjustados ? '<span class="farol f-amarelo" title="Os pesos das atividades não somam 100%">pesos ≠ 100%</span>' : ''}</td><td colspan="9"></td><td class="n" title="Avanço do próprio item">${nf(it.pct * 100, 1)}%</td><td class="n" title="Quanto este item já representa do contrato (soma das atividades × valor)"><b>${pcC(contratoTotal ? it.pct * (it.valor['RÓTULA'] || 0) / contratoTotal : 0)}</b></td></tr>`;
     it.ats.forEach(({ a, real, pct }) => {
       const ctl = a.controle ? colDe(e, a.controle) : null;
       const semanaUnd = ctl ? soma(e, ctl, s, add(s, 6)) : null;
@@ -5897,9 +5900,11 @@ function renderLancServico(e) {
           h += `<td><input class="num ${bmPend.has(k) ? 'editado' : ''}" data-bm="1" data-cod="${esc(a.codigo)}" data-d="${d}" value="${esc(v)}" ${marca(d)} inputmode="decimal" aria-label="${esc(a.atividade)} ${DIAS[i]} ${fd(d)}"></td>`;
         }
       });
-      h += `<td class="n">${bmFmtQtdFinanceira(a, semana, semanaUnd)}</td><td class="n">${bmFmtQtdFinanceira(a, real, acumUnd)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td></tr>`;
+      h += `<td class="n">${bmFmtQtdFinanceira(a, semana, semanaUnd)}</td><td class="n">${bmFmtQtdFinanceira(a, real, acumUnd)}</td><td class="n ${real > a.qtd ? 'valor-neg' : ''}">${nf(pct * 100, 1)}%</td><td class="n">${pcC(contribAtiv(it, a, pct))}</td></tr>`;
     });
   });
+  const avancoContrato = contratoTotal ? soma0(its, it => it.pct * (it.valor['RÓTULA'] || 0)) / contratoTotal : 0;
+  h += `<tr class="grupo-item"><td class="fixa" colspan="3"><b>TOTAL DO CONTRATO — ${esc(e.nome)}</b> <span class="nota">${rs2(contratoTotal)}</span></td><td colspan="10"></td><td class="n"><b>${pcC(avancoContrato)}</b></td></tr>`;
   $('#tabLanc').innerHTML = h + '</tbody>';
 }
 
