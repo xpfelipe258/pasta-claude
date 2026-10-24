@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/leitura_pacote.php';
-require_once __DIR__ . '/importacao_materiais.php';
 // Importação automática de obra nova — fase 2: leitura completa (serviço Python) e publicação do pacote na obra.
 // O serviço devolve um "pacote" JSON (modelo do IFC, BM, cronograma, fixadores, pranchas). Aqui ele é guardado, revisado e publicado.
 
@@ -65,6 +64,8 @@ function importacao_guardar_pacote($obraId, array $j)
         return false;
     }
     if (!empty($j['ok']) && is_array($j['pacote'] ?? null)) {
+        $j['pacote']['modelo']['material'] = idf_material($j['pacote']['modelo']);
+        $j['pacote']['cruzamentos']['fase_para_item'] = idf_fases_itens($j['pacote']['modelo']['fases'], $j['pacote']['bm']['itens']);
         file_put_contents(importacao_pacote_caminho($obraId), json_encode($j['pacote'], JSON_UNESCAPED_UNICODE));
         @unlink(importacao_diretorio($obraId) . '/erro_leitura.txt');
         q_global("UPDATE obras SET importacao = 'revisao' WHERE id = ?", [(int)$obraId]);
@@ -207,10 +208,11 @@ function importacao_publicar($obraId, array $op)
         throw new InvalidArgumentException('Informe a sigla da empresa executora (2 a 10 letras ou números).');
     }
     $modelo = $p['modelo'];
+    $modelo['material'] = idf_material($modelo);
     $bm = $p['bm'];
     $crono = $p['cronograma'];
     $cruz = $p['cruzamentos'];
-    $faseItem = $cruz['fase_para_item'] ?? [];
+    $faseItem = idf_fases_itens($modelo['fases'], $bm['itens']);
     foreach ((array)($op['mapa_fase'] ?? []) as $fase => $item) {
         $item = trim((string)$item);
         if ($item === '') {
@@ -226,6 +228,7 @@ function importacao_publicar($obraId, array $op)
     $pdo->beginTransaction();
     try {
         $agora = imp_agora();
+        sistema_gravar('padrao_identidade_ifc', '1');
 
         // ---- empresa e serviços (tarefas do cronograma)
         q('INSERT INTO empresas (aba, nome, col_obs, ordem) VALUES (?, ?, ?, 0)', [$sigla, $sigla, null]);
@@ -290,30 +293,36 @@ function importacao_publicar($obraId, array $op)
         }
         $resumo['atividades_bm'] = $nBm;
 
-        // ---- cadastro de materiais: TAG = marca do conjunto no IFC (a dos desenhos), local = fase do IFC; fixadores ganham TAG nova (FG###) por obra
-        $ag = imp_agrupar_pecas($modelo['conjuntos']);
+        // ---- cadastro: uma linha por TAG original; ocorrências e locais ficam na rastreabilidade.
+        $catalogo = idf_catalogo($modelo['material']);
+        $tagsConflitantes = array_map('strval', array_keys(array_filter($catalogo, function ($m) { return count($m['especificacoes']) > 1; })));
+        $gruposPorChave = [];
         $nMat = 0;
-        $itemDescDe = [];
-        foreach ($bm['itens'] as $bi) {
-            $itemDescDe[$bi['codigo']] = $bi['descricao'];
-        }
-        $tagGrupo = [];          // tag => 'PRODUTO|local'
-        foreach ($ag['linhas'] as $tag => $l) {
-            $ehFix = imp_tipo_material($l['produto'], $l['fase']) === 'FIXADOR';
-            $item = $faseItem[$l['fase']] ?? '';
-            $pesoUn = $l['qtd'] ? $l['peso_kg'] / $l['qtd'] : 0;
-            $obs = trim(($l['indefinida'] ? 'Marca não numerada no IFC (nd): TAG gerada · ' : 'Marca IFC ' . $l['marca'] . ' · ') . ($l['perfil'] ? 'perfil ' . $l['perfil'] : '') . ($l['material'] ? ' · ' . $l['material'] : '')
-                . ($pesoUn ? ' · ' . number_format($pesoUn, 2, ',', '') . ' kg/un' : '') . ($l['area_m2'] ? ' · ' . number_format($l['area_m2'], 1, ',', '') . ' m²' : ''), ' ·');
+        foreach ($catalogo as $tag => $m) {
+            $produtos = implode(' / ', array_keys($m['produtos']));
+            $locais = implode(' | ', array_keys($m['locais']));
+            if (mb_strlen((string)$tag) > 255 || mb_strlen($produtos) > 255) {
+                throw new InvalidArgumentException('TAG ou descrição do IFC excede o limite do cadastro. Revise a fonte; nenhuma TAG foi renomeada.');
+            }
             q('INSERT INTO materiais (codigo, material, unidade, tipo_material, local, etapa, servico, empresa, coef, saldo_inicial, data_saldo, minimo, fornecedor, prazo_reposicao, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$tag, $l['produto'], 'UN', $ehFix ? 'FIXADOR' : imp_tipo_material($l['produto'], $l['fase']), $l['local'], imp_codigo_fase($l['fase']) ?: (string)$l['fase'], ($item !== '' ? ($itemDescDe[$item] ?? null) : null), null, 0, $l['qtd'], null, null, null, null, mb_substr($obs, 0, 250)]);
-            $tagGrupo[$tag] = imp_up($l['produto']) . '|' . $l['local'];
+                [(string)$tag, $produtos, 'UN', imp_tipo_material($produtos, $locais), mb_strlen($locais) <= 255 ? $locais : 'Ver locais originais em Vínculos', null, null, null, 0, $m['qtd'], null, null, null, null, 'TAG original do IFC. Quantidade de projeto; recebimentos são registrados em Remessas.']);
             $nMat++;
         }
-        $resumo['pecas_tag'] = count($ag['linhas']);
-        $resumo['tags_geradas'] = $ag['indefinidas'];
-        $resumo['marcas_repetidas'] = count($ag['repetidas']);
+        foreach ($modelo['material'] as $m) {
+            $chave = idf_grupo($m['produto'], $m['fase']);
+            if (!isset($gruposPorChave[$chave])) {
+                $gruposPorChave[$chave] = ['tags'=>[], 'qtd'=>0, 'fase'=>$m['fase'], 'produto'=>$m['produto'], 'local'=>$m['fase'], 'tagqtd'=>[], 'pecas'=>[]];
+            }
+            $g = &$gruposPorChave[$chave];
+            $g['qtd'] += $m['qtd'];
+            if (trim($m['marca']) !== '') {
+                $g['tags'][] = $m['marca'];
+                $g['tagqtd'][$m['marca']] = ($g['tagqtd'][$m['marca']] ?? 0) + $m['qtd'];
+            }
+            unset($g);
+        }
 
-        // ---- fixadores: a lista em planilha vale; o que só aparece no IFC (parafusos e conjuntos de fixador) entra com a quantidade do modelo
+        // ---- fixadores: a lista em planilha vale; o que só aparece no IFC entra com a quantidade do modelo
         $tagFix = [];            // chave do fixador => tag
         $cadastroFix = [];
         $somaIfc = [];
@@ -337,23 +346,10 @@ function importacao_publicar($obraId, array $op)
                 $cadastroFix[$k] = ['nome' => $nomeIfc ?: $k, 'qtd' => $q, 'origem' => 'IFC'];
             }
         }
-        $fixConj = [];           // conjuntos do IFC que são fixadores (porca, arruela, chumbador, barra roscada...) por nome + perfil
-        foreach ($ag['fixadores'] as $c) {
-            $nome = trim($c['produto'] . ($c['perfil'] !== '' && stripos($c['produto'], $c['perfil']) === false ? ' ' . $c['perfil'] : ''));
-            $chave = leitura_chave_fixador($c['perfil'] !== '' ? $c['perfil'] : $c['produto']);
-            $k = $chave !== '' && isset($cadastroFix[$chave]) ? $chave : 'conj|' . imp_up($nome);
-            $fixConj[$k] = ['nome' => $nome, 'qtd' => ($fixConj[$k]['qtd'] ?? 0) + 1];
-        }
-        foreach ($fixConj as $k => $f) {
-            if (!isset($cadastroFix[$k])) {
-                $cadastroFix[$k] = ['nome' => $f['nome'], 'qtd' => $f['qtd'], 'origem' => 'IFC (conjuntos)'];
-            }
-        }
         $fg = 0;
         ksort($cadastroFix);
         foreach ($cadastroFix as $k => $f) {
-            $fg++;
-            $tag = 'FG' . sprintf('%03d', $fg);
+            do { $tag = 'FG' . sprintf('%03d', ++$fg); } while (isset($catalogo[$tag]));
             q('INSERT INTO materiais (codigo, material, unidade, tipo_material, local, etapa, servico, empresa, coef, saldo_inicial, data_saldo, minimo, fornecedor, prazo_reposicao, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$tag, $f['nome'], 'UN', 'FIXADOR', 'Todos os locais', 'FIXADORES', null, null, 0, $f['qtd'], null, null, null, null, 'Importado (' . $f['origem'] . ')']);
             $tagFix[$k] = $tag;
@@ -362,39 +358,64 @@ function importacao_publicar($obraId, array $op)
         $resumo['materiais'] = $nMat;
         $resumo['fixadores'] = count($cadastroFix);
 
-        // ---- vínculos automáticos peça (produto + local) → atividade do BM, e baixa automática por local
-        $vi = imp_vincular($ag['linhas'], $faseItem, $bm['itens'], $atividadesPorItem, $agora);
-        $vinculos = $vi['vinculos'];
-        $faseItem = $vi['item_da_fase'];
-        $consumoAtiv = imp_baixa_pecas($vi['grupo_atividade']);
-        $fixAtiv = imp_baixa_fixadores($modelo['conjuntos'], $ag['guid_tag'], $tagGrupo, $vi['grupo_atividade'], $tagFix, $agora);
-        $resumo['vinculos'] = count($vinculos);
-        $resumo['sem_vinculo'] = count($vi['sem_vinculo']);
-        $resumo['atividades_com_baixa'] = count($consumoAtiv);
-        $resumo['servicos_com_baixa'] = 0;
+        // ---- vínculos: atividade única por família dentro do local; ambiguidades ficam pendentes.
+        $vinculos = [];
+        $pendencias = [];
+        foreach ($gruposPorChave as $chave => $g) {
+            $item = $faseItem[$g['fase']] ?? '';
+            $melhor = idf_atividade($g['produto'], $atividadesPorItem[$item] ?? []);
+            // Sem local específico, joists/componentes só casam se existir UM item com a atividade.
+            if (!$item && in_array(idf_familia($g['produto']), ['joist','banzo'], true)) {
+                $possiveis = [];
+                foreach ($atividadesPorItem as $ats) {
+                    $a = idf_atividade($g['produto'], $ats);
+                    if ($a) $possiveis[] = $a;
+                }
+                if (count($possiveis) === 1) $melhor = $possiveis[0];
+            }
+            $ok = $melhor && $melhor['qtd'] > 0 && array_sum($g['tagqtd']) === $g['qtd'];
+            $vinculos[$chave] = ['estado'=>$ok ? 'confirmado' : 'pendente', 'atividade'=>$ok ? $melhor['codigo'] : '',
+                'familia'=>$g['produto'], 'produto'=>$g['produto'], 'local'=>$g['local'], 'por'=>'Importação: família + local + catálogo', 'em'=>$agora];
+            if (!$ok) $pendencias[] = $chave;
+        }
+        foreach ($modelo['conjuntos'] as $c) {
+            if (empty($c['guid'])) continue;
+            $chave = idf_grupo($c['produto'], $c['fase']);
+            $kit = [];
+            foreach ($c['fix'] ?? [] as $f) {
+                $k = leitura_chave_fixador($f[1]);
+                if ($k && isset($tagFix[$k])) $kit[$tagFix[$k]] = ($kit[$tagFix[$k]] ?? 0) + $f[2];
+            }
+            $gruposPorChave[$chave]['pecas'][$c['guid']] = ['tag'=>(string)$c['marca'], 'perfil'=>$c['perfil'], 'material'=>$c['material'], 'comprimento_mm'=>$c['comprimento_mm'] ?? 0, 'kit'=>(object)$kit];
+        }
+        $resumo['pecas_sem_tag'] = count(array_filter($modelo['conjuntos'], function ($c) { return trim((string)($c['marca'] ?? '')) === ''; }));
+        $resumo['pecas_sem_posicao'] = count(array_filter($modelo['conjuntos'], function ($c) { return empty($c['pos']); }));
+        $resumo['pecas_sem_kit_identificado'] = count(array_filter($modelo['conjuntos'], function ($c) { return !array_key_exists('fix', $c); }));
+        $resumo['vinculos'] = count($vinculos) - count($pendencias);
+        $resumo['vinculos_pendentes'] = count($pendencias);
+        $resumo['servicos_com_baixa'] = count(array_unique(array_filter(array_column($vinculos, 'atividade'))));
 
         // ---- dados de projeto da obra (substituem os arquivos de inc/ que só valem para a obra 198)
         $locais = [];
         $fases = [];
-        foreach ($ag['linhas'] as $l) {
-            $fam = imp_up($l['produto']);
-            $locais[$l['local']][$fam]['qtd'] = ($locais[$l['local']][$fam]['qtd'] ?? 0) + $l['qtd'];
-            $locais[$l['local']][$fam]['peso_kg'] = round(($locais[$l['local']][$fam]['peso_kg'] ?? 0) + $l['peso_kg'], 1);
-            $fases[$l['local']][$l['local']] = ($fases[$l['local']][$l['local']] ?? 0) + $l['qtd'];
+        foreach ($modelo['material'] as $m) {
+            $loc = $m['fase'] !== '' ? $m['fase'] : 'Sem fase';
+            $fam = imp_up($m['produto']);
+            $locais[$loc][$fam]['qtd'] = ($locais[$loc][$fam]['qtd'] ?? 0) + $m['qtd'];
+            $locais[$loc][$fam]['peso_kg'] = round(($locais[$loc][$fam]['peso_kg'] ?? 0) + $m['peso_kg'], 1);
+            $fases[$loc][$loc] = ($fases[$loc][$loc] ?? 0) + $m['qtd'];
         }
         sistema_gravar('ifc_anexos', json_encode(['fontes' => array_map(function ($a) { return ['arquivo' => $a['arquivo'], 'conjuntos' => $a['conjuntos'], 'projeto' => 'Importação automática']; }, $modelo['arquivos']),
             'locais' => (object)$locais, 'fases' => (object)$fases], JSON_UNESCAPED_UNICODE));
         sistema_gravar('ifc_parafusos', json_encode(importacao_parafusos($modelo), JSON_UNESCAPED_UNICODE));
         sistema_gravar('ifc_parafusos_locais', json_encode([], JSON_UNESCAPED_UNICODE));
         $regras = ['fonte' => 'Importação automática (IFC + orçamento + cronograma)', 'origem_das_quantidades' => 'IFC enviado na importação', 'observacoes' => ['Regras geradas automaticamente: confira em Suprimentos › Vínculos.'],
-            'eventos' => [], 'consumo_por_servico' => (object)[], 'consumo_por_atividade' => (object)$consumoAtiv, 'inventario_ajustes' => [], 'limites_ifc' => (object)[], 'apontamento' => (object)[]];
+            'versao_identidade' => 1, 'vinculos_ifc' => (object)$gruposPorChave, 'pendencias' => $pendencias, 'tags_conflitantes' => $tagsConflitantes,
+            'eventos' => [], 'consumo_por_servico' => (object)[], 'inventario_ajustes' => [], 'limites_ifc' => (object)[], 'apontamento' => (object)[]];
         sistema_gravar('regras_baixa', json_encode($regras, JSON_UNESCAPED_UNICODE));
         sistema_gravar('vinculos_material', json_encode((object)$vinculos, JSON_UNESCAPED_UNICODE));
-        sistema_gravar('fixadores_atividade', json_encode((object)$fixAtiv, JSON_UNESCAPED_UNICODE));
-        $resumo['sem_vinculo_lista'] = array_slice($vi['sem_vinculo'], 0, 60);
-        $resumo['marcas_repetidas_lista'] = $ag['repetidas'];
         sistema_gravar('importacao_info', json_encode(['em' => $agora, 'por' => (string)($GLOBALS['usuario']['nome'] ?? ''), 'resumo' => importacao_resumo_pacote($p), 'publicado' => $resumo], JSON_UNESCAPED_UNICODE));
-        importacao_gravar_mapa($obraId, $modelo, $faseItem, $ag['guid_tag'], $vi['grupo_atividade'], $tagGrupo);
+        importacao_gravar_mapa($obraId, $modelo, $faseItem);
 
         // ---- datas e situação da obra
         $ini = $crono['inicio'] ?? ($obra['data_inicio'] ?: date('Y-m-d'));
@@ -459,37 +480,10 @@ function importacao_parafusos(array $modelo)
         'por_local' => (object)$porLocal, 'por_tipo' => (object)$porTipo, 'por_local_fase' => (object)$porLocalFase, 'por_arruela' => (object)$porArr, 'por_porca' => (object)$porPor, 'por_local_tipo' => []];
 }
 
-// Mapa de apontamento: todas as peças do IFC (menos fixadores), com a marca/TAG, a posição na malha (V × H, quando o modelo tem) e a atividade ligada ao produto.
-function importacao_gravar_mapa($obraId, array $modelo, array $faseItem, array $guidTag = [], array $grupoAtiv = [], array $tagGrupo = [])
+// Mapa de apontamento: guarda, por fase, as peças com a posição na malha (V × H) para o apontamento por peça.
+function importacao_gravar_mapa($obraId, array $modelo, array $faseItem)
 {
-    $pecas = [];
-    $porGrupo = [];
-    foreach ($modelo['conjuntos'] as $c) {
-        if (imp_eh_fixador_conjunto($c['produto'], $c['fase'])) {
-            continue;
-        }
-        $tag = $guidTag[$c['guid'] ?? ''] ?? imp_marca_limpa($c['marca']);
-        $pos = $c['pos'] ?: null;
-        $fase = $c['fase'] !== '' ? $c['fase'] : 'Sem fase';
-        $pecas[] = [$fase, $c['produto'], $c['marca'], $pos ? $pos['v'][0] : '', $pos ? $pos['v'][1] : '', $pos ? $pos['h'][0] : '', $pos ? $pos['h'][1] : '', $c['guid'] ?? '', $tag];
-        $porGrupo[$fase . "\x01" . $c['produto']] = ($grupoAtiv[$tagGrupo[$tag] ?? (imp_up($c['produto']) . '|' . $fase)]['codigo'] ?? '');
-    }
-    $ativDoProduto = [];
-    foreach ($porGrupo as $k => $cod) {
-        if ($cod !== '') {
-            $ativDoProduto[str_replace("\x01", '|', $k)] = $cod;
-        }
-    }
-    $faseIdx = [];
-    $contagem = [];
-    foreach ($pecas as $p) {
-        $contagem[$p[0]] = ($contagem[$p[0]] ?? 0) + 1;
-    }
-    foreach ($contagem as $fase => $n) {
-        list($cod, $titulo) = ifc_fase_info($fase);
-        $faseIdx[] = ['fase' => $fase, 'codigo' => $cod, 'titulo' => $titulo, 'conjuntos' => $n, 'item' => $faseItem[$fase] ?? ''];
-    }
-    sistema_gravar('frentes_montagem_obra', json_encode(['versao' => 2, 'malha' => $modelo['malha'], 'fases' => $faseIdx, 'pecas' => $pecas, 'atividades' => (object)$ativDoProduto], JSON_UNESCAPED_UNICODE));
+    sistema_gravar('frentes_montagem_obra', json_encode(idf_mapa($modelo, $faseItem), JSON_UNESCAPED_UNICODE));
 }
 
 // ------------------------------------------------------------------ leitura dentro do sistema (PHP): lê tudo e gera a obra

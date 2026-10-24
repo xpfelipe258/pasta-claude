@@ -17,6 +17,7 @@ foreach (modulos_sistema() as $moduloMenu) {
 $html = str_replace('<html lang="pt-BR">', '<html lang="pt-BR"' . tema_attr() . menu_attr() . '>', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
+$html = str_replace('<script src="app.js', '<script src="consumo_ifc.js?v=' . @filemtime(__DIR__ . '/consumo_ifc.js') . '"></script><script src="app.js', $html);
 $html = str_replace('src="planos.js"', 'src="planos.js?v=' . @filemtime(__DIR__ . '/planos.js') . '"', $html);
 $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(__DIR__ . '/planos_doc.js') . '"', $html);
 $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @filemtime(__DIR__ . '/pdf_relatorio.js') . '"', $html);

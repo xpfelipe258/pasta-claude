@@ -52,6 +52,30 @@ function ifc_falso($nome)
     return strpos(mb_strtoupper((string)$nome, 'UTF-8'), 'FALSA') !== false;
 }
 
+// Argumentos STEP, respeitando strings escapadas e listas aninhadas.
+function ifc_argumentos($linha)
+{
+    $a = strpos($linha, '('); $b = strrpos($linha, ')');
+    if ($a === false || $b === false) return [];
+    $s = substr($linha, $a + 1, $b - $a - 1);
+    $out = []; $parte = ''; $texto = false; $nivel = 0;
+    for ($i = 0, $n = strlen($s); $i < $n; $i++) {
+        $c = $s[$i];
+        if ($c === "'") {
+            if ($texto && ($s[$i + 1] ?? '') === "'") { $parte .= "''"; $i++; continue; }
+            $texto = !$texto;
+        }
+        if (!$texto) {
+            if ($c === '(') $nivel++;
+            if ($c === ')') $nivel--;
+            if ($c === ',' && $nivel === 0) { $out[] = trim($parte); $parte = ''; continue; }
+        }
+        $parte .= $c;
+    }
+    $out[] = trim($parte);
+    return array_map(function ($v) { return $v === '$' ? '' : (substr($v,0,1) === "'" ? ifc_texto(substr($v,1,-1)) : $v); }, $out);
+}
+
 /**
  * Lê um .ifc e devolve ['conjuntos' => [...], 'eixos' => ['V' => [...], 'H' => [...]], 'furos' => n, 'tekla' => bool].
  * Cada conjunto traz as peças e os parafusos agregados dele (fix = [[tipo, nome, qtd], ...]).
@@ -72,6 +96,7 @@ function ifc_ler_arquivo($caminho, $nomeArq = '')
     $psetsDe = [];      // objeto => [ids dos psets]
     $assemb = [];       // id => [guid, nome, tag]
     $tipo = [];         // id => 'p' (peça) | 'f' (parafuso)
+    $avulsas = [];
     $agreg = [];        // pai => [filhos]
     $eixos = ['V' => [], 'H' => []];
     $tekla = false;
@@ -138,9 +163,8 @@ function ifc_ler_arquivo($caminho, $nomeArq = '')
                 }
                 break;
             case 'IFCELEMENTASSEMBLY':
-                if (preg_match("/^#\d+\s*=\s*IFCELEMENTASSEMBLY\('([^']*)',#\d+,(?:\\$|'((?:[^']|'')*)'),(?:\\$|'[^']*'),(?:\\$|'[^']*'),(?:#\d+|\\$),(?:\\$|'[^']*'),(?:\\$|'((?:[^']|'')*)')/", $linha, $m)) {
-                    $assemb[$id] = [$m[1], ifc_texto($m[2] ?? ''), ifc_texto($m[3] ?? '')];
-                }
+                $args = ifc_argumentos($linha);
+                if (!empty($args[0])) $assemb[$id] = [$args[0], $args[2] ?? '', $args[7] ?? ''];
                 break;
             case 'IFCMECHANICALFASTENER':
                 $tipo[$id] = 'f';
@@ -153,6 +177,8 @@ function ifc_ler_arquivo($caminho, $nomeArq = '')
             default:
                 if (isset($pecas[$tp])) {
                     $tipo[$id] = 'p';
+                    $args = ifc_argumentos($linha);
+                    if (!empty($args[0])) $avulsas[$id] = [$args[0], $args[2] ?? '', $args[7] ?? ''];
                 }
         }
     }
@@ -174,6 +200,16 @@ function ifc_ler_arquivo($caminho, $nomeArq = '')
     $conjuntos = [];
     $furos = 0;
     $falsos = 0;
+    $pertenceConjunto = [];
+    foreach (array_keys($assemb) as $pai) {
+        $fila = [$pai]; $visitados = [];
+        while ($fila) {
+            $x = array_pop($fila);
+            if (isset($visitados[$x])) continue;
+            $visitados[$x] = true;
+            foreach ($agreg[$x] ?? [] as $filho) { $pertenceConjunto[$filho] = true; $fila[] = $filho; }
+        }
+    }
     foreach ($assemb as $aid => $a) {
         $ps = $props($aid);
         $rc = $ps['rc'] ?? [];
@@ -251,6 +287,16 @@ function ifc_ler_arquivo($caminho, $nomeArq = '')
         $conjuntos[] = ['guid' => $a[0], 'fase' => $fase, 'produto' => $nome, 'marca' => $marca, 'perfil' => $perfil, 'material' => $material,
             'comprimento_mm' => round($comp, 1), 'largura_mm' => round($larg, 1), 'area_m2' => round($area, 3), 'peso_kg' => round((float)$peso, 3),
             'pos' => ifc_posicao($ta['Assembly/Cast unit position code'] ?? ''), 'fix' => $fix];
+    }
+    // Exportações sem IfcElementAssembly também entram no mapa. Componentes de conjuntos
+    // já contabilizados não viram uma segunda peça/baixa.
+    foreach ($avulsas as $id => $a) {
+        if (isset($pertenceConjunto[$id])) continue;
+        $ps = $props($id); $rc = $ps['rc'] ?? []; $pa = $ps['pa'] ?? []; $ta = $ps['ta'] ?? []; $tq = $ps['tq'] ?? [];
+        $conjuntos[] = ['guid'=>$a[0], 'fase'=>(string)($rc['PHASE.NAME'] ?? ''), 'produto'=>(string)($rc['ASSEMBLY NAME'] ?? $pa['NAME'] ?? $a[1]),
+            'marca'=>(string)($rc['ASSEMBLY MARK'] ?? $ta['Assembly/Cast unit Mark'] ?? $a[2]), 'perfil'=>(string)($pa['PROFILE'] ?? ''), 'material'=>(string)($pa['MATERIAL'] ?? ''),
+            'comprimento_mm'=>(float)($pa['LENGTH'] ?? 0), 'largura_mm'=>(float)($tq['Width'] ?? 0), 'area_m2'=>(float)($tq['Net surface area'] ?? 0),
+            'peso_kg'=>(float)($rc['WEIGHT_GROSS'] ?? $pa['WEIGHT'] ?? 0), 'pos'=>ifc_posicao($ta['Assembly/Cast unit position code'] ?? ''), 'fix'=>[], 'elemento_avulso'=>true];
     }
     return ['arquivo' => $nomeArq, 'conjuntos' => $conjuntos, 'eixos' => ['V' => array_keys($eixos['V']), 'H' => array_keys($eixos['H'])], 'furos' => $furos, 'falsos' => $falsos, 'tekla' => $tekla];
 }

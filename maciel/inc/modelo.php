@@ -217,6 +217,25 @@ function carregar_ifc_anexos()
 
 // O estoque importado da planilha (materiais, remessas, consumo físico, inventário) fica guardado como JSON:
 // é um documento só, do mesmo formato que o programa local lê de dados/estoque_obra198.json.
+function obra_preserva_identidade_ifc()
+{
+    static $cache = [];
+    $id = obra_atual_id();
+    if (!array_key_exists($id, $cache)) $cache[$id] = sistema_ler('padrao_identidade_ifc', '0') === '1';
+    return $cache[$id];
+}
+
+function estoque_tag($tag)
+{
+    $tag = trim((string)$tag);
+    return obra_preserva_identidade_ifc() ? $tag : mb_strtoupper($tag);
+}
+
+function estoque_empresas_consumo()
+{
+    return obra_preserva_identidade_ifc() ? q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll(PDO::FETCH_COLUMN) : ['EJ', 'CMM'];
+}
+
 function estoque_planilha_ler()
 {
     $txt = sistema_ler('estoque_planilha', null);

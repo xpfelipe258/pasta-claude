@@ -3,6 +3,7 @@
 // lista de material por fase, fixadores, malha de eixos, cruzamentos (fase do IFC × item do BM) e resumo de telhas.
 require_once __DIR__ . '/leitura_ifc.php';
 require_once __DIR__ . '/leitura_docs.php';
+require_once __DIR__ . '/identidade_ifc.php';
 
 function lp_eixo_ord($a, $b)
 {
@@ -37,9 +38,6 @@ function leitura_modelo(array $leituras)
                 $k = $c['fase'] . "\x01" . $x[0] . "\x01" . $x[1];
                 $fixTot[$k] = ($fixTot[$k] ?? 0) + $x[2];
                 $nfix++;
-            }
-            if (!$c['fix']) {
-                unset($c['fix']);   // mantém só o que tem parafuso (usado para ligar os fixadores à atividade)
             }
             $conjuntos[] = $c;
             $n++;
@@ -90,6 +88,8 @@ function leitura_modelo(array $leituras)
         $kb = $cb !== '' ? sprintf('%-12s', $cb) : '~' . $b['fase'];
         return [$ka, $a['produto'], $a['perfil']] <=> [$kb, $b['produto'], $b['perfil']];
     });
+    // O agrupamento comercial nunca pode apagar a marca nem misturar locais.
+    $material = idf_material(['conjuntos' => $conjuntos]);
     $fixadores = [];
     ksort($fixTot);
     $parafusos = 0;
@@ -123,8 +123,8 @@ function lp_nome_fixador($chave)
         $x = (float)$v;
         $int = (int)$x;
         $resto = round($x - $int, 3);
-        $fr = ['0.125' => '1/8', '0.25' => '1/4', '0.375' => '3/8', '0.5' => '1/2', '0.625' => '5/8', '0.75' => '3/4', '0.875' => '7/8'];   // chaves em texto: chave decimal vira inteiro em PHP
-        $f = $fr[rtrim(rtrim(number_format($resto, 3, '.', ''), '0'), '.')] ?? '';
+        $fr = [0.125 => '1/8', 0.25 => '1/4', 0.375 => '3/8', 0.5 => '1/2', 0.625 => '5/8', 0.75 => '3/4', 0.875 => '7/8'];
+        $f = $fr[(string)$resto] ?? ($fr[$resto] ?? '');
         return $int && $f ? "$int $f" : ($f ?: (string)$int);
     };
     $rot = ['parafuso' => 'PARAF.', 'parabolt' => 'PARABOLT', 'ab' => 'PARAF. AB', 'porca' => 'PORCA', 'arruela' => 'ARRUELA'][$t[0]] ?? strtoupper($t[0]);
@@ -165,17 +165,15 @@ function leitura_montar_pacote(array $p, $nomeObra = '')
     foreach ([$bm['avisos'] ?? [], $crono['avisos'] ?? [], $fix['avisos'] ?? [], $modelo['avisos'] ?? []] as $a) {
         $avisos = array_merge($avisos, $a);
     }
-    // fase do IFC ↔ item do BM (pelo número: 3.1.5 do modelo = 3.1.5 do orçamento)
+    // Local e descrição precisam concordar; número repetido não confirma vínculo.
     $itens = [];
     foreach ($bm['itens'] as $i) {
         $itens[$i['codigo']] = $i;
     }
-    $faseItem = [];
+    $faseItem = idf_fases_itens($modelo['fases'], $bm['itens']);
     $semItem = [];
     foreach ($modelo['fases'] as $f) {
-        if ($f['codigo'] !== '' && isset($itens[$f['codigo']])) {
-            $faseItem[$f['fase']] = $f['codigo'];
-        } else {
+        if (!isset($faseItem[$f['fase']])) {
             $semItem[] = $f['fase'];
         }
     }

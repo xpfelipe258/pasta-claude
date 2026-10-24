@@ -62,6 +62,10 @@ $csrf = token_csrf();
 $estado = $obra['importacao'] ?? '';
 $relatorio = $estado === 'publicada';   // obra já criada: a página vira o relatório do que foi lido
 $pacote = in_array($estado, ['revisao', 'publicada'], true) ? importacao_pacote($obraId) : null;
+if ($pacote && !$relatorio) {
+    $pacote['modelo']['material'] = idf_material($pacote['modelo']);
+    $pacote['cruzamentos']['fase_para_item'] = idf_fases_itens($pacote['modelo']['fases'], $pacote['bm']['itens']);
+}
 pagina_inicio('Revisão da importação');
 
 function n0($v) { return number_format((float)$v, 0, ',', '.'); }
@@ -122,39 +126,12 @@ function brl($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
       </tbody></table></div>
     </section>
 
-
-<?php
-$infoImp = $relatorio ? json_decode((string)(q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [$obraId, 'importacao_info'])->fetchColumn() ?: 'null'), true) : null;
-$pub = $infoImp['publicado'] ?? [];
-if ($relatorio && $pub): ?>
-    <section class="bloco rv-sec"><h2>TAGs, vínculos e baixa automática</h2>
-      <p class="nota"><b><?= n0($pub['pecas_tag'] ?? 0) ?></b> TAGs de peça (marca do IFC) · <b><?= n0($pub['fixadores'] ?? 0) ?></b> TAGs de fixador da obra (FG###) · <b><?= n0($pub['tags_geradas'] ?? 0) ?></b> TAGs geradas para conjuntos sem marca no modelo · <b><?= n0($pub['marcas_repetidas'] ?? 0) ?></b> marcas repetidas em mais de uma fase (levam o código da fase no fim) ·
-        <b><?= n0($pub['vinculos'] ?? 0) ?></b> grupos produto × local ligados a uma atividade do BM (os marcados “aproximado” merecem conferência em Suprimentos › Vínculos) · <b><?= n0($pub['atividades_com_baixa'] ?? 0) ?></b> atividades com baixa automática de material.</p>
-<?php if (!empty($pub['sem_vinculo_lista'])): ?>
-      <details><summary><?= n0($pub['sem_vinculo'] ?? count($pub['sem_vinculo_lista'])) ?> grupos sem atividade (ligue à mão em Suprimentos › Vínculos, se forem executados por esta empresa)</summary>
-      <div class="tabela-rolagem"><table><thead><tr><th>Produto</th><th>Local (fase do IFC)</th><th class="n">Peças</th><th>Motivo</th></tr></thead><tbody>
-<?php foreach ($pub['sem_vinculo_lista'] as $x): ?>
-        <tr><td><?= h($x['produto']) ?></td><td><?= h($x['local']) ?></td><td class="n"><?= n0($x['pecas']) ?></td><td><?= h($x['motivo']) ?></td></tr>
-<?php endforeach; ?>
-      </tbody></table></div></details>
-<?php endif; ?>
-<?php if (!empty($pub['marcas_repetidas_lista'])): ?>
-      <details><summary>Marcas repetidas em mais de uma fase</summary>
-      <div class="tabela-rolagem"><table><thead><tr><th>Marca no IFC</th><th>TAG no cadastro</th><th>Local</th></tr></thead><tbody>
-<?php foreach ($pub['marcas_repetidas_lista'] as $x): ?>
-        <tr><td><?= h($x['marca']) ?></td><td><?= h($x['tag']) ?></td><td><?= h($x['local']) ?></td></tr>
-<?php endforeach; ?>
-      </tbody></table></div></details>
-<?php endif; ?>
-    </section>
-<?php endif; ?>
-
     <section class="bloco rv-sec"><h2>2 · Lista de material (IFC)</h2>
-      <p class="nota">No cadastro de Materiais a <b>TAG é a marca do conjunto no IFC</b> (a mesma dos desenhos), o <b>local é a fase do IFC</b> e a quantidade planejada é a contagem de conjuntos; só os fixadores recebem TAG nova da obra (FG###). Conjunto que o modelo não numerou (nd) recebe uma TAG gerada. Telhas trazem a área em m².</p>
+      <p class="nota">TAGs e locais originais do IFC. Ocorrências da mesma TAG mantêm seus locais e identificadores. A quantidade é de projeto; recebimentos são lançados em Remessas. Peças sem TAG ficam pendentes, sem criar códigos substitutos.</p>
       <details><summary>Ver os <?= n0(count($modelo['material'])) ?> produtos</summary>
       <div class="tabela-rolagem"><table><thead><tr><th>Fase</th><th>Produto</th><th>Perfil</th><th>Material</th><th class="n">Qtd</th><th class="n">Peso unit. (kg)</th><th class="n">Peso total (kg)</th><th class="n">m²</th></tr></thead><tbody>
 <?php foreach ($modelo['material'] as $m): ?>
-        <tr><td><?= h($m['fase']) ?></td><td><?= h($m['produto']) ?></td><td><?= h($m['perfil']) ?></td><td><?= h($m['material']) ?></td><td class="n"><?= n0($m['qtd']) ?></td><td class="n"><?= n2($m['peso_unit_kg']) ?></td><td class="n"><?= n1($m['peso_kg']) ?></td><td class="n"><?= $m['area_m2'] ? n1($m['area_m2']) : '' ?></td></tr>
+        <tr><td><?= h($m['fase']) ?><br><b>TAG: <?= h($m['marca'] ?? '(pacote anterior sem TAG no agrupamento)') ?></b></td><td><?= h($m['produto']) ?></td><td><?= h($m['perfil']) ?></td><td><?= h($m['material']) ?></td><td class="n"><?= n0($m['qtd']) ?></td><td class="n"><?= n2($m['peso_unit_kg']) ?></td><td class="n"><?= n1($m['peso_kg']) ?></td><td class="n"><?= $m['area_m2'] ? n1($m['area_m2']) : '' ?></td></tr>
 <?php endforeach; ?>
       </tbody></table></div></details>
     </section>
