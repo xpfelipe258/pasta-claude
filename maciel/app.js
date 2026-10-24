@@ -1708,7 +1708,46 @@ function ganProducaoFase(it, empNome) {
   return ganSerieFase(it, ganProducao(it, empNome));
 }
 
+// Anexos (Portaria, Refeitório, Vestiário, Passarelas, Área de Vivência, Eclusa – platibanda): cada linha do cronograma corresponde a poucas atividades
+// EXATAS do catálogo do BM. A busca por semelhança de nome juntava atividades de outros prédios e inflava valor e avanço (Portaria: 34 mil planejados para 14 mil contratados).
+const ANEXO_CAT = {
+  P: { EST: ['EJ-3.3.3-01', 'EJ-3.3.3-02', 'EJ-3.3.3-03', 'EJ-3.3.3-04'], CAL: ['GLO-3.4.10-02', 'GLO-3.4.10-09'], TEL: ['GLO-3.4.1-02'], PLAT: ['EJ-3.3.4-01', 'EJ-3.3.4-02'] },
+  R: { EST: ['EJ-3.3.7-01', 'EJ-3.3.7-02', 'EJ-3.3.7-03', 'EJ-3.3.7-04'], CAL: ['GLO-3.4.10-06', 'GLO-3.4.10-13'], TEL: ['GLO-3.4.2-01', 'GLO-3.4.2-02', 'GLO-3.4.2-04'], RUF: ['GLO-3.4.2-03'] },
+  V: { EST: ['EJ-3.3.8-01', 'EJ-3.3.8-02', 'EJ-3.3.8-03', 'EJ-3.3.8-04'], CAL: ['GLO-3.4.10-04', 'GLO-3.4.10-11'], TEL: ['GLO-3.4.1-04'] },
+  PD: { EST: ['EJ-3.3.13-01', 'EJ-3.3.13-02', 'EJ-3.3.13-03', 'EJ-3.3.13-04', 'EJ-3.3.15-01', 'EJ-3.3.15-02', 'EJ-3.3.15-03', 'EJ-3.3.15-04'], CAL: ['GLO-3.4.10-03', 'GLO-3.4.10-10'], TEL: ['GLO-3.4.1-03'] },
+  AV: { EST: ['EJ-3.3.11-01', 'EJ-3.3.11-02', 'EJ-3.3.11-03', 'EJ-3.3.11-04'], CAL: ['GLO-3.4.10-07', 'GLO-3.4.10-14'], TEL: ['GLO-3.4.3-01', 'GLO-3.4.3-02', 'GLO-3.4.3-03', 'GLO-3.4.3-04'] },
+  E: { PLAT_EST: ['EJ-3.3.2-01', 'EJ-3.3.2-02'], PLAT_TEL: ['GLO-3.4.4-01', 'GLO-3.4.4-02', 'GLO-3.4.4-03', 'GLO-3.4.4-04'] },
+};
+const ANEXO_FRENTE = { P: 'PORTARIA', R: 'REFEITÓRIO', V: 'VESTIÁRIO', PD: 'PASSARELAS / ÁREA DE VIVÊNCIA', AV: 'PASSARELAS / ÁREA DE VIVÊNCIA', QDF: 'QDF CAG', E: 'ECLUSA', C: 'ANEXOS – COMUNS' };
+function anexoPredio(texto) {
+  const t = ganNorm(texto);
+  if (/VIVENCIA|PRACA/.test(t)) return 'AV';
+  const achou = [/PORTARIA/.test(t) && 'P', /REFEITORIO/.test(t) && 'R', /VESTIARIO/.test(t) && 'V', /PEDESTRE|PASSARELA|ONIBUS/.test(t) && 'PD', /QDF/.test(t) && 'QDF', /ECLUSA/.test(t) && 'E'].filter(Boolean);
+  return achou.length === 1 ? achou[0] : null;
+}
+// Atividades do catálogo da linha do cronograma de um anexo; null = a linha não é desse tipo (segue a busca por nome).
+function ganBmAnexoLinha(it) {
+  if (it._bmAt || it._eclusa || it.bm_percentual || !ehFrenteAnexa(it.frente) || ganNorm(it.frente).includes('GALPAO')) return null;
+  const sv = ganNorm(it.servico);
+  let pr = anexoPredio(it.frente + ' ' + it.servico);
+  if (!pr || pr === 'QDF') return null;
+  if (pr === 'E' && !ganBmAtividadesEspecificas(it).length) {
+    const k = /PLATIBANDA/.test(sv) ? (/TELHA/.test(sv) ? 'PLAT_TEL' : 'PLAT_EST') : null;
+    if (!k && !/FECHAMENTO|RUFO|ARREMATE/.test(sv)) return null;
+    return bmTab('bm_atividades').filter(a => (ANEXO_CAT.E[k] || []).includes(a.codigo));
+  }
+  if (pr === 'E') return null;
+  const tab = ANEXO_CAT[pr];
+  let tipo = /PLATIBANDA/.test(sv) ? 'PLAT' : /CALHA/.test(sv) ? 'CAL' : /TELHA/.test(sv) ? 'TEL' : /RUFO|ARREMATE/.test(sv) ? 'RUF' : /VIGA|TERCA|PILAR|ESTRUTURA/.test(sv) ? 'EST' : null;
+  let cods = tipo ? (tab[tipo] || []) : [];
+  if (!tipo && pr === 'AV') cods = [...tab.EST, ...tab.TEL];   // "Cobertura Área de Vivência": estrutura + telhas
+  return bmTab('bm_atividades').filter(a => cods.includes(a.codigo));
+}
+
 function ganBmAtividades(it) {
+  if (it._bmAt) return [it._bmAt];
+  const anexo = ganBmAnexoLinha(it);
+  if (anexo) return anexo;
   const serv = ganNorm(it.servico), frente = ganNorm(it.frente), fontes = ganServicosFonte(it).map(ganNorm);
   if (!serv || it._eclusa) return [];
   const ehFechamentoGalpao = serv === 'FECHAMENTO';
@@ -1830,6 +1869,7 @@ function ganBmMarquise(it) {
   return null;
 }
 function ganBmAtividadesEspecificas(it) {
+  if (it._bmAt) return [];
   const filtroMarquise = ganBmMarquise(it);
   if (filtroMarquise) return bmTab('bm_atividades').filter(filtroMarquise);
   if (ganNorm(it.frente) !== 'ECLUSA') return [];

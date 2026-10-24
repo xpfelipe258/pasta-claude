@@ -46,7 +46,7 @@ function plMeta(it, ativ, nDias) {
   const m = Number(it.meta_dia) > 0 ? Number(it.meta_dia) : Number(ativ?.it?.meta_dia) > 0 ? Number(ativ.it.meta_dia) : 0;
   return m > 0 ? m : it.qtd / Math.max(1, nDias);
 }
-const plInteiro = un => ['un', 'und', 'pç', 'pc'].includes(String(un || '').toLowerCase());
+const plInteiro = un => ['un', 'und', 'pç', 'pc', 'rua', 'vão', 'vao'].includes(String(un || '').toLowerCase());
 const plFmtTaxa = v => nf(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);   // taxas por dia: sempre com casas, mesmo em unidades inteiras
 const plFmt = (v, un) => { if (Math.abs(v) < 0.005) v = 0; return nf(v, plInteiro(un) ? (Math.abs(v) < 10 && v % 1 ? 1 : 0) : 1); };   // unidade inteira: casas só nos valores pequenos que não fecham
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
@@ -57,6 +57,7 @@ function plSegunda(d) { return add(d, -dow(d)); }
 // mesmo o que saiu antes do início do período. Planos salvos com o item antigo (27 un juntos) são divididos ao abrir (plMigrarEclusa).
 // ---------------------------------------------------------------- atividades (todas as do cronograma)
 function plUnidade(it) {
+  if (it._bmAt) return it._bmAt.unidade || 'un';   // atividade do catálogo do BM: a unidade é a do catálogo
   if (it._eclusa) return 'un';
   if (it.bm_percentual || it.fonte_pct) return '%';
   const s = ganNorm(it.servico);
@@ -74,22 +75,67 @@ function plEmpresasDe(it) {
   });
   return nomes;
 }
-// Todas as atividades do cronograma (Gantt), de todas as frentes e fases, ignorando o filtro de fase do topo.
+// Todas as atividades do planejamento. Galpão e Eclusa: as linhas do cronograma (Gantt), com o catálogo do BM como fonte de quantidade e preço.
+// Anexos (Portaria, Refeitório, Vestiário, Passarelas, Área de Vivência): cada linha vira as ATIVIDADES DO CATÁLOGO DO BM que ela contém (mesmo código,
+// nome, unidade, quantidade e preço de Produção/Medição), e as atividades do catálogo sem linha no cronograma entram no período do prédio.
+// Assim o valor planejado nunca passa do contrato e o que é lançado em Produção alimenta o planejamento.
+const plCodigoCurto = c => String(c || '').replace(/^[A-Z]+-/, '');
+function plDatasPredio(ls, pr) {
+  const tok = { P: /PORTARIA/, R: /REFEITORIO/, V: /VESTIARIO/, PD: /PEDESTRE|PASSARELA|VIVENCIA/, AV: /VIVENCIA|PASSARELA/, E: /ECLUSA/ }[pr];
+  const doPredio = ls.filter(l => ehFrenteAnexa(l.it.frente) && !ganNorm(l.it.frente).includes('GALPAO') && l.ini && (l.prazo || l.fimPrev) && (!tok || tok.test(ganNorm(l.it.frente + ' ' + l.it.servico))));
+  const l = doPredio.length ? doPredio : ls.filter(x => ehFrenteAnexa(x.it.frente) && !ganNorm(x.it.frente).includes('GALPAO') && x.ini && (x.prazo || x.fimPrev));
+  if (!l.length) return { ini: null, prazo: null };
+  return { ini: l.map(x => x.ini).sort()[0], prazo: l.map(x => x.prazo || x.fimPrev).sort().pop() };
+}
+// Item de planejamento de uma atividade do catálogo; modelo = linha do cronograma (ou só as datas do prédio).
+function plItemDoCatalogo(at, modelo, base) {
+  const ini = modelo.ini || null, prazo = modelo.prazo || modelo.fimPrev || null;
+  const nDias = ini && prazo ? Math.max(1, contarDiasUteis(add(ini, -1), prazo)) : 0, qtd = Number(at.qtd) || 0;
+  const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
+  const frente = modelo.it?.frente || ANEXO_FRENTE[pr] || ANEXO_FRENTE.C;
+  const it = { ...(modelo.it || {}), frente, fase: modelo.it?.fase || '1', servico: `${at.atividade} · ${plCodigoCurto(at.codigo)}`, qtd, peso: qtd || 1, meta_dia: nDias ? qtd / nDias : 0,
+    inicio_plan: ini, prazo, fontes: [], _bmAt: at, bm_percentual: false, virtual_gantt: true, _eclusa: undefined, servico_exib: undefined, responsavel: at.empresa };
+  const real = bmRealizado(at, base), brutos = ganBmDatasAtividade(at, base), tot = soma0(brutos, ([, v]) => v), fator = tot > 0 ? real / tot : 0;
+  const ds = brutos.map(([d, v]) => [d, v * fator]).filter(([, v]) => v > 0).sort((x, y) => x[0].localeCompare(y[0]));
+  const prevAc = prevCliente(it, base), status = real >= qtd - 1e-9 && qtd > 0 ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+  const linha = { it, ini, fimPrev: prazo, prazo, ri: ds.length ? ds[0][0] : null, rf: status === 'CONCLUÍDO' && ds.length ? ds[ds.length - 1][0] : (ds.length ? base : null), ultimo: ds.length ? ds[ds.length - 1][0] : null,
+    realAc: real, prevAc, pctReal: qtd ? Math.min(1, real / qtd) : 0, pctPrev: qtd ? Math.min(1, prevAc / qtd) : 0, projecao: null, status, porEmp: ds.length ? [{ nome: at.empresa, ds }] : [], dsReal: ds };
+  return { chave: 'BM|' + at.codigo, nome: cap(it.servico), frente, fase: ganFaseNumero(it), unidade: at.unidade || 'un', qtd, ini, prazo, status, realAc: real, prevAc,
+    empresas: [at.empresa], it, linha, codigo: at.codigo, itemBm: at.item, itemDesc: at.item_desc };
+}
 function plAtividades(forcar) {
   if (PL._atv && !forcar) return PL._atv;
   const f = faseFiltro;
   faseFiltro = '';
   let ls = [];
   try { ls = ganLinhas(plBase()); } finally { faseFiltro = f; }   // até a data de referência (não o fim do período da barra), senão lançamentos recentes ficam de fora
-  PL._atv = ls.map(l => {
-    let a;
-    const base = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
-      unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
-      realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
-    a = base();
-    if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
-    return a;
-  }).sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || a.nome.localeCompare(b.nome));
+  const base = plBase(), usados = new Set(), migra = new Map(), lista = [];
+  ls.forEach(l => {
+    const cat = ganBmAnexoLinha(l.it);
+    if (!cat) {
+      const base0 = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
+        unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
+        realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
+      const a = base0();
+      if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
+      lista.push(a);
+      return;
+    }
+    const novas = [];
+    cat.forEach(at => { if (usados.has(at.codigo)) return; usados.add(at.codigo); novas.push(plItemDoCatalogo(at, l, base)); });
+    migra.set(ganDataKey(l.it), novas.map(a => a.chave));   // plano salvo com a linha antiga passa para as atividades do catálogo
+    lista.push(...novas);
+  });
+  // atividades do catálogo dos anexos que não pertencem a nenhuma linha do cronograma (escadas, linha de vida, marquise, QDF, comuns...)
+  const fora = new Set(usados);
+  ECLUSA_VJ.forEach(e => (e[2] || []).forEach(c => fora.add(c)));
+  ls.forEach(l => ganBmAtividadesEspecificas(l.it).forEach(a => fora.add(a.codigo)));
+  bmTab('bm_atividades').filter(a => /^3\.(3|4)\./.test(String(a.item)) && a.codigo && !fora.has(a.codigo)).forEach(at => {
+    const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
+    lista.push(plItemDoCatalogo(at, { ...plDatasPredio(ls, pr), it: { frente: ANEXO_FRENTE[pr] || ANEXO_FRENTE.C, fase: '1' } }, base));
+  });
+  PL._migra = migra;
+  PL._atv = lista.sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || (a.it._bmAt?.linha || 0) - (b.it._bmAt?.linha || 0) || a.nome.localeCompare(b.nome));
   return PL._atv;
 }
 const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
@@ -98,6 +144,7 @@ const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
 // frente e, na Eclusa, o avanço do BM; as demais usam a série do Gantt (produção, BM e apontamentos, a fonte maior).
 function plSerieReal(a) {
   const it = a.it;
+  if (it._bmAt) return a.linha.dsReal || [];   // atividade do catálogo: o que foi lançado (grade ou BM) nessa atividade
   if (a.acumulado) return a.linha.dsReal || [];   // Eclusa – Vigas e Joists: só o que foi lançado, acumulado
   if (it.bm_percentual) return a.linha.dsReal || [];   // linha em % (Eclusa etc.): só o avanço do BM, nunca unidades da grade
   if (ehFrenteAnexa(it.frente)) {
@@ -212,6 +259,7 @@ async function plCarregar(forcar) {
   } catch { PL.dados = { planos: [] }; }
   if (!Array.isArray(PL.dados.planos)) PL.dados = { planos: [] };
   plMigrarEclusa(PL.dados.planos);
+  try { plMigrarAnexos(PL.dados.planos); } catch (e) { console.warn('migração dos anexos', e); }
   return PL.dados;
 }
 // Planos salvos com "ECLUSA – VIGAS E JOISTS" (27 un juntos) passam a ter dois itens, vigas (9) e joists (18), na proporção do contratado.
@@ -226,6 +274,21 @@ function plMigrarEclusa(planos) {
     p.itens = p.itens.flatMap(i => {
       if (!(/ECLUSA/.test(ganNorm(i.chave)) && /VIGAS E JOISTS/.test(ganNorm(i.chave + ' ' + (i.atividade || ''))))) return [i];
       return novos.map(a => { const f = a.qtd / tot; return { ...i, chave: a.chave, atividade: a.nome, unidade: 'un', qtd_contrato: a.qtd, qtd: +(Number(i.qtd) * f).toFixed(1), peso: (Number(i.peso) || 1) * f, meta_dia: i.meta_dia ? +(Number(i.meta_dia) * f).toFixed(3) : null }; });
+    });
+  });
+}
+// Planos salvos com as linhas antigas dos anexos (ex.: "Portaria – Vigas e Terças", em peças do IFC) passam a ter as atividades do catálogo do BM que a linha contém,
+// na mesma proporção do que estava planejado. A linha sem atividade no catálogo (ex.: fechamento em ACM, não contratado) sai do plano. Vale na tela; é gravada ao salvar o plano de novo.
+function plMigrarAnexos(planos) {
+  const vivas = new Set(plAtividades().map(a => a.chave)), mapa = PL._migra;
+  if (!mapa || !mapa.size) return;
+  planos.forEach(p => {
+    if (!(p.itens || []).some(i => !vivas.has(i.chave) && mapa.has(i.chave))) return;
+    p.itens = p.itens.flatMap(i => {
+      if (vivas.has(i.chave) || !mapa.has(i.chave)) return [i];
+      const f = Number(i.qtd_contrato) > 0 ? Math.min(1, Math.max(0, Number(i.qtd) / Number(i.qtd_contrato))) : 1;
+      return mapa.get(i.chave).map(plAtivPorChave).filter(Boolean).map(a => ({ ...i, chave: a.chave, atividade: a.nome, unidade: a.unidade, qtd_contrato: a.qtd,
+        qtd: plInteiro(a.unidade) ? Math.max(1, Math.round(a.qtd * f)) : +(a.qtd * f).toFixed(1), meta_dia: null, empresa: a.empresas.join(' / ') || i.empresa, o_que: `Executar ${a.nome}` }));
     });
   });
 }
@@ -332,7 +395,7 @@ function plSugLinhaHtml({ a, s }, g) {
   const un = a.unidade, marca = g.sel.has(a.chave), temAcao = s.precisa > 1e-9;
   const st = s.concluida ? 'CONCLUÍDO' : a.status;
   return `<tr class="${marca ? 'marcada' : ''}"><td><input type="checkbox" data-pl-sug-marca="${esc(a.chave)}" ${marca ? 'checked' : ''} ${temAcao ? '' : 'disabled title="Nada a realizar neste período"'}></td>
-    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div>${plExcessoHtml(a)}</td><td>${esc(plQuem(a))}</td>
+    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))}${a.itemDesc ? ` · ${esc(String(a.itemDesc).slice(0, 80))}` : ''} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div>${plExcessoHtml(a)}</td><td>${esc(plQuem(a))}</td>
     <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevPerRef, un)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${g.ini}" data-fim="${g.fim}" title="Ver de onde vem este número">${plFmt(s.realPeriodo, un)}</button></td>
     <td class="n ${s.desvioPer < -1e-9 ? 'valor-neg' : ''}">${s.desvioPer > 0 ? '+' : ''}${plFmt(s.desvioPer, un)}</td><td class="n">${plFmt(s.previstoPeriodo, un)}</td>
     <td class="n pl-precisa ${temAcao ? '' : 'ok'}" title="Saldo para cumprir o cronograma até ${fdA(PL.sug.fim)}: previsto acumulado ${plFmt(s.P1, un)} − realizado acumulado na obra ${plFmt(s.Rb, un)}${s.atraso > 1e-9 ? ' (inclui atraso anterior ao período: ' + plFmt(s.atraso, un) + ')' : ''}">${temAcao ? `<b>${plFmt(s.precisa, un)}</b> ${esc(un)}${s.atraso > 1e-9 ? `<div class="nota">inclui ${plFmt(s.atraso, un)} de atraso anterior</div>` : ''}` : '—'}</td>
@@ -701,7 +764,7 @@ function plWizRender() {
       <span class="nota"><b>${w.sel.size}</b> selecionada(s) · ${ats.length} atividades no cronograma</span></div>
       <div class="tabela-rolagem pl-lista"><table class="pl-tab"><thead><tr><th></th><th>Atividade</th><th>Frente</th><th>Empresa</th><th class="n">Contrato</th><th class="n" title="Produção lançada dentro do período do planejamento (início e fim escolhidos)">Realizado no período</th><th class="n">Precisa realizar</th><th>Cronograma</th><th>Situação</th></tr></thead><tbody>` +
       (vis.length ? vis.map(a => `<tr class="${w.sel.has(a.chave) ? 'marcada' : ''} ${sobrepoe(a) ? '' : 'fora'}"><td><input type="checkbox" data-pl-marca="${esc(a.chave)}" ${w.sel.has(a.chave) ? 'checked' : ''}></td>
-        <td><b>${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(plSugestao(a, w.inicio, w.fim).realPeriodo, a.unidade)}</td>
+        <td><b title="${esc(a.itemDesc || '')}">${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(plSugestao(a, w.inicio, w.fim).realPeriodo, a.unidade)}</td>
         <td class="n"><b>${plFmt(plSugestao(a, w.inicio, w.fim).precisa, a.unidade)}</b></td><td>${fd(a.ini)} a ${fd(a.prazo)}</td><td>${plFarol(a.status)}</td></tr>`).join('') : '<tr><td colspan="9" class="vazio">Nenhuma atividade encontrada.</td></tr>') +
       '</tbody></table></div><p class="nota">Linhas esmaecidas não têm nada a realizar no período (em dia ou concluídas); dá para marcá-las mesmo assim.</p>';
   } else {
@@ -890,7 +953,7 @@ function plOrigemRealizado(a, ini, fim, todas) {
       if (per || ac || todas) grade.push({ empresa: e.nome, coluna: s.nome, col: s.col, frente: s.frente, per, ac, dias, junta: f !== 1 });
     });
   });
-  const ats = it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
+  const ats = it._bmAt ? [it._bmAt] : it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
     : ehFrenteAnexa(it.frente) || ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);   // anexo: só as atividades do BM da própria frente (como plSerieReal)
   ats.forEach(at => {
     let per = 0, ac = 0;
