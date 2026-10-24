@@ -412,6 +412,7 @@ async function renderProjecao() {
       <label class="rot-sel">Produtividade daqui para frente <input type="range" id="pjProd" min="40" max="200" step="5" value="${PJ.prod}" style="vertical-align:middle"> <b id="pjProdTxt">${PJ.prod}%</b> <span class="nota">do ritmo atual</span></label>
       <label class="rot-sel">Colunas <select id="pjVista"><option value="semana" ${PJ.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${PJ.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
       <button class="btn" id="pjCsv">Exportar CSV</button>
+      <button class="btn primario" id="pjRel">Baixar relatório</button>
     </div></div>`;
   h += '<div class="tiles">' +
     tile('Valor do plano', rs(r.totalPlano), `${r.itens.length} atividade(s) · contrato ${esc(R)}`, 'var(--acento)') +
@@ -475,6 +476,7 @@ async function renderProjecao() {
   h += pjEquipHtml(r, eq);
   box.innerHTML = h;
   PJ._csv = { per, r, matriz, totPer, acum };
+  PJ._rel = { r, c, pl, eq, sel, empresas, per, matriz, totPer, acum, R, sim, fator, vista: PJ.vista, emp: PJ.emp, prod: PJ.prod, cob: PJ.cob };
 
   // gráfico
   const lab = r.eixo.map(fd), n0 = v => (v == null ? null : Math.round(v));
@@ -491,6 +493,112 @@ async function renderProjecao() {
       plugins: { legend: { display: true, labels: { color: cor('--fg2'), usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.raw == null ? '—' : rs(x.raw)}` } } },
       scales: eixos({ max: Math.max(r.totalPlano, 1) * 1.04, ticks: { color: cor('--fg2'), callback: v => rs(v) } }, { ticks: { color: cor('--fg2'), maxTicksLimit: 14 } }) },
   });
+}
+
+
+// ---------------------------------------------------------------- relatório (visualização padrão → Baixar PDF)
+// Curva S em imagem (fora da tela, cores claras), para o documento impresso.
+function pjCurvaImagem(d) {
+  const { r, eq, sim } = d, cv = document.createElement('canvas');
+  cv.width = 1300; cv.height = 380; cv.style.cssText = 'position:fixed;left:-9999px;top:0';
+  document.body.appendChild(cv);
+  let ch = null;
+  const n0 = v => (v == null ? null : Math.round(v));
+  try {
+    ch = new Chart(cv, {
+      type: 'line',
+      data: { labels: r.eixo.map(fd), datasets: [
+        { label: 'Planejado', data: r.planAc.map(n0), borderColor: '#2f5d8c', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
+        { label: 'Executado', data: r.realAc.map(n0), borderColor: '#1a8a4a', backgroundColor: '#1a8a4a', borderWidth: 3, pointRadius: 1.5, tension: .2 },
+        { label: sim ? `Projeção (${d.prod}% do ritmo)` : 'Projeção (ritmo atual)', data: r.projAc.map((v, k) => (k >= Math.max(r.iBase, 0) ? n0(v) : null)), borderColor: '#d99a00', borderDash: [2, 3], borderWidth: 2.5, pointRadius: 0, tension: .2 },
+        ...(eq.itens.length && eq.K > 0 ? [{ label: 'Gasto com equipamento do içamento (acumulado)', data: pjCurvaEquip(r, eq), borderColor: '#b42318', borderWidth: 2, pointRadius: 0, tension: .2 }] : []),
+        { label: 'Necessário para fechar no prazo', data: r.nec.map(n0), borderColor: '#7a8794', borderDash: [1, 4], borderWidth: 1.5, pointRadius: 0, tension: 0 },
+      ] },
+      options: { responsive: false, animation: false, scales: { y: { beginAtZero: true, max: Math.max(r.totalPlano, 1) * 1.04, ticks: { callback: v => rs(v) } }, x: { ticks: { maxTicksLimit: 14 } } }, plugins: { legend: { position: 'top' } } },
+      plugins: [{ id: 'fundo', beforeDraw: c => { c.ctx.save(); c.ctx.fillStyle = '#fff'; c.ctx.fillRect(0, 0, c.width, c.height); c.ctx.restore(); } }],
+    });
+    return ch.toBase64Image('image/png', 1);
+  } catch (e) { console.error(e); return ''; } finally { if (ch) ch.destroy(); cv.remove(); }
+}
+const pjBarraRel = (p, h = 10) => { const w = v => Math.max(0, Math.min(100, v * 100)); return `<div style="position:relative;height:${h}px;background:#e6eaef;border-radius:5px;overflow:hidden;min-width:120px"><div style="position:absolute;left:0;top:0;bottom:0;width:${w(p.proj)}%;background:#f3d27a"></div><div style="position:absolute;left:0;top:0;bottom:0;width:${w(p.real)}%;background:#2e9d5c"></div><div style="position:absolute;top:0;bottom:0;left:${w(p.plan)}%;width:2px;background:#222"></div></div>`; };
+
+async function pjRelatorio() {
+  const d = PJ._rel; if (!d) return;
+  const btn = document.getElementById('pjRel'), rot = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Montando…'; }
+  try {
+    await tplLogosCarregar();
+    const { r, c, eq, per, matriz, totPer, acum, R, sim } = d, vista = d.vista;
+    const un = x => esc(x.it.unidade);
+    const desv = r.exec - r.planoAteHoje, pctFis = r.totalPlano ? r.exec / r.totalPlano * 100 : 0, pctPrev = r.totalPlano ? r.planoAteHoje / r.totalPlano * 100 : 0;
+    const aoFim = r.aoFimPlano ?? 0, foraPrazo = Math.max(0, r.totalPlano - aoFim);
+    const card = (rt, v, sub, cl) => `<div class="card ${cl}"><div class="rot">${rt}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
+    const fimPer = k => (vista === 'mes' ? k + '-31' : add(k, 6));
+    const cls = k => (fimPer(k) <= r.base ? 'pj-real' : (k <= r.base ? 'pj-misto' : 'pj-proj'));
+    const planosTxt = (d.pl.itens ? [...new Set(d.pl.itens.map(i => i._planoNome).filter(Boolean))] : []).join(', ');
+    const g = pjTotaisPct(r), img = pjCurvaImagem(d);
+    const resumoEmp = d.emp ? [] : pjResumoEmpresas(d.sel, d.empresas, d.fator, R);
+
+    const secResumoEmp = resumoEmp.length > 1 ? `<h2>Resumo por empresa</h2>` + reTab(['Empresa', '#nAtividades', '#nValor do plano', '#nPlanejado até hoje', '#nRealizado', '#nProjetado no fim do plano', 'Realizado × projetado'],
+      resumoEmp.map(e => `<tr><td><b>${esc(e.nome)}</b></td><td class="n">${e.n}</td><td class="n">${rs(e.total)}</td><td class="n">${pjPct(e.g.plan)}</td><td class="n"><b>${pjPct(e.g.real)}</b></td><td class="n">${pjPct(e.g.proj)}</td><td>${pjBarraRel(e.g)}</td></tr>`)) : '';
+
+    const secPainel = `<h2>Painel — realizado × projetado (% do valor do plano)</h2><p class="sub-cab">Verde = realizado · amarelo = projetado até o fim do plano · traço preto = planejado até hoje.</p>` +
+      reTab(['Atividade', 'Quem', '#nPlanejado até hoje', '#nRealizado', '#nProjetado no fim', 'Realizado × projetado', 'Situação'],
+        r.itens.map(i => { const p = pjPcts(i, r), est = pjEstado(i, r.base);
+          return `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td>${esc(plEmpresasDoItem(i.x.it, i.x.ativ).join(' / ') || i.x.it.empresa || '—')}</td><td class="n">${pjPct(p.plan)}</td><td class="n"><b>${pjPct(p.real)}</b></td><td class="n">${pjPct(p.proj)}</td><td>${pjBarraRel(p)}</td><td>${esc(est.rot)}<div class="nota">${esc(est.dica)}</div></td></tr>`; }),
+        `<tfoot><tr><th colspan="2">Total (ponderado pelo valor)</th><th class="n">${pjPct(g.plan)}</th><th class="n">${pjPct(g.real)}</th><th class="n">${pjPct(g.proj)}</th><td>${pjBarraRel(g)}</td><th></th></tr></tfoot>`);
+
+    const linhasAtiv = r.itens.map(i => {
+      const x = i.x, planoHoje = Math.min(x.planAc, i.qtd) * i.p, exec = Math.min(x.realAc, i.qtd) * i.p;
+      let ac = Math.min(i.qtd, x.realAc);
+      i.proj.forEach((v, dd) => { if (dd <= r.fimPlano) ac += v; });
+      const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p, est = pjEstado(i, r.base);
+      const div = Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 ? x.it.divisao.map(e => `<div class="nota"><b>${esc(e.empresa)}</b>: ${plFmt(e.qtd, x.it.unidade)} ${esc(x.it.unidade)}${e.valor != null ? ' · ' + rs(e.valor) : ''} · ${fdA(e.inicio || x.it.inicio)} a ${fdA(e.fim || x.it.fim)}${e.como ? ' · ' + esc(e.como) : ''}</div>`).join('') : '';
+      return `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fdA(x.it.inicio)} a ${fdA(x.it.fim)}${x.it.como ? ' · Como: ' + esc(x.it.como) : ''}</div>${div}</td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
+        <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${un(x)}</td><td class="n">${i.p ? rs2(i.p) : '—'}${i.pr.manual ? '<div class="nota">preço digitado</div>' : ''}</td><td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><b>${rs(exec)}</b></td>
+        <td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td><td class="n">${rs(noFim)}</td><td class="n">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td>${esc(est.rot)}</td></tr>`;
+    });
+    const secAtiv = `<h2>Por atividade</h2><p class="sub-cab">Preço unitário = valor da atividade no BM ÷ quantidade do item no cronograma (ou o preço digitado na Projeção). Executado = lançado até ${fdA(c.baseRef)}.</p>` +
+      reTab(['Atividade', 'Quem', '#nQuantidade', '#nPreço unit.', '#nValor do plano', '#nPlanejado até hoje', '#nExecutado (R$)', '#n% físico', '#nProjeção no fim do plano', '#nTermina em', '#nSaldo a medir', 'Situação'], linhasAtiv,
+        `<tfoot><tr><th colspan="4">Total</th><th class="n">${rs(r.totalPlano)}</th><th class="n">${rs(r.planoAteHoje)}</th><th class="n">${rs(r.exec)}</th><th class="n">${nf(pctFis, 0)}%</th><th class="n">${rs(aoFim)}</th><th class="n">${r.termina ? fdA(r.termina) : '—'}</th><th class="n">${rs(soma0(r.itens, i => Math.max(0, i.qtd - i.x.realAc) * i.p))}</th><th></th></tr></tfoot>`);
+
+    let matHtml = `<thead><tr><th>Atividade</th><th class="n">Valor do plano</th>${per.map(k => `<th class="n ${cls(k)}">${pjRotPeriodo(k, vista)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
+    r.itens.forEach((i, ix) => { const tot = soma0(matriz[ix], m => m.ex + m.pj);
+      matHtml += `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td class="n">${rs(i.valor)}</td>${matriz[ix].map((m, j) => { const v = m.ex + m.pj; return `<td class="n ${cls(per[j])}">${v > 0.5 ? rs(v) : ''}</td>`; }).join('')}<td class="n"><b>${rs(tot)}</b></td></tr>`; });
+    matHtml += `</tbody><tfoot>
+      <tr><th>Planejado no período</th><th class="n">${rs(r.totalPlano)}</th>${totPer.map(t => `<th class="n">${t.pla > 0.5 ? rs(t.pla) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.pla))}</th></tr>
+      <tr><th>Executado + projetado no período</th><th></th>${totPer.map((t, j) => `<th class="n ${cls(per[j])}">${t.ex + t.pj > 0.5 ? rs(t.ex + t.pj) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.ex + t.pj))}</th></tr>
+      <tr><th>Acumulado planejado</th><th></th>${acum.map(a => `<th class="n">${rs(a.p)}</th>`).join('')}<th></th></tr>
+      <tr><th>Acumulado executado + projetado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${rs(a.e)}</th>`).join('')}<th></th></tr>
+      <tr><th>% físico-financeiro acumulado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${r.totalPlano ? nf(Math.min(100, a.e / r.totalPlano * 100), 0) + '%' : ''}</th>`).join('')}<th></th></tr>
+      <tr><th>Desvio acumulado (projetado − planejado)</th><th></th>${acum.map(a => `<th class="n ${a.e - a.p < -0.5 ? 'valor-neg' : ''}">${(a.e - a.p >= 0 ? '+' : '−') + rs(Math.abs(a.e - a.p))}</th>`).join('')}<th></th></tr></tfoot>`;
+    const secMatriz = `<h2>Cronograma físico-financeiro por ${vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = executado · amarelas = projetado · a que contém ${fdA(r.base)} mistura os dois. Projetado = saldo distribuído por dia útil no ritmo atual × ${d.prod}%.</p><div class="cff-mat"><table>${matHtml}</table></div>`;
+
+    let secEquip = '';
+    if (eq.itens.length && eq.K > 0) {
+      const totalProj = eq.totReal + eq.totProj, fat = soma0(eq.itens, i => Math.min(i.qtd, i.x.realAc) * i.p) + soma0(eq.itens, i => { let q = 0; i.proj.forEach(v => { q += v; }); return Math.min(i.qtd - Math.min(i.qtd, i.x.realAc), q) * i.p; });
+      secEquip = `<h2>Gasto com equipamento — içamento de joist e vigas</h2><p class="sub-cab">Conjunto: ${esc(eq.kit.join(' + ') || '—')} · diária do conjunto ${rs2(eq.K)} · ${d.cob === 'corridos' ? 'todos os dias corridos' : 'só dias com içamento'}.</p>
+        <div class="cards">${card('Gasto planejado', rs(eq.totPlan), 'no plano', 'nd')}${card('Gasto até hoje', rs(eq.totReal), `até ${fdA(eq.base)}`, 'vd')}${card('Gasto projetado', rs(eq.totProj), `total até concluir ${rs(totalProj)}`, 'am')}${card('Equipamento ÷ faturamento', fat > 0 ? nf(totalProj / fat * 100, 1) + '%' : '—', `faturamento do içamento ${rs(fat)}`, 'vm')}${card('Margem bruta do içamento', rs(fat - totalProj), 'faturamento − equipamento', fat - totalProj < 0 ? 'vm' : 'vd')}</div>` +
+        reTab(['Atividade', '#nQtd do plano', '#nGasto planejado', '#nGasto até hoje', '#nGasto projetado', '#nTotal até concluir'], eq.porItem.map(x => `<tr><td><b>${esc(x.i.x.it.atividade)}</b></td><td class="n">${plFmt(x.i.qtd, x.i.x.it.unidade)} ${esc(x.i.x.it.unidade)}</td><td class="n">${rs(x.plan)}</td><td class="n">${rs(x.exec)}</td><td class="n">${rs(x.proj)}</td><td class="n"><b>${rs(x.exec + x.proj)}</b></td></tr>`));
+    }
+
+    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:340px;object-fit:contain}td .nota{font-size:9px;color:#555;white-space:normal}</style>`;
+    const corpo = `<section class="emp-sec"><div class="pag">
+      <p class="sub-cab"><b>Escopo:</b> ${d.emp ? 'empresa ' + esc(d.emp) : 'todas as empresas'} · contrato ${esc(R)} · produtividade ${d.prod}% do ritmo atual · posição em ${fdA(c.baseRef)}${planosTxt ? ' · planos: ' + esc(planosTxt) : ''}.</p>
+      <div class="cards">${card('Valor do plano', rs(r.totalPlano), `${r.itens.length} atividade(s) · contrato ${esc(R)}`, 'az')}${card('Planejado até hoje', rs(r.planoAteHoje), `${nf(pctPrev, 1)}% do valor do plano`, 'nd')}${card('Executado até hoje', rs(r.exec), `${nf(pctFis, 1)}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(r.planoAteHoje, 1) ? 'vm' : desv < 0 ? 'am' : 'vd')}${card(`Projeção no fim do plano${sim ? ' (simulada)' : ''}`, rs(aoFim), `${r.totalPlano ? nf(aoFim / r.totalPlano * 100, 0) : 0}% do plano${foraPrazo > 0.5 ? ' · ' + rs(foraPrazo) + ' ficam para depois' : ' · fecha no prazo'}`, foraPrazo > 0.5 ? 'vm' : 'vd')}${card('Término projetado', r.termina ? fdA(r.termina) : '—', r.termina && r.termina > r.fimPlano ? `${contarDiasUteis(r.fimPlano, r.termina)} dias úteis depois do fim do plano (${fdA(r.fimPlano)})` : `plano termina em ${fdA(r.fimPlano)}`, r.termina && r.termina > r.fimPlano ? 'am' : 'vd')}</div>
+      ${r.semValor.length ? `<p class="aviso">${r.semValor.length} atividade(s) sem valor no BM (R$ 0): ${r.semValor.map(i => esc(i.x.it.atividade)).join(', ')}.</p>` : ''}
+      ${secResumoEmp}
+      ${secPainel}
+      ${img ? `<h2>Curva S financeira (R$ acumulado)</h2><p class="sub-cab">Tracejada = planejado · verde = executado · amarela pontilhada = projeção · cinza = necessário para fechar no prazo.</p><img class="cff-curva" src="${img}" alt="Curva S financeira">` : ''}
+      ${secAtiv}
+      ${secMatriz}
+      ${secEquip}
+      <p class="sub-cab">É uma simulação a partir do planejamento 5W2H e do que foi lançado; não substitui a medição (BM).</p>
+    </div></section>`;
+    const html = tplDocumento({ titulo: 'Projeção físico-financeira', subtitulo: `${d.emp || 'Todas as empresas'} — plano ${fdA(r.inicioPlano || r.eixo[0])} a ${fdA(r.fimPlano)} · posição em ${fdA(c.baseRef)}`, meta: 'Planejado = divisão do plano 5W2H · executado = lançamentos e apontamentos do BM · projeção = saldo no ritmo atual · valor = catálogo do BM', corpo, css });
+    reAbrirPrevia(html, `projecao-fisico-financeira-${(d.emp || 'geral').replace(/\s+/g, '-')}-${c.baseRef}`, `Projeção físico-financeira · ${d.emp || 'Todas as empresas'}`);
+  } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
 
 function pjCsv() {
@@ -534,6 +642,7 @@ document.addEventListener('click', ev => {
   if (reset) { delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
   if (ev.target.closest && ev.target.closest('[data-pj-kit-auto]')) { delete pjCfg().kit; pjGravarCfg({ kit: null }).then(renderProjecao); return; }
   if (ev.target.id === 'pjCsv') pjCsv();
+  if (ev.target.id === 'pjRel') pjRelatorio();
 });
 
 // volta para a aba depois de lançar produção em outra janela/aba do navegador: relê os dados para refletir o que foi salvo
