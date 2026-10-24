@@ -65,6 +65,14 @@ try {
             if (!is_array($d)) {
                 responder_json(404, ['erro' => 'Esta obra não tem o mapa de peças.']);
             }
+            try {   // projetos em PDF guardados na importação: a tela do mapa oferece abrir cada prancha ao lado do desenho
+                require_once __DIR__ . '/inc/importacao.php';
+                $d['projetos'] = array_map(function ($r) { return ['id' => (int)$r['id'], 'nome' => $r['nome_original']]; },
+                    array_values(array_filter(q_global("SELECT id, nome_original FROM obra_documentos WHERE obra_id = ? AND tipo = 'projetos' AND status = 'valido' ORDER BY id", [obra_atual_id()])->fetchAll(),
+                        function ($r) { return importacao_extensao($r['nome_original']) === 'pdf'; })));
+            } catch (Throwable $e) {
+                $d['projetos'] = [];
+            }
             responder_json(200, $d);
         }
         if ($rota === 'frentes-montagem') {
@@ -135,7 +143,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -149,7 +157,7 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
-        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
+        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
@@ -1896,6 +1904,20 @@ function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
         q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $atv['codigo'], $novo, 'peças apontadas no mapa de montagem']);
     }
     return ['bm' => ['codigo' => $atv['codigo'], 'data' => $data, 'total' => $novo, 'delta' => $delta]];
+}
+
+function acao_mapa_obra_atualizar(array $corpo, array $usuario)
+{
+    if (($usuario['perfil'] ?? '') !== 'admin') {
+        throw new ErroValidacao('Só o administrador pode refazer o mapa pela leitura do IFC.');
+    }
+    require_once __DIR__ . '/inc/importacao.php';
+    require_once __DIR__ . '/inc/importacao_leitura.php';
+    try {
+        return importacao_atualizar_mapa(obra_atual_id());
+    } catch (RuntimeException $e) {
+        throw new ErroValidacao($e->getMessage());
+    }
 }
 
 function acao_apontamento_pecas(array $corpo, array $usuario)

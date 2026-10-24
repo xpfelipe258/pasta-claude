@@ -128,8 +128,9 @@ function idf_mapa(array $modelo, array $faseItem)
         if ($guid === '' || isset($vistos[$guid])) continue;
         $vistos[$guid] = true;
         $p = $c['pos'] ?? null;
+        $xy = $c['xy'] ?? [null, null, null, null];   // posição no plano da malha (mm): início, e vetor até a outra ponta
         $pecas[] = [$c['fase'], $c['produto'], $c['marca'], $p['v'][0] ?? null, $p['v'][1] ?? null, $p['h'][0] ?? null, $p['h'][1] ?? null, $guid,
-            idf_grupo($c['produto'], $c['fase'])];
+            idf_grupo($c['produto'], $c['fase']), $xy[0], $xy[1], $xy[2], $xy[3], (int)round($c['comprimento_mm'] ?? 0)];
     }
     $fases = [];
     foreach ($modelo['fases'] as $f) $fases[] = $f + ['item'=>$faseItem[$f['fase']] ?? ''];

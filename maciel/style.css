@@ -1220,3 +1220,13 @@ dialog.dlg-mat-lote { width: min(520px, calc(100vw - 32px)); }
 dialog.dlg-mat-lote .mat-lote-corpo { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 dialog.dlg-mat-lote input[type="text"], dialog.dlg-mat-lote select { padding: 7px 9px; border: 1px solid var(--linha); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
 dialog.dlg-mat-lote .mat-lote-forcar { flex-direction: row; align-items: center; gap: 8px; font-size: .8rem; }
+
+/* Apontar montagem (obra importada): planta do projeto */
+.mo-planta { border: 1px solid var(--linha); border-radius: 8px; background: #fff; padding: 4px; display: inline-block; }
+.mo-planta-barra { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; font-size: .78rem; }
+.mo-leg { display: inline-flex; align-items: center; gap: 6px; }
+.mo-leg i { width: 18px; height: 6px; border-radius: 3px; display: inline-block; }
+.mo-zoom { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+#aba-apont details.bloco > summary { cursor: pointer; padding: 4px 0; }
+.mo-projetos { display: flex; flex-wrap: wrap; gap: 8px; }
+.mo-projetos a.btn { text-decoration: none; }

@@ -378,6 +378,7 @@ async function carregar() {
   $('#btnImportarEq').hidden = rec.importar_mensal === false;
   if (j.usuario) {
     const u = j.usuario;
+    window.USUARIO_PERFIL = u.perfil;
     $('#usuarioBox').hidden = false;
     $('#usuarioBox').innerHTML = `<span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
     const menuDash = document.getElementById('menuDashboardGeral');

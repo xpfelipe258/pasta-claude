@@ -1,7 +1,7 @@
 // Apontar montagem por peça — obras criadas pela importação automática.
 // O mapa vem do IFC (rota mapa-obra): cada conjunto tem fase, produto, marca e a posição na malha de eixos (V × H).
 // Cada célula do mapa agrupa as peças que ficam naquele ponto; clicar seleciona as pendentes da célula e "Salvar" aponta na atividade do BM.
-const MO = { dados: null, pend: null, fase: '', produto: '', atividade: '', empresa: '', data: '', regular: false, qtd: '', obs: '', sel: new Map(), cel: null, histSel: new Set(), idx: null };
+const MO = { zoom: 1, dados: null, pend: null, fase: '', produto: '', atividade: '', empresa: '', data: '', regular: false, qtd: '', obs: '', sel: new Map(), cel: null, histSel: new Set(), idx: null };
 
 const moNum = r => { const m = /(\d+)/.exec(String(r || '')); return m ? parseInt(m[1], 10) : 0; };
 const moSufixo = r => (/\d+([A-Za-z]*)/.exec(String(r || '')) || [, ''])[1].toLowerCase();
@@ -26,7 +26,8 @@ function moIndice() {
   const eixosV = [...V].sort(moOrdEixo), eixosH = [...H].sort(moOrdEixo);
   const iv = new Map(eixosV.map((e, i) => [e, i])), ih = new Map(eixosH.map((e, i) => [e, i]));
   // posição em "meia casa": linha do eixo = índice par, vão entre dois eixos = índice ímpar
-  const pecas = d.pecas.map(p => ({ fase: p[0], produto: p[1], marca: p[2], guid: p[7], grupo: p[8], posicionada: !!(p[3] && p[4] && p[5] && p[6]), cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]) }));
+  const pecas = d.pecas.map(p => ({ fase: p[0], produto: p[1], marca: p[2], guid: p[7], grupo: p[8], posicionada: !!(p[3] && p[4] && p[5] && p[6]), cx: iv.get(p[3]) + iv.get(p[4]), cy: ih.get(p[5]) + ih.get(p[6]),
+    v: [p[3], p[4]], h: [p[5], p[6]], x: p[9], y: p[10], dx: p[11] || 0, dy: p[12] || 0, temXY: p[9] != null && p[10] != null }));
   const porFase = new Map();
   pecas.forEach(p => { if (!porFase.has(p.fase)) porFase.set(p.fase, []); porFase.get(p.fase).push(p); });
   MO.idx = { eixosV, eixosH, pecas, porFase };
@@ -93,6 +94,62 @@ function moEstadoCelula(pecas, apont) {
   return { total: pecas.length, feitas };
 }
 
+// ---------------------------------------------------------------- planta do projeto (IFC): cada peça no seu lugar, na escala dos eixos
+// Posição, comprimento e direção vêm do IFC (colocação da peça no modelo; sem ela, do código de posição entre eixos). Mesma lógica para qualquer obra importada.
+const MO_COR = { feita: '#12b76a', sel: '#2563eb', pend: '#1f2937', fora: '#cbd5e1' };
+function moLimites(pecas) {
+  const L = (MO.dados.malha && MO.dados.malha.linhas) || [];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const ponto = (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; };
+  L.forEach(l => { ponto(l[1], l[2]); ponto(l[3], l[4]); });
+  pecas.forEach(p => { if (p.temXY) { ponto(p.x, p.y); ponto(p.x + p.dx, p.y + p.dy); } });
+  if (!isFinite(x0)) return null;
+  const mx = Math.max(6000, (x1 - x0) * .03), my = Math.max(6000, (y1 - y0) * .05);
+  return { x0: x0 - mx, x1: x1 + mx, y0: y0 - my, y1: y1 + my };
+}
+function moPlantaSvg(apont) {
+  const todas = (moIndice().porFase.get(MO.fase) || []).filter(p => !MO.produto || p.produto === MO.produto);
+  const comXY = todas.filter(p => p.temXY), semXY = todas.length - comXY.length;
+  const lim = moLimites(comXY);
+  if (!lim) return '<p class="vazio">O modelo importado não trouxe coordenadas para estas peças. Use o resumo por ponto da malha, abaixo.</p>';
+  const W = Math.max(600, ($('#moMapa') || { clientWidth: 1300 }).clientWidth || 1300) * MO.zoom, spanX = lim.x1 - lim.x0, spanY = lim.y1 - lim.y0;
+  const ppm = W / spanX, H = spanY * ppm, fs = 11 / ppm, tam = 7 / ppm;   // px por mm; fonte de 11 px e marcadores de 7 px, qualquer que seja o zoom
+  const Y = y => lim.y1 - y, X = x => x;
+  let svg = `<svg id="moSvg" viewBox="${lim.x0} 0 ${spanX} ${spanY}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font:${fs}px system-ui;user-select:none;touch-action:none">`;
+  ((MO.dados.malha && MO.dados.malha.linhas) || []).forEach(l => {
+    const vert = Math.abs(l[1] - l[3]) <= Math.abs(l[2] - l[4]);
+    svg += `<line x1="${X(l[1])}" y1="${Y(l[2])}" x2="${X(l[3])}" y2="${Y(l[4])}" stroke="#d0d5dd" stroke-dasharray="${5 / ppm} ${4 / ppm}" stroke-width="${1 / ppm}"/>`;
+    if (vert) svg += `<text data-mo-eixo="${esc(l[0])}" x="${X(l[1])}" y="${Y(Math.max(l[2], l[4])) - fs * .4}" text-anchor="middle" fill="#475467" style="cursor:pointer;font-weight:600"><title>Selecionar as peças pendentes do eixo ${esc(l[0])}</title>${esc(l[0])}</text>`;
+    else svg += `<text data-mo-eixo="${esc(l[0])}" x="${X(Math.min(l[1], l[3])) - fs * .5}" y="${Y(l[2]) + fs * .35}" text-anchor="end" fill="#475467" style="cursor:pointer;font-weight:600"><title>Selecionar as peças pendentes do eixo ${esc(l[0])}</title>${esc(l[0])}</text>`;
+  });
+  let nFeita = 0, nSel = 0, nPend = 0;
+  comXY.forEach(p => {
+    const feita = apont.has(p.guid + '|' + MO.atividade), sel = MO.sel.has(p.guid), el = moElegivel(p);
+    const cor = feita ? MO_COR.feita : sel ? MO_COR.sel : el ? MO_COR.pend : MO_COR.fora;
+    if (feita) nFeita++; else if (sel) nSel++; else if (el) nPend++;
+    const tit = `<title>${esc(`${p.marca || '(sem marca)'} · ${p.produto}${feita ? ' · apontada nesta atividade' : sel ? ' · selecionada' : el ? ' · pendente' : ' · fora desta atividade/vínculo'}`)}</title>`;
+    const sel1 = el && !feita ? ` data-mo-p="${esc(p.guid)}" style="cursor:pointer"` : '';
+    const comp = Math.hypot(p.dx, p.dy);
+    const larg = /JOIST/i.test(p.produto) ? 4 : (comp > 2500 ? 3 : 2.2);
+    if (comp > 300) svg += `<line${sel1} x1="${X(p.x)}" y1="${Y(p.y)}" x2="${X(p.x + p.dx)}" y2="${Y(p.y + p.dy)}" stroke="${cor}" stroke-width="${larg / ppm}" stroke-linecap="round" opacity="${el || feita ? 1 : .55}">${tit}</line>`;
+    else svg += `<rect${sel1} x="${X(p.x) - tam / 2}" y="${Y(p.y) - tam / 2}" width="${tam}" height="${tam}" rx="${tam * .2}" fill="${cor}" opacity="${el || feita ? 1 : .55}">${tit}</rect>`;
+  });
+  svg += '</svg>';
+  const leg = (c, t) => `<span class="mo-leg"><i style="background:${c}"></i>${t}</span>`;
+  return `<div class="mo-planta-barra">${leg(MO_COR.pend, `Pendente (${nf(nPend)})`)}${leg(MO_COR.sel, `Selecionada (${nf(nSel)})`)}${leg(MO_COR.feita, `Apontada nesta atividade (${nf(nFeita)})`)}${leg(MO_COR.fora, 'Fora desta atividade / vínculo a confirmar')}
+    <span class="mo-zoom"><button class="btn" data-mo-acao="zoom-" title="Reduzir">−</button><b>${nf(MO.zoom * 100)}%</b><button class="btn" data-mo-acao="zoom+" title="Ampliar">+</button><button class="btn" data-mo-acao="zoom1">Ajustar</button></span>
+    ${semXY ? `<span class="nota">${nf(semXY)} peça(s) sem coordenadas no modelo: use o resumo por ponto da malha ou a lista, abaixo.</span>` : ''}</div>
+    <div class="mo-planta" id="moPlanta">${svg}</div>
+    <p class="nota">Cada traço é uma peça, no lugar e no comprimento do projeto (IFC). Clique para marcar, arraste sobre o mapa para marcar várias, clique no nome do eixo para marcar as pendentes daquele eixo. Passe o mouse para ver a marca.</p>`;
+}
+function moPintar(el, marcar) {   // pinta na hora (sem redesenhar) durante o arraste
+  const g = el.dataset.moP, p = (moIndice().porFase.get(MO.fase) || []).find(x => x.guid === g);
+  if (!p) return;
+  if (marcar) MO.sel.set(g, p); else MO.sel.delete(g);
+  el.setAttribute(el.tagName === 'line' ? 'stroke' : 'fill', marcar ? MO_COR.sel : MO_COR.pend);
+}
+let moArraste = null;
+
 function moMapaSvg(apont) {
   const ix = moIndice(), W = 22, Hh = 18, ML = 44, MT = 30;
   const nx = Math.max(1, ix.eixosV.length * 2 - 1), ny = Math.max(1, ix.eixosH.length * 2 - 1);
@@ -155,8 +212,13 @@ function moHtml() {
       <span class="nota">${at ? `Atividade: <b>${esc(at.atividade)}</b> · empresa ${esc(at.empresa)} · contrato ${nf(at.qtd, 2)} ${esc(at.unidade || '')}` : 'Escolha uma atividade do catálogo do BM.'}</span>
     </div>
   </div>
-  <div class="bloco"><div class="bloco-cab"><h2>Mapa da fase (eixos V × H do projeto)</h2><span class="nota">Branco = pendente · amarelo = parcial · verde = apontado na atividade escolhida · contorno laranja = selecionado. O número é a quantidade de peças naquele ponto.</span></div>
-    <div class="tabela-rolagem" id="moMapa">${moMapaSvg(apont)}</div></div>
+  ${moIndice().pecas.some(p => p.temXY) ? '' : `<div class="aviso">Esta obra foi importada antes da planta do projeto: as peças ainda não têm posição no desenho. ${window.USUARIO_PERFIL === 'admin' ? '<button class="btn primario" data-mo-acao="atualizar-mapa">Atualizar a planta pelo IFC guardado</button>' : 'Peça ao administrador para atualizar a planta pelo IFC.'}</div>`}
+  <div class="bloco"><div class="bloco-cab"><h2>Planta da fase (projeto IFC)</h2></div>
+    <div class="tabela-rolagem" id="moMapa">${moPlantaSvg(apont)}</div></div>
+  ${(MO.dados.projetos || []).length ? `<div class="bloco"><div class="bloco-cab"><h2>Projetos em PDF desta obra</h2><span class="nota">Abra a prancha para conferir o desenho antes de apontar.</span></div>
+    <div class="mo-projetos">${MO.dados.projetos.map(d => `<a class="btn" href="obra_doc.php?id=${d.id}" target="_blank" rel="noopener">${esc(d.nome)}</a>`).join('')}</div></div>` : ''}
+  <details class="bloco" id="moResumoPontos" ${MO._abrePontos ? 'open' : ''}><summary><b>Resumo por ponto da malha</b> <span class="nota">(cada quadrado agrupa as peças do mesmo ponto: branco = pendente, amarelo = parcial, verde = apontado)</span></summary>
+    <div class="tabela-rolagem" id="moMapaPontos">${MO._abrePontos ? moMapaSvg(apont) : ''}</div></details>
   ${moListaPecas(apont)}
   <div class="bloco"><div class="bloco-cab"><h2>Produtos da fase</h2></div>
     <div class="tabela-rolagem"><table><thead><tr><th>Produto</th><th class="n">Peças</th><th class="n">Apontadas</th><th class="n">Pendentes</th><th>Avanço</th></tr></thead><tbody>
@@ -195,6 +257,16 @@ async function moSalvar() {
   } catch (e) { toast(e.message, true); }
 }
 
+async function moAtualizarMapa(btn) {
+  btn.disabled = true; btn.textContent = 'Lendo o IFC… (pode levar até 1 minuto)';
+  try {
+    const r = await postar(API + 'mapa-obra/atualizar', {});
+    MO.dados = null; MO.pend = null; MO.idx = null; MO.sel = new Map();
+    toast(`Planta atualizada: ${nf(r.com_posicao)} de ${nf(r.pecas)} peças com posição, ${nf(r.eixos)} eixos.`, false, 6000);
+    renderApontGenerico();
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = 'Atualizar a planta pelo IFC guardado'; }
+}
+
 async function moExcluir() {
   const linhas = [...MO.histSel];
   if (!linhas.length) return;
@@ -226,6 +298,44 @@ document.addEventListener('input', ev => {
   const c = ev.target.closest('input[data-mo="qtd"], input[data-mo="obs"]');
   if (c) MO[c.dataset.mo] = c.value;
 });
+// arraste sobre a planta: o primeiro traço define se o gesto marca ou desmarca; clique simples faz o mesmo no traço clicado
+document.addEventListener('mousedown', ev => {
+  const el = ev.target.closest && ev.target.closest('#moMapa [data-mo-p]');
+  if (!el || ev.button !== 0) return;
+  ev.preventDefault();
+  moArraste = { marcar: !MO.sel.has(el.dataset.moP), mexeu: false };
+  moPintar(el, moArraste.marcar); moArraste.mexeu = true;
+});
+document.addEventListener('mouseover', ev => {
+  if (!moArraste) return;
+  const el = ev.target.closest && ev.target.closest('#moMapa [data-mo-p]');
+  if (el && MO.sel.has(el.dataset.moP) !== moArraste.marcar) { moPintar(el, moArraste.marcar); moArraste.mexeu = true; }
+});
+document.addEventListener('mouseup', () => {
+  if (!moArraste) return;
+  const mexeu = moArraste.mexeu; moArraste = null;
+  if (mexeu) renderApontGenerico();   // atualiza contadores e o botão Salvar
+});
+document.addEventListener('click', ev => {
+  const t = ev.target.closest && ev.target.closest('#moMapa [data-mo-eixo]');
+  if (!t) return;
+  const nome = t.dataset.moEixo, linha = ((MO.dados.malha && MO.dados.malha.linhas) || []).find(l => l[0] === nome);
+  if (!linha) return;
+  const vert = Math.abs(linha[1] - linha[3]) <= Math.abs(linha[2] - linha[4]), tol = 2500, apont = moApontadas();
+  const pecas = moPecasVisiveis().filter(p => p.temXY && !apont.has(p.guid + '|' + MO.atividade) && (vert
+    ? Math.abs(p.x - linha[1]) <= tol && Math.abs(p.x + p.dx - linha[1]) <= tol + 1500
+    : Math.abs(p.y - linha[2]) <= tol && Math.abs(p.y + p.dy - linha[2]) <= tol + 1500));
+  const todas = pecas.length && pecas.every(p => MO.sel.has(p.guid));
+  pecas.forEach(p => { if (todas) MO.sel.delete(p.guid); else MO.sel.set(p.guid, p); });
+  renderApontGenerico();
+});
+document.addEventListener('toggle', ev => {   // o resumo por ponto só é desenhado quando aberto
+  const d = ev.target;
+  if (!d || d.id !== 'moResumoPontos') return;
+  MO._abrePontos = d.open;
+  const alvo = $('#moMapaPontos');
+  if (alvo) alvo.innerHTML = d.open ? moMapaSvg(moApontadas()) : '';
+}, true);
 document.addEventListener('click', ev => {
   const cel = ev.target.closest('[data-mo-cel]');
   if (cel) {
@@ -244,6 +354,10 @@ document.addEventListener('click', ev => {
     moPecasVisiveis().forEach(p => { if (!apont.has(p.guid + '|' + MO.atividade)) MO.sel.set(p.guid, p); });
     renderApontGenerico();
   }
+  else if (a === 'atualizar-mapa') moAtualizarMapa(b);
+  else if (a === 'zoom+') { MO.zoom = Math.min(8, MO.zoom * 1.5); renderApontGenerico(); }
+  else if (a === 'zoom-') { MO.zoom = Math.max(1, MO.zoom / 1.5); renderApontGenerico(); }
+  else if (a === 'zoom1') { MO.zoom = 1; renderApontGenerico(); }
   else if (a === 'salvar') moSalvar();
   else if (a === 'excluir') moExcluir();
 });
