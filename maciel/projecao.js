@@ -70,8 +70,11 @@ function pjSerieEmpresa(a, emp) {
 }
 function pjDaEmpresa(c, emp, pl) {
   const itens = c.itens.map(x => {
-    const a = x.ativ, emps = plEmpresasDoItem(x.it, a), n = emps.includes(emp) && emps.length > 1 ? emps.length : 1, f = 1 / n;
-    if (n === 1) return x;
+    const a = x.ativ, emps = plEmpresasDoItem(x.it, a), n = emps.includes(emp) && emps.length > 1 ? emps.length : 1;
+    // divisão informada no 5W2H (produção de cada empresa) manda sobre a divisão em partes iguais
+    const dv = Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 && Number(x.it.qtd) > 0 ? x.it.divisao.find(d => ganNorm(d.empresa) === ganNorm(emp)) : null;
+    const f = dv ? Math.min(1, Math.max(0, Number(dv.qtd) / Number(x.it.qtd))) : 1 / n;
+    if (n === 1 && !dv) return x;
     const jan = x.it._plano || { inicio: pl.inicio, fim: pl.fim }, base = c.base;
     const serie = pjSerieEmpresa(a, emp);
     const mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));

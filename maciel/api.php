@@ -2729,6 +2729,31 @@ function plano_data($v, $rotulo, $obrigatoria = false)
     return $v;
 }
 
+// Divisão da atividade por empresa (5W2H com 2 ou mais empresas): quantidade (produção) e valor estimado (financeiro) de cada uma.
+function plano_divisao($lista): array
+{
+    $r = [];
+    if (!is_array($lista)) {
+        return $r;
+    }
+    foreach ($lista as $d) {
+        if (!is_array($d)) {
+            continue;
+        }
+        $emp = plano_texto($d['empresa'] ?? '', 80);
+        $q = numero($d['qtd'] ?? null);
+        if ($emp === '' || $q === null || $q < 0) {
+            continue;
+        }
+        $v = numero($d['valor'] ?? null);
+        $r[] = ['empresa' => $emp, 'qtd' => $q, 'valor' => ($v !== null && $v >= 0) ? $v : null, 'valor_manual' => !empty($d['valor_manual'])];
+        if (count($r) >= 8) {
+            break;
+        }
+    }
+    return count($r) >= 2 ? $r : [];
+}
+
 // Cria, altera ou exclui um plano 5W2H. O plano guarda o período, as atividades e o 5W2H de cada uma; o realizado,
 // a curva S, o que falta e a divisão por dia são calculados na tela a partir da produção lançada.
 // Portões do fluxo (material chegou? descarregado? checklist?): 'sim' prossegue, 'nao' retorna.
@@ -2832,6 +2857,7 @@ function acao_planos(array $corpo, array $usuario)
             'o_que' => plano_texto($it['o_que'] ?? ''), 'por_que' => plano_texto($it['por_que'] ?? ''), 'onde' => plano_texto($it['onde'] ?? ''),
             'quem' => plano_texto($it['quem'] ?? ''), 'como' => plano_texto($it['como'] ?? ''),
             'custo' => numero($it['custo'] ?? null), 'meta_dia' => (($m = numero($it['meta_dia'] ?? null)) !== null && $m > 0) ? $m : null, 'obs' => plano_texto($it['obs'] ?? ''),
+            'divisao' => plano_divisao($it['divisao'] ?? []),
             'portoes' => plano_portoes($it['portoes'] ?? [], $itensAntigos[$chave] ?? [], $agoraBrt, $quemPortao),
         ];
         if (count($itens) > 300) {

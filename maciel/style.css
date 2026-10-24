@@ -1230,3 +1230,8 @@ dialog.dlg-mat-lote .mat-lote-forcar { flex-direction: row; align-items: center;
 #aba-apont details.bloco > summary { cursor: pointer; padding: 4px 0; }
 .mo-projetos { display: flex; flex-wrap: wrap; gap: 8px; }
 .mo-projetos a.btn { text-decoration: none; }
+/* Planejamento 5W2H — divisão da atividade por empresa (produção e financeiro) */
+.pl-ok { color: var(--verde, #1a7f37); font-weight: 700; }
+.pl-div { grid-column: 1 / -1; border: 1px solid var(--borda, #d0d7de); border-radius: 8px; padding: 10px 12px; margin: 6px 0; background: var(--card-2, rgba(127,127,127,.06)); }
+.pl-div table { margin: 6px 0; }
+.pl-div input[type="number"] { width: 140px; text-align: right; }
