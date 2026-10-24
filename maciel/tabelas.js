@@ -205,7 +205,7 @@
 
     // 3) indicador no cabeçalho
     if (t.tHead) [...t.tHead.querySelectorAll('th')].forEach(th => {
-      const ordenavel = (th.colSpan || 1) === 1 && n > 0 && colDoTh(th) < n;
+      const ordenavel = (th.colSpan || 1) === 1 && n > 0 && colDoTh(th) < n && !th.classList.contains('mat-ck');
       th.classList.toggle('th-ord', ordenavel);
       if (ordenavel && !th.title) th.title = 'Clique para ordenar';
       if (ordenavel && s.col === colDoTh(th) && s.dir) th.setAttribute('data-ord', s.dir); else th.removeAttribute('data-ord');

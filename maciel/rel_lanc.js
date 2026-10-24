@@ -19,7 +19,7 @@ function lcDados(emp, ini, fim) {
       const ra = realAnt.get(a.codigo) || 0, per = real - ra;
       if (!(per > 1e-9)) return;   // só o que teve avanço no período
       const ctl = a.controle && e ? colDe(e, a.controle) : null;
-      const dias = ganBmDatasAtividade(a, fim).filter(([d]) => d >= ini && d <= fim).map(([d, v]) => [d, ctl ? bmQtdFinanceira(a, v) : v]);
+      const dias = ganBmDatasAtividade(a, fim, true).filter(([d]) => d >= ini && d <= fim).map(([d, v]) => [d, ctl ? bmQtdFinanceira(a, v) : v]);
       ats.push({ a, per, real, pct, ra,
         und: ctl ? soma(e, ctl, ini, fim) : null, undAc: ctl ? soma(e, ctl, '0000', fim) : null,
         dias, preco: bmPrecoAtividade(it, a) });

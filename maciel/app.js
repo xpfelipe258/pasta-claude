@@ -1724,8 +1724,10 @@ function ganBmAtividades(it) {
   });
 }
 
-function ganBmDatasAtividade(a, ate) {
+function ganBmDatasAtividade(a, ate, comEspelho = false) {   // comEspelho: relatórios de lançamento mostram também os dias espelhados (as séries do Planejamento/Gantt não)
   const ds = [];
+  const esp = comEspelho ? bmApontEfetivos(a) : null;
+  if (esp) { esp.forEach((q, d) => { if (d <= ate && q > 0) ds.push([d, q]); }); return ds; }
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     if (e && col) Object.keys(e.registros).forEach(d => {
@@ -3151,12 +3153,14 @@ function renderEstMateriais() {
     if (s === 'Crítico') return 'vermelho';
     return 'pendente';
   };
-  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
+  const podeLote = matPodeEditar();
+  const visTags = vis.map(m => m.tag), nSelVis = visTags.filter(t => MAT_SEL.has(t)).length;
+  $('#tabEstMat').innerHTML = `<thead><tr>${podeLote ? `<th class="mat-ck"><input type="checkbox" id="matSelTodos" title="Selecionar (ou limpar) todos os itens que aparecem na lista" aria-label="Selecionar todos os itens da lista" ${vis.length && nSelVis === vis.length ? 'checked' : ''}></th>` : ''}<th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
       const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button>`;
       const tagBtn = `<button type="button" class="link mat-tag" data-mat-edit="${esc(m.tag)}" title="Clique para editar este item (tipo, nome, local, etapa, planejado)"><b>${esc(m.tag)}</b></button>`;
-      return `<tr>
-      <td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
+      return `<tr class="${MAT_SEL.has(m.tag) ? 'mat-sel' : ''}">
+      ${podeLote ? `<td class="mat-ck"><input type="checkbox" data-mat-sel="${esc(m.tag)}" aria-label="Selecionar ${esc(m.tag)}" ${MAT_SEL.has(m.tag) ? 'checked' : ''}></td>` : ''}<td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
       <td>${esc(m.local || '—')}</td><td>${esc(m.etapa)}</td>
       <td class="n">${nf(m.planejado)}${m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
@@ -3164,7 +3168,128 @@ function renderEstMateriais() {
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
       <td>${esc(m.prioridade || '')}</td><td>${acoes}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="14" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+    : `<tr><td colspan="${podeLote ? 15 : 14}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+  const ckTodos = $('#matSelTodos');
+  if (ckTodos) ckTodos.indeterminate = nSelVis > 0 && nSelVis < vis.length;
+  matBarraLote(itens);
+}
+
+// ---- seleção em lote na aba Materiais: caixa em cada linha + ações para os selecionados (mudar local, mudar tipo, excluir)
+const MAT_SEL = new Set();
+const matPodeEditar = () => !document.body.classList.contains('somente-leitura');
+function matBarraLote(itens) {
+  const sec = $('#aba-estmat');
+  if (!sec) return;
+  let el = $('#matLote');
+  if (!el) { el = document.createElement('div'); el.id = 'matLote'; const bl = sec.querySelector('.bloco'); sec.insertBefore(el, bl); }
+  const existentes = new Set(itens.map(m => m.tag));
+  [...MAT_SEL].forEach(t => { if (!existentes.has(t)) MAT_SEL.delete(t); });   // item que sumiu (excluído em outra tela) sai da seleção
+  if (!MAT_SEL.size || !matPodeEditar()) { el.hidden = true; el.innerHTML = ''; return; }
+  const n = MAT_SEL.size, fora = [...MAT_SEL].filter(t => !matFiltroPassa(itens.find(m => m.tag === t))).length;
+  el.hidden = false;
+  el.className = 'mat-lote';
+  el.innerHTML = `<b>${nf(n, 0)} item(ns) selecionado(s)</b>${fora ? ` <span class="nota">(${nf(fora, 0)} fora do filtro atual)</span>` : ''}
+    <span class="mat-lote-acoes">
+      <button type="button" class="btn" data-mat-lote="local">Mudar local</button>
+      <button type="button" class="btn" data-mat-lote="tipo">Mudar tipo</button>
+      <button type="button" class="btn perigo" data-mat-lote="excluir">Excluir</button>
+      <button type="button" class="btn" data-mat-lote="limpar">Limpar seleção</button>
+    </span>`;
+}
+function matFiltroPassa(m) {
+  if (!m) return false;
+  const f = _filtroMat(), fe = _filtroMatEtapa(), fs = _filtroMatStatus(), fl = _filtroMatLocal(), ft = _filtroMatTipo();
+  if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f) && !(m.etapa || '').toUpperCase().includes(f) && !(m.local || '').toUpperCase().includes(f)) return false;
+  if (fl && (m.local || '') !== fl) return false;
+  if (ft === 'SO_FIXADOR' && !ehFixador(m)) return false;
+  if (ft === 'SEM_FIXADOR' && ehFixador(m)) return false;
+  if (fe && m.etapa !== fe) return false;
+  if (fs && m.status_logistico !== fs) return false;
+  return true;
+}
+const matTemMovimento = m => (Number(m.chegou) || 0) > 0 || (Number(m.consumido) || 0) > 0;
+
+function matLoteAbrir(acao) {
+  if (!matPodeEditar() || !MAT_SEL.size) return;
+  const itens = estMateriaisComCadastros(), sel = [...MAT_SEL].map(t => itens.find(m => m.tag === t)).filter(Boolean);
+  if (!sel.length) return;
+  let dlg = $('#dlgMatLote');
+  if (!dlg) {
+    dlg = document.createElement('dialog'); dlg.id = 'dlgMatLote'; dlg.className = 'dlg-mat-lote';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', ev => { if (ev.target === dlg && !dlg.dataset.rodando) dlg.close(); });
+  }
+  dlg.dataset.acao = acao; dlg.dataset.rodando = '';
+  const lista = sel.slice(0, 8).map(m => esc(m.tag)).join(', ') + (sel.length > 8 ? ` e mais ${nf(sel.length - 8, 0)}` : '');
+  let corpo = '', rotBtn = 'Aplicar', perigo = false;
+  if (acao === 'local') {
+    const locais = [...new Set(itens.map(m => m.local).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+    corpo = `<p>Novo local para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Local / grupo<input type="text" id="matLoteLocal" list="matLoteLocais" maxlength="120" placeholder="Digite ou escolha um local já existente" autocomplete="off"></label>
+      <datalist id="matLoteLocais">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
+    rotBtn = 'Mudar local';
+  } else if (acao === 'tipo') {
+    const tipos = [...new Set(['ESTRUTURA', 'FIXADOR', 'CONSUMO', 'OUTROS', ...itens.map(m => String(m.tipo_material || '').toUpperCase()).filter(Boolean)])];
+    corpo = `<p>Novo tipo para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Tipo de material<select id="matLoteTipo">${tipos.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label>
+      <p class="nota">Trocar entre fixador e carga leva o item para as remessas, o consumo físico e o inventário do tipo novo. Itens que já receberam quantidade numa remessa do outro tipo são recusados pelo sistema e listados no fim.</p>`;
+    rotBtn = 'Mudar tipo';
+  } else if (acao === 'excluir') {
+    const comMov = sel.filter(matTemMovimento);
+    corpo = `<p>Excluir <b>${nf(sel.length, 0)}</b> item(ns) da lista de materiais (e do cadastro, quando existir): <span class="nota">${lista}</span></p>
+      <p><b class="perigo-txt">Não há como desfazer.</b> O item some das abas Materiais, Remessas, Consumo físico e Inventário.</p>
+      ${comMov.length ? `<p class="aviso">${nf(comMov.length, 0)} item(ns) já têm <b>recebimento ou consumo lançado</b> (${comMov.slice(0, 5).map(m => esc(m.tag)).join(', ')}${comMov.length > 5 ? '…' : ''}). Por segurança eles <b>não são excluídos</b>, a menos que você marque a caixa abaixo.</p>
+      <label class="mat-lote-forcar"><input type="checkbox" id="matLoteForcar"> Excluir também os itens que já têm recebimento ou consumo lançado</label>` : ''}`;
+    rotBtn = `Excluir ${nf(sel.length, 0)} item(ns)`; perigo = true;
+  }
+  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
+    <div class="mat-lote-corpo">${corpo}</div><p class="nota" id="matLoteProg" hidden></p>
+    <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-mat-lote-fechar>Cancelar</button>
+    <button type="button" class="btn ${perigo ? 'perigo' : 'primario'}" id="matLoteAplicar">${rotBtn}</button></div></form>`;
+  dlg.showModal();
+  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
+}
+
+async function matLoteAplicar() {
+  const dlg = $('#dlgMatLote'), btn = $('#matLoteAplicar'), prog = $('#matLoteProg');
+  if (!dlg || dlg.dataset.rodando) return;
+  const acao = dlg.dataset.acao, itens = estMateriaisComCadastros();
+  const sel = [...MAT_SEL].map(t => itens.find(m => m.tag === t)).filter(Boolean);
+  let campos = null, alvo = sel, forcar = false;
+  if (acao === 'local') {
+    const v = ($('#matLoteLocal')?.value || '').trim();
+    if (!v) { toast('Informe o novo local.', true); return; }
+    campos = { local: v };
+  } else if (acao === 'tipo') {
+    campos = { tipo_material: $('#matLoteTipo').value };
+  } else if (acao === 'excluir') {
+    if (!btn.dataset.confirmar) { btn.dataset.confirmar = '1'; btn.textContent = 'Confirmar exclusão'; return; }
+    forcar = !!$('#matLoteForcar')?.checked;
+    alvo = forcar ? sel : sel.filter(m => !matTemMovimento(m));
+    if (!alvo.length) { dlg.close(); toast('Nenhum item foi excluído: todos os selecionados já têm recebimento ou consumo lançado.', true, 6000); return; }
+  }
+  if (!alvo.length) { dlg.close(); return; }
+  dlg.dataset.rodando = '1'; btn.disabled = true;
+  prog.hidden = false;
+  const falhas = [], feitos = [];
+  salvando = true;
+  try {
+    for (let i = 0; i < alvo.length; i++) {
+      const m = alvo[i];
+      prog.textContent = `Processando ${i + 1} de ${alvo.length} — ${m.tag}…`;
+      try {
+        if (acao === 'excluir') await postarBruto(API + 'estoque-planilha/material', { tag: m.tag, excluir: true, forcar });
+        else await postarBruto(API + 'estoque-planilha/material', { tag: m.tag, campos });
+        feitos.push(m.tag);
+      } catch (err) { falhas.push(`${m.tag}: ${err.message}`); }
+    }
+  } finally { salvando = false; dlg.dataset.rodando = ''; }
+  feitos.forEach(t => MAT_SEL.delete(t));
+  dlg.close();
+  try { await carregar(); } catch (e) { /* a tela é atualizada na próxima leitura */ }
+  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
+  toast(`${nf(feitos.length, 0)} item(ns) ${verbo}.${falhas.length ? ` ${falhas.length} não foi(ram) alterado(s): ${falhas.slice(0, 3).join(' · ')}${falhas.length > 3 ? '…' : ''}` : ''}`, !!falhas.length && !feitos.length, falhas.length ? 9000 : undefined);
+  if (falhas.length) console.warn('Ação em lote nos materiais — falhas:', falhas);
 }
 
 // ---- editar um item da aba Materiais (clicar na TAG): abre o mesmo pop-up do cadastro, já preenchido
@@ -3372,7 +3497,20 @@ async function salvarDataRemessa(inp) {
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
   const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
-  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); });
+  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); const b = ev.target.closest('[data-mat-lote]'); if (b) { if (b.dataset.matLote === 'limpar') { MAT_SEL.clear(); renderEstMateriais(); } else matLoteAbrir(b.dataset.matLote); } });
+  $('#aba-estmat')?.addEventListener('change', ev => {
+    const c = ev.target.closest('[data-mat-sel]');
+    if (c) { c.checked ? MAT_SEL.add(c.dataset.matSel) : MAT_SEL.delete(c.dataset.matSel); renderEstMateriais(); return; }
+    if (ev.target.id === 'matSelTodos') {   // marca ou limpa todos os itens que aparecem na lista (respeita os filtros)
+      const vis = estMateriaisComCadastros().filter(matFiltroPassa).map(m => m.tag);
+      vis.forEach(t => ev.target.checked ? MAT_SEL.add(t) : MAT_SEL.delete(t));
+      renderEstMateriais();
+    }
+  });
+  document.addEventListener('click', ev => {
+    if (ev.target.closest && ev.target.closest('[data-mat-lote-fechar]')) { const d = $('#dlgMatLote'); if (d && !d.dataset.rodando) d.close(); }
+    else if (ev.target.id === 'matLoteAplicar') matLoteAplicar();
+  });
   $('#btnNovaRemessaCarga').onclick = () => edAbrir('rem', 'CARGA');
   $('#btnNovaRemessaFixador').onclick = () => edAbrir('rem', 'FIXADOR');
   $('#segRemTipo').addEventListener('click', ev => {
@@ -5355,11 +5493,35 @@ function bmFatorControle(a) {
 function bmQtdFinanceira(a, qtdProducao) {
   return (Number(qtdProducao) || 0) * bmFatorControle(a);
 }
+// "Instalação de isolamento acústico - facefelt" é feito junto com a instalação de telhas (é um conjunto): o que é produzido/lançado em
+// "Instalação de telhas" da mesma empresa e item aparece igual nela, dia a dia. Um lançamento próprio da atividade, no mesmo dia, vale mais que o espelho.
+// O espelho é só de leitura (não vira linha em bm_apontamentos): assim as séries de produção do Planejamento/Gantt não contam a mesma telha duas vezes.
+function bmFonteEspelho(a) {
+  if (!a || a.controle) return null;
+  const nome = ganNorm(a.atividade);
+  if (!(nome.includes('FACEFELT') || nome.includes('ISOLAMENTO ACUSTICO'))) return null;
+  return bmTab('bm_atividades').find(x => x.empresa === a.empresa && x.item === a.item && x.codigo !== a.codigo && !x.controle
+    && ganNorm(x.atividade).includes('INSTALACAO DE TELHAS') && !ganNorm(x.atividade).includes('ISOLAMENTO') && !ganNorm(x.atividade).includes('PERFIL')) || null;
+}
+function bmApontEfetivos(a) {   // null = a atividade não tem espelho; senão Map data → quantidade (própria; na falta, a das telhas)
+  const fonte = bmFonteEspelho(a);
+  if (!fonte) return null;
+  const m = new Map();
+  bmTab('bm_apontamentos').forEach(x => { if (x.empresa === fonte.empresa && x.codigo === fonte.codigo && x.data && (Number(x.quantidade) || 0) > 0) m.set(x.data, (m.get(x.data) || 0) + Number(x.quantidade)); });
+  const proprios = new Map();
+  bmTab('bm_apontamentos').forEach(x => { if (x.empresa === a.empresa && x.codigo === a.codigo && x.data) proprios.set(x.data, (proprios.get(x.data) || 0) + (Number(x.quantidade) || 0)); });
+  proprios.forEach((q, d) => m.set(d, q));
+  return m;
+}
+const bmSomaEfetiva = (m, ini, fim) => { let t = 0; m.forEach((q, d) => { if (d >= ini && d <= fim) t += q; }); return t; };
+
 function bmQtdProducaoBruta(a, ini, fim) {
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? soma(e, col, ini, fim) : 0;
   }
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, ini, fim);
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data >= ini && x.data <= fim) t += x.quantidade || 0; });
   return t;
@@ -5393,6 +5555,8 @@ function bmRealizado(a, ate) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? bmQtdFinanceira(a, soma(e, col, '0000', ate)) : 0;
   }
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, '0000', ate);
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data <= ate) t += x.quantidade || 0; });
   return t;
@@ -5847,10 +6011,14 @@ async function semearMateriais() {
 
 // lançamento por serviço (linha por atividade do BM dentro do Lançamentos)
 function bmQtdSalva(emp, cod, d) {
+  const ativ = bmTab('bm_atividades').find(x => x.empresa === emp && x.codigo === cod), esp = ativ && bmApontEfetivos(ativ);
+  if (esp) return esp.has(d) ? String(esp.get(d)).replace('.', ',') : '';
   const r = bmTab('bm_apontamentos').find(x => x.empresa === emp && x.codigo === cod && x.data === d);
   return r && r.quantidade != null ? String(r.quantidade).replace('.', ',') : '';
 }
 function bmSomaSemana(a, ini, fim) {
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, ini, fim);
   return soma0(bmTab('bm_apontamentos').filter(x => x.codigo === a.codigo && x.data >= ini && x.data <= fim), x => x.quantidade);
 }
 
