@@ -1,5 +1,5 @@
 <?php
-// Assistente de importação da obra nova: envio dos documentos obrigatórios, validação e fila para o serviço de leitura (Python).
+// Assistente de importação da obra nova: documentos aceitos também em .zip; cronograma é opcional.
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
 require __DIR__ . '/inc/importacao_leitura.php';
@@ -236,8 +236,8 @@ pagina_inicio('Importar obra');
   <main class="portal-main imp-main">
     <section class="hero-obras">
       <div><span class="eyebrow">NOVA OBRA · PASSO 2 DE 2</span><h1><?= h($obra['nome']) ?></h1>
-        <p>Envie os 5 documentos obrigatórios. Com os 5 documentos válidos, um clique em "Gerar obra" lê tudo dentro do sistema e cria a lista de material, o fluxo de baixa, o BM e o mapa de apontamento.</p></div>
-      <div class="hero-stat"><strong id="impContagem">0/5</strong><span>documentos completos</span></div>
+        <p>Envie IFC, fixadores, orçamento e projetos. Todos aceitam arquivo .zip; o cronograma é opcional e pode ser incluído depois. Com os documentos obrigatórios válidos, "Gerar obra" cria a lista de material, a baixa, o BM e o mapa.</p></div>
+      <div class="hero-stat"><strong id="impContagem">0/4</strong><span>documentos obrigatórios completos</span></div>
     </section>
     <div id="impAviso"></div>
     <div id="impCartoes" class="imp-grid"></div>
@@ -316,12 +316,12 @@ pagina_inicio('Importar obra');
     var h = '';
     Object.keys(ESTADO.tipos).forEach(function (k) {
       var t = ESTADO.tipos[k], u = uploads[k];
-      var selo = t.ok ? '<span class="imp-selo ok">Completo</span>' : (t.pendente ? '<span class="imp-selo pend">Validando</span>' : '<span class="imp-selo">Obrigatório</span>');
+      var selo = t.ok ? '<span class="imp-selo ok">' + (t.opcional ? 'Opcional' : 'Completo') + '</span>' : (t.pendente ? '<span class="imp-selo pend">Validando</span>' : '<span class="imp-selo">Obrigatório</span>');
       h += '<article class="imp-card ' + (t.ok ? 'ok' : '') + '" data-tipo="' + k + '"><h3>' + esc(t.rotulo) + selo + '</h3><p class="nota">' + esc(t.ajuda) + '</p>' +
         '<ul class="imp-gera">' + t.gera.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
         '<div class="imp-docs">' + t.documentos.map(function (d) { return docHtml(d, ESTADO.servico); }).join('') + '</div>' +
-        (t.ok || bloqueado ? '' : '<p class="nota" style="color:#b42318">' + esc(t.motivo) + '</p>') +
-        (bloqueado ? '' : '<label class="imp-drop" data-drop="' + k + '">Arraste ou clique para enviar (' + t.ext.map(function (e) { return '.' + e; }).join(', ') + ')<input type="file" multiple hidden data-arq="' + k + '" accept="' + t.ext.map(function (e) { return '.' + e; }).join(',') + '"></label>') +
+        ((!t.ok || t.documentos.length) && !bloqueado ? '<p class="nota" style="color:' + (t.opcional ? '#667085' : '#b42318') + '">' + esc(t.motivo) + '</p>' : '') +
+        (bloqueado ? '' : '<label class="imp-drop" data-drop="' + k + '">Arraste ou clique para enviar<br><b>Aceita arquivo .zip</b> (' + t.ext.map(function (e) { return '.' + e; }).join(', ') + ')<input type="file" multiple hidden data-arq="' + k + '" accept="' + t.ext.map(function (e) { return '.' + e; }).join(',') + '"></label>') +
         (u ? '<div class="nota">' + esc(u.nome) + ' — ' + u.pct + '%</div><div class="imp-barra"><i style="width:' + u.pct + '%"></i></div>' : '') + '</article>';
     });
     document.getElementById('impCartoes').innerHTML = h;
@@ -329,7 +329,7 @@ pagina_inicio('Importar obra');
     envio.disabled = !ESTADO.pronta || bloqueado || Object.keys(uploads).length > 0;
     var av = '';
     document.getElementById('impAviso').innerHTML = av;
-    document.getElementById('impStatus').textContent = ESTADO.pronta ? 'Todos os documentos obrigatórios estão completos.' : 'Faltam ' + (ESTADO.total - ESTADO.completos) + ' documento(s) obrigatório(s).';
+    document.getElementById('impStatus').textContent = ESTADO.pronta ? 'Documentos obrigatórios completos. O cronograma pode ser enviado agora ou depois.' : 'Faltam ' + (ESTADO.total - ESTADO.completos) + ' documento(s) obrigatório(s).';
   }
   function atualizar() { return fetch('obra_importar.php?acao=estado&obra=' + OBRA, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { ESTADO = j; desenhar(); }); }
   async function enviarArquivo(tipo, arq) {
@@ -371,7 +371,7 @@ pagina_inicio('Importar obra');
     var sigla = document.getElementById('impSigla').value.trim();
     if (sigla.length < 2) { alert('Informe a sigla da empresa executora (ex.: CMM): ela vira o prefixo do catálogo do BM.'); document.getElementById('impSigla').focus(); return; }
     var b = this; b.disabled = true; b.textContent = 'Lendo os documentos e gerando a obra…';
-    document.getElementById('impStatus').textContent = 'Lendo IFC, orçamento, cronograma e fixadores e criando a obra. Pode levar alguns segundos.';
+    document.getElementById('impStatus').textContent = 'Lendo IFC, orçamento, projetos e fixadores' + (ESTADO.tipos.cronograma.documentos.length ? ', cronograma' : '') + ' e criando a obra. Pode levar alguns segundos.';
     post('gerar', { sigla: sigla }).then(function (j) {
       if (j.erro || !j.ok) { alert(j.erro || 'Não foi possível gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; return; }
       location.href = j.destino;
