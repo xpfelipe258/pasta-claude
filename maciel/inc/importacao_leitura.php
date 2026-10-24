@@ -504,6 +504,33 @@ function importacao_arquivos_por_tipo($obraId)
     return $porTipo;
 }
 
+// Expande apenas os arquivos esperados de um .zip para uma pasta temporária da
+// própria obra. Nunca usa o caminho interno do ZIP como destino, evitando zip-slip.
+function importacao_expandir_documentos(array $arquivos, array $extensoes, $tmp, $prefixo, array &$limpar)
+{
+    $out = [];
+    foreach ($arquivos as list($nome, $caminho)) {
+        if (importacao_extensao($nome) !== 'zip') { $out[] = [$nome, $caminho]; continue; }
+        if (!class_exists('ZipArchive')) throw new RuntimeException('O servidor não tem suporte a .zip.');
+        $z = new ZipArchive();
+        if ($z->open($caminho) !== true) throw new RuntimeException("Não consegui abrir o .zip $nome.");
+        for ($i = 0; $i < $z->numFiles; $i++) {
+            $interno = $z->getNameIndex($i);
+            $ext = strtolower(pathinfo($interno, PATHINFO_EXTENSION));
+            if (!in_array($ext, $extensoes, true)) continue;
+            $destino = $tmp . '/' . $prefixo . '-' . count($out) . '.' . $ext;
+            $in = $z->getStream($interno);
+            if (!$in) continue;
+            $dest = fopen($destino, 'wb');
+            stream_copy_to_stream($in, $dest); fclose($in); fclose($dest);
+            $limpar[] = $destino;
+            $out[] = [basename($interno), $destino];
+        }
+        $z->close();
+    }
+    return $out;
+}
+
 /**
  * Lê todos os documentos da obra (IFC, orçamento/BM, cronograma, fixadores, pranchas) e monta o pacote.
  * Tudo roda no próprio PHP, em fluxo: o IFC é lido linha a linha (a CPDA, 11 arquivos, leva menos de 1 s).
@@ -519,33 +546,8 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
     }
     $limpar = [];
     try {
-        // IFC: aceita .ifc e .zip com vários .ifc
-        $arquivosIfc = [];
-        foreach ($docs['ifc'] ?? [] as list($nome, $caminho)) {
-            if (importacao_extensao($nome) === 'zip') {
-                $z = new ZipArchive();
-                if ($z->open($caminho) !== true) {
-                    throw new RuntimeException("Não consegui abrir o .zip $nome.");
-                }
-                for ($i = 0; $i < $z->numFiles; $i++) {
-                    $n = $z->getNameIndex($i);
-                    if (strtolower(pathinfo($n, PATHINFO_EXTENSION)) !== 'ifc') {
-                        continue;
-                    }
-                    $alvo = $tmp . '/' . count($arquivosIfc) . '.ifc';
-                    $in = $z->getStream($n);
-                    $out = fopen($alvo, 'wb');
-                    stream_copy_to_stream($in, $out);
-                    fclose($in);
-                    fclose($out);
-                    $limpar[] = $alvo;
-                    $arquivosIfc[] = [basename($n), $alvo];
-                }
-                $z->close();
-            } else {
-                $arquivosIfc[] = [$nome, $caminho];
-            }
-        }
+        // Todos os tipos aceitam ZIP; cada leitor recebe apenas a extensão que entende.
+        $arquivosIfc = importacao_expandir_documentos($docs['ifc'] ?? [], ['ifc'], $tmp, 'ifc', $limpar);
         if (!$arquivosIfc) {
             throw new RuntimeException('Nenhum IFC para ler.');
         }
@@ -560,7 +562,7 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
         // orçamento: a planilha com atividades de medição manda; as demais completam escopo e boletins
         $bm = ['itens' => [], 'avisos' => [], 'periodos' => [], 'escopo' => [], 'contrato_total' => null, 'aba' => ''];
         $lidos = [];
-        foreach ($docs['orcamento'] ?? [] as list($nome, $caminho)) {
+        foreach (importacao_expandir_documentos($docs['orcamento'] ?? [], ['xlsx', 'xlsm'], $tmp, 'orcamento', $limpar) as list($nome, $caminho)) {
             $lidos[] = [$nome, leitura_orcamento($caminho)];
         }
         if ($lidos) {
@@ -587,11 +589,12 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
             }
         }
         $crono = ['atividades' => [], 'avisos' => []];
-        if (!empty($docs['cronograma'])) {
-            $crono = leitura_cronograma($docs['cronograma'][0][1], $docs['cronograma'][0][0]);
+        $cronogramas = importacao_expandir_documentos($docs['cronograma'] ?? [], ['xml', 'xlsx', 'xlsm', 'pdf'], $tmp, 'cronograma', $limpar);
+        if ($cronogramas) {
+            $crono = leitura_cronograma($cronogramas[0][1], $cronogramas[0][0]);
         }
         $fix = ['geral' => [], 'por_joist' => [], 'avisos' => []];
-        foreach ($docs['fixadores'] ?? [] as list($nome, $caminho)) {
+        foreach (importacao_expandir_documentos($docs['fixadores'] ?? [], ['trb', 'xlsx', 'xlsm', 'csv'], $tmp, 'fixadores', $limpar) as list($nome, $caminho)) {
             $r = leitura_fixadores($caminho, $nome);
             $fix['geral'] = array_merge($fix['geral'], $r['geral']);
             $fix['por_joist'] = array_merge($fix['por_joist'], $r['por_joist']);
@@ -599,7 +602,7 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
         }
         // pranchas: índice pelo arquivo (o texto dos PDFs do Tekla não dá para ler sem biblioteca de PDF)
         $pranchas = [];
-        foreach ($docs['projetos'] ?? [] as list($nome, $caminho)) {
+        foreach (importacao_expandir_documentos($docs['projetos'] ?? [], ['pdf'], $tmp, 'projeto', $limpar) as list($nome, $caminho)) {
             $bin = (string)file_get_contents($caminho, false, null, 0, 4000000);
             preg_match_all('/\/Type\s*\/Page[^s]/', $bin, $pg);
             $pranchas[] = ['arquivo' => $nome, 'codigo' => '', 'titulo' => preg_replace('/\.pdf$/i', '', $nome), 'revisao' => '', 'escala' => '', 'tem_texto' => null, 'assuntos' => [], 'paginas' => max(1, count($pg[0]))];
