@@ -77,8 +77,17 @@ function pjDaEmpresa(c, emp, pl) {
     if (n === 1 && !dv) return x;
     const jan = x.it._plano || { inicio: pl.inicio, fim: pl.fim }, base = c.base;
     const serie = pjSerieEmpresa(a, emp);
-    const mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
-    const it = { ...x.it, qtd: (Number(x.it.qtd) || 0) * f, meta_dia: Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia };
+    // When da empresa: período próprio (dentro do da atividade); fora disso o planejado dela é a parte proporcional do planejado da atividade
+    const iniE = dv?.inicio && ehISO(dv.inicio) ? dv.inicio : x.it.inicio, fimE = dv?.fim && ehISO(dv.fim) ? dv.fim : x.it.fim;
+    const janelaPropria = !!dv && (iniE !== x.it.inicio || fimE !== x.it.fim) && fimE >= iniE;
+    let mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
+    const qtdE = (Number(x.it.qtd) || 0) * f;
+    if (janelaPropria) {
+      const diasE = plDias(iniE, fimE), inteiroE = plInteiro(x.it.unidade);
+      if (diasE.length) { const planE = plDistribuirTaxa(qtdE, diasE.length, qtdE / diasE.length, inteiroE); mapaPlan = new Map(diasE.map((d, i) => [d, planE[i]])); }
+    }
+    const it = { ...x.it, qtd: qtdE, meta_dia: janelaPropria ? null : (Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia), inicio: janelaPropria ? iniE : x.it.inicio, fim: janelaPropria ? fimE : x.it.fim,
+      como: dv?.como ? dv.como : x.it.como };
     const real = new Map();
     const r0 = 0;   // só o produzido dentro do período do plano
     if (serie) {
@@ -90,7 +99,8 @@ function pjDaEmpresa(c, emp, pl) {
     const ultimos = [];
     for (let d = base, k = 0; k < 5 && d >= jan.inicio; d = add(d, -1)) if (diaUtil(d)) { ultimos.push(d); k++; }
     const ritmo = ultimos.length ? soma0(ultimos, d => real.get(d) || 0) / ultimos.length : 0;
-    const taxaProj = ritmo > 0 ? ritmo : x.meta * f;
+    const metaE = janelaPropria ? qtdE / Math.max(1, plDias(iniE, fimE).length) : x.meta * f;
+    const taxaProj = ritmo > 0 ? ritmo : metaE;
     let acum = r0, concluiu = null;
     [...real.keys()].sort().forEach(d => { acum += real.get(d); if (!concluiu && acum >= it.qtd - 1e-9) concluiu = d; });
     const ratio = planAc > 0 ? realAc / planAc : null;
@@ -100,7 +110,7 @@ function pjDaEmpresa(c, emp, pl) {
     else if (ratio === null) status = realAc > 0 ? 'ADIANTADO' : 'A INICIAR';
     else status = ratio >= 1.05 ? 'ADIANTADO' : ratio >= 1 ? 'NO PRAZO' : ratio >= .95 ? 'NO LIMITE' : 'ATRASADO';
     if (status === 'NO PRAZO' && base > it.fim && it.qtd - realAc > 0) status = 'ATRASADO';
-    return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: x.meta * f, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n };
+    return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: metaE, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n, _dv: dv || null };
   });
   return { ...c, itens };
 }

@@ -2729,7 +2729,7 @@ function plano_data($v, $rotulo, $obrigatoria = false)
     return $v;
 }
 
-// Divisão da atividade por empresa (5W2H com 2 ou mais empresas): quantidade (produção) e valor estimado (financeiro) de cada uma.
+// Divisão da atividade por empresa (5W2H com 2 ou mais empresas): quantidade (produção), valor estimado (financeiro), como (How) e quando (When) de cada uma.
 function plano_divisao($lista): array
 {
     $r = [];
@@ -2746,7 +2746,15 @@ function plano_divisao($lista): array
             continue;
         }
         $v = numero($d['valor'] ?? null);
-        $r[] = ['empresa' => $emp, 'qtd' => $q, 'valor' => ($v !== null && $v >= 0) ? $v : null, 'valor_manual' => !empty($d['valor_manual'])];
+        $ini = (string)($d['inicio'] ?? '');
+        $fim = (string)($d['fim'] ?? '');
+        $ini = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ini) ? $ini : '';
+        $fim = preg_match('/^\d{4}-\d{2}-\d{2}$/', $fim) ? $fim : '';
+        if ($ini !== '' && $fim !== '' && $fim < $ini) {
+            $fim = $ini;
+        }
+        $r[] = ['empresa' => $emp, 'qtd' => $q, 'valor' => ($v !== null && $v >= 0) ? $v : null, 'valor_manual' => !empty($d['valor_manual']),
+            'como' => plano_texto($d['como'] ?? '', 300), 'inicio' => $ini, 'fim' => $fim, 'quando_manual' => !empty($d['quando_manual'])];
         if (count($r) >= 8) {
             break;
         }

@@ -707,7 +707,7 @@ function plW5(pl, c, box) {
     <div class="tabela-rolagem"><table class="pl-tab pl-w5"><thead><tr><th>Atividade</th><th>O quê <span class="nota">(What)</span></th><th>Por quê <span class="nota">(Why)</span></th><th>Onde <span class="nota">(Where)</span></th><th>Quando <span class="nota">(When)</span></th>
       <th>Quem <span class="nota">(Who)</span></th><th>Como <span class="nota">(How)</span></th><th class="n">Quanto <span class="nota">(How much)</span></th><th>Situação</th></tr></thead><tbody>` +
     c.itens.map(x => { const it = x.it; return `<tr><td><b>${esc(it.atividade)}</b></td><td>${esc(it.o_que || '—')}</td><td>${esc(it.por_que || '—')}</td><td>${esc(it.onde || it.frente || '—')}</td>
-      <td>${fdA(it.inicio)} a ${fdA(it.fim)}<div class="nota">${plDias(it.inicio, it.fim).length} dias úteis</div></td><td>${esc(it.quem || it.empresa || '—')}${Array.isArray(it.divisao) && it.divisao.length >= 2 ? it.divisao.map(d => `<div class="nota"><b>${esc(d.empresa)}</b>: ${plFmt(d.qtd, it.unidade)} ${esc(it.unidade)}${d.valor != null ? ' · ' + rs(d.valor) : ''}</div>`).join('') : ''}</td><td>${esc(it.como || '—')}</td>
+      <td>${fdA(it.inicio)} a ${fdA(it.fim)}<div class="nota">${plDias(it.inicio, it.fim).length} dias úteis</div></td><td>${esc(it.quem || it.empresa || '—')}${Array.isArray(it.divisao) && it.divisao.length >= 2 ? it.divisao.map(d => `<div class="nota"><b>${esc(d.empresa)}</b>: ${plFmt(d.qtd, it.unidade)} ${esc(it.unidade)}${d.valor != null ? ' · ' + rs(d.valor) : ''}<br>${fdA(d.inicio || it.inicio)} a ${fdA(d.fim || it.fim)}${d.como ? ' · ' + esc(d.como) : ''}</div>`).join('') : ''}</td><td>${esc(it.como || '—')}</td>
       <td class="n"><b>${plFmt(it.qtd, it.unidade)} ${esc(it.unidade)}</b><div class="nota">${plFmt(it.qtd / plDias(it.inicio, it.fim).length, it.unidade)} ${esc(it.unidade)}/dia útil${it.custo ? ' · ' + rs(it.custo) : ''}</div></td><td>${plFarol(x.status)}</td></tr>`; }).join('') +
     '</tbody></table></div></div>';
 }
@@ -832,7 +832,8 @@ function plDivisaoSync(it) {
   if (mesmas) return;
   const qtd = Number(it.qtd) || 0, inteiro = plInteiro(it.unidade), pu = plPrecoUnit(it), n = emps.length;
   const parte = plArred(qtd / n, inteiro);
-  it.divisao = emps.map((e, i) => { const q = i === 0 ? plArred(qtd - parte * (n - 1), inteiro) : parte; return { empresa: e, qtd: q, valor: pu > 0 ? +(q * pu).toFixed(2) : null, valor_manual: false }; });
+  const antigas = new Map((it.divisao || []).map(d => [ganNorm(d.empresa), d]));   // quem já estava mantém o How e o When
+  it.divisao = emps.map((e, i) => { const q = i === 0 ? plArred(qtd - parte * (n - 1), inteiro) : parte; const ant = antigas.get(ganNorm(e)); return { empresa: e, qtd: q, valor: pu > 0 ? +(q * pu).toFixed(2) : null, valor_manual: false, como: ant?.como || '', inicio: ant?.inicio || it.inicio || '', fim: ant?.fim || it.fim || '', quando_manual: !!ant?.quando_manual }; });
   plDivisaoSomaCusto(it);
 }
 function plDivisaoRescalar(it) {   // a quantidade do item mudou: mantém as proporções entre as empresas
@@ -849,6 +850,9 @@ function plDivisaoRescalar(it) {   // a quantidade do item mudou: mantém as pro
   });
   plDivisaoSomaCusto(it);
 }
+function plDivisaoQuando(it) {   // início/fim do item mudaram: as empresas que não tiveram data própria acompanham
+  (it.divisao || []).forEach(d => { if (!d.quando_manual) { d.inicio = it.inicio || ''; d.fim = it.fim || ''; } });
+}
 function plDivisaoResumo(it) {
   const d = it.divisao || [], qtd = Number(it.qtd) || 0, soma = d.reduce((t, x) => t + (Number(x.qtd) || 0), 0), dif = qtd - soma, un = esc(it.unidade);
   const ok = Math.abs(dif) <= Math.max(0.01, qtd * 0.005), val = d.reduce((t, x) => t + (Number(x.valor) || 0), 0);
@@ -859,9 +863,12 @@ function plDivisaoHtml(it, k) {
   if (!Array.isArray(d) || d.length < 2) return '';
   const un = esc(it.unidade), ek = esc(k);
   return `<div class="pl-div"><span class="pl-quem-rot"><b>Divisão por empresa</b> — produção e financeiro de cada uma</span>
-    <table class="pl-tab"><thead><tr><th>Empresa</th><th class="n">Produção (${un})</th><th class="n">Valor estimado (R$)</th></tr></thead><tbody>${d.map(x => `<tr><td><b>${esc(x.empresa)}</b></td>
+    <table class="pl-tab"><thead><tr><th>Empresa</th><th class="n">Produção (${un})</th><th class="n">Valor estimado (R$)</th><th><b>When</b> — Início</th><th>Fim</th><th><b>How</b> — Como esta empresa executa</th></tr></thead><tbody>${d.map(x => `<tr><td><b>${esc(x.empresa)}</b></td>
       <td class="n"><input type="number" step="any" min="0" data-pl-div="qtd" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${x.qtd ?? ''}"></td>
-      <td class="n"><input type="number" step="any" min="0" data-pl-div="valor" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${x.valor ?? ''}" title="${x.valor_manual ? 'Valor digitado' : 'Sugerido: produção × preço do catálogo do BM'}"></td></tr>`).join('')}</tbody></table>
+      <td class="n"><input type="number" step="any" min="0" data-pl-div="valor" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${x.valor ?? ''}" title="${x.valor_manual ? 'Valor digitado' : 'Sugerido: produção × preço do catálogo do BM'}"></td>
+      <td><input type="date" data-pl-div="inicio" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.inicio || it.inicio || '')}"></td>
+      <td><input type="date" data-pl-div="fim" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.fim || it.fim || '')}"></td>
+      <td><input type="text" maxlength="300" data-pl-div="como" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.como || '')}" placeholder="ex.: fase 1 montada pela ${esc(x.empresa)}"></td></tr>`).join('')}</tbody></table>
     <div class="nota" data-pl-div-resumo="${ek}">${plDivisaoResumo(it)}</div></div>`;
 }
 function plDivisaoAtualizarSlot(it, k) {
@@ -953,6 +960,11 @@ function plWizValidar(passo) {
       if (!String(it.empresa || '').trim()) return `${it.atividade}: selecione a empresa que irá executar (Who).`;
       if (Array.isArray(it.divisao) && it.divisao.length >= 2) {
         const soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), dif = Number(it.qtd) - soma;
+        for (const d of it.divisao) {
+          const di = d.inicio || it.inicio, df = d.fim || it.fim;
+          if (!ehISO(di) || !ehISO(df) || df < di) return `${it.atividade} — ${d.empresa}: confira o início e o fim (When) da empresa.`;
+          if (di < it.inicio || df > it.fim) return `${it.atividade} — ${d.empresa}: o período da empresa (${fdA(di)} a ${fdA(df)}) precisa ficar dentro do período da atividade (${fdA(it.inicio)} a ${fdA(it.fim)}).`;
+        }
         if (Math.abs(dif) > Math.max(0.01, Number(it.qtd) * 0.005)) return `${it.atividade}: a divisão por empresa soma ${plFmt(soma, it.unidade)} ${it.unidade} e a quantidade é ${plFmt(it.qtd, it.unidade)} ${it.unidade} — ajuste a produção de cada empresa.`;
       }
     }
@@ -966,7 +978,7 @@ async function plWizSalvar(rascunho) {
   const status = rascunho ? 'rascunho' : (w.status === 'rascunho' ? 'ativo' : w.status);   // publicar um rascunho o torna ativo
   const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status,
     itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd) || 0, peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null,
-      divisao: Array.isArray(i.divisao) && i.divisao.length >= 2 ? i.divisao.map(d => ({ empresa: d.empresa, qtd: Number(d.qtd) || 0, valor: d.valor === '' || d.valor == null ? null : Number(d.valor), valor_manual: !!d.valor_manual })) : [] })) };
+      divisao: Array.isArray(i.divisao) && i.divisao.length >= 2 ? i.divisao.map(d => ({ empresa: d.empresa, qtd: Number(d.qtd) || 0, valor: d.valor === '' || d.valor == null ? null : Number(d.valor), valor_manual: !!d.valor_manual, como: d.como || '', inicio: d.inicio || i.inicio || '', fim: d.fim || i.fim || '', quando_manual: !!d.quando_manual })) : [] })) };
   try {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);
@@ -1317,6 +1329,11 @@ document.addEventListener('input', ev => {
   if (t.dataset.plDiv) {   // produção ou valor de uma empresa na divisão
     const it = w.sel.get(t.dataset.k), d = it?.divisao?.find(x => x.empresa === t.dataset.emp);
     if (!d) return;
+    if (['inicio', 'fim', 'como'].includes(t.dataset.plDiv)) {   // When / How da empresa (texto e datas)
+      d[t.dataset.plDiv] = t.value;
+      if (t.dataset.plDiv !== 'como') d.quando_manual = true;
+      return;
+    }
     const v = t.value === '' ? '' : Number(t.value);
     if (t.dataset.plDiv === 'qtd') {
       d.qtd = v;
@@ -1339,6 +1356,7 @@ document.addEventListener('input', ev => {
     if (!it) return;
     it[t.dataset.plI] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value;
     if (t.dataset.plI === 'qtd' && Array.isArray(it.divisao)) { plDivisaoRescalar(it); plDivisaoAtualizarSlot(it, t.dataset.k); }
+    if ((t.dataset.plI === 'inicio' || t.dataset.plI === 'fim') && Array.isArray(it.divisao)) { plDivisaoQuando(it); plDivisaoAtualizarSlot(it, t.dataset.k); }
     const prev = document.querySelector(`[data-pl-prev="${CSS.escape(t.dataset.k)}"]`);
     if (prev) prev.innerHTML = plPrevTexto(it);
   }

@@ -459,14 +459,14 @@ function pldSecaoEmpresas(pl, c) {
     const atras = ci.filter(x => x.status === 'ATRASADO').length, concl = ci.filter(x => x.status === 'CONCLUÍDO').length;
     const linhas = ci.sort((a, b) => a.it.frente.localeCompare(b.it.frente) || a.it.inicio.localeCompare(b.it.inicio)).map(x => {
       const it = x.it, un = it.unidade, outras = pldEmpresas(x).filter(n => n !== emp), m = pldEtapasDe(x);
-      return `<tr><td><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))}${m.ids.length ? ' · ' + esc(pldEtapa(m.fluxo, m.ids[0]).nome) : ''}</div></td>
-        <td>${fdA(it.inicio)} a ${fdA(it.fim)}</td>
+      return `<tr><td><b>${esc(it.atividade)}</b><div class="mini">${esc(cap(it.frente))}${m.ids.length ? ' · ' + esc(pldEtapa(m.fluxo, m.ids[0]).nome) : ''}</div>${it.como ? `<div class="mini"><b>Como:</b> ${esc(it.como)}</div>` : ''}</td>
+        <td>${fdA(it.inicio)} a ${fdA(it.fim)}${x._dv?.valor != null ? `<div class="mini">valor estimado ${rs(x._dv.valor)}</div>` : ''}</td>
         <td class="n">${plFmt(it.qtd, un)} ${esc(un)}${x._parte ? `<div class="mini">parte de ${esc(emp)} (÷ ${x._parte}${outras.length ? ' · com ' + esc(outras.join(', ')) : ''})</div>` : outras.length ? `<div class="mini">com ${esc(outras.join(', '))}</div>` : ''}</td>
         <td class="n">${plFmt(x.realAc, un)} ${esc(un)}</td><td class="n">${nf(x.pctReal * 100, 0)}% / ${nf(x.pctPlan * 100, 0)}%</td><td class="n">${plFmt(x.falta, un)}</td>
         <td><span class="sel st-${esc(PL_COR_STATUS[x.status] || 'pendente')}">${esc(x.status)}</span></td></tr>`;
     }).join('');
     return `<div class="emp-bloco"><div class="emp-cab"><span class="emp grande-emp">${esc(emp)}</span><span class="mini">${ci.length} serviço(s) · realizado <b>${nf(pctR, 0)}%</b> × planejado ${nf(pctP, 0)}% · ${concl} concluído(s)${atras ? ` · <b class="ruim-t">${atras} atrasado(s)</b>` : ''}</span></div>
-      <div class="rolagem"><table class="tab"><thead><tr><th>Serviço</th><th>Período</th><th class="n">Quantidade</th><th class="n">Executado</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+      <div class="rolagem"><table class="tab"><thead><tr><th>Serviço <span class="mini">(How)</span></th><th>Período <span class="mini">(When)</span></th><th class="n">Quantidade</th><th class="n">Executado</th><th class="n">Real / previsto</th><th class="n">Falta</th><th>Situação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
   }).join('');
   return `<section class="por-empresa"><h2>Serviços por empresa</h2><p class="nota">Cada serviço do plano aparece sob a(s) empresa(s) escolhida(s) para executá-lo (campo Who do 5W2H). Serviço feito por mais de uma empresa mostra a parte de cada uma.</p>${blocos}</section>`;
 }
@@ -478,8 +478,16 @@ function pldCartaoAtividade(x, c, etapas) {
     <div class="barra"><span class="plan" style="width:${nf(x.pctPlan * 100, 0)}%"></span><span class="real st-${esc(stCls)}" style="width:${nf(x.pctReal * 100, 0)}%"></span></div>
     ${it.o_que || it.por_que || it.como ? `<table class="w5"><tr>${it.o_que ? `<th>O quê</th><td>${esc(it.o_que)}</td>` : ''}${it.por_que ? `<th>Por quê</th><td>${esc(it.por_que)}</td>` : ''}</tr>
       <tr>${it.onde ? `<th>Onde</th><td>${esc(it.onde)}</td>` : ''}${it.como ? `<th>Como</th><td>${esc(it.como)}</td>` : ''}</tr></table>` : ''}
+    ${pldDivisaoEmpresas(x)}
     ${pldFluxoAtividade(x, c)}
   </div>`;
+}
+// Atividade com 2 ou mais empresas: quanto, quando e como cada uma executa (produção, financeiro, When e How do 5W2H)
+function pldDivisaoEmpresas(x) {
+  const it = x.it, d = it.divisao;
+  if (!Array.isArray(d) || d.length < 2) return '';
+  const un = it.unidade;
+  return `<table class="tab"><thead><tr><th>Empresa</th><th>Produção</th><th>Valor estimado</th><th>Quando (When)</th><th>Como (How)</th></tr></thead><tbody>${d.map(e => `<tr><td><b>${esc(e.empresa)}</b></td><td>${plFmt(e.qtd, un)} ${esc(un)}</td><td>${e.valor != null ? rs(e.valor) : '—'}</td><td>${fdA(e.inicio || it.inicio)} a ${fdA(e.fim || it.fim)}</td><td>${esc(e.como || '—')}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function pldBlocoPortao(fluxo, e, indice, c) {

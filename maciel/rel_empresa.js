@@ -802,7 +802,9 @@ function reItensSomados(itens) {
   itens.forEach(x => { const k = reChaveItem(x); (g.get(k) || g.set(k, []).get(k)).push(x); });
   return [...g.values()].map(xs => {
     const qtd = soma0(xs, x => Number(x.it.qtd) || 0), realAc = soma0(xs, x => Math.min(x.realAc, Number(x.it.qtd) || Infinity));
-    return { nome: xs[0].it.atividade, un: xs[0].it.unidade, qtd, planAc: soma0(xs, x => x.planAc), realAc, falta: Math.max(0, qtd - realAc),
+    const ini = xs.map(x => x.it.inicio).filter(Boolean).sort()[0] || '', fim = xs.map(x => x.it.fim).filter(Boolean).sort().pop() || '';
+    const como = [...new Set(xs.map(x => String(x.it.como || '').trim()).filter(Boolean))].join(' / ');
+    return { nome: xs[0].it.atividade, un: xs[0].it.unidade, qtd, ini, fim, como, planAc: soma0(xs, x => x.planAc), realAc, falta: Math.max(0, qtd - realAc),
       status: realAc >= qtd - 1e-9 ? 'CONCLUÍDO' : reStatusPior(xs.map(x => x.status)) };
   });
 }
@@ -814,7 +816,7 @@ function reSecPlanos(d) {
   return `<p><b>Resumo dos planos${d.geral ? '' : ' da empresa'}:</b> ${reSm(g.veredito[0], g.veredito[1])} — realizado ${rePct(g.pctReal, 1)} × planejado até hoje ${rePct(g.pctPlan, 1)} (desvio ${g.desvio >= 0 ? '+' : ''}${nf(g.desvio, 1)} p.p.) em ${g.atividades} atividade(s) de ${g.n} plano(s).</p>`
     + p.rows.map(r => `<h3>${esc(r.plano.nome)} <span class="nota">${fdA(r.plano.inicio)} a ${fdA(r.plano.fim)}</span> ${reSm(r.veredito[0], r.veredito[1])}</h3>
     <p class="nota">Realizado ${rePct(r.c.pctReal, 1)} × planejado até hoje ${rePct(r.c.pctPlan, 1)} (desvio ${r.c.desvio >= 0 ? '+' : ''}${nf(r.c.desvio, 1)} p.p.) · situação ${esc(r.st)}${r.c.terminaEm ? ` · no ritmo atual termina em ${fdA(r.c.terminaEm)}` : ''}.</p>`
-    + reTab(['Atividade', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
+    + reTab(['Atividade (How)', 'Quando (When)', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}${x.como ? `<div class="nota">Como: ${esc(x.como)}</div>` : ''}</td><td>${x.ini ? fdA(x.ini) + ' a ' + fdA(x.fim) : '—'}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
 }
 function reSecBM(d) {
   const b = d.bm;
