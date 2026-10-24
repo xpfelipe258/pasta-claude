@@ -567,10 +567,29 @@ function renderTudo() {
 function renderAba() {
   if (!M) return;
   try {
-  ({ tarefas: renderTarefas, painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
-     estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont, rdo: renderRdo,
-     plan: renderPlanejamento })[abaAtual]();
+  // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
+  const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
+     estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(),
+     plan: () => renderPlanejamento() };
+  const rendFn = ABAS[abaAtual];
+  if (!rendFn) return;
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'] }[abaAtual];
+  if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
+    const chave = '_script_' + exigido[1];
+    if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar
+    if (!window[chave]) {
+      window[chave] = 'carregando';
+      const sc = document.createElement('script');
+      sc.src = exigido[1] + '?r=' + Date.now();
+      sc.onload = () => { window[chave] = 'ok'; document.querySelectorAll('.erro-aba').forEach(e => e.remove()); if (typeof tfCarregar === 'function' && exigido[1] === 'tarefas.js') tfCarregar(true).then(() => { if (typeof tfAvisoAoAbrir === 'function') tfAvisoAoAbrir(); renderAba(); }); else renderAba(); };
+      sc.onerror = () => { window[chave] = 'erro'; renderAba(); };
+      document.head.appendChild(sc);
+      return;
+    }
+    throw new Error('O arquivo ' + exigido[1] + ' não carregou. Atualize a página (Ctrl+F5); se continuar, avise o administrador.');
+  }
+  rendFn();
   } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
     console.error('Erro ao desenhar a aba', abaAtual, err);
     const sec = document.getElementById('aba-' + abaAtual);
@@ -7681,7 +7700,7 @@ function ligarEventos() {
   patchDatas();
   atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'tarefas');
-  tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // contador do menu, alertas e aviso ao abrir
+  if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });
