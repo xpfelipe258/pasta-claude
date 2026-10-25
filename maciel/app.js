@@ -3912,7 +3912,7 @@ function derivarInventario(base, cv, cf) {
 // Consumo virtual por TAG. PREMONTAGEM = produção x composição. Montagem (joists e vigas) = apontamento por quadrante/tipo
 // de viga (exato); joists içadas ainda sem quadrante usam a divisão média (estimada). Vigas sem tipo apontado ainda não
 // têm consumo contabilizado. Itens sem regra mensurável ficam fora do mapa e mantêm o valor da planilha.
-const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento', TELHA: 'telha', PERFILAGEM: 'perfilagem' };
+const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento', TELHA: 'telha', PERFILAGEM: 'perfilagem', TELHAFECH: 'telha_fechamento' };
 
 // Fixadores que um trecho de frente consome: kit de cada família (do projeto) x peças daquele trecho no IFC.
 // O contraventamento não tem baixa. Devolve [] quando o mapa do IFC ainda não foi carregado.
@@ -4199,7 +4199,7 @@ const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Se
   mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
   frente: new Map(), etapa: '', histSel: new Set(), histTodos: false, histFiltro: { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }, histTotal: 0 };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
-const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM' };
+const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM', tfech: 'TELHAFECH' };
 function frentesMontagem(refazer) {
   if (window._frentes) return window._frentes.frentes ? window._frentes : null;
   if (!window._frentes_pend) {
@@ -4211,7 +4211,7 @@ function frentesMontagem(refazer) {
 }
 const apFrenteAtual = () => {
   const f = window._frentes && window._frentes.frentes;
-  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento', telha: 'telha', perfil: 'perfilagem' }[apEst.modo]] : null;
+  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento', telha: 'telha', perfil: 'perfilagem', tfech: 'telha_fechamento' }[apEst.modo]] : null;
 };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01', VIGA_OITAO_MONTADA: 'Oitão' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
@@ -4261,13 +4261,14 @@ function apContexto(regras) {
 // Telhas: a empresa que monta é a que tem o serviço de instalação de telhas (Globo Aços); joists, vigas e as demais frentes: quem tem o içamento de joist
 const apModoTelha = () => apEst.modo === 'telha' || apEst.modo === 'perfil';   // mapas das telhas e da perfilagem (Globo Aços)
 const telhaEmpresas = () => M.empresas.filter(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome)) || ganNorm(s.nome).includes('PERFILAGEM')));
-const apEmpresas = ctx => (apModoTelha() ? telhaEmpresas() : apEmpresasDe(ctx.cfg.servico_joist));
+const apModoGlobo = () => apModoTelha() || apEst.modo === 'tfech';   // modos de apontamento da Globo Aços (telhas, perfilagem e telhas do fechamento lateral)
+const apEmpresas = ctx => (apModoGlobo() ? telhaEmpresas() : apEmpresasDe(ctx.cfg.servico_joist));
 const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));
 
 function apGarantirEstado(ctx) {
   if (!apEst.data) apEst.data = M.datas.includes(ref) ? ref : (M.datas.filter(d => d <= hoje()).pop() || M.datas[0]);
   if (!apEmpresas(ctx).some(e => e.nome === apEst.empresa)) apEst.empresa = null;
-  if (!apEst.empresa && apModoTelha() && apEmpresas(ctx).length === 1) apEst.empresa = apEmpresas(ctx)[0].nome;   // só a Globo monta telhas
+  if (!apEst.empresa && apModoGlobo() && apEmpresas(ctx).length === 1) apEst.empresa = apEmpresas(ctx)[0].nome;   // só a Globo monta telhas
   if (!ctx.cfg.eixos.includes(apEst.eixo)) apEst.eixo = ctx.cfg.eixos[0];
 }
 
@@ -4313,18 +4314,25 @@ function apSelecao(ctx) {
   });
   const fs = (window._frentes || {}).frentes || {};
   const regras = window._regras_baixa || {};
+  let nTelFech = 0;   // telhas do fechamento lateral selecionadas (cada trecho leva as telhas dele)
   frente.forEach(f => {
-    const chaveF = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVENTAMENTO: 'contraventamento', TELHA: 'telha', PERFILAGEM: 'perfilagem' }[f.tipo];
+    const chaveF = FRENTE_CHAVE[f.tipo];
     const cfgF = fs[chaveF] || {};
     // no contraventamento a "etapa" guarda o trecho do kit, não um serviço
-    grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += 1;
+    let nTel = 1;
+    if (f.tipo === 'TELHAFECH') {   // telhas do fechamento lateral: a célula é o trecho e leva todas as telhas dele
+      const cel = ((cfgF.partes || []).find(p => p.id === f.parte)?.celulas || []).find(c => c.trecho === f.trecho);
+      nTel = (cel && cel.total) || 1;
+      nTelFech += nTel;
+    }
+    grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += nTel;
     fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
   });
   const porEmp = {};
   [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
   return { joists, vigas, frente, grupos: [...grupos.values()], baixa, porEmp,
     semEmpresa: [...joists, ...vigas, ...frente].some(x => !x.emp),
-    nJ: joists.length, nV: vigas.length, nF: frente.length };
+    nJ: joists.length, nV: vigas.length, nF: frente.length, nTelFech };
 }
 
 function apEfeitosHtml(regras, ctx) {
@@ -4340,10 +4348,11 @@ function apEfeitosHtml(regras, ctx) {
     const e = empresa(g.emp), col = e && colDe(e, g.servico);
     const meta = M.metas.find(m => m.empresa === g.emp && m.servico === g.servico && m.inicio <= data && m.fim >= data);
     let t = `<b>${esc(g.emp)} · ${esc(cap(g.servico))}:</b> `;
-    const ehTel = ehTelhar(ganNorm(g.servico || '')) || ganNorm(g.servico || '').includes('PERFILAGEM'), frT = ((window._frentes || {}).frentes || {}).telha;
-    const m2f = ehTel ? (frT ? apTelhaM2(frT) : 86) : 1, dl = g.delta * m2f;   // telhas e perfilagem: lançamento em m² (cada faixa = 177,32 × 0,485)
+    const ehFech = apEst.modo === 'tfech' && sel.nTelFech > 0;   // telhas do fechamento lateral: o grupo é o serviço FECHAMENTO da Globo
+    const ehTel = ehFech || ehTelhar(ganNorm(g.servico || '')) || ganNorm(g.servico || '').includes('PERFILAGEM'), frT = ((window._frentes || {}).frentes || {})[ehFech ? 'telha_fechamento' : 'telha'];
+    const m2f = ehTel ? (frT ? apTelhaM2(frT) : 86) : 1, dl = g.delta * m2f;   // telhas e perfilagem: lançamento em m² (cada faixa = 177,32 × 0,485; telha de fechamento = contrato ÷ telhas do IFC)
     if (somar) {
-      t += ehTel ? `+${nf(dl, 1)} m² em ${fdA(data)} (${nf(g.delta)} faixa(s) × ${nf(m2f, 2)} m²), em Lançamentos e na medição do BM.` : `+${nf(g.delta)} em ${fdA(data)}.`;
+      t += ehTel ? `+${nf(dl, 1)} m² em ${fdA(data)} (${nf(g.delta)} ${ehFech ? 'telha(s)' : 'faixa(s)'} × ${nf(m2f, 2)} m²), em Lançamentos e na medição do BM.` : `+${nf(g.delta)} em ${fdA(data)}.`;
       if (meta && col) {
         const real = soma(e, col, meta.inicio, meta.fim), alvo = metaSemanaTotal(meta);
         t += ` Semana ${nf(real, ehTel ? 1 : 0)} → ${nf(real + dl, ehTel ? 1 : 0)} de ${nf(alvo, 1)} previstos${alvo ? ` (${nf((real + dl) / alvo * 100, 0)}%)` : ''}.`;
@@ -4380,8 +4389,9 @@ function apResumoTxt(ctx) {
   const s = apSelecao(ctx);
   if (!s.nJ && !s.nV && !s.nF) return 'Nada selecionado';
   const emps = Object.entries(s.porEmp).map(([e, n]) => `${e === '?' ? 'sem empresa' : e} ${nf(n)}`).join(' · ');
-  const frT = apModoTelha() ? apFrenteAtual() : null;
-  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '', s.nF ? (frT ? `${nf(s.nF)} telha(s) ≈ ${nf(s.nF * apTelhaM2(frT), 1)} m²` : `${nf(s.nF)} trecho(s)`) : ''].filter(Boolean);
+  const frT = apModoTelha() ? apFrenteAtual() : null, frF = apEst.modo === 'tfech' ? apFrenteAtual() : null;
+  const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '',
+    s.nF ? (frF ? `${nf(s.nTelFech)} telha(s) em ${nf(s.nF)} trecho(s) ≈ ${nf(s.nTelFech * apTelhaM2(frF), 1)} m²` : frT ? `${nf(s.nF)} telha(s) ≈ ${nf(s.nF * apTelhaM2(frT), 1)} m²` : `${nf(s.nF)} trecho(s)`) : ''].filter(Boolean);
   return `Seleção: ${partes.join(' · ')} (${emps})`;
 }
 
@@ -4404,7 +4414,7 @@ function apFormHtml(regras, ctx) {
   if (s.modo in AP_FRENTE) {
     const fr = apFrenteAtual();
     h += `<div class="ap-linha">${data}</div>
-      <p class="nota">${s.modo === 'telha' || s.modo === 'perfil' ? `Escolha a empresa na barra do topo e marque no mapa abaixo ${s.modo === 'perfil' ? 'a perfilagem feita' : 'as telhas montadas'}: ${fr ? nf(fr.total) : '—'} faixas ao longo do galpão.` : `Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.`}</p>
+      <p class="nota">${s.modo === 'tfech' ? `Escolha a empresa na barra do topo e marque os trechos (vão do lado A/H ou faixa do oitão) cujas telhas do fechamento lateral foram instaladas: ${fr ? nf(fr.total) : '—'} telhas do projeto (IFC) em ${fr ? nf(fr.partes.reduce((n, p) => n + p.celulas.length, 0)) : '—'} trechos. Cada trecho lança todas as telhas dele, em m², no serviço FECHAMENTO e na medição (BM, GLO-3.2.2-01).` : s.modo === 'telha' || s.modo === 'perfil' ? `Escolha a empresa na barra do topo e marque no mapa abaixo ${s.modo === 'perfil' ? 'a perfilagem feita' : 'as telhas montadas'}: ${fr ? nf(fr.total) : '—'} faixas ao longo do galpão.` : `Escolha a empresa na barra do topo${fr && fr.etapas ? ', a etapa no mapa' : ''} e clique nos trechos montados. ${esc(fr ? fr.titulo : '')} vem do IFC do galpão: ${fr ? nf(fr.total) : '—'} peças.`}</p>
       <div class="ap-linha">${rodape}</div>`;
   } else if (s.modo === 'mapa') {
     h += `<div class="ap-linha">${data}</div>
@@ -4622,7 +4632,7 @@ function apTelhaSvg(fr) {
   if (ruas.length) { const u = ruas[ruas.length - 1], x = X(Math.min(u.ate, fx.ate) + 1); o.push(`<line x1="${x}" x2="${x}" y1="${mTop - 10}" y2="${mTop + alto + 6}" class="apt-lin"/><text x="${x}" y="${mTop - 16}" text-anchor="middle" class="apt-rot b">${u.ate <= fx.ate ? u.rua.split('-')[1] : ''}</text>`); }
   return o.join('') + '</svg>';
 }
-const apTelhaM2 = fr => ((fr.telha || {}).comprimento_m || 177.32) * ((fr.telha || {}).largura_mm || 485) / 1000;   // m² de uma telha (A→H × largura)
+const apTelhaM2 = fr => Number((fr.telha || {}).m2_por_telha) || ((fr.telha || {}).comprimento_m || 177.32) * ((fr.telha || {}).largura_mm || 485) / 1000;   // m² de uma telha (A→H × largura)
 // Quadro: telhas e m² já apontadas, selecionadas (serão lançadas ao salvar) e pendentes depois do lançamento
 function apTelhaResumoHtml(fr) {
   const n = apTelhaN(fr), m2 = apTelhaM2(fr), tipo = apTipoT(), perf = tipo === 'PERFILAGEM', un = perf ? 'faixas' : 'telhas';
@@ -4665,6 +4675,8 @@ function apFrenteHtml(ctx) {
   });
   const nFeitas = fr.partes.reduce((n, p) => n + p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length, 0);
   const nTotal = fr.partes.reduce((n, p) => n + p.celulas.length, 0);
+  const ehTF = apEst.modo === 'tfech', m2TF = ehTF ? apTelhaM2(fr) : 0;   // telhas do fechamento lateral: cada trecho tem N telhas e vale N × m² por telha
+  const telFeitas = ehTF ? fr.partes.reduce((n, p) => n + p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).reduce((m, c) => m + (c.total || 0), 0), 0) : 0;
   const barra = etapas.length
     ? `<div class="seg" id="segApEtapa">${etapas.map(e => `<button data-ap-etapa="${esc(e)}" class="${e === etapa ? 'ativa' : ''}">${esc(cap(e.replace(/^MARQUISE – /, '')))}</button>`).join('')}</div>` : '';
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
@@ -4690,17 +4702,17 @@ function apFrenteHtml(ctx) {
       O contraventamento não tem coluna no controle de produção, então o apontamento serve de controle e não soma na produção.</p>`;
   }
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
-    <span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC</span>
+    <span class="nota">${ehTF ? `${nf(nFeitas)} de ${nf(nTotal)} trechos · <b>${nf(telFeitas)} de ${nf(fr.total)} telhas</b> ≈ ${nf(telFeitas * m2TF, 1)} de ${nf(fr.total * m2TF, 1)} m² (${nf(fr.total ? telFeitas / fr.total * 100 : 0, 1)}%)` : `${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC`}</span>
     <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
     <div class="tabela-rolagem"><table class="ap-frente"><tbody>`;
   fr.partes.forEach(p => {
     const feitasP = p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length;
-    h += `<tr><th class="apf-rot"><b>${esc(p.nome)}</b><span class="nota">${feitasP}/${p.celulas.length} · ${nf(p.total)} peças</span></th>`;
+    h += `<tr><th class="apf-rot"><b>${esc(p.nome)}</b><span class="nota">${feitasP}/${p.celulas.length} · ${nf(p.total)} ${ehTF ? 'telhas' : 'peças'}</span></th>`;
     p.celulas.forEach(c => {
       const k = `${p.id}|${c.trecho}|${etapa}`;
       const feita = feitas.get(k), emp = apEst.frente.get(`${tipo}|${k}`);
       const det = Object.entries(c.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
-      const tit = `${p.nome} · ${c.trecho}${etapa ? ' · ' + etapa : ''}\n${c.total} peças${det ? '\n' + det : ''}` +
+      const tit = `${p.nome} · ${c.trecho}${etapa ? ' · ' + etapa : ''}\n${c.total} ${ehTF ? `telhas ≈ ${nf(c.total * m2TF, 1)} m²` : 'peças'}${det && !ehTF ? '\n' + det : ''}` +
         (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
       const estilo = emp ? `style="--sel:${corSelEmp(emp)}"` : feita?.empresa ? `style="--sel:${corSelEmp(feita.empresa)}"` : '';
       h += `<td><button type="button" class="apf-cel ${feita ? 'feita' : emp ? 'sel' : 'pend'}" ${estilo}
@@ -4709,6 +4721,7 @@ function apFrenteHtml(ctx) {
     h += '</tr>';
   });
   h += '</tbody></table></div>';
+  if (ehTF) h += `<p class="nota"><b>Telhas do fechamento lateral (Globo Aços).</b> Cada telha é uma peça ${esc(fr.familias.join(', '))} do IFC, contada por vão entre eixos nos lados A e H e por faixa nos oitões 01 e 20. Cada telha vale ${nf(m2TF, 2)} m² (${nf(fr.telha.m2_total_contrato, 1)} m² do contrato ÷ ${nf(fr.total)} telhas do projeto).</p>`;
   h += `<p class="nota">Cada célula é um trecho montável deste mapa, extraído do IFC (${esc(fr.familias.join(', '))}). O número embaixo é a quantidade de peças do trecho; passe o mouse para ver a composição. ` +
     (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
       'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
@@ -4790,7 +4803,7 @@ function apSelLogHtml(ctx) {
 }
 
 // Conciliação: o que foi lançado na produção (grade, base do BM) x o que foi apontado no mapa, por empresa.
-const apDeTelha = a => ['TELHA', 'PERFILAGEM'].includes((a.tipo || '').toUpperCase());   // telhas e perfilagem são da Globo Aços: fora da conciliação das joists/vigas
+const apDeTelha = a => ['TELHA', 'PERFILAGEM', 'TELHAFECH'].includes((a.tipo || '').toUpperCase());   // telhas e perfilagem são da Globo Aços: fora da conciliação das joists/vigas
 function apConciliacaoHtml(ctx) {
   const nomes = apEmpresasDe(ctx.cfg.servico_joist).map(e => e.nome);
   const vazia = x => !nomes.includes(x);
@@ -4865,7 +4878,7 @@ function renderApont() {
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
   $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
-    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)']]
+    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']]
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
@@ -4886,7 +4899,7 @@ function renderApont() {
 }
 
 // "Últimos apontamentos": filtros por empresa, tipo, produção, período e texto (valem para todo o histórico; a lista continua mostrando 40 até "Ver todos").
-const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
+const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', TELHAFECH: 'Telha fech.', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
 function apHistPassa(a) {
   const f = apEst.histFiltro;
   if (f.emp && a.empresa !== f.emp) return false;
@@ -4927,7 +4940,7 @@ function apHistRender(ctx, manterFiltros) {
     (hist.length ? hist.map(a => {
       const tipo = (a.tipo || '').toUpperCase(), joist = tipo === 'JOIST';
       const c = ctx.crit[a.letra] || {};
-      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem' }[tipo];
+      const rotFrente = { FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', TELHAFECH: 'Telha fech.' }[tipo];
       return `<tr class="${apEst.histSel.has(String(a.linha)) ? 'ap-hist-sel' : ''}"><td><input type="checkbox" data-ap-hist-sel="${a.linha}" ${apEst.histSel.has(String(a.linha)) ? 'checked' : ''} aria-label="Selecionar apontamento"></td><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
         <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>

@@ -1808,7 +1808,7 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
 // com os trechos vindos do mapa extraído do IFC.
 function tipos_frente()
 {
-    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha', 'PERFILAGEM' => 'perfilagem'];
+    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha', 'PERFILAGEM' => 'perfilagem', 'TELHAFECH' => 'telha_fechamento'];
 }
 
 // Telhas da cobertura (Globo Aços): cada telha corre do eixo A ao H (177,32 m) e ocupa 0,485 m entre eixos ao longo do comprimento do galpão
@@ -1831,6 +1831,39 @@ function frente_telhas(array $malha, $kind = 'telha')
         'total' => $n, 'familias' => [$perfil ? 'PERFILAGEM' : 'TELHA']];
 }
 
+// Telhas do fechamento lateral (Globo Aços): as MESMAS telhas do IFC (família TELHA FECHAMENTO) do mapa do fechamento, por lado (A, H) e oitão (01, 20).
+// Cada célula é o trecho (vão entre eixos ou faixa do oitão) com as telhas dele; apontar uma célula lança todas as telhas do trecho, em m²:
+// m² por telha = quantidade da atividade "Instalação das telhas" do catálogo do BM (GLO-3.2.2-01) ÷ telhas do IFC (o projeto inteiro = 100% do contrato).
+function frente_telhas_fechamento(array $fech)
+{
+    $familia = 'TELHA FECHAMENTO';   // (constante global não serve: api.php roda as rotas antes de chegar nesta linha)
+    $partes = [];
+    $total = 0;
+    foreach (($fech['partes'] ?? []) as $p) {
+        $cel = [];
+        $soma = 0;
+        foreach (($p['celulas'] ?? []) as $c) {
+            $n = (int)(($c['pecas'] ?? [])[$familia] ?? 0);
+            if ($n > 0) {
+                $cel[] = ['trecho' => $c['trecho'], 'pecas' => [$familia => $n], 'total' => $n];
+                $soma += $n;
+            }
+        }
+        if ($cel) {
+            $partes[] = ['id' => $p['id'], 'nome' => $p['nome'], 'celulas' => $cel, 'total' => $soma];
+            $total += $soma;
+        }
+    }
+    if (!$partes) {
+        return null;
+    }
+    $cod = 'GLO-3.2.2-01';
+    $qtd = (float)q('SELECT qtd FROM bm_atividades WHERE codigo = ? AND qtd > 0 ORDER BY id LIMIT 1', [$cod])->fetchColumn() ?: 12082.65;
+    return ['titulo' => 'Telhas do fechamento lateral — Globo Aços', 'servico' => 'FECHAMENTO', 'empresa' => 'GLOBO AÇOS',
+        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'codigo_bm' => $cod],
+        'partes' => $partes, 'total' => $total, 'familias' => [$familia]];
+}
+
 function frentes_montagem()
 {
     $d = null;
@@ -1850,6 +1883,12 @@ function frentes_montagem()
             $d['frentes'][$k] = frente_telhas($d['malha'] ?? [], $k);
         }
     }
+    if (empty($d['frentes']['telha_fechamento']) && !empty($d['frentes']['fechamento'])) {   // telhas do fechamento lateral: vêm do mapa do fechamento (IFC)
+        $tf = frente_telhas_fechamento($d['frentes']['fechamento']);
+        if ($tf) {
+            $d['frentes']['telha_fechamento'] = $tf;
+        }
+    }
     return $d;
 }
 
@@ -1859,7 +1898,7 @@ function telha_cfg($tipo = 'TELHA')
 {
     $k = tipos_frente()[$tipo] ?? 'telha';
     $t = ((frentes_montagem()['frentes'] ?? [])[$k]['telha'] ?? []);
-    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? ($tipo === 'PERFILAGEM' ? 'GLO-3.2.1-01' : 'GLO-3.2.1-02'))];
+    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? ($tipo === 'PERFILAGEM' ? 'GLO-3.2.1-01' : ($tipo === 'TELHAFECH' ? 'GLO-3.2.2-01' : 'GLO-3.2.1-02')))];
 }
 function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
 {
@@ -1877,7 +1916,7 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
             q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
         }
     } elseif ($novo > 0) {
-        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : 'telhas') . ' apontadas no mapa de montagem']);
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : ($tipo === 'TELHAFECH' ? 'telhas do fechamento lateral' : 'telhas')) . ' apontadas no mapa de montagem']);
     }
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
@@ -2065,6 +2104,8 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         }
     }
     $validos = array_column($parte['celulas'], 'trecho');
+    $porTrecho = array_column($parte['celulas'], 'total', 'trecho');
+    $telhaFech = $tipo === 'TELHAFECH';   // uma célula = todas as telhas do trecho
     $novas = [];
     $vistos = [];
     foreach (($item['trechos'] ?? []) as $trecho) {
@@ -2084,7 +2125,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
                 ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
         }
         $ja[$chave] = ['data' => $data];
-        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => 1];
+        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => $telhaFech ? max(1, (int)($porTrecho[$trecho] ?? 1)) : 1];
     }
     return [$novas, $elev ? ($frente['servico'] ?? null) : ($etapa ?: ($frente['servico'] ?? null))];
 }
@@ -2242,19 +2283,24 @@ function acao_apontamento(array $corpo, array $usuario)
             // Determina fase pelo eixo: eixo < 11 → GALPÃO F2, senão F1
             $frente = frente_galpao($eixo);
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA ou PERFILAGEM).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA, PERFILAGEM ou TELHAFECH).');
         }
         $novas = array_merge($novas, $doItem);
         $fator = 1;
+        $nQtd = count($doItem);
         if ($tipo === 'TELHA' || $tipo === 'PERFILAGEM') {   // lançamento em m²: telhas × (177,32 × 0,485)
             $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + count($doItem);
+            $fator = telha_cfg($tipo)['m2'];
+        } elseif ($tipo === 'TELHAFECH') {   // telhas do fechamento lateral: cada célula leva as telhas do trecho; m² por telha = contrato ÷ telhas do IFC
+            $nQtd = array_sum(array_map(function ($l) { return (float)($l['qtd'] ?? 1); }, $doItem));
+            $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + $nQtd;
             $fator = telha_cfg($tipo)['m2'];
         }
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'frente' => $frente, 'delta' => 0];
         }
-        $grupos[$chave]['delta'] += count($doItem) * $fator;
+        $grupos[$chave]['delta'] += $nQtd * $fator;
     }
     if (!$novas) {
         throw new ErroValidacao('Nada selecionado para apontar.');
@@ -2335,7 +2381,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                 }
             }
             $fatorR = 1;
-            if ($t === 'TELHA' || $t === 'PERFILAGEM') {
+            if ($t === 'TELHA' || $t === 'PERFILAGEM' || $t === 'TELHAFECH') {
                 $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
                 $bmTelhas[$kt] = ($bmTelhas[$kt] ?? 0) - (float)($r['qtd'] ?? 1);
                 $fatorR = telha_cfg($t)['m2'];

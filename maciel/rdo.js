@@ -86,7 +86,7 @@ function rdoApontamentos(dia) {
     const k = `${a.empresa || '—'}|${(a.tipo || '').toUpperCase()}`;
     por.set(k, (por.get(k) || 0) + (a.qtd || 1));
   });
-  const rot = { JOIST: 'joists içadas', VIGA: 'vigas montadas', FECHAMENTO: 'trechos de fechamento lateral', MARQUISE: 'trechos de marquise', CONTRAVENTAMENTO: 'kits de contraventamento', TELHA: 'telhas instaladas', PERFILAGEM: 'faixas perfiladas', PECA: 'peças montadas (mapa)' };
+  const rot = { JOIST: 'joists içadas', VIGA: 'vigas montadas', FECHAMENTO: 'trechos de fechamento lateral', MARQUISE: 'trechos de marquise', CONTRAVENTAMENTO: 'kits de contraventamento', TELHA: 'telhas instaladas', PERFILAGEM: 'faixas perfiladas', TELHAFECH: 'telhas de fechamento lateral instaladas', PECA: 'peças montadas (mapa)' };
   return [...por.entries()].map(([k, q]) => { const [emp, tipo] = k.split('|'); return { emp, texto: `${nf(q, 0)} ${rot[tipo] || tipo.toLowerCase()}` }; })
     .sort((a, b) => a.emp.localeCompare(b.emp, 'pt'));
 }
@@ -257,6 +257,7 @@ function rdoMapasLegado(dia) {
     linhas.push(rdoLinhaMapa(rot, t.n, 'm²', t.m2));
     figs.push(`<h3>${esc(rot.replace(' (m²)', ''))} (do eixo 01 ao 20)</h3>` + t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p><div class="mapa-fig">${f.svg}</div>`).join('') + `<p class="nota">Cada faixa é ${rot.startsWith('Telhas') ? 'uma telha' : 'uma fiada de perfilagem'} (${nf(t.m2, 2)} m²), numerada a partir do eixo 01.</p>`);
   });
+  if (m.tfech) linhas.push(rdoLinhaMapa('Telhas do fechamento lateral (m²)', m.tfech.n, 'm²', m.tfech.m2));   // sem desenho: o resumo por parte fica no relatório das empresas
   const fora = m.foraMontagem && m.foraMontagem.length ? `<p class="nota"><b>${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s)</b> de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço ficam em cinza e fora dos totais.</p>` : '';
   const cinza = [m.planta && m.planta.nJ.outra, m.planta && m.planta.nV.outra, m.contrav && m.contrav.n.outra].some(v => v > 0);
   return { linhas, figs, fora, extraLeg: cinza ? `<span><i style="background:${RE_COR_OUTRA}"></i>Apontado por empresa sem esse serviço</span>` : '' };
