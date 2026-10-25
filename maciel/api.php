@@ -98,6 +98,12 @@ try {
             }
             responder_json(200, tarefas_listar($usuario));
         }
+        if ($rota === 'tarefas-msgs') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, tarefas_msgs_listar($usuario, (int)($_GET['tarefa'] ?? 0)));
+        }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
             responder_json(200, is_array($d) ? $d : ['setores' => []]);
@@ -124,6 +130,16 @@ try {
     }
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
+    }
+    if ($rota === 'tarefas-msgs') {   // conversa entre os usuários: não mexe nos dados da obra
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+        }
+        $corpoM = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoM)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_tarefas_msgs($corpoM, $usuario));
     }
     if ($rota === 'tarefas') {   // tarefas são pessoais/da gestão: não mexem nos dados da obra nem na versão do modelo
         if ($via_token) {
@@ -215,7 +231,9 @@ function tarefas_listar(array $usuario)
 {
     garantir_tarefas();
     $admin = ($usuario['perfil'] ?? '') === 'admin';
-    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome FROM tarefas t
+    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome,
+        (SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS n_msgs, (SELECT MAX(m.id) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS ult_msg_id,
+        (SELECT m2.usuario_id FROM tarefas_msgs m2 WHERE m2.id = (SELECT MAX(m3.id) FROM tarefas_msgs m3 WHERE m3.tarefa_id = t.id)) AS ult_msg_usuario FROM tarefas t
         LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
     $params = [];
     if (!$admin) {
@@ -225,7 +243,7 @@ function tarefas_listar(array $usuario)
     $sql .= ' ORDER BY t.data_fim, t.id';
     $linhas = q_global($sql, $params)->fetchAll();
     foreach ($linhas as &$l) {
-        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias'] as $k) {
+        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias', 'n_msgs', 'ult_msg_id', 'ult_msg_usuario'] as $k) {
             $l[$k] = (int)$l[$k];
         }
         $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
@@ -238,7 +256,65 @@ function tarefas_listar(array $usuario)
         $u['id'] = (int)$u['id'];
     }
     unset($u);
-    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas];
+    $mural = q_global('SELECT id, usuario_id FROM tarefas_msgs WHERE tarefa_id = 0 ORDER BY id DESC LIMIT 1')->fetch();
+    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas,
+        'mural_ultimo' => $mural ? (int)$mural['id'] : 0, 'mural_ultimo_usuario' => $mural ? (int)$mural['usuario_id'] : 0];
+}
+
+// ---- conversa entre os usuários (mural da equipe e conversa de cada tarefa), só para comunicação e envio de arquivos
+function tarefas_msgs_listar(array $usuario, $tarefaId)
+{
+    garantir_tarefas();
+    $tarefaId = (int)$tarefaId;
+    if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
+        throw new ErroValidacao('Você não participa desta tarefa.');
+    }
+    $l = q_global('SELECT id, tarefa_id, usuario_id, autor, texto, arquivo_nome, arquivo_tipo, arquivo_tam, (arquivo IS NOT NULL) AS tem_arquivo, criado_em
+        FROM tarefas_msgs WHERE tarefa_id = ? ORDER BY id DESC LIMIT 300', [$tarefaId])->fetchAll();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    foreach ($l as &$m) {
+        foreach (['id', 'tarefa_id', 'usuario_id', 'arquivo_tam'] as $k) {
+            $m[$k] = (int)$m[$k];
+        }
+        $m['tem_arquivo'] = (bool)$m['tem_arquivo'];
+        $m['minha'] = $m['usuario_id'] === (int)$usuario['id'];
+        $m['pode_excluir'] = $m['minha'] || $admin;
+    }
+    unset($m);
+    return ['tarefa' => $tarefaId, 'mensagens' => array_reverse($l), 'usuario_id' => (int)$usuario['id']];
+}
+
+function acao_tarefas_msgs(array $corpo, array $usuario)
+{
+    garantir_tarefas();
+    $acao = (string)($corpo['acao'] ?? '');
+    $tarefaId = (int)($corpo['tarefa'] ?? 0);
+    if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
+        throw new ErroValidacao('Você não participa desta tarefa.');
+    }
+    if ($acao === 'enviar') {
+        $texto = trim((string)($corpo['texto'] ?? ''));
+        if ($texto === '' || mb_strlen($texto) > 4000) {
+            throw new ErroValidacao('Escreva a mensagem (até 4.000 caracteres).');
+        }
+        q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?)',
+            [$tarefaId, (int)$usuario['id'], mb_substr((string)$usuario['nome'], 0, 100), $texto, tarefa_agora_brt()]);
+    } elseif ($acao === 'excluir') {
+        $m = q_global('SELECT * FROM tarefas_msgs WHERE id = ? AND tarefa_id = ?', [(int)($corpo['id'] ?? 0), $tarefaId])->fetch();
+        if (!$m) {
+            throw new ErroValidacao('Mensagem não encontrada.');
+        }
+        if ((int)$m['usuario_id'] !== (int)$usuario['id'] && ($usuario['perfil'] ?? '') !== 'admin') {
+            throw new ErroValidacao('Só quem escreveu (ou o administrador) apaga a mensagem.');
+        }
+        q_global('DELETE FROM tarefas_msgs WHERE id = ?', [(int)$m['id']]);
+        if (!empty($m['arquivo'])) {
+            @unlink(tarefas_arquivos_dir() . '/' . basename((string)$m['arquivo']));
+        }
+    } else {
+        throw new ErroValidacao('Ação inválida.');
+    }
+    return tarefas_msgs_listar($usuario, $tarefaId);
 }
 
 function acao_tarefas(array $corpo, array $usuario)
@@ -294,9 +370,9 @@ function acao_tarefas(array $corpo, array $usuario)
             q_global('UPDATE tarefas SET titulo=?, descricao=?, responsavel_id=?, data_inicio=?, data_fim=?, aviso_dias=?, prioridade=?, atualizado_em=? WHERE id=?',
                 [$titulo, $desc !== '' ? $desc : null, $resp, $ini, $fim, $aviso, $prio, $agora, $id]);
         } else {
-            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora]);
+            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em, codigo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora, tarefa_novo_codigo(substr($agora, 0, 4))]);
         }
     } elseif ($acao === 'status') {
         if (!$t) {
@@ -310,8 +386,12 @@ function acao_tarefas(array $corpo, array $usuario)
             throw new ErroValidacao('Situação inválida.');
         }
         $retorno = array_key_exists('retorno', $corpo) ? trim((string)$corpo['retorno']) : (string)($t['retorno'] ?? '');
-        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, atualizado_em=? WHERE id=?',
-            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $agora, $id]);
+        $iniciada = (string)($t['iniciada_em'] ?? '');
+        if ($iniciada === '' && in_array($st, ['andamento', 'concluida'], true)) {
+            $iniciada = $agora;   // primeira vez que a tarefa sai de "A fazer"
+        }
+        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, iniciada_em=?, atualizado_em=? WHERE id=?',
+            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $iniciada !== '' ? $iniciada : null, $agora, $id]);
     } elseif ($acao === 'excluir') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
@@ -319,6 +399,10 @@ function acao_tarefas(array $corpo, array $usuario)
         if (!$admin && (int)$t['criado_por'] !== $eu) {
             throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode excluí-la.');
         }
+        foreach (q_global('SELECT arquivo FROM tarefas_msgs WHERE tarefa_id = ? AND arquivo IS NOT NULL', [$id])->fetchAll() as $a) {
+            @unlink(tarefas_arquivos_dir() . '/' . basename((string)$a['arquivo']));
+        }
+        q_global('DELETE FROM tarefas_msgs WHERE tarefa_id = ?', [$id]);
         q_global('DELETE FROM tarefas WHERE id = ?', [$id]);
     } else {
         throw new ErroValidacao('Ação de tarefa inválida.');
@@ -1808,7 +1892,7 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
 // com os trechos vindos do mapa extraído do IFC.
 function tipos_frente()
 {
-    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha', 'PERFILAGEM' => 'perfilagem'];
+    return ['FECHAMENTO' => 'fechamento', 'MARQUISE' => 'marquise', 'CONTRAVENTAMENTO' => 'contraventamento', 'TELHA' => 'telha', 'PERFILAGEM' => 'perfilagem', 'TELHAFECH' => 'telha_fechamento'];
 }
 
 // Telhas da cobertura (Globo Aços): cada telha corre do eixo A ao H (177,32 m) e ocupa 0,485 m entre eixos ao longo do comprimento do galpão
@@ -1831,6 +1915,162 @@ function frente_telhas(array $malha, $kind = 'telha')
         'total' => $n, 'familias' => [$perfil ? 'PERFILAGEM' : 'TELHA']];
 }
 
+// Telhas do fechamento lateral (Globo Aços): as MESMAS telhas do IFC (família TELHA FECHAMENTO) do mapa do fechamento, por lado (A, H) e oitão (01, 20).
+// Cada célula é o trecho (vão entre eixos ou faixa do oitão) com as telhas dele; apontar uma célula lança todas as telhas do trecho, em m²:
+// m² por telha = quantidade da atividade "Instalação das telhas" do catálogo do BM (GLO-3.2.2-01) ÷ telhas do IFC (o projeto inteiro = 100% do contrato).
+// Paginação de telha do projeto (prancha OF.198-PG-02): grupos "N telhas de L mm" em cada parede. Vem do banco da obra (sistema.paginacao_telhas)
+// ou, na obra 198 (dados_legados), do arquivo inc/paginacao_telhas.json.
+function paginacao_telhas_ler()
+{
+    $salvo = json_decode((string)sistema_ler('paginacao_telhas', 'null'), true);
+    if (is_array($salvo) && !empty($salvo['paredes'])) {
+        return $salvo;
+    }
+    if (sistema_ler('dados_legados', '0') === '1') {
+        $p = __DIR__ . '/inc/paginacao_telhas.json';
+        if (is_file($p)) {
+            $l = json_decode(file_get_contents($p), true);
+            return is_array($l) && !empty($l['paredes']) ? $l : null;
+        }
+    }
+    return null;
+}
+
+// Telhas de uma fiada pela paginação: lista [comprimento_mm, centro_mm]; o passo é o comprimento da parede ÷ nº de telhas da fiada.
+function paginacao_fiada(array $grupos, $compMm)
+{
+    $ls = [];
+    foreach ($grupos as $g) {
+        for ($i = 0; $i < (int)$g[0]; $i++) {
+            $ls[] = (int)$g[1];
+        }
+    }
+    $passo = $ls ? $compMm / count($ls) : 0;
+    $out = [];
+    foreach ($ls as $i => $l) {
+        $out[] = ['l' => $l, 'x' => ($i + .5) * $passo];
+    }
+    return $out;
+}
+
+function frente_telhas_fechamento(array $fech)
+{
+    $familia = 'TELHA FECHAMENTO';   // (constante global não serve: api.php roda as rotas antes de chegar nesta linha)
+    $pag = paginacao_telhas_ler();
+    if (!$pag) {   // obra que não é a legada mas tem o mesmo fechamento (lados A e H, oitões 01 e 20, contagem do IFC a ±2 telhas da prancha): usa a prancha do arquivo
+        $arq = __DIR__ . '/inc/paginacao_telhas.json';
+        $l = is_file($arq) ? json_decode(file_get_contents($arq), true) : null;
+        if (is_array($l) && !empty($l['paredes'])) {
+            $ok = true;
+            foreach ($l['paredes'] as $id => $pw) {
+                $esperado = isset($pw['grupos']) ? array_sum(array_column($pw['grupos'], 0)) : array_sum(array_column($pw['inferior'], 0)) + array_sum(array_column($pw['superior'], 0));
+                $ifc = null;
+                foreach (($fech['partes'] ?? []) as $p) {
+                    if ($p['id'] === $id) {
+                        $ifc = 0;
+                        foreach (($p['celulas'] ?? []) as $c) { $ifc += (int)(($c['pecas'] ?? [])['TELHA FECHAMENTO'] ?? 0); }
+                    }
+                }
+                if ($ifc === null || abs($ifc - $esperado) > 2) { $ok = false; }
+            }
+            $pag = $ok ? $l : null;
+        }
+    }
+    $partes = [];
+    $total = 0;
+    foreach (($fech['partes'] ?? []) as $p) {
+        $cel = [];
+        $soma = 0;
+        $pw = $pag['paredes'][$p['id']] ?? null;
+        $trechos = array_column($p['celulas'] ?? [], 'trecho');
+        if ($pw && $trechos) {   // projeto: cada telha com o comprimento e a posição da prancha de paginação; o trecho é o vão (lados) ou a faixa AB…GH (oitões) onde ela cai
+            $comp = (float)$pw['comprimento_mm'];
+            if (isset($pw['grupos'])) {   // lados: uma fiada
+                $col = paginacao_fiada($pw['grupos'], $comp);
+            } else {   // oitões: cada coluna tem uma peça embaixo e outra em cima, mas é UMA telha na obra (a marcação é da coluna inteira)
+                $inf = paginacao_fiada($pw['inferior'], $comp);
+                $sup = paginacao_fiada($pw['superior'], $comp);
+                $col = [];
+                foreach ($inf as $i => $t) {
+                    $l2 = (int)(($sup[$i] ?? ['l' => 0])['l']);
+                    $col[] = ['l' => $t['l'] + $l2, 'x' => $t['x'], 'l1' => $t['l'], 'l2' => $l2];
+                }
+            }
+            $nT = count($trechos);
+            $porTrecho = [];
+            foreach ($col as $t) {
+                $k = min($nT - 1, (int)floor($t['x'] / ($comp / $nT)));
+                $porTrecho[$k][] = $t;
+            }
+            ksort($porTrecho);
+            foreach ($porTrecho as $k => $ts) {
+                $de = count($ts);
+                foreach ($ts as $i => $t) {
+                    $c = ['trecho' => $trechos[$k] . '/' . sprintf('%02d', $i + 1), 'vao' => $trechos[$k], 'n' => $i + 1, 'de' => $de, 'pecas' => [$familia => 1], 'total' => 1,
+                        'l' => $t['l'], 'x' => (int)round($t['x'])];
+                    if (isset($t['l1'])) {
+                        $c['l1'] = $t['l1'];
+                        $c['l2'] = $t['l2'];
+                    }
+                    $cel[] = $c;
+                    $soma++;
+                }
+            }
+        } else {
+            foreach (($p['celulas'] ?? []) as $c) {
+                $n = (int)(($c['pecas'] ?? [])[$familia] ?? 0);
+                for ($i = 1; $i <= $n; $i++) {   // sem projeto: o IFC dá a contagem por trecho; a posição dentro do trecho é a ordem
+                    $cel[] = ['trecho' => $c['trecho'] . '/' . sprintf('%02d', $i), 'vao' => $c['trecho'], 'n' => $i, 'de' => $n, 'pecas' => [$familia => 1], 'total' => 1];
+                    $soma++;
+                }
+            }
+        }
+        if ($cel) {
+            $partes[] = ['id' => $p['id'], 'nome' => $p['nome'], 'celulas' => $cel, 'total' => $soma] + ($pw ? ['comprimento_mm' => (int)$pw['comprimento_mm']] : []);
+            $total += $soma;
+        }
+    }
+    if (!$partes) {
+        return null;
+    }
+    $cod = 'GLO-3.2.2-01';
+    $qtd = (float)q('SELECT qtd FROM bm_atividades WHERE codigo = ? AND qtd > 0 ORDER BY id LIMIT 1', [$cod])->fetchColumn() ?: 12082.65;
+    // m² de cada telha = contrato × comprimento da telha ÷ soma dos comprimentos (o projeto inteiro apontado = 100% do contrato); sem comprimento, vale a média
+    $somaL = 0;
+    $nL = 0;
+    foreach ($partes as $pt) {
+        foreach ($pt['celulas'] as $c) {
+            if (!empty($c['l'])) {
+                $somaL += $c['l'];
+                $nL++;
+            }
+        }
+    }
+    $media = $nL ? $somaL / $nL : 1;
+    $somaL += $media * ($total - $nL);
+    foreach ($partes as &$pt) {
+        foreach ($pt['celulas'] as &$c) {
+            $c['m2'] = round($qtd * (!empty($c['l']) ? $c['l'] : $media) / $somaL, 4);
+        }
+        unset($c);
+    }
+    unset($pt);
+    return ['titulo' => 'Telhas do fechamento lateral — Globo Aços', 'servico' => 'FECHAMENTO', 'empresa' => 'GLOBO AÇOS',
+        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'm2_legado' => round($qtd / 1574, 4), 'codigo_bm' => $cod, 'projeto' => $pag ? ($pag['projeto'] ?? 'paginação de telha') : null],
+        'partes' => $partes, 'total' => $total, 'familias' => [$familia]];
+}
+
+// m² de uma linha de apontamento de telha do fechamento lateral: o valor gravado na hora (viga_id = "m2:9,9000") ou, nas linhas antigas, telhas × m² por telha da época.
+function telhafech_m2_linha(array $r)
+{
+    $v = (string)($r['viga_id'] ?? '');
+    if (strncmp($v, 'm2:', 3) === 0) {
+        return (float)substr($v, 3);
+    }
+    $t = ((frentes_montagem()['frentes'] ?? [])['telha_fechamento']['telha'] ?? []);
+    return (float)($r['qtd'] ?? 1) * ((float)($t['m2_legado'] ?? 0) ?: telha_cfg('TELHAFECH')['m2']);
+}
+
 function frentes_montagem()
 {
     $d = null;
@@ -1850,6 +2090,12 @@ function frentes_montagem()
             $d['frentes'][$k] = frente_telhas($d['malha'] ?? [], $k);
         }
     }
+    if (empty($d['frentes']['telha_fechamento']) && !empty($d['frentes']['fechamento'])) {   // telhas do fechamento lateral: vêm do mapa do fechamento (IFC)
+        $tf = frente_telhas_fechamento($d['frentes']['fechamento']);
+        if ($tf) {
+            $d['frentes']['telha_fechamento'] = $tf;
+        }
+    }
     return $d;
 }
 
@@ -1859,7 +2105,7 @@ function telha_cfg($tipo = 'TELHA')
 {
     $k = tipos_frente()[$tipo] ?? 'telha';
     $t = ((frentes_montagem()['frentes'] ?? [])[$k]['telha'] ?? []);
-    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? ($tipo === 'PERFILAGEM' ? 'GLO-3.2.1-01' : 'GLO-3.2.1-02'))];
+    return ['m2' => (float)($t['m2_por_telha'] ?? 0) ?: round(177.32 * 0.485, 4), 'codigo' => (string)($t['codigo_bm'] ?? ($tipo === 'PERFILAGEM' ? 'GLO-3.2.1-01' : ($tipo === 'TELHAFECH' ? 'GLO-3.2.2-01' : 'GLO-3.2.1-02')))];
 }
 function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
 {
@@ -1877,7 +2123,7 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
             q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
         }
     } elseif ($novo > 0) {
-        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : 'telhas') . ' apontadas no mapa de montagem']);
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $cod, $novo, ($tipo === 'PERFILAGEM' ? 'perfilagem' : ($tipo === 'TELHAFECH' ? 'telhas do fechamento lateral' : 'telhas')) . ' apontadas no mapa de montagem']);
     }
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
@@ -2065,6 +2311,9 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         }
     }
     $validos = array_column($parte['celulas'], 'trecho');
+    $porTrecho = array_column($parte['celulas'], 'total', 'trecho');
+    $m2Trecho = array_column($parte['celulas'], 'm2', 'trecho');
+    $telhaFech = $tipo === 'TELHAFECH';   // uma célula = uma telha ("vão/nn"); apontamento antigo do vão inteiro (sem "/nn") bloqueia as telhas dele
     $novas = [];
     $vistos = [];
     foreach (($item['trechos'] ?? []) as $trecho) {
@@ -2077,6 +2326,10 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
             throw new ErroValidacao("{$frente['titulo']} · {$parte['nome']}: trecho '$trecho' não existe no mapa.");
         }
         $chave = "$tipo|{$parte['id']}|$trecho|$etapa";
+        if ($telhaFech && strpos($trecho, '/') !== false) {
+            $vaoChave = "$tipo|{$parte['id']}|" . explode('/', $trecho)[0] . "|$etapa";
+            if (isset($ja[$vaoChave]) && !isset($ja[$chave])) { $chave = $vaoChave; }   // o vão inteiro já tinha sido apontado
+        }
         if (isset($ja[$chave])) {
             $quando = $ja[$chave]['data'] ?? null;
             $rot = "{$parte['nome']} · $trecho" . ($etapa ? " · $etapa" : '');
@@ -2084,7 +2337,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
                 ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
         }
         $ja[$chave] = ['data' => $data];
-        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => 1];
+        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => $telhaFech ? max(1, (int)($porTrecho[$trecho] ?? 1)) : 1] + ($telhaFech && isset($m2Trecho[$trecho]) ? ['viga_id' => 'm2:' . $m2Trecho[$trecho]] : []);
     }
     return [$novas, $elev ? ($frente['servico'] ?? null) : ($etapa ?: ($frente['servico'] ?? null))];
 }
@@ -2150,6 +2403,7 @@ function acao_apontamento(array $corpo, array $usuario)
     $novas = [];
     $grupos = [];
     $telhasEmp = [];
+    $telhasM2 = [];
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
@@ -2242,19 +2496,27 @@ function acao_apontamento(array $corpo, array $usuario)
             // Determina fase pelo eixo: eixo < 11 → GALPÃO F2, senão F1
             $frente = frente_galpao($eixo);
         } else {
-            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA ou PERFILAGEM).');
+            throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA, PERFILAGEM ou TELHAFECH).');
         }
         $novas = array_merge($novas, $doItem);
         $fator = 1;
+        $nQtd = count($doItem);
         if ($tipo === 'TELHA' || $tipo === 'PERFILAGEM') {   // lançamento em m²: telhas × (177,32 × 0,485)
             $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + count($doItem);
             $fator = telha_cfg($tipo)['m2'];
+        } elseif ($tipo === 'TELHAFECH') {   // telhas do fechamento lateral: cada célula leva as telhas do trecho; m² por telha = contrato ÷ telhas do IFC
+            $nTel = array_sum(array_map(function ($l) { return (float)($l['qtd'] ?? 1); }, $doItem));
+            $m2Sel = array_sum(array_map('telhafech_m2_linha', $doItem));   // cada telha vale o m² dela (comprimento × contrato)
+            $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + $nTel;
+            $telhasM2[$tipo][$empNome] = ($telhasM2[$tipo][$empNome] ?? 0) + $m2Sel;
+            $nQtd = $m2Sel;
+            $fator = 1;
         }
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
             $grupos[$chave] = ['empresa' => $empNome, 'servico' => $servico, 'frente' => $frente, 'delta' => 0];
         }
-        $grupos[$chave]['delta'] += count($doItem) * $fator;
+        $grupos[$chave]['delta'] += $nQtd * $fator;
     }
     if (!$novas) {
         throw new ErroValidacao('Nada selecionado para apontar.');
@@ -2280,7 +2542,7 @@ function acao_apontamento(array $corpo, array $usuario)
     if ($lanca) {
         foreach ($telhasEmp as $tp => $porEmp) {
             foreach ($porEmp as $emp => $qtd) {
-                $r = bm_telhas_ajustar($emp, $data, $qtd * telha_cfg($tp)['m2'], $tp);
+                $r = bm_telhas_ajustar($emp, $data, $telhasM2[$tp][$emp] ?? $qtd * telha_cfg($tp)['m2'], $tp);
                 if ($r) {
                     $bmTelhas[] = $r + ['empresa' => $emp, 'telhas' => $qtd, 'tipo' => $tp];
                 }
@@ -2311,6 +2573,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     $somas = [];
     $lancamentos = [];
     $bmTelhas = [];
+    $bmM2 = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -2335,7 +2598,12 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                 }
             }
             $fatorR = 1;
-            if ($t === 'TELHA' || $t === 'PERFILAGEM') {
+            $m2Linha = null;
+            if ($t === 'TELHAFECH') {   // devolve o m² que foi lançado nesta telha (gravado na própria linha)
+                $m2Linha = telhafech_m2_linha($r);
+                $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
+                $bmM2[$kt] = ($bmM2[$kt] ?? 0) - $m2Linha;
+            } elseif ($t === 'TELHA' || $t === 'PERFILAGEM') {
                 $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
                 $bmTelhas[$kt] = ($bmTelhas[$kt] ?? 0) - (float)($r['qtd'] ?? 1);
                 $fatorR = telha_cfg($t)['m2'];
@@ -2344,7 +2612,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
             if (!isset($somas[$chave])) {
                 $somas[$chave] = ['nome' => $r['empresa'], 'servico' => $servico, 'dia' => $r['data'], 'frente' => $frente, 'delta' => 0];
             }
-            $somas[$chave]['delta'] -= (float)($r['qtd'] ?? 0) * $fatorR;
+            $somas[$chave]['delta'] -= $m2Linha !== null ? $m2Linha : (float)($r['qtd'] ?? 0) * $fatorR;
         }
     }
     foreach ($somas as $g) {
@@ -2353,6 +2621,10 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     foreach ($bmTelhas as $kt => $nTelhas) {
         list($tp, $emp, $dia) = explode('|', $kt);
         bm_telhas_ajustar($emp, $dia, $nTelhas * telha_cfg($tp)['m2'], $tp);
+    }
+    foreach ($bmM2 as $kt => $m2) {
+        list($tp, $emp, $dia) = explode('|', $kt);
+        bm_telhas_ajustar($emp, $dia, $m2, $tp);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);

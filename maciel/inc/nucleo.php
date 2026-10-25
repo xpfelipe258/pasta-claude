@@ -139,7 +139,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 22;   // 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 23;   // 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -227,7 +227,14 @@ function tarefas_sql($pk, $longo, $fim)
     return "CREATE TABLE IF NOT EXISTS tarefas (id $pk, titulo VARCHAR(200) NOT NULL, descricao $longo NULL,
         criado_por INT NOT NULL, responsavel_id INT NOT NULL, data_inicio DATE NULL, data_fim DATE NULL,
         aviso_dias INT NOT NULL DEFAULT 2, prioridade VARCHAR(10) NOT NULL DEFAULT 'normal', status VARCHAR(15) NOT NULL DEFAULT 'pendente',
-        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL)$fim";
+        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL,
+        codigo VARCHAR(20) NULL, iniciada_em VARCHAR(19) NULL)$fim";
+}
+// Conversa entre os usuários na aba Tarefas: tarefa_id = 0 é o mural da equipe (todos veem); senão é a conversa de uma tarefa. Cada mensagem pode levar um arquivo.
+function tarefas_msgs_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS tarefas_msgs (id $pk, tarefa_id INT NOT NULL DEFAULT 0, usuario_id INT NOT NULL, autor VARCHAR(100) NOT NULL,
+        texto $longo NULL, arquivo VARCHAR(60) NULL, arquivo_nome VARCHAR(200) NULL, arquivo_tipo VARCHAR(100) NULL, arquivo_tam BIGINT NULL, criado_em VARCHAR(19) NOT NULL)$fim";
 }
 // Documentos enviados para a importação automática de uma obra nova (IFC, fixadores, cronograma, orçamento, projetos).
 function importacao_sql($pk, $longo, $fim)
@@ -235,6 +242,51 @@ function importacao_sql($pk, $longo, $fim)
     return "CREATE TABLE IF NOT EXISTS obra_documentos (id $pk, obra_id INT NOT NULL, tipo VARCHAR(20) NOT NULL, nome_original VARCHAR(255) NOT NULL,
         arquivo VARCHAR(255) NOT NULL, tamanho BIGINT NOT NULL DEFAULT 0, sha256 VARCHAR(64) NULL, status VARCHAR(15) NOT NULL DEFAULT 'recebido',
         mensagens $longo NULL, resumo $longo NULL, profunda_status VARCHAR(15) NULL, profunda $longo NULL, enviado_por INT NULL, enviado_em VARCHAR(19) NOT NULL)$fim";
+}
+// Quem entra na conversa: o mural (tarefa 0) é de todos os usuários; a conversa de uma tarefa é de quem criou, de quem recebeu e do administrador.
+function tarefa_conversa_acesso(array $u, $tarefaId)
+{
+    $tarefaId = (int)$tarefaId;
+    if ($tarefaId === 0) {
+        return true;
+    }
+    $t = q_global('SELECT criado_por, responsavel_id FROM tarefas WHERE id = ?', [$tarefaId])->fetch();
+    if (!$t) {
+        return false;
+    }
+    return ($u['perfil'] ?? '') === 'admin' || (int)$t['criado_por'] === (int)$u['id'] || (int)$t['responsavel_id'] === (int)$u['id'];
+}
+// Pasta dos arquivos da conversa (global, fora do Git e fechada ao público: só sai por tarefa_arquivo.php, com login).
+function tarefas_arquivos_dir()
+{
+    $base = __DIR__ . '/../dados_obras';
+    if (!is_dir($base)) {
+        @mkdir($base, 0755, true);
+    }
+    if (!is_file($base . '/.htaccess')) {
+        @file_put_contents($base . '/.htaccess', "Require all denied\nOptions -Indexes\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n");
+    }
+    $d = $base . '/_tarefas';
+    if (!is_dir($d)) {
+        @mkdir($d, 0755, true);
+    }
+    return $d;
+}
+// Código da tarefa: TAR-AAAA-NNNN (ano de criação em Brasília + número seguido dentro do ano). Nasce junto com a tarefa.
+function tarefa_novo_codigo($ano)
+{
+    $ano = preg_match('/^\d{4}$/', (string)$ano) ? (string)$ano : date('Y');
+    $ultimo = q_global('SELECT codigo FROM tarefas WHERE codigo LIKE ? ORDER BY codigo DESC LIMIT 1', ["TAR-$ano-%"])->fetchColumn();
+    $n = $ultimo ? (int)substr((string)$ultimo, -4) : 0;
+    return sprintf('TAR-%s-%04d', $ano, $n + 1);
+}
+// Tarefas de antes do código ganham o delas, na ordem de criação.
+function tarefas_codigos_pendentes()
+{
+    $sem = q_global('SELECT id, criado_em FROM tarefas WHERE codigo IS NULL OR codigo = ? ORDER BY id', [''])->fetchAll();
+    foreach ($sem as $t) {
+        q_global('UPDATE tarefas SET codigo = ? WHERE id = ?', [tarefa_novo_codigo(substr((string)$t['criado_em'], 0, 4)), (int)$t['id']]);
+    }
 }
 function garantir_tarefas()
 {
@@ -244,6 +296,16 @@ function garantir_tarefas()
     }
     $driver = config()['driver'] ?? 'mysql';
     bd()->exec(tarefas_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
+        $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
+    foreach (['codigo' => 'VARCHAR(20) NULL', 'iniciada_em' => 'VARCHAR(19) NULL'] as $col => $def) {   // tabela criada antes do código da tarefa
+        try {
+            bd()->query("SELECT $col FROM tarefas LIMIT 1")->fetchAll();
+        } catch (Throwable $e) {
+            bd()->exec("ALTER TABLE tarefas ADD COLUMN $col $def");
+        }
+    }
+    tarefas_codigos_pendentes();
+    bd()->exec(tarefas_msgs_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
     $ok = true;
 }
@@ -287,6 +349,7 @@ function criar_esquema(PDO $pdo, $driver)
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         tarefas_sql($pk, $longo, $fim),
+        tarefas_msgs_sql($pk, $longo, $fim),
         importacao_sql($pk, $longo, $fim),
         "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",

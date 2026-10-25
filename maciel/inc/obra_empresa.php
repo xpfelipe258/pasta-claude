@@ -13,7 +13,7 @@ const OE_CONFIG_NAO_COPIA = ['obra_nome', 'data_inicio', 'data_fim', 'versao', '
     'vinculos_material', 'fixadores_atividade', 'importacao_info', 'planos_5w2h'];
 // Dados de projeto da obra principal que vivem em arquivos de inc/ (dados_legados = 1): a obra da empresa recebe uma cópia gravada no banco.
 const OE_ARQUIVOS_LEGADOS = ['regras_baixa' => 'regras_baixa.json', 'ifc_parafusos' => 'ifc_parafusos.json', 'ifc_parafusos_locais' => 'ifc_parafusos_locais.json',
-    'ifc_anexos' => 'ifc_anexos.json', 'frentes_montagem' => 'frentes_montagem.json'];
+    'ifc_anexos' => 'ifc_anexos.json', 'frentes_montagem' => 'frentes_montagem.json', 'paginacao_telhas' => 'paginacao_telhas.json'];
 // Menus que a empresa recebe ao ser criada (o administrador pode mudar em Usuários › Ver / editar acessos)
 const OE_MODULOS_PADRAO = ['producao', 'gestao', 'consumo', 'financeiro'];
 
