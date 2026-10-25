@@ -1834,23 +1834,88 @@ function frente_telhas(array $malha, $kind = 'telha')
 // Telhas do fechamento lateral (Globo Aços): as MESMAS telhas do IFC (família TELHA FECHAMENTO) do mapa do fechamento, por lado (A, H) e oitão (01, 20).
 // Cada célula é o trecho (vão entre eixos ou faixa do oitão) com as telhas dele; apontar uma célula lança todas as telhas do trecho, em m²:
 // m² por telha = quantidade da atividade "Instalação das telhas" do catálogo do BM (GLO-3.2.2-01) ÷ telhas do IFC (o projeto inteiro = 100% do contrato).
+// Paginação de telha do projeto (prancha OF.198-PG-02): grupos "N telhas de L mm" em cada parede. Vem do banco da obra (sistema.paginacao_telhas)
+// ou, na obra 198 (dados_legados), do arquivo inc/paginacao_telhas.json.
+function paginacao_telhas_ler()
+{
+    $salvo = json_decode((string)sistema_ler('paginacao_telhas', 'null'), true);
+    if (is_array($salvo) && !empty($salvo['paredes'])) {
+        return $salvo;
+    }
+    if (sistema_ler('dados_legados', '0') === '1') {
+        $p = __DIR__ . '/inc/paginacao_telhas.json';
+        if (is_file($p)) {
+            $l = json_decode(file_get_contents($p), true);
+            return is_array($l) && !empty($l['paredes']) ? $l : null;
+        }
+    }
+    return null;
+}
+
+// Telhas de uma fiada pela paginação: lista [comprimento_mm, centro_mm]; o passo é o comprimento da parede ÷ nº de telhas da fiada.
+function paginacao_fiada(array $grupos, $compMm)
+{
+    $ls = [];
+    foreach ($grupos as $g) {
+        for ($i = 0; $i < (int)$g[0]; $i++) {
+            $ls[] = (int)$g[1];
+        }
+    }
+    $passo = $ls ? $compMm / count($ls) : 0;
+    $out = [];
+    foreach ($ls as $i => $l) {
+        $out[] = ['l' => $l, 'x' => ($i + .5) * $passo];
+    }
+    return $out;
+}
+
 function frente_telhas_fechamento(array $fech)
 {
     $familia = 'TELHA FECHAMENTO';   // (constante global não serve: api.php roda as rotas antes de chegar nesta linha)
+    $pag = paginacao_telhas_ler();
     $partes = [];
     $total = 0;
     foreach (($fech['partes'] ?? []) as $p) {
         $cel = [];
         $soma = 0;
-        foreach (($p['celulas'] ?? []) as $c) {
-            $n = (int)(($c['pecas'] ?? [])[$familia] ?? 0);
-            for ($i = 1; $i <= $n; $i++) {   // uma célula por TELHA: "01-02/07" = 7ª telha do vão 01-02 (o IFC dá a contagem por trecho; a posição dentro do trecho é a ordem)
-                $cel[] = ['trecho' => $c['trecho'] . '/' . sprintf('%02d', $i), 'vao' => $c['trecho'], 'n' => $i, 'de' => $n, 'pecas' => [$familia => 1], 'total' => 1];
-                $soma++;
+        $pw = $pag['paredes'][$p['id']] ?? null;
+        $trechos = array_column($p['celulas'] ?? [], 'trecho');
+        if ($pw && $trechos) {   // projeto: cada telha com o comprimento e a posição da prancha de paginação; o trecho é o vão (lados) ou a faixa AB…GH (oitões) onde ela cai
+            $comp = (float)$pw['comprimento_mm'];
+            $lados = isset($pw['grupos']);
+            $filas = $lados ? ['' => paginacao_fiada($pw['grupos'], $comp)] : ['inferior' => paginacao_fiada($pw['inferior'], $comp), 'superior' => paginacao_fiada($pw['superior'], $comp)];
+            $nT = count($trechos);
+            $porTrecho = [];
+            foreach ($filas as $fila => $ts) {
+                foreach ($ts as $t) {
+                    $k = min($nT - 1, (int)floor($t['x'] / ($comp / $nT)));
+                    $porTrecho[$k][] = $t + ['fila' => $fila];
+                }
+            }
+            ksort($porTrecho);
+            foreach ($porTrecho as $k => $ts) {
+                $de = count($ts);
+                foreach ($ts as $i => $t) {
+                    $c = ['trecho' => $trechos[$k] . '/' . sprintf('%02d', $i + 1), 'vao' => $trechos[$k], 'n' => $i + 1, 'de' => $de, 'pecas' => [$familia => 1], 'total' => 1,
+                        'l' => $t['l'], 'x' => (int)round($t['x'])];
+                    if ($t['fila'] !== '') {
+                        $c['fila'] = $t['fila'];
+                    }
+                    $cel[] = $c;
+                    $soma++;
+                }
+            }
+        } else {
+            foreach (($p['celulas'] ?? []) as $c) {
+                $n = (int)(($c['pecas'] ?? [])[$familia] ?? 0);
+                for ($i = 1; $i <= $n; $i++) {   // sem projeto: o IFC dá a contagem por trecho; a posição dentro do trecho é a ordem
+                    $cel[] = ['trecho' => $c['trecho'] . '/' . sprintf('%02d', $i), 'vao' => $c['trecho'], 'n' => $i, 'de' => $n, 'pecas' => [$familia => 1], 'total' => 1];
+                    $soma++;
+                }
             }
         }
         if ($cel) {
-            $partes[] = ['id' => $p['id'], 'nome' => $p['nome'], 'celulas' => $cel, 'total' => $soma];
+            $partes[] = ['id' => $p['id'], 'nome' => $p['nome'], 'celulas' => $cel, 'total' => $soma] + ($pw ? ['comprimento_mm' => (int)$pw['comprimento_mm']] : []);
             $total += $soma;
         }
     }
@@ -1860,7 +1925,7 @@ function frente_telhas_fechamento(array $fech)
     $cod = 'GLO-3.2.2-01';
     $qtd = (float)q('SELECT qtd FROM bm_atividades WHERE codigo = ? AND qtd > 0 ORDER BY id LIMIT 1', [$cod])->fetchColumn() ?: 12082.65;
     return ['titulo' => 'Telhas do fechamento lateral — Globo Aços', 'servico' => 'FECHAMENTO', 'empresa' => 'GLOBO AÇOS',
-        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'codigo_bm' => $cod],
+        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'codigo_bm' => $cod, 'projeto' => $pag ? ($pag['projeto'] ?? 'paginação de telha') : null],
         'partes' => $partes, 'total' => $total, 'familias' => [$familia]];
 }
 

@@ -4679,25 +4679,31 @@ function apTFechAgrupar(p) {
 function apTFechSvg(fr) {
   const px = AP_TELHA_PX[apEst.zoom] || 3, gap = px + 3, mEsq = 104, mTop = 40, alto = 46, passo = alto + 64, m2 = apTelhaM2(fr);
   const feitas = apTFechFeitas(fr), parts = fr.partes.map(p => ({ p, vaos: apTFechAgrupar(p) }));
-  const larg = pt => pt.p.celulas.length * px + pt.vaos.length * gap;
+  // colunas de um trecho: nos lados é uma telha por coluna; nos oitões há duas fiadas (inferior e superior) e o trecho ocupa a maior delas
+  const cols = v => v.cels.some(c => c.fila) ? Math.max(v.cels.filter(c => c.fila === 'inferior').length, v.cels.filter(c => c.fila === 'superior').length) : v.cels.length;
+  const larg = pt => pt.vaos.reduce((n, v) => n + cols(v) * px + gap, 0);
   const W = mEsq + Math.max(...parts.map(larg)) + 24, H = mTop + parts.length * passo;
   const o = [`<svg class="apt" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Telhas do fechamento lateral por trecho">`];
   parts.forEach((pt, i) => {
-    const y0 = mTop + i * passo;
+    const y0 = mTop + i * passo, oit = pt.p.id.startsWith('OITÃO');
     o.push(`<text x="${mEsq - 10}" y="${y0 + alto / 2 - 2}" text-anchor="end" class="apt-rot b">${esc(pt.p.nome)}</text><text x="${mEsq - 10}" y="${y0 + alto / 2 + 11}" text-anchor="end" class="apt-rot">${nf(pt.p.total)} telhas</text>`);
     let x = mEsq;
     pt.vaos.forEach(v => {
-      const feitasV = v.cels.filter(c => feitas.has(`${pt.p.id}|${c.trecho}`)).length, w = v.cels.length * px;
+      const feitasV = v.cels.filter(c => feitas.has(`${pt.p.id}|${c.trecho}`)).length, w = cols(v) * px, idxFila = { '': 0, inferior: 0, superior: 0 };
       o.push(`<g class="apt-eixo" data-ap-tfech="${esc(pt.p.id)}|${esc(v.vao)}"><title>${esc(pt.p.nome)} · trecho ${esc(v.vao)}: ${v.cels.length} telhas — clique para marcar todas as pendentes</title>` +
         `<text x="${x + w / 2}" y="${y0 - 8}" text-anchor="middle" class="apt-rot b">${esc(v.vao)}</text><text x="${x + w / 2}" y="${y0 + alto + 16}" text-anchor="middle" class="apt-rot">${feitasV}/${v.cels.length}</text></g>`);
       v.cels.forEach(c => {
         const k = `${pt.p.id}|${c.trecho}|`, ap = feitas.get(`${pt.p.id}|${c.trecho}`), emp = apEst.frente.get(`TELHAFECH|${k}`);
         const cls = ap ? 'feita' : emp ? 'sel' : 'pend', cor = ap && ap.empresa ? corSelEmp(ap.empresa) : emp ? corSelEmp(emp) : '';
-        const info = `${pt.p.nome} · trecho ${c.vao} · telha ${c.n} de ${c.de} · ${nf(m2, 2)} m²` + (ap ? ` · instalada em ${fdA(ap.data)} (${ap.empresa || ''})` : '');
-        o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${x}" y="${y0}" width="${Math.max(px - .6, 1)}" height="${alto}" data-ap-telha="${esc(k)}" data-ap-info="${esc(info)}"/>`);
-        x += px;
+        const info = `${pt.p.nome} · trecho ${c.vao} · telha ${c.n} de ${c.de}` + (c.fila ? ` (fiada ${c.fila})` : '') + (c.l ? ` · L=${nf(c.l / 1000, 2)} m` : '') +
+          (c.x != null ? ` · a ${nf(c.x / 1000, 1)} m do ${oit ? 'eixo A' : 'eixo 01'}` : '') + ` · ${nf(m2, 2)} m²` + (ap ? ` · instalada em ${fdA(ap.data)} (${ap.empresa || ''})` : '');
+        let y = y0, h = alto;
+        const col = idxFila[c.fila || '']++;
+        if (c.fila) { h = alto / 2 - 1; y = c.fila === 'superior' ? y0 : y0 + alto / 2 + 1; }   // oitão: fiada superior (varia com o telhado) em cima, inferior (7,28 m) embaixo
+        else if (c.l) { h = Math.max(4, alto * Math.min(1, c.l / 9100)); y = y0 + alto - h; }   // lados: altura proporcional ao comprimento (7,34 m a maioria; 9,10 m e 1,55 m nos trechos de portão)
+        o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${x + col * px}" y="${y}" width="${Math.max(px - .6, 1)}" height="${h}" data-ap-telha="${esc(k)}" data-ap-info="${esc(info)}"/>`);
       });
-      x += gap;
+      x += w + gap;
     });
   });
   return o.join('') + '</svg>';
@@ -4718,7 +4724,7 @@ function apTFechHtml(ctx, fr) {
       <span class="nota">clique ou arraste o mouse sobre as telhas; o nome do trecho marca todas as pendentes dele.</span></div>
     <div id="apMapaInfo" class="ap-info">Passe o mouse sobre uma telha para ver o trecho e o número dela.</div>
     <div class="tabela-rolagem apm-caixa">${apTFechSvg(fr)}</div>
-    <p class="nota">Cada faixa é uma telha do fechamento lateral (família TELHA FECHAMENTO do IFC): ${nf(fr.total)} telhas, em elevação — Lado A e Lado H (vãos entre eixos, do eixo 01 ao 20) e oitões dos eixos 01 e 20 (faixas AB a GH). O IFC informa quantas telhas há em cada trecho; dentro do trecho elas aparecem na ordem 01, 02, 03… Cada telha vale ${nf(apTelhaM2(fr), 2)} m² (${nf((fr.telha || {}).m2_total_contrato || 0, 1)} m² da atividade "Instalação das telhas" do catálogo do BM ÷ ${nf(fr.total)} telhas) e soma no serviço FECHAMENTO da Globo Aços e na medição (GLO-3.2.2-01).</p>`;
+    <p class="nota">Cada faixa é uma telha do fechamento lateral (família TELHA FECHAMENTO do IFC): ${nf(fr.total)} telhas, em elevação — Lado A e Lado H (vãos entre eixos, do eixo 01 ao 20) e oitões dos eixos 01 e 20 (faixas AB a GH). ${(fr.telha || {}).projeto ? `As telhas seguem a prancha de paginação do projeto (${esc(fr.telha.projeto)}): ${nf(fr.partes.filter(p => !p.id.startsWith('OITÃO')).reduce((n, p) => n + p.total, 0))} telhas nos lados (altura do desenho proporcional ao comprimento: 7,34 m, 9,10 m e 1,55 m) e ${nf(fr.partes.filter(p => p.id.startsWith('OITÃO')).reduce((n, p) => n + p.total, 0))} nos oitões, em duas fiadas (superior em cima, inferior embaixo), numeradas dentro de cada trecho a partir do eixo 01 (lados) ou do eixo A (oitões).` : 'O IFC informa quantas telhas há em cada trecho; dentro do trecho elas aparecem na ordem 01, 02, 03…'} Cada telha vale ${nf(apTelhaM2(fr), 2)} m² (${nf((fr.telha || {}).m2_total_contrato || 0, 1)} m² da atividade "Instalação das telhas" do catálogo do BM ÷ ${nf(fr.total)} telhas) e soma no serviço FECHAMENTO da Globo Aços e na medição (GLO-3.2.2-01).</p>`;
 }
 
 function apFrenteHtml(ctx) {
