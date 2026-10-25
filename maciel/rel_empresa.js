@@ -545,13 +545,16 @@ function reTelhasFech(emp, ini, ate) {
   const fr = ((window._frentes || {}).frentes || {}).telha_fechamento;
   if (!fr) return null;
   const feitas = new Map(ate.filter(a => (a.tipo || '').toUpperCase() === 'TELHAFECH').map(a => [`${a.faixa}|${a.rua}`, a]));
-  const n = { per: 0, ant: 0, outra: 0, pend: 0 };
+  const n = { per: 0, ant: 0, outra: 0, pend: 0 }, m2n = { per: 0, ant: 0, outra: 0, pend: 0 };
   const partes = fr.partes.map(p => {
-    const o = { nome: p.nome, total: p.total, per: 0, ant: 0, outra: 0, pend: 0 };
-    p.celulas.forEach(c => { const st = reEstadoPeca(feitas.get(`${p.id}|${c.trecho}`) || feitas.get(`${p.id}|${c.vao}`), emp, ini); o[st] += c.total || 0; n[st] += c.total || 0; });   // apontamento antigo do trecho inteiro (sem "/nn") vale para todas as telhas dele
+    const o = { nome: p.nome, total: p.total, per: 0, ant: 0, outra: 0, pend: 0, m2: { per: 0, ant: 0, outra: 0, pend: 0 } };
+    p.celulas.forEach(c => {
+      const st = reEstadoPeca(feitas.get(`${p.id}|${c.trecho}`) || feitas.get(`${p.id}|${c.vao}`), emp, ini), m2 = c.m2 || apTelhaM2(fr);   // cada telha vale o m² do comprimento dela
+      o[st] += c.total || 0; n[st] += c.total || 0; o.m2[st] += m2; m2n[st] += m2;
+    });
     return o;
   });
-  return { n, partes, total: fr.total, m2: apTelhaM2(fr), m2Contrato: (fr.telha || {}).m2_total_contrato || 0 };
+  return { n, m2n, partes, total: fr.total, m2: apTelhaM2(fr), m2Contrato: (fr.telha || {}).m2_total_contrato || 0 };
 }
 
 function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já feito / falta em cores fixas, sem cor por empresa)
@@ -592,7 +595,7 @@ function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já fe
   });
   if (temTFech) {   // telhas do fechamento lateral (catálogo da Globo Aços)
     const tf = reTelhasFech(emp, ini, ate);
-    if (tf) out.tfech = { ...tf, per: tf.n.per, ant: tf.n.ant, feitas: tf.n.per + tf.n.ant + tf.n.outra };
+    if (tf) out.tfech = { ...tf, per: tf.n.per, ant: tf.n.ant, feitas: tf.n.per + tf.n.ant + tf.n.outra, m2Per: tf.m2n.per, m2Feitas: tf.m2n.per + tf.m2n.ant + tf.m2n.outra };
   }
   return out;
 }
@@ -767,7 +770,7 @@ function reMapaHtml(d) {
   const card = (rot, o, un) => `<div class="card az"><div class="rot">${rot}</div><div class="val">${nf(o.per, 0)}</div><div class="sub">montad${un === 'joists' || un === 'telhas' ? 'as' : 'os'} por ${esc(quem)} no período · antes: ${nf(o.ant, 0)} · obra: ${nf(o.feitas, 0)} de ${nf(o.total, 0)}</div></div>`;
   const leg = (cor, txt, st = '') => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px"><i style="width:14px;height:10px;border-radius:2px;display:inline-block;background:${cor};border:1px solid #6b7886;${st}"></i>${txt}</span>`;
   const f = m.cores.forte;
-  let h = `<h3>Mapa de montagem — o que foi montado</h3><div class="cards">${m.planta ? card('Joists', m.joist, 'joists') + card('Vigas', m.viga, 'vigas') + card('Contraventamentos (kits)', m.cont, 'kits') : ''}${[['Telhas', m.telha], ['Perfilagem', m.perfil], ['Telhas do fechamento lateral', m.tfech && { ...m.tfech, total: m.tfech.total, n: m.tfech.n }]].map(([rot, x]) => x ? card(rot, { per: x.per, ant: x.ant, feitas: x.feitas, total: x.total }, 'telhas').replace('</div></div>', ` · ≈ ${nf(x.per * x.m2, 0)} m² no período · ${nf(x.feitas * x.m2, 0)} m² na obra</div></div>`) : '').join('')}</div>
+  let h = `<h3>Mapa de montagem — o que foi montado</h3><div class="cards">${m.planta ? card('Joists', m.joist, 'joists') + card('Vigas', m.viga, 'vigas') + card('Contraventamentos (kits)', m.cont, 'kits') : ''}${[['Telhas', m.telha], ['Perfilagem', m.perfil], ['Telhas do fechamento lateral', m.tfech && { ...m.tfech, total: m.tfech.total, n: m.tfech.n }]].map(([rot, x]) => x ? card(rot, { per: x.per, ant: x.ant, feitas: x.feitas, total: x.total }, 'telhas').replace('</div></div>', ` · ≈ ${nf(x.m2Per !== undefined ? x.m2Per : x.per * x.m2, 0)} m² no período · ${nf(x.m2Feitas !== undefined ? x.m2Feitas : x.feitas * x.m2, 0)} m² na obra</div></div>`) : '').join('')}</div>
     <p class="nota mapa-leg">${d.geral
       ? `${[...(m.legEmp || (M.empresas || []).map(e => e.nome)), ...((m.telha || m.perfil) ? (M.empresas || []).filter(e => e.servicos.some(sv => ehTelhar(ganNorm(sv.nome)) || ganNorm(sv.nome).includes('PERFILAGEM'))).map(e => e.nome) : [])].filter((n, i, a) => n && a.indexOf(n) === i).map(n => leg(corEmpHex(n) || f, `montado por ${esc(n)}`)).join('')}${m.foraMontagem && m.foraMontagem.length ? leg(RE_COR_OUTRA, 'apontado por empresa sem montagem') : ''}${leg('#fff', 'pendente')}<br>${m.foraMontagem && m.foraMontagem.length ? `<b class="neg">${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s) de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço (${esc([...new Set(m.foraMontagem.map(a => a.empresa || 'sem empresa'))].join(', '))}) — não entram nos totais; corrija em Apontar montagem › conciliação.</b><br>` : ''}Cor forte = montado no período (${fd(d.ini)} a ${fd(d.corte)}) · cor clara = montado antes do período.`
       : `${leg(f, `montado por ${esc(d.emp)} no período (${fd(d.ini)} a ${fd(d.corte)})`, 'border-color:#14202b')}${leg(f, `montado por ${esc(d.emp)} antes do período`, 'opacity:.4')}${leg(RE_COR_OUTRA, 'montado por outra empresa')}${leg('#fff', 'pendente')}`}</p>`;
@@ -783,7 +786,7 @@ function reMapaHtml(d) {
       `<p class="nota">Cada faixa é ${kind === 'telha' ? 'uma telha' : 'uma fiada de perfilagem'} (177,32 m do eixo A ao H × 0,485 m de largura = ${nf(t.m2, 2)} m²), numerada a partir do eixo 01: ${nf(t.n.per, 0)} feita(s) por ${d.geral ? 'as empresas' : 'esta empresa'} no período (≈ ${nf(t.n.per * t.m2, 0)} m²), ${nf(t.n.ant, 0)} antes, ${nf(t.n.outra, 0)} por outra empresa e ${nf(t.n.pend, 0)} pendente(s) de ${nf(t.total, 0)}. Fonte: apontamentos de montagem (lançados em m² em Lançamentos e no BM).</p>`;
   });
   if (m.tfech) {
-    const t = m.tfech, lin = t.partes.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td class="n">${nf(p.total, 0)}</td><td class="n"><b>${nf(p.per, 0)}</b></td><td class="n">${nf(p.ant, 0)}</td><td class="n">${nf(p.outra, 0)}</td><td class="n">${nf(p.pend, 0)}</td><td class="n">${nf((p.per + p.ant + p.outra) * t.m2, 0)} m²</td></tr>`);
+    const t = m.tfech, lin = t.partes.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td class="n">${nf(p.total, 0)}</td><td class="n"><b>${nf(p.per, 0)}</b></td><td class="n">${nf(p.ant, 0)}</td><td class="n">${nf(p.outra, 0)}</td><td class="n">${nf(p.pend, 0)}</td><td class="n">${nf(p.m2.per + p.m2.ant + p.m2.outra, 0)} m²</td></tr>`);
     h += '<h3>Telhas do fechamento lateral (lados A e H e oitões 01 e 20)</h3>' + reTab(['Parte do fechamento', '#nTelhas do projeto', '#nNo período', '#nAntes', '#nOutra empresa', '#nPendentes', '#nFeito (m²)'], lin)
       + `<p class="nota">Telhas contadas no IFC (família TELHA FECHAMENTO). Cada telha vale ${nf(t.m2, 2)} m² (${nf(t.m2Contrato, 1)} m² da atividade "Instalação das telhas" do catálogo do BM ÷ ${nf(t.total, 0)} telhas): ${nf(t.per, 0)} telha(s) no período (≈ ${nf(t.per * t.m2, 0)} m²) e ${nf(t.feitas, 0)} na obra (≈ ${nf(t.feitas * t.m2, 0)} m²). Fonte: apontamentos de montagem.</p>`;
   }

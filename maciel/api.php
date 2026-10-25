@@ -1985,15 +1985,22 @@ function frente_telhas_fechamento(array $fech)
         $trechos = array_column($p['celulas'] ?? [], 'trecho');
         if ($pw && $trechos) {   // projeto: cada telha com o comprimento e a posição da prancha de paginação; o trecho é o vão (lados) ou a faixa AB…GH (oitões) onde ela cai
             $comp = (float)$pw['comprimento_mm'];
-            $lados = isset($pw['grupos']);
-            $filas = $lados ? ['' => paginacao_fiada($pw['grupos'], $comp)] : ['inferior' => paginacao_fiada($pw['inferior'], $comp), 'superior' => paginacao_fiada($pw['superior'], $comp)];
+            if (isset($pw['grupos'])) {   // lados: uma fiada
+                $col = paginacao_fiada($pw['grupos'], $comp);
+            } else {   // oitões: cada coluna tem uma peça embaixo e outra em cima, mas é UMA telha na obra (a marcação é da coluna inteira)
+                $inf = paginacao_fiada($pw['inferior'], $comp);
+                $sup = paginacao_fiada($pw['superior'], $comp);
+                $col = [];
+                foreach ($inf as $i => $t) {
+                    $l2 = (int)(($sup[$i] ?? ['l' => 0])['l']);
+                    $col[] = ['l' => $t['l'] + $l2, 'x' => $t['x'], 'l1' => $t['l'], 'l2' => $l2];
+                }
+            }
             $nT = count($trechos);
             $porTrecho = [];
-            foreach ($filas as $fila => $ts) {
-                foreach ($ts as $t) {
-                    $k = min($nT - 1, (int)floor($t['x'] / ($comp / $nT)));
-                    $porTrecho[$k][] = $t + ['fila' => $fila];
-                }
+            foreach ($col as $t) {
+                $k = min($nT - 1, (int)floor($t['x'] / ($comp / $nT)));
+                $porTrecho[$k][] = $t;
             }
             ksort($porTrecho);
             foreach ($porTrecho as $k => $ts) {
@@ -2001,8 +2008,9 @@ function frente_telhas_fechamento(array $fech)
                 foreach ($ts as $i => $t) {
                     $c = ['trecho' => $trechos[$k] . '/' . sprintf('%02d', $i + 1), 'vao' => $trechos[$k], 'n' => $i + 1, 'de' => $de, 'pecas' => [$familia => 1], 'total' => 1,
                         'l' => $t['l'], 'x' => (int)round($t['x'])];
-                    if ($t['fila'] !== '') {
-                        $c['fila'] = $t['fila'];
+                    if (isset($t['l1'])) {
+                        $c['l1'] = $t['l1'];
+                        $c['l2'] = $t['l2'];
                     }
                     $cel[] = $c;
                     $soma++;
@@ -2027,9 +2035,40 @@ function frente_telhas_fechamento(array $fech)
     }
     $cod = 'GLO-3.2.2-01';
     $qtd = (float)q('SELECT qtd FROM bm_atividades WHERE codigo = ? AND qtd > 0 ORDER BY id LIMIT 1', [$cod])->fetchColumn() ?: 12082.65;
+    // m² de cada telha = contrato × comprimento da telha ÷ soma dos comprimentos (o projeto inteiro apontado = 100% do contrato); sem comprimento, vale a média
+    $somaL = 0;
+    $nL = 0;
+    foreach ($partes as $pt) {
+        foreach ($pt['celulas'] as $c) {
+            if (!empty($c['l'])) {
+                $somaL += $c['l'];
+                $nL++;
+            }
+        }
+    }
+    $media = $nL ? $somaL / $nL : 1;
+    $somaL += $media * ($total - $nL);
+    foreach ($partes as &$pt) {
+        foreach ($pt['celulas'] as &$c) {
+            $c['m2'] = round($qtd * (!empty($c['l']) ? $c['l'] : $media) / $somaL, 4);
+        }
+        unset($c);
+    }
+    unset($pt);
     return ['titulo' => 'Telhas do fechamento lateral — Globo Aços', 'servico' => 'FECHAMENTO', 'empresa' => 'GLOBO AÇOS',
-        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'codigo_bm' => $cod, 'projeto' => $pag ? ($pag['projeto'] ?? 'paginação de telha') : null],
+        'telha' => ['n' => $total, 'm2_total_contrato' => $qtd, 'm2_por_telha' => round($qtd / $total, 4), 'm2_legado' => round($qtd / 1574, 4), 'codigo_bm' => $cod, 'projeto' => $pag ? ($pag['projeto'] ?? 'paginação de telha') : null],
         'partes' => $partes, 'total' => $total, 'familias' => [$familia]];
+}
+
+// m² de uma linha de apontamento de telha do fechamento lateral: o valor gravado na hora (viga_id = "m2:9,9000") ou, nas linhas antigas, telhas × m² por telha da época.
+function telhafech_m2_linha(array $r)
+{
+    $v = (string)($r['viga_id'] ?? '');
+    if (strncmp($v, 'm2:', 3) === 0) {
+        return (float)substr($v, 3);
+    }
+    $t = ((frentes_montagem()['frentes'] ?? [])['telha_fechamento']['telha'] ?? []);
+    return (float)($r['qtd'] ?? 1) * ((float)($t['m2_legado'] ?? 0) ?: telha_cfg('TELHAFECH')['m2']);
 }
 
 function frentes_montagem()
@@ -2273,6 +2312,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
     }
     $validos = array_column($parte['celulas'], 'trecho');
     $porTrecho = array_column($parte['celulas'], 'total', 'trecho');
+    $m2Trecho = array_column($parte['celulas'], 'm2', 'trecho');
     $telhaFech = $tipo === 'TELHAFECH';   // uma célula = uma telha ("vão/nn"); apontamento antigo do vão inteiro (sem "/nn") bloqueia as telhas dele
     $novas = [];
     $vistos = [];
@@ -2297,7 +2337,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
                 ($quando ? ' em ' . substr($quando, 8, 2) . '/' . substr($quando, 5, 2) . '/' . substr($quando, 0, 4) . '.' : '.'));
         }
         $ja[$chave] = ['data' => $data];
-        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => $telhaFech ? max(1, (int)($porTrecho[$trecho] ?? 1)) : 1];
+        $novas[] = $base + ['tipo' => $tipo, 'faixa' => $parte['id'], 'rua' => $trecho, 'letra' => $etapa ?: null, 'qtd' => $telhaFech ? max(1, (int)($porTrecho[$trecho] ?? 1)) : 1] + ($telhaFech && isset($m2Trecho[$trecho]) ? ['viga_id' => 'm2:' . $m2Trecho[$trecho]] : []);
     }
     return [$novas, $elev ? ($frente['servico'] ?? null) : ($etapa ?: ($frente['servico'] ?? null))];
 }
@@ -2363,6 +2403,7 @@ function acao_apontamento(array $corpo, array $usuario)
     $novas = [];
     $grupos = [];
     $telhasEmp = [];
+    $telhasM2 = [];
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
@@ -2464,9 +2505,12 @@ function acao_apontamento(array $corpo, array $usuario)
             $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + count($doItem);
             $fator = telha_cfg($tipo)['m2'];
         } elseif ($tipo === 'TELHAFECH') {   // telhas do fechamento lateral: cada célula leva as telhas do trecho; m² por telha = contrato ÷ telhas do IFC
-            $nQtd = array_sum(array_map(function ($l) { return (float)($l['qtd'] ?? 1); }, $doItem));
-            $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + $nQtd;
-            $fator = telha_cfg($tipo)['m2'];
+            $nTel = array_sum(array_map(function ($l) { return (float)($l['qtd'] ?? 1); }, $doItem));
+            $m2Sel = array_sum(array_map('telhafech_m2_linha', $doItem));   // cada telha vale o m² dela (comprimento × contrato)
+            $telhasEmp[$tipo][$empNome] = ($telhasEmp[$tipo][$empNome] ?? 0) + $nTel;
+            $telhasM2[$tipo][$empNome] = ($telhasM2[$tipo][$empNome] ?? 0) + $m2Sel;
+            $nQtd = $m2Sel;
+            $fator = 1;
         }
         $chave = $empNome . '|' . (string)$servico . '|' . ($frente ?? '');
         if (!isset($grupos[$chave])) {
@@ -2498,7 +2542,7 @@ function acao_apontamento(array $corpo, array $usuario)
     if ($lanca) {
         foreach ($telhasEmp as $tp => $porEmp) {
             foreach ($porEmp as $emp => $qtd) {
-                $r = bm_telhas_ajustar($emp, $data, $qtd * telha_cfg($tp)['m2'], $tp);
+                $r = bm_telhas_ajustar($emp, $data, $telhasM2[$tp][$emp] ?? $qtd * telha_cfg($tp)['m2'], $tp);
                 if ($r) {
                     $bmTelhas[] = $r + ['empresa' => $emp, 'telhas' => $qtd, 'tipo' => $tp];
                 }
@@ -2529,6 +2573,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     $somas = [];
     $lancamentos = [];
     $bmTelhas = [];
+    $bmM2 = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -2553,7 +2598,12 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                 }
             }
             $fatorR = 1;
-            if ($t === 'TELHA' || $t === 'PERFILAGEM' || $t === 'TELHAFECH') {
+            $m2Linha = null;
+            if ($t === 'TELHAFECH') {   // devolve o m² que foi lançado nesta telha (gravado na própria linha)
+                $m2Linha = telhafech_m2_linha($r);
+                $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
+                $bmM2[$kt] = ($bmM2[$kt] ?? 0) - $m2Linha;
+            } elseif ($t === 'TELHA' || $t === 'PERFILAGEM') {
                 $kt = $t . '|' . $r['empresa'] . '|' . $r['data'];
                 $bmTelhas[$kt] = ($bmTelhas[$kt] ?? 0) - (float)($r['qtd'] ?? 1);
                 $fatorR = telha_cfg($t)['m2'];
@@ -2562,7 +2612,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
             if (!isset($somas[$chave])) {
                 $somas[$chave] = ['nome' => $r['empresa'], 'servico' => $servico, 'dia' => $r['data'], 'frente' => $frente, 'delta' => 0];
             }
-            $somas[$chave]['delta'] -= (float)($r['qtd'] ?? 0) * $fatorR;
+            $somas[$chave]['delta'] -= $m2Linha !== null ? $m2Linha : (float)($r['qtd'] ?? 0) * $fatorR;
         }
     }
     foreach ($somas as $g) {
@@ -2571,6 +2621,10 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     foreach ($bmTelhas as $kt => $nTelhas) {
         list($tp, $emp, $dia) = explode('|', $kt);
         bm_telhas_ajustar($emp, $dia, $nTelhas * telha_cfg($tp)['m2'], $tp);
+    }
+    foreach ($bmM2 as $kt => $m2) {
+        list($tp, $emp, $dia) = explode('|', $kt);
+        bm_telhas_ajustar($emp, $dia, $m2, $tp);
     }
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);

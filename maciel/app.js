@@ -4314,7 +4314,7 @@ function apSelecao(ctx) {
   });
   const fs = (window._frentes || {}).frentes || {};
   const regras = window._regras_baixa || {};
-  let nTelFech = 0;   // telhas do fechamento lateral selecionadas (cada trecho leva as telhas dele)
+  let nTelFech = 0, m2TelFech = 0;   // telhas do fechamento lateral selecionadas e o m² delas (cada telha vale o m² do comprimento dela)
   frente.forEach(f => {
     const chaveF = FRENTE_CHAVE[f.tipo];
     const cfgF = fs[chaveF] || {};
@@ -4324,15 +4324,18 @@ function apSelecao(ctx) {
       const cel = ((cfgF.partes || []).find(p => p.id === f.parte)?.celulas || []).find(c => c.trecho === f.trecho);
       nTel = (cel && cel.total) || 1;
       nTelFech += nTel;
+      m2TelFech += (cel && cel.m2) || apTelhaM2(cfgF);
     }
-    grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null)).delta += nTel;
+    const gSel = grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null));
+    gSel.delta += nTel;
+    if (f.tipo === 'TELHAFECH') gSel.m2 = (gSel.m2 || 0) + (((cfgF.partes || []).find(p => p.id === f.parte)?.celulas || []).find(c => c.trecho === f.trecho)?.m2 || apTelhaM2(cfgF));
     fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
   });
   const porEmp = {};
   [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
   return { joists, vigas, frente, grupos: [...grupos.values()], baixa, porEmp,
     semEmpresa: [...joists, ...vigas, ...frente].some(x => !x.emp),
-    nJ: joists.length, nV: vigas.length, nF: frente.length, nTelFech };
+    nJ: joists.length, nV: vigas.length, nF: frente.length, nTelFech, m2TelFech };
 }
 
 function apEfeitosHtml(regras, ctx) {
@@ -4350,9 +4353,9 @@ function apEfeitosHtml(regras, ctx) {
     let t = `<b>${esc(g.emp)} · ${esc(cap(g.servico))}:</b> `;
     const ehFech = apEst.modo === 'tfech' && sel.nTelFech > 0;   // telhas do fechamento lateral: o grupo é o serviço FECHAMENTO da Globo
     const ehTel = ehFech || ehTelhar(ganNorm(g.servico || '')) || ganNorm(g.servico || '').includes('PERFILAGEM'), frT = ((window._frentes || {}).frentes || {})[ehFech ? 'telha_fechamento' : 'telha'];
-    const m2f = ehTel ? (frT ? apTelhaM2(frT) : 86) : 1, dl = g.delta * m2f;   // telhas e perfilagem: lançamento em m² (cada faixa = 177,32 × 0,485; telha de fechamento = contrato ÷ telhas do IFC)
+    const dl = ehFech && g.m2 ? g.m2 : g.delta * (ehTel ? (frT ? apTelhaM2(frT) : 86) : 1), m2f = g.delta ? dl / g.delta : 1;   // telhas e perfilagem: lançamento em m² (cada faixa = 177,32 × 0,485; telha de fechamento = contrato ÷ telhas do IFC)
     if (somar) {
-      t += ehTel ? `+${nf(dl, 1)} m² em ${fdA(data)} (${nf(g.delta)} ${ehFech ? 'telha(s)' : 'faixa(s)'} × ${nf(m2f, 2)} m²), em Lançamentos e na medição do BM.` : `+${nf(g.delta)} em ${fdA(data)}.`;
+      t += ehTel ? `+${nf(dl, 1)} m² em ${fdA(data)} (${nf(g.delta)} ${ehFech ? 'telha(s), conforme o comprimento de cada uma' : 'faixa(s)'}${ehFech ? '' : ` × ${nf(m2f, 2)} m²`}), em Lançamentos e na medição do BM.` : `+${nf(g.delta)} em ${fdA(data)}.`;
       if (meta && col) {
         const real = soma(e, col, meta.inicio, meta.fim), alvo = metaSemanaTotal(meta);
         t += ` Semana ${nf(real, ehTel ? 1 : 0)} → ${nf(real + dl, ehTel ? 1 : 0)} de ${nf(alvo, 1)} previstos${alvo ? ` (${nf((real + dl) / alvo * 100, 0)}%)` : ''}.`;
@@ -4391,7 +4394,7 @@ function apResumoTxt(ctx) {
   const emps = Object.entries(s.porEmp).map(([e, n]) => `${e === '?' ? 'sem empresa' : e} ${nf(n)}`).join(' · ');
   const frT = apModoTelha() ? apFrenteAtual() : null, frF = apEst.modo === 'tfech' ? apFrenteAtual() : null;
   const partes = [s.nJ ? `${nf(s.nJ)} joist(s)` : '', s.nV ? `${nf(s.nV)} viga(s)` : '',
-    s.nF ? (frF ? `${nf(s.nTelFech)} telha(s) em ${nf(s.nF)} trecho(s) ≈ ${nf(s.nTelFech * apTelhaM2(frF), 1)} m²` : frT ? `${nf(s.nF)} telha(s) ≈ ${nf(s.nF * apTelhaM2(frT), 1)} m²` : `${nf(s.nF)} trecho(s)`) : ''].filter(Boolean);
+    s.nF ? (frF ? `${nf(s.nTelFech)} telha(s) em ${nf(s.nF)} trecho(s) ≈ ${nf(s.m2TelFech, 1)} m²` : frT ? `${nf(s.nF)} telha(s) ≈ ${nf(s.nF * apTelhaM2(frT), 1)} m²` : `${nf(s.nF)} trecho(s)`) : ''].filter(Boolean);
   return `Seleção: ${partes.join(' · ')} (${emps})`;
 }
 
@@ -4676,12 +4679,17 @@ function apTFechAgrupar(p) {
   p.celulas.forEach(c => { let v = vaos[vaos.length - 1]; if (!v || v.vao !== c.vao) { v = { vao: c.vao, cels: [] }; vaos.push(v); } v.cels.push(c); });
   return vaos;
 }
+// m² já lançado de uma linha de apontamento: o valor gravado nela ("m2:9,9") ou, nas antigas, telhas × m² da época
+function apTFechM2Linha(a, fr) {
+  const v = String(a.viga_id || '');
+  if (v.startsWith('m2:')) return Number(v.slice(3)) || 0;
+  return (Number(a.qtd) || 1) * ((fr.telha || {}).m2_legado || apTelhaM2(fr));
+}
 function apTFechSvg(fr) {
-  const px = AP_TELHA_PX[apEst.zoom] || 3, gap = px + 3, mEsq = 104, mTop = 40, alto = 46, passo = alto + 64, m2 = apTelhaM2(fr);
+  const px = AP_TELHA_PX[apEst.zoom] || 3, gap = px + 3, mEsq = 104, mTop = 40, alto = 46, passo = alto + 64;
   const feitas = apTFechFeitas(fr), parts = fr.partes.map(p => ({ p, vaos: apTFechAgrupar(p) }));
-  // colunas de um trecho: nos lados é uma telha por coluna; nos oitões há duas fiadas (inferior e superior) e o trecho ocupa a maior delas
-  const cols = v => v.cels.some(c => c.fila) ? Math.max(v.cels.filter(c => c.fila === 'inferior').length, v.cels.filter(c => c.fila === 'superior').length) : v.cels.length;
-  const larg = pt => pt.vaos.reduce((n, v) => n + cols(v) * px + gap, 0);
+  const maxL = Math.max(...fr.partes.flatMap(p => p.celulas.map(c => c.l || 0)), 1);
+  const larg = pt => pt.p.celulas.length * px + pt.vaos.length * gap;
   const W = mEsq + Math.max(...parts.map(larg)) + 24, H = mTop + parts.length * passo;
   const o = [`<svg class="apt" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Telhas do fechamento lateral por trecho">`];
   parts.forEach((pt, i) => {
@@ -4689,30 +4697,33 @@ function apTFechSvg(fr) {
     o.push(`<text x="${mEsq - 10}" y="${y0 + alto / 2 - 2}" text-anchor="end" class="apt-rot b">${esc(pt.p.nome)}</text><text x="${mEsq - 10}" y="${y0 + alto / 2 + 11}" text-anchor="end" class="apt-rot">${nf(pt.p.total)} telhas</text>`);
     let x = mEsq;
     pt.vaos.forEach(v => {
-      const feitasV = v.cels.filter(c => feitas.has(`${pt.p.id}|${c.trecho}`)).length, w = cols(v) * px, idxFila = { '': 0, inferior: 0, superior: 0 };
+      const feitasV = v.cels.filter(c => feitas.has(`${pt.p.id}|${c.trecho}`)).length, w = v.cels.length * px;
       o.push(`<g class="apt-eixo" data-ap-tfech="${esc(pt.p.id)}|${esc(v.vao)}"><title>${esc(pt.p.nome)} · trecho ${esc(v.vao)}: ${v.cels.length} telhas — clique para marcar todas as pendentes</title>` +
         `<text x="${x + w / 2}" y="${y0 - 8}" text-anchor="middle" class="apt-rot b">${esc(v.vao)}</text><text x="${x + w / 2}" y="${y0 + alto + 16}" text-anchor="middle" class="apt-rot">${feitasV}/${v.cels.length}</text></g>`);
       v.cels.forEach(c => {
         const k = `${pt.p.id}|${c.trecho}|`, ap = feitas.get(`${pt.p.id}|${c.trecho}`), emp = apEst.frente.get(`TELHAFECH|${k}`);
         const cls = ap ? 'feita' : emp ? 'sel' : 'pend', cor = ap && ap.empresa ? corSelEmp(ap.empresa) : emp ? corSelEmp(emp) : '';
-        const info = `${pt.p.nome} · trecho ${c.vao} · telha ${c.n} de ${c.de}` + (c.fila ? ` (fiada ${c.fila})` : '') + (c.l ? ` · L=${nf(c.l / 1000, 2)} m` : '') +
-          (c.x != null ? ` · a ${nf(c.x / 1000, 1)} m do ${oit ? 'eixo A' : 'eixo 01'}` : '') + ` · ${nf(m2, 2)} m²` + (ap ? ` · instalada em ${fdA(ap.data)} (${ap.empresa || ''})` : '');
-        let y = y0, h = alto;
-        const col = idxFila[c.fila || '']++;
-        if (c.fila) { h = alto / 2 - 1; y = c.fila === 'superior' ? y0 : y0 + alto / 2 + 1; }   // oitão: fiada superior (varia com o telhado) em cima, inferior (7,28 m) embaixo
-        else if (c.l) { h = Math.max(4, alto * Math.min(1, c.l / 9100)); y = y0 + alto - h; }   // lados: altura proporcional ao comprimento (7,34 m a maioria; 9,10 m e 1,55 m nos trechos de portão)
-        o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${x + col * px}" y="${y}" width="${Math.max(px - .6, 1)}" height="${h}" data-ap-telha="${esc(k)}" data-ap-info="${esc(info)}"/>`);
+        const pecas = c.l1 ? ` (${nf(c.l1 / 1000, 2)} m + ${nf(c.l2 / 1000, 2)} m)` : '';
+        const info = `${pt.p.nome} · trecho ${c.vao} · telha ${c.n} de ${c.de}` + (c.l ? ` · L=${nf(c.l / 1000, 2)} m${pecas}` : '') +
+          (c.x != null ? ` · a ${nf(c.x / 1000, 1)} m do ${oit ? 'eixo A' : 'eixo 01'}` : '') + ` · ${nf(c.m2 || apTelhaM2(fr), 2)} m²` + (ap ? ` · instalada em ${fdA(ap.data)} (${ap.empresa || ''})` : '');
+        const h = c.l ? Math.max(4, alto * c.l / maxL) : alto;   // altura proporcional ao comprimento: o oitão sai inteiro (sem corte), os lados mais baixos
+        o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${x}" y="${y0 + alto - h}" width="${Math.max(px - .6, 1)}" height="${h}" data-ap-telha="${esc(k)}" data-ap-info="${esc(info)}"/>`);
+        x += px;
       });
-      x += w + gap;
+      x += gap;
     });
   });
   return o.join('') + '</svg>';
 }
 function apTFechResumoHtml(fr) {
-  const n = fr.total, m2 = apTelhaM2(fr), feitas = soma0((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHAFECH'), a => a.qtd || 1);
-  const sel = [...apEst.frente.keys()].filter(k => k.startsWith('TELHAFECH|')).length, pend = Math.max(0, n - feitas - sel);
-  const tile = (rot, q, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${nf(q)} <small>telhas</small></div><div class="sub"><b>${nf(q * m2, 1)} m²</b> · ${sub}</div></div>`;
-  return `<div class="tiles ap-telha-tiles">${tile('Instaladas', feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas do projeto`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, sel ? `ao salvar: +${nf(sel * m2, 1)} m² em Lançamentos (FECHAMENTO) e no BM (GLO-3.2.2-01)` : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do fechamento lateral', n, `${nf(m2 * n, 0)} m² (${nf(m2, 2)} m² por telha)`, 'var(--amarelo)')}</div>`;
+  const n = fr.total, mapa = new Map(); fr.partes.forEach(p => p.celulas.forEach(c => mapa.set(`${p.id}|${c.trecho}`, c)));
+  const aps = (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHAFECH');
+  const feitas = soma0(aps, a => a.qtd || 1), m2Feitas = soma0(aps, a => apTFechM2Linha(a, fr));
+  const selK = [...apEst.frente.keys()].filter(k => k.startsWith('TELHAFECH|')), sel = selK.length;
+  const m2Sel = selK.reduce((t, k) => { const [, parte, trecho] = k.split('|'); return t + (((mapa.get(`${parte}|${trecho}`) || {}).m2) || apTelhaM2(fr)); }, 0);
+  const total = (fr.telha || {}).m2_total_contrato || 0, pend = Math.max(0, n - feitas - sel), m2Pend = Math.max(0, total - m2Feitas - m2Sel);
+  const tile = (rot, q, m2, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${nf(q)} <small>telhas</small></div><div class="sub"><b>${nf(m2, 1)} m²</b> · ${sub}</div></div>`;
+  return `<div class="tiles ap-telha-tiles">${tile('Instaladas', feitas, m2Feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas do projeto`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, m2Sel, sel ? 'ao salvar: entram em Lançamentos (FECHAMENTO) e no BM (GLO-3.2.2-01)' : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, m2Pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do fechamento lateral', n, total, 'contrato da atividade "Instalação das telhas" (BM)', 'var(--amarelo)')}</div>`;
 }
 function apTFechHtml(ctx, fr) {
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
@@ -4724,7 +4735,7 @@ function apTFechHtml(ctx, fr) {
       <span class="nota">clique ou arraste o mouse sobre as telhas; o nome do trecho marca todas as pendentes dele.</span></div>
     <div id="apMapaInfo" class="ap-info">Passe o mouse sobre uma telha para ver o trecho e o número dela.</div>
     <div class="tabela-rolagem apm-caixa">${apTFechSvg(fr)}</div>
-    <p class="nota">Cada faixa é uma telha do fechamento lateral (família TELHA FECHAMENTO do IFC): ${nf(fr.total)} telhas, em elevação — Lado A e Lado H (vãos entre eixos, do eixo 01 ao 20) e oitões dos eixos 01 e 20 (faixas AB a GH). ${(fr.telha || {}).projeto ? `As telhas seguem a prancha de paginação do projeto (${esc(fr.telha.projeto)}): ${nf(fr.partes.filter(p => !p.id.startsWith('OITÃO')).reduce((n, p) => n + p.total, 0))} telhas nos lados (altura do desenho proporcional ao comprimento: 7,34 m, 9,10 m e 1,55 m) e ${nf(fr.partes.filter(p => p.id.startsWith('OITÃO')).reduce((n, p) => n + p.total, 0))} nos oitões, em duas fiadas (superior em cima, inferior embaixo), numeradas dentro de cada trecho a partir do eixo 01 (lados) ou do eixo A (oitões).` : 'O IFC informa quantas telhas há em cada trecho; dentro do trecho elas aparecem na ordem 01, 02, 03…'} Cada telha vale ${nf(apTelhaM2(fr), 2)} m² (${nf((fr.telha || {}).m2_total_contrato || 0, 1)} m² da atividade "Instalação das telhas" do catálogo do BM ÷ ${nf(fr.total)} telhas) e soma no serviço FECHAMENTO da Globo Aços e na medição (GLO-3.2.2-01).</p>`;
+    <p class="nota">Cada faixa é uma telha do fechamento lateral, em elevação: ${nf(fr.total)} telhas — Lado A e Lado H (vãos entre eixos, do eixo 01 ao 20) e oitões dos eixos 01 e 20 (faixas AB a GH). ${(fr.telha || {}).projeto ? `As telhas seguem a prancha de paginação do projeto (${esc(fr.telha.projeto)}). No oitão cada coluna é <b>uma telha só</b> (a peça de baixo e a de cima são marcadas juntas, sem corte), numerada dentro de cada trecho a partir do eixo A; nos lados a numeração parte do eixo 01. A altura do desenho é proporcional ao comprimento.` : 'O IFC informa quantas telhas há em cada trecho; dentro do trecho elas aparecem na ordem 01, 02, 03…'} Cada telha vale os m² do comprimento dela (${nf((fr.telha || {}).m2_total_contrato || 0, 1)} m² da atividade "Instalação das telhas" do catálogo do BM divididos pelo comprimento de todas as telhas; média de ${nf(apTelhaM2(fr), 2)} m²) e soma no serviço FECHAMENTO da Globo Aços e na medição (GLO-3.2.2-01).</p>`;
 }
 
 function apFrenteHtml(ctx) {
