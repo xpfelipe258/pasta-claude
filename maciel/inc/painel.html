@@ -123,8 +123,11 @@
       </div>
     </div>
     <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
-    <div class="sidebar-grupo sidebar-dashboard sidebar-sistema">
-      <div class="sidebar-itens aberto">
+    <div class="sidebar-grupo sidebar-geral">
+      <div class="sidebar-titulo aberto" data-grupo="geral">
+        <span class="sidebar-icone">&#9776;</span>Geral<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-geral">
         <button data-aba="tutorial" title="Guia interativo do sistema, com passo a passo e PDF">Tutorial</button>
         <button data-aba="config" title="Seus dados, senha, idioma e aparência">Configurações</button>
       </div>

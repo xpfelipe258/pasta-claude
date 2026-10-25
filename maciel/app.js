@@ -387,6 +387,7 @@ async function carregar() {
     const mods = Array.isArray(u.modulos) ? u.modulos : ['producao','suprimentos','consumo','financeiro','gestao'];
     document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(t => {
       const grupo = t.dataset.grupo;
+      if (grupo === 'geral') return;   // área Geral (Tutorial, Configurações): todos os usuários
       const caixa = t.closest('.sidebar-grupo');
       if (caixa) caixa.hidden = !mods.includes(grupo);
     });
