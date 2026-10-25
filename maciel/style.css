@@ -1183,6 +1183,12 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 .sidebar-tarefas button { font-weight: 700; }
 .tf-alertas a { color: inherit; font-weight: 700; }
 
+#dlgTfRel { width: min(520px, 94vw); }
+#dlgTfRel .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+#dlgTfRel .largo { grid-column: 1 / -1; }
+#dlgTfRel label { display: flex; flex-direction: column; gap: 4px; font-size: .75rem; font-weight: 600; color: var(--fg2); }
+.tf-cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .78rem; letter-spacing: .02em; }
+#tabTarefas td.nw { white-space: nowrap; }
 /* Tarefas — conversa entre os usuários (mural da equipe e conversa de cada tarefa) */
 .tf-novo { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 10px; font-size: .68rem; font-weight: 700; background: var(--vermelho); color: #fff; }
 .tf-msgs-n { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: .7rem; font-weight: 700; background: var(--pend-bg); color: var(--fg2); }

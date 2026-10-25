@@ -139,6 +139,113 @@ function tfAtualizarNovas() {
   if (n) n.hidden = !tfNovasMural() || TF.aba === 'mural';
 }
 
+// ------------------------------------------------------------ RELATÓRIO DE TAREFAS (visualização padrão → Baixar PDF)
+const TF_REL = { resp: '', sit: 'todas', por: 'prazo', ini: '', fim: '' };
+const TF_REL_SIT = { todas: 'Todas as situações', abertas: 'Em aberto (a fazer + em andamento)', atrasadas: 'Atrasadas', concluidas: 'Concluídas', concluidas_atraso: 'Concluídas com atraso', canceladas: 'Canceladas' };
+const TF_REL_POR = { prazo: 'Data de conclusão (prazo)', inicio: 'Data de início', criacao: 'Data de criação' };
+
+function tfRelAbrir() {
+  const d = TF.dados;
+  if (!d) { toast('Aguarde as tarefas carregarem.', true); return; }
+  const f = $('#tfRelForm');
+  f.elements.resp.innerHTML = '<option value="">Todos os responsáveis</option>' + d.usuarios.map(u => `<option value="${u.id}">${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</option>`).join('');
+  f.elements.resp.value = TF_REL.resp;
+  $('#tfRelRespBox').hidden = !d.admin;
+  f.elements.sit.innerHTML = Object.entries(TF_REL_SIT).map(([k, r]) => `<option value="${k}">${r}</option>`).join('');
+  f.elements.sit.value = TF_REL.sit;
+  f.elements.por.innerHTML = Object.entries(TF_REL_POR).map(([k, r]) => `<option value="${k}">${r}</option>`).join('');
+  f.elements.por.value = TF_REL.por;
+  f.elements.ini.value = TF_REL.ini;
+  f.elements.fim.value = TF_REL.fim || '';
+  $('#dlgTfRel').showModal();
+}
+
+function tfRelFiltrar(c) {
+  const d = TF.dados, h = hoje();
+  const dataBase = t => c.por === 'inicio' ? (t.data_inicio || '') : c.por === 'criacao' ? String(t.criado_em || '').slice(0, 10) : (t.data_fim || '');
+  return d.tarefas.filter(t => {
+    if (c.resp && String(t.responsavel_id) !== c.resp) return false;
+    if (c.ini || c.fim) { const b = dataBase(t); if (!b || (c.ini && b < c.ini) || (c.fim && b > c.fim)) return false; }
+    const atrasada = tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada';
+    if (c.sit === 'abertas') return tfAberta(t);
+    if (c.sit === 'atrasadas') return atrasada;
+    if (c.sit === 'concluidas') return t.status === 'concluida';
+    if (c.sit === 'concluidas_atraso') return t.status === 'concluida' && tfAtrasoConcl(t) > 0;
+    if (c.sit === 'canceladas') return t.status === 'cancelada';
+    return true;
+  }).sort((a, b) => (a.responsavel_nome || '').localeCompare(b.responsavel_nome || '') || (a.data_fim || '').localeCompare(b.data_fim || '') || a.id - b.id);
+}
+// dias de atraso na conclusão (concluída depois do prazo); 0 = no prazo
+function tfAtrasoConcl(t) { return t.status === 'concluida' && t.concluida_em && t.data_fim ? Math.max(0, tfDias(t.data_fim, String(t.concluida_em).slice(0, 10))) : 0; }
+
+function tfRelSituacaoTxt(t, h) {
+  if (t.status === 'concluida') { const a = tfAtrasoConcl(t); return `Concluída${t.concluida_em ? ' em ' + fdA(String(t.concluida_em).slice(0, 10)) : ''} · ${a ? `com ${tfPlural(a, 'dia', 'dias')} de atraso` : 'no prazo'}`; }
+  const s = tfSituacao(t, h);
+  return `${TF_STATUS[t.status] || t.status} · ${s.rot}`;
+}
+
+function tfRelHtml(c) {
+  const h = hoje(), l = tfRelFiltrar(c);
+  const abertas = l.filter(tfAberta), atras = abertas.filter(t => tfSituacao(t, h).nivel === 'atrasada');
+  const concl = l.filter(t => t.status === 'concluida'), noPrazo = concl.filter(t => !tfAtrasoConcl(t)), canc = l.filter(t => t.status === 'cancelada');
+  const pc = (a, b) => b ? nf(a / b * 100, 0) + '%' : '—';
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const respNome = c.resp ? ((TF.dados.usuarios.find(u => String(u.id) === c.resp) || {}).nome || '') : 'Todos os responsáveis';
+  const periodo = c.ini || c.fim ? `${TF_REL_POR[c.por].toLowerCase()} de ${c.ini ? fdA(c.ini) : 'o início'} a ${c.fim ? fdA(c.fim) : 'hoje em diante'}` : 'sem filtro de período';
+  const cards = `<div class="cards">
+    ${card('Tarefas no relatório', nf(l.length), `${respNome} · ${TF_REL_SIT[c.sit].toLowerCase()}`, 'az')}
+    ${card('Em aberto', nf(abertas.length), `${abertas.filter(t => t.status === 'andamento').length} em andamento · ${abertas.filter(t => t.status === 'pendente').length} a fazer`, 'am')}
+    ${card('Atrasadas', nf(atras.length), atras.length ? 'passaram do prazo e seguem abertas' : 'nenhuma atrasada', atras.length ? 'vm' : 'vd')}
+    ${card('Concluídas', nf(concl.length), `${nf(noPrazo.length)} no prazo · ${nf(concl.length - noPrazo.length)} com atraso`, 'vd')}
+    ${card('Cumprimento do prazo', pc(noPrazo.length, concl.length), 'concluídas no prazo ÷ concluídas', concl.length && noPrazo.length / concl.length < .8 ? 'am' : 'vd')}
+    ${card('Canceladas', nf(canc.length), '', 'nd')}
+  </div>`;
+  // por responsável
+  const por = new Map();
+  l.forEach(t => {
+    const o = por.get(t.responsavel_id) || { nome: t.responsavel_nome || '—', n: 0, pend: 0, and: 0, atr: 0, ok: 0, okp: 0, canc: 0 };
+    o.n++;
+    if (t.status === 'pendente') o.pend++; else if (t.status === 'andamento') o.and++;
+    if (tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada') o.atr++;
+    if (t.status === 'concluida') { o.ok++; if (!tfAtrasoConcl(t)) o.okp++; }
+    if (t.status === 'cancelada') o.canc++;
+    por.set(t.responsavel_id, o);
+  });
+  const tabResp = `<table><thead><tr><th>Responsável</th><th class="n">Total</th><th class="n">A fazer</th><th class="n">Em andamento</th><th class="n">Atrasadas</th><th class="n">Concluídas</th><th class="n">Concl. no prazo</th><th class="n">Canceladas</th></tr></thead><tbody>` +
+    ([...por.values()].sort((a, b) => b.atr - a.atr || b.n - a.n).map(o => `<tr><td>${esc(o.nome)}</td><td class="n">${o.n}</td><td class="n">${o.pend}</td><td class="n">${o.and}</td><td class="n ${o.atr ? 'neg' : ''}">${o.atr}</td><td class="n">${o.ok}</td><td class="n">${pc(o.okp, o.ok)}</td><td class="n">${o.canc}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Sem tarefas.</td></tr>') + '</tbody></table>';
+  const tabPrio = `<table><thead><tr><th>Prioridade</th><th class="n">Total</th><th class="n">Em aberto</th><th class="n">Atrasadas</th><th class="n">Concluídas</th></tr></thead><tbody>` +
+    ['urgente', 'alta', 'normal', 'baixa'].map(p => { const q = l.filter(t => t.prioridade === p); return `<tr><td>${TF_PRIO[p]}</td><td class="n">${q.length}</td><td class="n">${q.filter(tfAberta).length}</td><td class="n ${q.some(t => tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada') ? 'neg' : ''}">${q.filter(t => tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada').length}</td><td class="n">${q.filter(t => t.status === 'concluida').length}</td></tr>`; }).join('') + '</tbody></table>';
+  // detalhe, agrupado por responsável
+  let linhas = '', ult = null;
+  l.forEach(t => {
+    if (t.responsavel_id !== ult) { ult = t.responsavel_id; linhas += `<tr class="grupo"><td colspan="9"><b>${esc(t.responsavel_nome || '—')}</b></td></tr>`; }
+    const s = tfRelSituacaoTxt(t, h), neg = (tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada') || tfAtrasoConcl(t) > 0;
+    linhas += `<tr><td style="white-space:nowrap"><b>${esc(t.codigo || '—')}</b></td>
+      <td><b>${esc(t.titulo)}</b>${t.descricao ? `<div class="nota">${esc(t.descricao)}</div>` : ''}${t.retorno ? `<div class="nota"><b>Retorno:</b> ${esc(t.retorno)}</div>` : ''}${t.n_msgs ? `<div class="nota">💬 ${t.n_msgs} mensagem(ns) na conversa</div>` : ''}</td>
+      <td>${esc(t.pessoal ? 'lembrete pessoal' : (t.criado_por_nome || '—'))}</td><td>${esc(TF_PRIO[t.prioridade] || t.prioridade)}</td>
+      <td class="n">${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td class="n">${t.data_fim ? fdA(t.data_fim) : '—'}</td>
+      <td class="n">${t.iniciada_em ? fdA(String(t.iniciada_em).slice(0, 10)) : '—'}</td><td class="n">${t.concluida_em ? fdA(String(t.concluida_em).slice(0, 10)) : '—'}</td>
+      <td class="${neg ? 'neg' : ''}">${esc(s)}</td></tr>`;
+  });
+  const tabDet = `<table><thead><tr><th>Código</th><th>Tarefa</th><th>Criada por</th><th>Prioridade</th><th class="n">Início</th><th class="n">Conclusão (prazo)</th><th class="n">Iniciada em</th><th class="n">Concluída em</th><th>Situação</th></tr></thead><tbody>${linhas || '<tr><td colspan="9" class="vazio">Nenhuma tarefa com estes filtros.</td></tr>'}</tbody></table>`;
+  return tplDocumento({ titulo: 'Relatório de tarefas', subtitulo: `${respNome} — ${periodo} · posição em ${fdA(h)}`,
+    meta: 'Cada tarefa recebe um código TAR-ano-número quando é criada · prazo = data de conclusão · atraso = dias entre o prazo e a conclusão (ou até hoje, se aberta)',
+    corpo: `<div class="pag"><h2>Resumo</h2>${cards}<h2>Por responsável</h2>${tabResp}<h2>Por prioridade</h2>${tabPrio}<h2>Tarefas</h2>${tabDet}</div>` });
+}
+
+async function tfRelGerar(ev) {
+  ev.preventDefault();
+  const f = $('#tfRelForm');
+  const c = { resp: TF.dados.admin ? f.elements.resp.value : '', sit: f.elements.sit.value, por: f.elements.por.value, ini: f.elements.ini.value, fim: f.elements.fim.value };
+  if (c.ini && c.fim && c.fim < c.ini) { toast('A data final não pode ser anterior à inicial.', true); return; }
+  Object.assign(TF_REL, c);
+  $('#dlgTfRel').close();
+  try {
+    await tplLogosCarregar();
+    reAbrirPrevia(tfRelHtml(c), `tarefas-${hoje()}.html`, 'Relatório de tarefas');
+  } catch (err) { toast('Não foi possível montar o relatório: ' + err.message, true); }
+}
+
 function tfDias(de, ate) { return Math.round((dU(ate) - dU(de)) / 86400000); }   // dias corridos de `de` até `ate`
 function tfAberta(t) { return t.status === 'pendente' || t.status === 'andamento'; }
 function tfPlural(n, s, p) { return `${n} ${n === 1 ? s : p}`; }
@@ -198,7 +305,7 @@ function tfAlertasHtml() {
   if (!itens.length) return '<div class="tf-alertas tf-ok"><b>Tudo em dia.</b> Nenhuma tarefa atrasada, vencendo ou começando agora.</div>';
   itens.sort((a, b) => a.s.ordem - b.s.ordem);
   return `<div class="tf-alertas"><div class="tf-alerta-tit">Alertas — ${tfPlural(itens.length, 'tarefa pede atenção', 'tarefas pedem atenção')}</div><ul>` +
-    itens.slice(0, 12).map(({ t, s, minha }) => `<li><span class="farol ${s.cls}">${esc(s.rot)}</span> <a href="#" data-tf-abrir="${t.id}">${esc(t.titulo)}</a>
+    itens.slice(0, 12).map(({ t, s, minha }) => `<li><span class="farol ${s.cls}">${esc(s.rot)}</span> <span class="tf-cod">${esc(t.codigo || '')}</span> <a href="#" data-tf-abrir="${t.id}">${esc(t.titulo)}</a>
       <span class="nota">${minha ? '' : `· de ${esc(t.responsavel_nome || '—')} `}· conclusão ${fdA(t.data_fim)}</span></li>`).join('') +
     (itens.length > 12 ? `<li class="nota">…e mais ${itens.length - 12}. Use os filtros abaixo.</li>` : '') + '</ul></div>';
 }
@@ -212,7 +319,7 @@ function tfFiltradas() {
   if (TF.filtro === 'abertas') l = l.filter(tfAberta);
   else if (TF.filtro === 'atrasadas') l = l.filter(t => tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada');
   else if (TF.filtro === 'concluidas') l = l.filter(t => t.status === 'concluida');
-  if (b) l = l.filter(t => `${t.titulo} ${t.descricao || ''} ${t.responsavel_nome || ''} ${t.criado_por_nome || ''} ${t.retorno || ''}`.toLowerCase().includes(b));
+  if (b) l = l.filter(t => `${t.codigo || ''} ${t.titulo} ${t.descricao || ''} ${t.responsavel_nome || ''} ${t.criado_por_nome || ''} ${t.retorno || ''}`.toLowerCase().includes(b));
   // abertas primeiro, as mais urgentes no topo; encerradas por último
   return l.sort((a, b) => tfSituacao(a, h).ordem - tfSituacao(b, h).ordem || (a.data_fim || '').localeCompare(b.data_fim || ''));
 }
@@ -265,18 +372,19 @@ function renderTarefas() {
 
   const lista = tfFiltradas();
   const statusSel = t => `<select class="tf-status" data-tf-status="${t.id}" aria-label="Situação">${Object.entries(TF_STATUS).map(([k, r]) => `<option value="${k}" ${t.status === k ? 'selected' : ''}>${r}</option>`).join('')}</select>`;
-  $('#tabTarefas').innerHTML = `<thead><tr><th>Prioridade</th><th>Tarefa</th><th>Responsável</th><th>Início</th><th>Conclusão</th><th>Prazo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>` +
+  $('#tabTarefas').innerHTML = `<thead><tr><th>Código</th><th>Prioridade</th><th>Tarefa</th><th>Responsável</th><th>Início</th><th>Conclusão</th><th>Prazo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>` +
     (lista.length ? lista.map(t => {
       const s = sit(t);
       const origem = t.pessoal ? '<span class="nota">lembrete pessoal</span>' : `<span class="nota">por ${esc(t.criado_por_nome || '—')}</span>`;
       return `<tr class="${tfAberta(t) ? '' : 'tf-fechada'} tf-p-${esc(t.prioridade)}">
+        <td class="nw"><b class="tf-cod">${esc(t.codigo || '—')}</b></td>
         <td><span class="tf-prio tf-prio-${esc(t.prioridade)}">${esc(TF_PRIO[t.prioridade] || t.prioridade)}</span></td>
         <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.n_msgs ? `<a href="#" data-tf-abrir="${t.id}" class="tf-msgs-n ${tfNovasTarefa(t) ? 'nova' : ''}" title="Conversa da tarefa">💬 ${t.n_msgs}${tfNovasTarefa(t) ? ' · nova' : ''}</a>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
         <td>${esc(t.responsavel_nome || '—')}<br>${origem}</td>
         <td>${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td>${t.data_fim ? fdA(t.data_fim) : '—'}</td>
         <td><span class="farol ${s.cls}">${esc(s.rot)}</span></td><td>${statusSel(t)}</td>
         <td><button class="link" data-tf-abrir="${t.id}">${t.pode_editar ? 'Editar' : 'Abrir'}</button>${t.pode_editar ? ` · <button class="link perigo-txt" data-tf-excluir="${t.id}">Excluir</button>` : ''}</td></tr>`;
-    }).join('') : `<tr><td colspan="8" class="vazio">Nenhuma tarefa neste filtro. Use “+ Nova tarefa” ou o lembrete rápido acima.</td></tr>`) + '</tbody>';
+    }).join('') : `<tr><td colspan="9" class="vazio">Nenhuma tarefa neste filtro. Use “+ Nova tarefa” ou o lembrete rápido acima.</td></tr>`) + '</tbody>';
 
   // carga por responsável (administrador, vista "Todas")
   const carga = $('#tfCarga');
@@ -302,7 +410,8 @@ function tfAbrir(id) {
   const dlg = $('#dlgTarefa'), f = $('#tfForm');
   const editaDados = !t || t.pode_editar;
   dlg.dataset.id = t ? t.id : '';
-  $('#tfTit').textContent = t ? (editaDados ? 'Editar tarefa' : 'Tarefa') : 'Nova tarefa';
+  $('#tfTit').textContent = t ? `${editaDados ? 'Editar tarefa' : 'Tarefa'} · ${t.codigo || ''}` : 'Nova tarefa';
+  $('#tfCodigoNota').textContent = t ? `Código ${t.codigo || '—'} · criada em ${tfHora(t.criado_em)} por ${t.criado_por_nome || '—'}${t.iniciada_em ? ' · iniciada em ' + tfHora(t.iniciada_em) : ''}${t.concluida_em ? ' · concluída em ' + tfHora(t.concluida_em) : ''}` : 'O código (TAR-ano-número) é gerado quando a tarefa é salva.';
   f.elements.titulo.value = t ? t.titulo : '';
   f.elements.descricao.value = t ? (t.descricao || '') : '';
   const selR = f.elements.responsavel_id;
@@ -347,7 +456,10 @@ async function tfSalvar(ev) {
         r = await postar(API + 'tarefas', { acao: 'status', id, status: f.elements.status.value, retorno: f.elements.retorno.value });
       }
     }
-    TF.dados = r; dlg.close(); tfAtualizarMenu(); renderTarefas(); toast('Tarefa salva');
+    const antes = new Set((TF.dados.tarefas || []).map(x => x.id));
+    TF.dados = r; dlg.close(); tfAtualizarMenu(); renderTarefas();
+    const nova = !t && r.tarefas.find(x => !antes.has(x.id));
+    toast(nova ? `Tarefa criada · código ${nova.codigo}` : 'Tarefa salva');
   } catch (err) { toast(err.message, true); }
   finally { b.disabled = false; }
 }
@@ -372,8 +484,10 @@ async function tfLembreteRapido() {
   if (!fim.value) { toast('Informe a data de conclusão.', true); fim.focus(); return; }
   if (fim.value < hoje()) { toast('A data de conclusão não pode ser anterior a hoje.', true); return; }
   try {
+    const antes = new Set(TF.dados.tarefas.map(x => x.id));
     TF.dados = await postar(API + 'tarefas', { acao: 'salvar', titulo: tit.value, responsavel_id: TF.dados.usuario_id, data_inicio: hoje(), data_fim: fim.value, aviso_dias: 2, prioridade: 'normal' });
-    tit.value = ''; fim.value = ''; tfAtualizarMenu(); renderTarefas(); toast('Lembrete criado');
+    tit.value = ''; fim.value = ''; tfAtualizarMenu(); renderTarefas();
+    const nova = TF.dados.tarefas.find(x => !antes.has(x.id)); toast(nova ? `Lembrete criado · código ${nova.codigo}` : 'Lembrete criado');
   } catch (err) { toast(err.message, true); }
 }
 
@@ -405,6 +519,7 @@ function ligarTarefas() {
     const fl = ev.target.closest('[data-tf-filtro]');
     if (fl) { TF.filtro = fl.dataset.tfFiltro; renderTarefas(); return; }
     if (ev.target.closest('#btnNovaTarefa')) tfAbrir(null);
+    if (ev.target.closest('#btnRelTarefas')) tfRelAbrir();
     if (ev.target.closest('#tfRapidoAdd')) tfLembreteRapido();
   });
   sec.addEventListener('change', ev => {
@@ -414,6 +529,8 @@ function ligarTarefas() {
   });
   sec.addEventListener('input', ev => { if (ev.target.id === 'tfBusca') { TF.busca = ev.target.value; const pos = ev.target.selectionStart; renderTarefas(); const n = $('#tfBusca'); n.focus(); n.setSelectionRange(pos, pos); } });
   sec.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'tfRapidoTit') { ev.preventDefault(); tfLembreteRapido(); } });
+  $('#tfRelForm').addEventListener('submit', tfRelGerar);
+  $('#tfRelCancelar').addEventListener('click', () => $('#dlgTfRel').close());
   tfConvLigar(sec);
   tfConvLigar($('#dlgTarefa'));
   $('#tfForm').addEventListener('submit', tfSalvar);

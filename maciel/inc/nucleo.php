@@ -227,7 +227,8 @@ function tarefas_sql($pk, $longo, $fim)
     return "CREATE TABLE IF NOT EXISTS tarefas (id $pk, titulo VARCHAR(200) NOT NULL, descricao $longo NULL,
         criado_por INT NOT NULL, responsavel_id INT NOT NULL, data_inicio DATE NULL, data_fim DATE NULL,
         aviso_dias INT NOT NULL DEFAULT 2, prioridade VARCHAR(10) NOT NULL DEFAULT 'normal', status VARCHAR(15) NOT NULL DEFAULT 'pendente',
-        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL)$fim";
+        retorno $longo NULL, concluida_em VARCHAR(19) NULL, criado_em VARCHAR(19) NOT NULL, atualizado_em VARCHAR(19) NULL,
+        codigo VARCHAR(20) NULL, iniciada_em VARCHAR(19) NULL)$fim";
 }
 // Conversa entre os usuários na aba Tarefas: tarefa_id = 0 é o mural da equipe (todos veem); senão é a conversa de uma tarefa. Cada mensagem pode levar um arquivo.
 function tarefas_msgs_sql($pk, $longo, $fim)
@@ -271,6 +272,22 @@ function tarefas_arquivos_dir()
     }
     return $d;
 }
+// Código da tarefa: TAR-AAAA-NNNN (ano de criação em Brasília + número seguido dentro do ano). Nasce junto com a tarefa.
+function tarefa_novo_codigo($ano)
+{
+    $ano = preg_match('/^\d{4}$/', (string)$ano) ? (string)$ano : date('Y');
+    $ultimo = q_global('SELECT codigo FROM tarefas WHERE codigo LIKE ? ORDER BY codigo DESC LIMIT 1', ["TAR-$ano-%"])->fetchColumn();
+    $n = $ultimo ? (int)substr((string)$ultimo, -4) : 0;
+    return sprintf('TAR-%s-%04d', $ano, $n + 1);
+}
+// Tarefas de antes do código ganham o delas, na ordem de criação.
+function tarefas_codigos_pendentes()
+{
+    $sem = q_global('SELECT id, criado_em FROM tarefas WHERE codigo IS NULL OR codigo = ? ORDER BY id', [''])->fetchAll();
+    foreach ($sem as $t) {
+        q_global('UPDATE tarefas SET codigo = ? WHERE id = ?', [tarefa_novo_codigo(substr((string)$t['criado_em'], 0, 4)), (int)$t['id']]);
+    }
+}
 function garantir_tarefas()
 {
     static $ok = false;
@@ -280,6 +297,14 @@ function garantir_tarefas()
     $driver = config()['driver'] ?? 'mysql';
     bd()->exec(tarefas_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
+    foreach (['codigo' => 'VARCHAR(20) NULL', 'iniciada_em' => 'VARCHAR(19) NULL'] as $col => $def) {   // tabela criada antes do código da tarefa
+        try {
+            bd()->query("SELECT $col FROM tarefas LIMIT 1")->fetchAll();
+        } catch (Throwable $e) {
+            bd()->exec("ALTER TABLE tarefas ADD COLUMN $col $def");
+        }
+    }
+    tarefas_codigos_pendentes();
     bd()->exec(tarefas_msgs_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
     $ok = true;

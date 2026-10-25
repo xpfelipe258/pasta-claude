@@ -370,9 +370,9 @@ function acao_tarefas(array $corpo, array $usuario)
             q_global('UPDATE tarefas SET titulo=?, descricao=?, responsavel_id=?, data_inicio=?, data_fim=?, aviso_dias=?, prioridade=?, atualizado_em=? WHERE id=?',
                 [$titulo, $desc !== '' ? $desc : null, $resp, $ini, $fim, $aviso, $prio, $agora, $id]);
         } else {
-            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora]);
+            q_global('INSERT INTO tarefas (titulo, descricao, criado_por, responsavel_id, data_inicio, data_fim, aviso_dias, prioridade, status, criado_em, atualizado_em, codigo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora, tarefa_novo_codigo(substr($agora, 0, 4))]);
         }
     } elseif ($acao === 'status') {
         if (!$t) {
@@ -386,8 +386,12 @@ function acao_tarefas(array $corpo, array $usuario)
             throw new ErroValidacao('Situação inválida.');
         }
         $retorno = array_key_exists('retorno', $corpo) ? trim((string)$corpo['retorno']) : (string)($t['retorno'] ?? '');
-        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, atualizado_em=? WHERE id=?',
-            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $agora, $id]);
+        $iniciada = (string)($t['iniciada_em'] ?? '');
+        if ($iniciada === '' && in_array($st, ['andamento', 'concluida'], true)) {
+            $iniciada = $agora;   // primeira vez que a tarefa sai de "A fazer"
+        }
+        q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, iniciada_em=?, atualizado_em=? WHERE id=?',
+            [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $iniciada !== '' ? $iniciada : null, $agora, $id]);
     } elseif ($acao === 'excluir') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
