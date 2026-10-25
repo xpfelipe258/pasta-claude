@@ -156,6 +156,8 @@
   <!-- TAREFAS A FAZER (aba fixa: primeira tela ao entrar) -->
   <section id="aba-tarefas">
     <div class="bloco-cab"><h2>Tarefas a fazer</h2><div class="acoes"><button class="btn primario" id="btnNovaTarefa">+ Nova tarefa</button></div></div>
+    <div class="barra-acoes"><div class="seg" id="tfAbas"><button type="button" data-tf-aba="tarefas" class="ativa">Tarefas</button><button type="button" data-tf-aba="mural">Mural da equipe <span class="tf-novo" id="tfMuralNovo" hidden>novas</span></button></div></div>
+    <div id="tfTarefasView">
     <div id="tfAlertas"></div>
     <div class="tiles" id="tfCards"></div>
     <div class="tf-rapido">
@@ -171,6 +173,13 @@
     </div>
     <div id="tfCorpo"><div class="bloco"><div class="tabela-rolagem"><table id="tabTarefas"></table></div></div></div>
     <div class="bloco" id="tfCarga" hidden></div>
+    </div>
+    <div id="tfMuralView" hidden>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Mural da equipe</h2><span class="nota">Conversa aberta a todos os usuários do sistema, só para comunicação e troca de arquivos. Não altera tarefas nem dados da obra.</span></div>
+        <div class="tf-conv" data-cv="0"></div>
+      </div>
+    </div>
   </section>
 
   <!-- PAINEL -->
@@ -814,6 +823,11 @@
         <label class="largo"><span>Retorno / observação de quem executa</span><textarea name="retorno" rows="2"></textarea></label>
       </div>
       <span class="nota largo" id="tfNotaSomenteAndamento" hidden>Esta tarefa foi atribuída a você: você pode mudar a situação e escrever o retorno. Os demais dados só quem criou ou o administrador altera.</span>
+    </div>
+    <div class="bloco-conversa" id="tfConversaBox" hidden>
+      <h3>Conversa desta tarefa</h3>
+      <p class="nota">Vale para quem criou, para o responsável e para o administrador: mensagens e arquivos. A conversa não altera a tarefa.</p>
+      <div class="tf-conv" id="tfConvTarefa" data-cv="0"></div>
     </div>
     <div class="acoes">
       <button type="button" class="btn perigo" id="tfExcluir" hidden>Excluir</button>

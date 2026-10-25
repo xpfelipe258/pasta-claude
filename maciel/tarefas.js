@@ -1,9 +1,143 @@
 // ------------------------------------------------------------ TAREFAS A FAZER (aba fixa: é a primeira tela ao entrar)
 // O administrador cria tarefas e atribui a qualquer usuário; cada usuário também cria os próprios lembretes.
 // Toda tarefa tem data de início e data de conclusão, com alerta (atrasada, vence hoje / em breve, começa hoje).
-const TF = { dados: null, carregando: null, vista: 'minhas', filtro: 'abertas', resp: '', busca: '', avisouAoAbrir: false };
+const TF = { dados: null, carregando: null, vista: 'minhas', filtro: 'abertas', resp: '', busca: '', avisouAoAbrir: false, aba: 'tarefas' };
 const TF_STATUS = { pendente: 'A fazer', andamento: 'Em andamento', concluida: 'Concluída', cancelada: 'Cancelada' };
 const TF_PRIO = { baixa: 'Baixa', normal: 'Normal', alta: 'Alta', urgente: 'Urgente' };
+
+
+// ------------------------------------------------------------ CONVERSA ENTRE OS USUÁRIOS (mural da equipe e conversa de cada tarefa)
+// Só comunicação e troca de arquivos: não altera tarefas nem dados da obra. Mural = conversa 0, aberta a todos os usuários.
+const TFC = {};   // conversa (id da tarefa; 0 = mural) -> { msgs, ultimo }
+const TF_MAX_ARQ = 10 * 1048576;
+function tfVistoLer(chave) { try { return JSON.parse(localStorage.getItem('tfVisto_' + (TF.dados ? TF.dados.usuario_id : '')) || '{}')[chave] || 0; } catch (e) { return 0; } }
+function tfVistoGravar(chave, id) {
+  try {
+    const k = 'tfVisto_' + (TF.dados ? TF.dados.usuario_id : ''), o = JSON.parse(localStorage.getItem(k) || '{}');
+    if ((o[chave] || 0) < id) { o[chave] = id; localStorage.setItem(k, JSON.stringify(o)); }
+  } catch (e) { /* sem armazenamento local: só não lembra o que já foi lido */ }
+}
+function tfTamanho(n) { return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+function tfHora(em) { const d = String(em || ''); return `${fdA(d.slice(0, 10))} ${d.slice(11, 16)}`; }
+
+function tfConvEstrutura(el) {
+  if (el.dataset.montado) return;
+  el.dataset.montado = '1';
+  el.innerHTML = `<div class="tf-conv-lista" data-cv-lista><p class="tf-conv-vazia">Carregando a conversa…</p></div>
+    <div class="tf-conv-compor">
+      <textarea rows="2" maxlength="4000" data-cv-texto placeholder="Escreva uma mensagem… (Ctrl+Enter envia)"></textarea>
+      <div class="tf-conv-barra">
+        <button type="button" class="btn tf-enviar" data-cv-enviar>Enviar mensagem</button>
+        <label class="btn tf-anexar">📎 Anexar arquivo<input type="file" data-cv-arquivo hidden></label>
+        <span class="nota" data-cv-nota>Arquivos até 10 MB (PDF, imagem, Word, Excel, ZIP, DWG, IFC…). Se escrever algo antes de anexar, o texto vai junto.</span>
+      </div>
+    </div>`;
+}
+
+function tfConvLista(el, c) {
+  const l = el.querySelector('[data-cv-lista]');
+  const rolouFim = l.scrollTop + l.clientHeight >= l.scrollHeight - 40, primeira = !el.dataset.pintou;
+  const ant = (TFC[el.dataset.cvId] || {}).render;
+  const html = c.mensagens.length ? c.mensagens.map(m => {
+    const ext = String(m.arquivo_tipo || '').toLowerCase(), img = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    const arq = m.tem_arquivo ? `<div class="tf-msg-arq">${img ? `<a href="tarefa_arquivo.php?acao=ver&id=${m.id}" target="_blank" rel="noopener"><img loading="lazy" src="tarefa_arquivo.php?acao=ver&id=${m.id}" alt="${esc(m.arquivo_nome)}"></a>` : ''}
+      <a href="tarefa_arquivo.php?acao=ver&id=${m.id}${ext === 'pdf' ? '' : '&baixar=1'}" ${ext === 'pdf' ? 'target="_blank" rel="noopener"' : ''}>📎 ${esc(m.arquivo_nome)}</a><span class="nota">${tfTamanho(m.arquivo_tam)}</span></div>` : '';
+    return `<div class="tf-msg ${m.minha ? 'minha' : ''}"><div class="tf-msg-cab"><b>${m.minha ? 'Você' : esc(m.autor)}</b><span>${tfHora(m.criado_em)}</span>${m.pode_excluir ? `<button type="button" class="link perigo-txt" data-cv-del="${m.id}">Apagar</button>` : ''}</div>
+      ${m.texto ? `<div class="tf-msg-txt">${esc(m.texto)}</div>` : ''}${arq}</div>`;
+  }).join('') : '<p class="tf-conv-vazia">Nenhuma mensagem ainda. Escreva a primeira ou anexe um arquivo.</p>';
+  if (html !== ant) {
+    l.innerHTML = html;
+    if (primeira || rolouFim) l.scrollTop = l.scrollHeight;
+  }
+  TFC[el.dataset.cvId].render = html;
+  el.dataset.pintou = '1';
+}
+
+async function tfConvCarregar(el, silencioso) {
+  const id = +el.dataset.cvId;
+  try {
+    const r = await fetch(API + 'tarefas-msgs&tarefa=' + id, { cache: 'no-store' });
+    if (r.status === 401) { location.href = 'login.php'; return; }
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || 'Falha ao ler a conversa');
+    TFC[id] = Object.assign(TFC[id] || {}, { msgs: j.mensagens });
+    tfConvLista(el, j);
+    const ult = j.mensagens.length ? j.mensagens[j.mensagens.length - 1].id : 0;
+    tfVistoGravar(id ? 't' + id : 'mural', ult);
+    tfAtualizarNovas();
+  } catch (err) { if (!silencioso) toast(err.message, true); }
+}
+
+function tfConvMontar(el, tarefaId) {
+  el.dataset.cvId = String(tarefaId);
+  TFC[tarefaId] = TFC[tarefaId] || {};
+  tfConvEstrutura(el);
+  delete el.dataset.pintou;
+  TFC[tarefaId].render = null;
+  const l = el.querySelector('[data-cv-lista]');
+  l.innerHTML = '<p class="tf-conv-vazia">Carregando a conversa…</p>';
+  return tfConvCarregar(el);
+}
+
+async function tfConvEnviarTexto(el) {
+  const ta = el.querySelector('[data-cv-texto]'), texto = ta.value.trim();
+  if (!texto) { toast('Escreva a mensagem.', true); ta.focus(); return; }
+  const b = el.querySelector('[data-cv-enviar]'); b.disabled = true;
+  try {
+    const j = await postar(API + 'tarefas-msgs', { acao: 'enviar', tarefa: +el.dataset.cvId, texto });
+    ta.value = ''; tfConvLista(el, j); tfConvCarregar(el, true);
+  } catch (err) { toast(err.message, true); }
+  finally { b.disabled = false; }
+}
+
+async function tfConvEnviarArquivo(el, input) {
+  const f = input.files && input.files[0]; input.value = '';
+  if (!f) return;
+  if (f.size > TF_MAX_ARQ) { toast('O arquivo passa de 10 MB. Reduza ou divida (ZIP).', true); return; }
+  const ta = el.querySelector('[data-cv-texto]'), nota = el.querySelector('[data-cv-nota]'), orig = nota.textContent;
+  nota.textContent = `Enviando ${f.name}…`;
+  try {
+    const q = `acao=enviar&tarefa=${el.dataset.cvId}&nome=${encodeURIComponent(f.name)}&texto=${encodeURIComponent(ta.value.trim().slice(0, 1000))}`;
+    const r = await fetch('tarefa_arquivo.php?' + q, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' }, body: f });
+    if (r.status === 401) { location.href = 'login.php'; return; }
+    const j = await r.json().catch(() => ({ erro: 'O servidor recusou o arquivo (tamanho ou tipo).' }));
+    if (!r.ok) throw new Error(j.erro || 'Falha ao enviar o arquivo');
+    ta.value = ''; toast('Arquivo enviado');
+    await tfConvCarregar(el, true);
+  } catch (err) { toast(err.message, true); }
+  finally { nota.textContent = orig; }
+}
+
+async function tfConvApagar(el, id) {
+  if (!confirm('Apagar esta mensagem' + ' (e o arquivo anexado, se houver)?')) return;
+  try { const j = await postar(API + 'tarefas-msgs', { acao: 'excluir', tarefa: +el.dataset.cvId, id }); tfConvLista(el, j); }
+  catch (err) { toast(err.message, true); }
+}
+
+function tfConvLigar(raiz) {
+  raiz.addEventListener('click', ev => {
+    const el = ev.target.closest('.tf-conv');
+    if (!el) return;
+    if (ev.target.closest('[data-cv-enviar]')) { ev.preventDefault(); tfConvEnviarTexto(el); return; }
+    const d = ev.target.closest('[data-cv-del]');
+    if (d) { ev.preventDefault(); tfConvApagar(el, +d.dataset.cvDel); }
+  });
+  raiz.addEventListener('change', ev => {
+    const i = ev.target.closest('[data-cv-arquivo]');
+    if (i) tfConvEnviarArquivo(i.closest('.tf-conv'), i);
+  });
+  raiz.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && ev.target.closest('[data-cv-texto]')) { ev.preventDefault(); tfConvEnviarTexto(ev.target.closest('.tf-conv')); }
+  });
+}
+
+// "novas" no menu da aba e ao lado de cada tarefa: mensagens de outras pessoas que ainda não abri
+function tfNovasMural() { const d = TF.dados; return !!d && d.mural_ultimo > tfVistoLer('mural') && d.mural_ultimo_usuario !== d.usuario_id; }
+function tfNovasTarefa(t) { return !!TF.dados && t.n_msgs > 0 && t.ult_msg_id > tfVistoLer('t' + t.id) && t.ult_msg_usuario !== TF.dados.usuario_id; }
+function tfAtualizarNovas() {
+  const n = document.getElementById('tfMuralNovo');
+  if (n) n.hidden = !tfNovasMural() || TF.aba === 'mural';
+}
 
 function tfDias(de, ate) { return Math.round((dU(ate) - dU(de)) / 86400000); }   // dias corridos de `de` até `ate`
 function tfAberta(t) { return t.status === 'pendente' || t.status === 'andamento'; }
@@ -91,6 +225,17 @@ function renderTarefas() {
     tfCarregar().then(() => { if (abaAtual === 'tarefas') renderTarefas(); });
     return;
   }
+  $('#tfTarefasView').hidden = TF.aba !== 'tarefas';
+  $('#tfMuralView').hidden = TF.aba !== 'mural';
+  document.querySelectorAll('[data-tf-aba]').forEach(b => b.classList.toggle('ativa', b.dataset.tfAba === TF.aba));
+  tfAtualizarNovas();
+  if (TF.aba === 'mural') {
+    const el = document.querySelector('#tfMuralView .tf-conv');
+    if (!el.dataset.cvId) tfConvMontar(el, 0); else tfConvCarregar(el, true);
+    $('#btnNovaTarefa').hidden = true;
+    return;
+  }
+  $('#btnNovaTarefa').hidden = false;
   const d = TF.dados, h = hoje();
   const minhas = tfMinhas(), abertas = minhas.filter(tfAberta);
   const sit = t => tfSituacao(t, h);
@@ -126,7 +271,7 @@ function renderTarefas() {
       const origem = t.pessoal ? '<span class="nota">lembrete pessoal</span>' : `<span class="nota">por ${esc(t.criado_por_nome || '—')}</span>`;
       return `<tr class="${tfAberta(t) ? '' : 'tf-fechada'} tf-p-${esc(t.prioridade)}">
         <td><span class="tf-prio tf-prio-${esc(t.prioridade)}">${esc(TF_PRIO[t.prioridade] || t.prioridade)}</span></td>
-        <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
+        <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.n_msgs ? `<a href="#" data-tf-abrir="${t.id}" class="tf-msgs-n ${tfNovasTarefa(t) ? 'nova' : ''}" title="Conversa da tarefa">💬 ${t.n_msgs}${tfNovasTarefa(t) ? ' · nova' : ''}</a>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
         <td>${esc(t.responsavel_nome || '—')}<br>${origem}</td>
         <td>${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td>${t.data_fim ? fdA(t.data_fim) : '—'}</td>
         <td><span class="farol ${s.cls}">${esc(s.rot)}</span></td><td>${statusSel(t)}</td>
@@ -176,6 +321,8 @@ function tfAbrir(id) {
   $('#tfNotaSomenteAndamento').hidden = editaDados;
   $('#tfExcluir').hidden = !(t && t.pode_editar);
   $('#tfExcluir').dataset.confirmar = ''; $('#tfExcluir').textContent = 'Excluir';
+  $('#tfConversaBox').hidden = !t;
+  if (t) tfConvMontar($('#tfConvTarefa'), t.id);
   dlg.showModal();
   f.elements.titulo.focus();
 }
@@ -253,6 +400,8 @@ function ligarTarefas() {
     if (x) { tfExcluir(+x.dataset.tfExcluir); return; }
     const v = ev.target.closest('[data-tf-vista]');
     if (v) { TF.vista = v.dataset.tfVista; renderTarefas(); return; }
+    const ab = ev.target.closest('[data-tf-aba]');
+    if (ab) { TF.aba = ab.dataset.tfAba; renderTarefas(); return; }
     const fl = ev.target.closest('[data-tf-filtro]');
     if (fl) { TF.filtro = fl.dataset.tfFiltro; renderTarefas(); return; }
     if (ev.target.closest('#btnNovaTarefa')) tfAbrir(null);
@@ -265,14 +414,23 @@ function ligarTarefas() {
   });
   sec.addEventListener('input', ev => { if (ev.target.id === 'tfBusca') { TF.busca = ev.target.value; const pos = ev.target.selectionStart; renderTarefas(); const n = $('#tfBusca'); n.focus(); n.setSelectionRange(pos, pos); } });
   sec.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'tfRapidoTit') { ev.preventDefault(); tfLembreteRapido(); } });
+  tfConvLigar(sec);
+  tfConvLigar($('#dlgTarefa'));
   $('#tfForm').addEventListener('submit', tfSalvar);
   $('#tfCancelar').addEventListener('click', () => $('#dlgTarefa').close());
   $('#tfFechar').addEventListener('click', () => $('#dlgTarefa').close());
+  $('#dlgTarefa').addEventListener('close', () => { if (abaAtual === 'tarefas') renderTarefas(); });
   $('#tfExcluir').addEventListener('click', ev => {
     const b = ev.currentTarget;
     if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar exclusão'; return; }
     const id = +$('#dlgTarefa').dataset.id; $('#dlgTarefa').close(); tfExcluir(id, true);
   });
+  // conversas abertas se atualizam a cada 15 s (mural na aba Mural; conversa da tarefa com a janela aberta)
+  setInterval(() => {
+    if (document.hidden) return;
+    if (abaAtual === 'tarefas' && TF.aba === 'mural') { const el = document.querySelector('#tfMuralView .tf-conv'); if (el.dataset.cvId) tfConvCarregar(el, true); }
+    if (document.querySelector('#dlgTarefa[open]') && !$('#tfConversaBox').hidden) tfConvCarregar($('#tfConvTarefa'), true);
+  }, 15000);
   // atualiza sozinho (tarefas atribuídas por outra pessoa chegam sem recarregar a página)
   setInterval(() => {
     if (document.hidden) return;

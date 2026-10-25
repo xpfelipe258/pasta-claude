@@ -98,6 +98,12 @@ try {
             }
             responder_json(200, tarefas_listar($usuario));
         }
+        if ($rota === 'tarefas-msgs') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, tarefas_msgs_listar($usuario, (int)($_GET['tarefa'] ?? 0)));
+        }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
             responder_json(200, is_array($d) ? $d : ['setores' => []]);
@@ -124,6 +130,16 @@ try {
     }
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
+    }
+    if ($rota === 'tarefas-msgs') {   // conversa entre os usuários: não mexe nos dados da obra
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+        }
+        $corpoM = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoM)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_tarefas_msgs($corpoM, $usuario));
     }
     if ($rota === 'tarefas') {   // tarefas são pessoais/da gestão: não mexem nos dados da obra nem na versão do modelo
         if ($via_token) {
@@ -215,7 +231,9 @@ function tarefas_listar(array $usuario)
 {
     garantir_tarefas();
     $admin = ($usuario['perfil'] ?? '') === 'admin';
-    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome FROM tarefas t
+    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome,
+        (SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS n_msgs, (SELECT MAX(m.id) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS ult_msg_id,
+        (SELECT m2.usuario_id FROM tarefas_msgs m2 WHERE m2.id = (SELECT MAX(m3.id) FROM tarefas_msgs m3 WHERE m3.tarefa_id = t.id)) AS ult_msg_usuario FROM tarefas t
         LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
     $params = [];
     if (!$admin) {
@@ -225,7 +243,7 @@ function tarefas_listar(array $usuario)
     $sql .= ' ORDER BY t.data_fim, t.id';
     $linhas = q_global($sql, $params)->fetchAll();
     foreach ($linhas as &$l) {
-        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias'] as $k) {
+        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias', 'n_msgs', 'ult_msg_id', 'ult_msg_usuario'] as $k) {
             $l[$k] = (int)$l[$k];
         }
         $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
@@ -238,7 +256,65 @@ function tarefas_listar(array $usuario)
         $u['id'] = (int)$u['id'];
     }
     unset($u);
-    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas];
+    $mural = q_global('SELECT id, usuario_id FROM tarefas_msgs WHERE tarefa_id = 0 ORDER BY id DESC LIMIT 1')->fetch();
+    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas,
+        'mural_ultimo' => $mural ? (int)$mural['id'] : 0, 'mural_ultimo_usuario' => $mural ? (int)$mural['usuario_id'] : 0];
+}
+
+// ---- conversa entre os usuários (mural da equipe e conversa de cada tarefa), só para comunicação e envio de arquivos
+function tarefas_msgs_listar(array $usuario, $tarefaId)
+{
+    garantir_tarefas();
+    $tarefaId = (int)$tarefaId;
+    if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
+        throw new ErroValidacao('Você não participa desta tarefa.');
+    }
+    $l = q_global('SELECT id, tarefa_id, usuario_id, autor, texto, arquivo_nome, arquivo_tipo, arquivo_tam, (arquivo IS NOT NULL) AS tem_arquivo, criado_em
+        FROM tarefas_msgs WHERE tarefa_id = ? ORDER BY id DESC LIMIT 300', [$tarefaId])->fetchAll();
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    foreach ($l as &$m) {
+        foreach (['id', 'tarefa_id', 'usuario_id', 'arquivo_tam'] as $k) {
+            $m[$k] = (int)$m[$k];
+        }
+        $m['tem_arquivo'] = (bool)$m['tem_arquivo'];
+        $m['minha'] = $m['usuario_id'] === (int)$usuario['id'];
+        $m['pode_excluir'] = $m['minha'] || $admin;
+    }
+    unset($m);
+    return ['tarefa' => $tarefaId, 'mensagens' => array_reverse($l), 'usuario_id' => (int)$usuario['id']];
+}
+
+function acao_tarefas_msgs(array $corpo, array $usuario)
+{
+    garantir_tarefas();
+    $acao = (string)($corpo['acao'] ?? '');
+    $tarefaId = (int)($corpo['tarefa'] ?? 0);
+    if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
+        throw new ErroValidacao('Você não participa desta tarefa.');
+    }
+    if ($acao === 'enviar') {
+        $texto = trim((string)($corpo['texto'] ?? ''));
+        if ($texto === '' || mb_strlen($texto) > 4000) {
+            throw new ErroValidacao('Escreva a mensagem (até 4.000 caracteres).');
+        }
+        q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?)',
+            [$tarefaId, (int)$usuario['id'], mb_substr((string)$usuario['nome'], 0, 100), $texto, tarefa_agora_brt()]);
+    } elseif ($acao === 'excluir') {
+        $m = q_global('SELECT * FROM tarefas_msgs WHERE id = ? AND tarefa_id = ?', [(int)($corpo['id'] ?? 0), $tarefaId])->fetch();
+        if (!$m) {
+            throw new ErroValidacao('Mensagem não encontrada.');
+        }
+        if ((int)$m['usuario_id'] !== (int)$usuario['id'] && ($usuario['perfil'] ?? '') !== 'admin') {
+            throw new ErroValidacao('Só quem escreveu (ou o administrador) apaga a mensagem.');
+        }
+        q_global('DELETE FROM tarefas_msgs WHERE id = ?', [(int)$m['id']]);
+        if (!empty($m['arquivo'])) {
+            @unlink(tarefas_arquivos_dir() . '/' . basename((string)$m['arquivo']));
+        }
+    } else {
+        throw new ErroValidacao('Ação inválida.');
+    }
+    return tarefas_msgs_listar($usuario, $tarefaId);
 }
 
 function acao_tarefas(array $corpo, array $usuario)
@@ -319,6 +395,10 @@ function acao_tarefas(array $corpo, array $usuario)
         if (!$admin && (int)$t['criado_por'] !== $eu) {
             throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode excluí-la.');
         }
+        foreach (q_global('SELECT arquivo FROM tarefas_msgs WHERE tarefa_id = ? AND arquivo IS NOT NULL', [$id])->fetchAll() as $a) {
+            @unlink(tarefas_arquivos_dir() . '/' . basename((string)$a['arquivo']));
+        }
+        q_global('DELETE FROM tarefas_msgs WHERE tarefa_id = ?', [$id]);
         q_global('DELETE FROM tarefas WHERE id = ?', [$id]);
     } else {
         throw new ErroValidacao('Ação de tarefa inválida.');
