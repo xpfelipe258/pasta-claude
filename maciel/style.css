@@ -1303,3 +1303,9 @@ body.pintando-toque { overflow: hidden; touch-action: none; }
   .rot-sel select { width: 100%; flex: 1 1 100%; text-overflow: ellipsis; }
   select { max-width: 100%; text-overflow: ellipsis; }
 }
+@media (max-width: 900px) {
+  .mo-larg { max-width: 100% !important; box-sizing: border-box; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mo-midia { height: auto; overflow: visible; }
+  .mo-campo { width: 100% !important; overflow: hidden; }
+  .mo-tabela { display: block; }
+}

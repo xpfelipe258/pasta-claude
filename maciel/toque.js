@@ -56,3 +56,42 @@
   // menu de contexto do toque longo não deve abrir em cima dos mapas
   document.addEventListener('contextmenu', ev => { if (ev.target.closest && ev.target.closest(ALVOS)) ev.preventDefault(); });
 })();
+
+/* Guarda de largura (celular): o Safari do iPhone encolhe a página inteira quando QUALQUER elemento passa da
+   largura da tela. Depois de cada redesenho, acha o que passou e limita (rolagem interna no lugar de estourar). */
+(function () {
+  const mq = window.matchMedia('(max-width: 900px)');
+  let agendado = 0;
+  function cortado(el) {
+    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'scroll' || o === 'hidden' || o === 'clip') {
+        if (p.getBoundingClientRect().right <= window.innerWidth + 1) return true;
+      }
+    }
+    return false;
+  }
+  function varrer() {
+    agendado = 0;
+    if (!mq.matches) return;
+    const W = document.documentElement.clientWidth;
+    document.querySelectorAll('body *').forEach(el => {
+      if (el.closest('.sidebar, dialog:not([open]), .mo-ok') || el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+      const cs = getComputedStyle(el);
+      if (cs.position === 'fixed' || cs.display === 'none') return;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.right <= W + 1) return;
+      if (cortado(el)) return;
+      const t = el.tagName;
+      el.classList.add('mo-larg');
+      if (/^(IMG|SVG|CANVAS|VIDEO)$/i.test(t)) el.classList.add('mo-midia');
+      else if (/^(SELECT|INPUT|TEXTAREA|BUTTON)$/i.test(t)) el.classList.add('mo-campo');
+      else if (/^(TABLE)$/i.test(t)) el.classList.add('mo-tabela');
+    });
+  }
+  function agendar() { if (!agendado) agendado = setTimeout(varrer, 250); }
+  window.addEventListener('load', agendar);
+  window.addEventListener('resize', agendar);
+  window.addEventListener('orientationchange', agendar);
+  new MutationObserver(agendar).observe(document.documentElement, { childList: true, subtree: true });
+})();
