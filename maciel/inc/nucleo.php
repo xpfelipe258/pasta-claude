@@ -139,7 +139,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 21;
+const ESQUEMA_VERSAO = 22;   // 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -344,7 +344,8 @@ function obras_colunas_detalhe()
 {
     return ['responsavel' => 'VARCHAR(150) NULL', 'responsavel_cliente' => 'VARCHAR(150) NULL', 'encarregado' => 'VARCHAR(150) NULL',
         'endereco' => 'VARCHAR(255) NULL', 'valor_contrato' => 'DOUBLE NULL', 'duracao_meses' => 'DOUBLE NULL', 'contrato_numero' => 'VARCHAR(80) NULL',
-        'art' => 'VARCHAR(80) NULL', 'area_m2' => 'DOUBLE NULL', 'telefone' => 'VARCHAR(50) NULL', 'email' => 'VARCHAR(150) NULL', 'observacoes' => 'TEXT NULL'];
+        'art' => 'VARCHAR(80) NULL', 'area_m2' => 'DOUBLE NULL', 'telefone' => 'VARCHAR(50) NULL', 'email' => 'VARCHAR(150) NULL', 'observacoes' => 'TEXT NULL',
+        'origem_obra_id' => 'INT NULL', 'empresa_vinculada' => 'VARCHAR(100) NULL'];   // obra própria de uma empresa terceirizada: obra de origem e empresa (inc/obra_empresa.php)
 }
 
 function impactos_colunas_solucao()
@@ -884,3 +885,5 @@ function imagem_upload_para_data_uri($campo, $atual = '')
     return 'data:' . $mime . ';base64,' . base64_encode($dados);
 }
 
+
+require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa terceirizada

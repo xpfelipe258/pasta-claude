@@ -95,6 +95,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q('UPDATE usuarios SET ativo = 1 - ativo WHERE id = ?', [$id]);
             registrar_alteracao('usuario_alternado', ['id' => $id]);
             $msg = 'Situação do usuário alterada.';
+        } elseif ($acao === 'empresa_criar_obra') {   // obra própria da empresa (cópia isolada) + usuário dela
+            $loginN = trim((string)($_POST['login'] ?? ''));
+            if ($loginN === '' || strlen((string)($_POST['senha'] ?? '')) < 8) { throw new InvalidArgumentException('Informe o login e uma senha com pelo menos 8 caracteres.'); }
+            if (q_global('SELECT id FROM usuarios WHERE login = ?', [$loginN])->fetch()) { throw new InvalidArgumentException('Já existe um usuário com esse login.'); }
+            $obraNova = obra_empresa_criar(obra_atual_id(), (string)($_POST['empresa'] ?? ''));
+            $uid = obra_empresa_criar_usuario($obraNova, (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
+                (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
+            $msg = 'Obra própria criada para ' . ($_POST['empresa'] ?? '') . ' e usuário “' . $loginN . '” liberado somente nela.';
+        } elseif ($acao === 'empresa_novo_usuario') {
+            obra_empresa_criar_usuario((int)($_POST['obra_id'] ?? 0), (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
+                (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
+            $msg = 'Usuário criado nesta obra de empresa.';
+        } elseif ($acao === 'empresa_recarregar_obra') {
+            $oid = (int)($_POST['obra_id'] ?? 0);
+            $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
+            if (!$o || (int)$o['origem_obra_id'] !== obra_atual_id()) { throw new InvalidArgumentException('Esta obra de empresa não pertence à obra aberta.'); }
+            if (trim((string)($_POST['confirmar'] ?? '')) !== 'RECARREGAR') { throw new InvalidArgumentException('Digite RECARREGAR para confirmar.'); }
+            obra_empresa_recarregar($oid);
+            $msg = 'Obra “' . $o['nome'] . '” recarregada a partir da obra principal. O que a empresa tinha lançado nela foi apagado.';
         } elseif ($acao === 'importar') {
             if (empty($_POST['confirmo'])) {
                 throw new InvalidArgumentException('Marque a confirmação: a importação substitui os dados da obra.');
@@ -186,6 +205,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $usuarios = q('SELECT id, nome, login, perfil, empresa, email, ativo FROM usuarios ORDER BY nome')->fetchAll();
 $modsPorUsuario=[]; foreach (q_global('SELECT usuario_id,modulo FROM usuarios_modulos WHERE permitido=1')->fetchAll() as $x) $modsPorUsuario[(int)$x['usuario_id']][]=$x['modulo'];
 $empresas = q('SELECT nome FROM empresas ORDER BY ordem')->fetchAll(PDO::FETCH_COLUMN);
+$ehObraEmpresa = obra_empresa_info() !== null;
+$obrasEmpresa = $ehObraEmpresa ? [] : obra_empresa_listar(obra_atual_id());
+$usuariosDaObra = [];
+foreach ($obrasEmpresa as $oe) {
+    $usuariosDaObra[(int)$oe['id']] = q_global('SELECT u.nome, u.login, u.ativo FROM usuarios u JOIN usuarios_obras uo ON uo.usuario_id = u.id WHERE uo.obra_id = ? ORDER BY u.nome', [(int)$oe['id']])->fetchAll();
+}
 $historico = q('SELECT * FROM historico ORDER BY id DESC LIMIT 150')->fetchAll();
 $obra = obra_info();
 $csrf = token_csrf();
@@ -271,6 +296,56 @@ pagina_inicio('Administração');
       </tbody>
     </table></div>
   </section>
+
+  <?php if (!$ehObraEmpresa): ?>
+  <section class="bloco" id="obrasEmpresas">
+    <div class="bloco-cab"><div><h2>Obra própria de cada empresa</h2><span class="nota">Cada empresa recebe uma obra só dela (cópia do que é dela nesta obra), com usuário próprio. O que a empresa lança ou altera lá <b>não altera esta obra</b>.</span></div></div>
+    <div class="tabela-rolagem"><table>
+      <thead><tr><th>Empresa</th><th>Obra própria</th><th>Usuários da empresa</th><th>Ações</th></tr></thead>
+      <tbody>
+      <?php foreach ($empresas as $emp): $oe = $obrasEmpresa[mb_strtoupper($emp)] ?? null; ?>
+      <tr>
+        <td><b><?= h($emp) ?></b></td>
+        <?php if ($oe): ?>
+        <td><?= h($oe['nome']) ?><br><span class="nota">criada em <?= h(date('d/m/Y H:i', strtotime((string)$oe['criado_em']))) ?></span></td>
+        <td><?php foreach ($usuariosDaObra[(int)$oe['id']] ?? [] as $uo): ?><div><?= h($uo['nome']) ?> <span class="nota">(<?= h($uo['login']) ?><?= $uo['ativo'] ? '' : ' · inativo' ?>)</span></div><?php endforeach; ?><?php if (empty($usuariosDaObra[(int)$oe['id']])): ?><span class="nota">nenhum usuário</span><?php endif; ?></td>
+        <td><div class="acoes-usuario">
+          <details class="acesso-editar"><summary>+ Usuário</summary>
+            <form method="post" class="access-checks access-checks-col">
+              <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_novo_usuario"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>">
+              <input name="nome" placeholder="Nome" required autocomplete="off"><input name="login" placeholder="Login" required autocomplete="off"><input name="email" type="email" placeholder="E-mail (opcional)" autocomplete="off"><input name="senha" type="password" placeholder="Senha inicial (8+)" minlength="8" required autocomplete="new-password">
+              <?php foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m, OE_MODULOS_PADRAO, true) ? 'checked' : '' ?>><?= h(ucfirst($m)) ?></label><?php endforeach; ?>
+              <button class="btn">Criar usuário</button>
+            </form>
+          </details>
+          <details class="acesso-editar"><summary>Recarregar da obra principal</summary>
+            <form method="post" class="access-checks access-checks-col">
+              <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_recarregar_obra"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>">
+              <p class="nota">Apaga TUDO que a empresa lançou na obra dela e copia de novo o que é dela desta obra. Digite <b>RECARREGAR</b>:</p>
+              <input name="confirmar" placeholder="RECARREGAR" autocomplete="off" required><button class="btn perigo">Recarregar</button>
+            </form>
+          </details>
+          <form method="post" action="obras.php" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="abrir"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>"><button class="btn">Abrir a obra dela</button></form>
+        </div></td>
+        <?php else: ?>
+        <td colspan="2"><span class="nota">Ainda sem obra própria.</span></td>
+        <td><details class="acesso-editar"><summary>Criar obra própria + usuário</summary>
+          <form method="post" class="access-checks access-checks-col">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_criar_obra"><input type="hidden" name="empresa" value="<?= h($emp) ?>">
+            <p class="nota">Cria a obra “<?= h($obra['nome'] ?? 'obra') ?> — <?= h($emp) ?>” com os dados da <?= h($emp) ?> e o usuário abaixo (acesso só a essa obra).</p>
+            <input name="nome" placeholder="Nome do usuário" required autocomplete="off"><input name="login" placeholder="Login" required autocomplete="off"><input name="email" type="email" placeholder="E-mail (opcional)" autocomplete="off"><input name="senha" type="password" placeholder="Senha inicial (8+)" minlength="8" required autocomplete="new-password">
+            <?php foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m, OE_MODULOS_PADRAO, true) ? 'checked' : '' ?>><?= h(ucfirst($m)) ?></label><?php endforeach; ?>
+            <button class="btn primario">Criar</button>
+          </form></details></td>
+        <?php endif; ?>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+  </section>
+  <?php else: ?>
+  <section class="bloco"><div class="bloco-cab"><h2>Obra própria de empresa</h2></div><p class="nota">Você está dentro da obra própria da empresa <b><?= h(obra_empresa_info()['empresa']) ?></b> (cópia isolada de “<?= h(obra_empresa_info()['origem_nome']) ?>”). Para criar ou recarregar obras de empresas, abra a obra principal.</p></section>
+  <?php endif; ?>
 
   <div class="modal-admin" id="modalNovoUsuario" hidden>
     <div class="modal-admin-fundo" data-fechar-modal></div>

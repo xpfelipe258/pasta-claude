@@ -1321,3 +1321,6 @@ body.pintando-toque { overflow: hidden; touch-action: none; }
   html .sidebar.aberta { transform: translateX(0); }
   :root[data-menu="topo"] .sidebar { position: fixed; top: 0; bottom: 0; height: auto; display: block; padding: 12px 0; }
 }
+
+/* Obra própria de empresa: aviso na faixa do topo */
+.obra-contexto .obra-empresa-aviso { font-style: normal; font-size: .72rem; font-weight: 700; background: var(--marca, #d97706); color: #fff; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }

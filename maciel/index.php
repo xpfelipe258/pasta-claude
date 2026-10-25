@@ -35,7 +35,9 @@ $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . 
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);
 $primaria = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
-$contexto = '<div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>' .
+$oe = obra_empresa_info((int)$obra['id']);
+$contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? '<a href="obras.php?todas=1">← Todas as obras</a>' : '') . '<span>' . h($obra['nome']) . '</span>' .
+    ($oe ? '<em class="obra-empresa-aviso" title="Esta obra é uma cópia só da ' . h($oe['empresa']) . '. O que você lança ou altera aqui não muda a obra principal.">Visão da empresa ' . h($oe['empresa']) . ' · dados independentes</em>' : '') .
     ($u['perfil'] === 'admin' ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);

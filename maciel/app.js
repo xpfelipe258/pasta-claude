@@ -1689,6 +1689,10 @@ function ganItensCliente() {
       alvo.fontes = [...new Set([...(alvo.fontes || []), ...(cr.fontes || []), cr.servico])];
     } else {
       const porBm = ganBmAtividadesEspecificas(cr).length > 0;
+      if (M.obra_empresa && !porBm) {   // obra própria da empresa: só entra a linha do cronograma geral que for de um serviço dela (a Fase 2 acompanha a Fase 1)
+        const semFase = x => `${ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, ''))}|${ganNorm(x.servico)}`;
+        if (!(M.cliente || []).some(c => ganChavePlanejada(c) === ganChavePlanejada(cr) || semFase(c) === semFase(cr))) return;
+      }   // obra própria da empresa: linha do cronograma geral que não é dela não aparece
       const qtd = cr._eclusa ? eclusaQtd(cr._eclusa) : porBm ? 100 : ganQtdRef(cr);
       base.push({ ...cr, qtd, peso: porBm ? 1 : qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true, bm_percentual: porBm });
     }
