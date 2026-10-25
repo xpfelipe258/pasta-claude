@@ -65,6 +65,14 @@ try {
             if (!is_array($d)) {
                 responder_json(404, ['erro' => 'Esta obra não tem o mapa de peças.']);
             }
+            try {   // projetos em PDF guardados na importação: a tela do mapa oferece abrir cada prancha ao lado do desenho
+                require_once __DIR__ . '/inc/importacao.php';
+                $d['projetos'] = array_map(function ($r) { return ['id' => (int)$r['id'], 'nome' => $r['nome_original']]; },
+                    array_values(array_filter(q_global("SELECT id, nome_original FROM obra_documentos WHERE obra_id = ? AND tipo = 'projetos' AND status = 'valido' ORDER BY id", [obra_atual_id()])->fetchAll(),
+                        function ($r) { return importacao_extensao($r['nome_original']) === 'pdf'; })));
+            } catch (Throwable $e) {
+                $d['projetos'] = [];
+            }
             responder_json(200, $d);
         }
         if ($rota === 'frentes-montagem') {
@@ -135,7 +143,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -149,7 +157,7 @@ try {
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
         'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
-        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
+        'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
@@ -560,7 +568,7 @@ function material_eh_fixador(array $m)
 // o Consumo físico e o Inventário, com a mesma TAG. Idempotente: não duplica TAG que já existe.
 function estoque_incluir_cadastro(array $m)
 {
-    $tag = mb_strtoupper(trim((string)($m['codigo'] ?? '')));
+    $tag = estoque_tag($m['codigo'] ?? '');
     if ($tag === '') {
         return false;
     }
@@ -574,7 +582,7 @@ function estoque_incluir_cadastro(array $m)
     $planejado = numero($m['saldo_inicial'] ?? null) ?: 0;
     $tem = function ($lista) use ($tag) {
         foreach ($lista as $it) {
-            if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+            if (estoque_tag($it['tag'] ?? '') === $tag) {
                 return true;
             }
         }
@@ -595,7 +603,7 @@ function estoque_incluir_cadastro(array $m)
             'prioridade' => $fix ? 'FIXADOR' : '', 'origem_cadastro' => 'manual'];
         $mudou = true;
     }
-    if ($fix) {
+    if ($fix || obra_preserva_identidade_ifc()) {
         if (!$tem($dados['consumo_fisico']['itens'] ?? [])) {
             $dados['consumo_fisico']['itens'][] = ['produto' => $produto, 'tag' => $tag, 'consumo_semanas' => new stdClass(),
                 'total_consumo' => 0, 'inventarios_fisicos' => new stdClass(), 'origem_cadastro' => 'manual'];
@@ -643,7 +651,7 @@ function tag_existe($tag)
     }
     $dados = estoque_planilha_ler();
     foreach (($dados['materiais'] ?? []) as $it) {
-        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+        if (estoque_tag($it['tag'] ?? '') === $tag) {
             return true;
         }
     }
@@ -653,23 +661,23 @@ function tag_existe($tag)
 // Ao excluir o cadastro, sai o que foi criado por ele (se ninguém lançou consumo nesse fixador).
 function estoque_remover_fixador_cadastrado($codigo)
 {
-    $tag = mb_strtoupper(trim((string)$codigo));
+    $tag = estoque_tag($codigo);
     $dados = $tag === '' ? null : estoque_planilha_ler();
     if ($dados === null) {
         return;
     }
     $n0 = count($dados['consumo_fisico']['itens'] ?? []) + count($dados['inventario'] ?? []) + count($dados['remessas']['itens'] ?? []) + count($dados['materiais'] ?? []);
     $dados['consumo_fisico']['itens'] = array_values(array_filter($dados['consumo_fisico']['itens'] ?? [], function ($it) use ($tag) {
-        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_consumo'] ?? 0) == 0);
+        return !(estoque_tag($it['tag'] ?? '') === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_consumo'] ?? 0) == 0);
     }));
     $dados['inventario'] = array_values(array_filter($dados['inventario'] ?? [], function ($it) use ($tag) {
-        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual');
+        return !(estoque_tag($it['tag'] ?? '') === $tag && ($it['origem_cadastro'] ?? '') === 'manual');
     }));
     $dados['remessas']['itens'] = array_values(array_filter($dados['remessas']['itens'] ?? [], function ($it) use ($tag) {
-        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_recebido'] ?? 0) == 0);
+        return !(estoque_tag($it['tag'] ?? '') === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['total_recebido'] ?? 0) == 0);
     }));
     $dados['materiais'] = array_values(array_filter($dados['materiais'] ?? [], function ($it) use ($tag) {
-        return !(mb_strtoupper((string)($it['tag'] ?? '')) === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['chegou'] ?? 0) == 0);
+        return !(estoque_tag($it['tag'] ?? '') === $tag && ($it['origem_cadastro'] ?? '') === 'manual' && (float)($it['chegou'] ?? 0) == 0);
     }));
     if (count($dados['consumo_fisico']['itens']) + count($dados['inventario']) + count($dados['remessas']['itens']) + count($dados['materiais']) !== $n0) {
         estoque_planilha_gravar($dados);
@@ -714,7 +722,7 @@ function acao_registro(array $corpo)
     if ($tabela === 'materiais' && $id === null && material_eh_fixador($campos)) {
         // Fixador novo: TAG padronizada FG### (geral) ou FJ### (joist), gerada quando vazia e conferida quando digitada.
         $campos['tipo_material'] = 'FIXADOR';
-        $cod = mb_strtoupper(trim((string)($campos['codigo'] ?? '')));
+        $cod = estoque_tag($campos['codigo'] ?? '');
         if ($cod === '') {
             $txt = mb_strtoupper(($campos['material'] ?? '') . ' ' . ($campos['etapa'] ?? '') . ' ' . ($campos['servico'] ?? '') . ' ' . ($campos['local'] ?? '') . ' ' . ($campos['obs'] ?? ''));
             $cod = proximo_codigo_fixador(mb_strpos($txt, 'JOIST') !== false ? 'FJ' : 'FG');
@@ -730,6 +738,7 @@ function acao_registro(array $corpo)
     }
     if ($tabela === 'materiais') {
         if (empty($campos['codigo']) && $id === null) {
+            if (obra_preserva_identidade_ifc()) throw new ErroValidacao('Informe a TAG original do material. Somente fixadores recebem TAG automática nesta obra.');
             $existentes = q('SELECT codigo FROM materiais')->fetchAll(PDO::FETCH_COLUMN);
             for ($i = 1; in_array(sprintf('MAT-%03d', $i), $existentes, true); $i++) {
             }
@@ -1117,7 +1126,7 @@ function acao_estoque_remessa(array $corpo)
     $lancamentos = [];
     foreach (itens_do_corpo($corpo) as $k => $it) {
         $n = $k + 1;
-        $tag = mb_strtoupper(trim((string)($it['tag'] ?? '')));
+        $tag = estoque_tag($it['tag'] ?? '');
         if ($tag === '') {
             throw new ErroValidacao("Item $n: escolha a TAG do material.");
         }
@@ -1230,9 +1239,50 @@ function acao_estoque_remessa(array $corpo)
 
 // Edição de um item da aba Materiais (tipo, nome, produto, local, etapa e planejado), venha ele da planilha importada ou do cadastro.
 // Grava na planilha de estoque (que manda na tela) e, se a TAG também está no cadastro, no cadastro; mantém Remessas, Consumo físico e Inventário coerentes.
+// Excluir um item da aba Materiais (item da planilha importada e/ou do cadastro). Sem `forcar`, só sai o item que nunca recebeu nem consumiu nada.
+function estoque_excluir_material(array $dados, $tag, $forcar)
+{
+    $cad = q('SELECT id FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: null;
+    if (!$cad && estoque_material($dados, $tag) === null) {
+        throw new ErroValidacao("Material $tag não encontrado.");
+    }
+    $mov = 0.0;
+    foreach ($dados['materiais'] ?? [] as $m) {
+        if (estoque_tag($m['tag'] ?? '') === $tag) {
+            $mov += (float)($m['chegou'] ?? 0) + (float)($m['consumido'] ?? 0);
+        }
+    }
+    foreach ($dados['remessas']['itens'] ?? [] as $it) {
+        if (estoque_tag($it['tag'] ?? '') === $tag) {
+            $mov += (float)($it['total_recebido'] ?? 0);
+        }
+    }
+    foreach ($dados['consumo_fisico']['itens'] ?? [] as $it) {
+        if (estoque_tag($it['tag'] ?? '') === $tag) {
+            $mov += (float)($it['total_consumo'] ?? 0);
+        }
+    }
+    if ($mov > 0 && !$forcar) {
+        throw new ErroValidacao("A TAG $tag já tem recebimento ou consumo lançado; marque a opção de excluir também os itens com movimentação para apagá-la.");
+    }
+    $fora = function ($it) use ($tag) {
+        return estoque_tag($it['tag'] ?? '') !== $tag;
+    };
+    $dados['materiais'] = array_values(array_filter($dados['materiais'] ?? [], $fora));
+    $dados['remessas']['itens'] = array_values(array_filter($dados['remessas']['itens'] ?? [], $fora));
+    $dados['consumo_fisico']['itens'] = array_values(array_filter($dados['consumo_fisico']['itens'] ?? [], $fora));
+    $dados['inventario'] = array_values(array_filter($dados['inventario'] ?? [], $fora));
+    estoque_planilha_gravar($dados);
+    if ($cad) {
+        q('DELETE FROM materiais WHERE id = ?', [$cad['id']]);
+        q('DELETE FROM estoque_remessas WHERE codigo = ? AND documento = ? AND (quantidade IS NULL OR quantidade = 0)', [$tag, 'CADASTRO AUTOMÁTICO']);
+    }
+    return ['excluidos' => 1];
+}
+
 function acao_estoque_material(array $corpo)
 {
-    $tag = mb_strtoupper(trim((string)($corpo['tag'] ?? '')));
+    $tag = estoque_tag($corpo['tag'] ?? '');
     $c = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
     if ($tag === '') {
         throw new ErroValidacao('Informe a TAG do material.');
@@ -1240,6 +1290,9 @@ function acao_estoque_material(array $corpo)
     $dados = estoque_planilha_ler();
     if ($dados === null) {
         throw new ErroValidacao('Estoque da planilha não importado.');
+    }
+    if (!empty($corpo['excluir'])) {
+        return estoque_excluir_material($dados, $tag, !empty($corpo['forcar']));
     }
     $cad = q('SELECT * FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch() ?: null;
     if (estoque_material($dados, $tag) === null) {
@@ -1283,7 +1336,7 @@ function acao_estoque_material(array $corpo)
     if ($eraFix !== $viraFix) {
         $tipos = is_array($dados['remessas']['tipos'] ?? null) ? $dados['remessas']['tipos'] : [];
         foreach ($dados['remessas']['itens'] ?? [] as $it) {
-            if (mb_strtoupper((string)($it['tag'] ?? '')) !== $tag) {
+            if (estoque_tag($it['tag'] ?? '') !== $tag) {
                 continue;
             }
             foreach ($it['qtd_por_remessa'] ?? [] as $rem => $q) {
@@ -1307,7 +1360,7 @@ function acao_estoque_material(array $corpo)
     $m['status_logistico'] = ($planejado && $chegou / $planejado >= 1) ? 'Atendido' : ($chegou > 0 ? 'Recebimento Parcial' : ($planejado ? 'Crítico' : 'Cadastrado'));
     unset($m);
     foreach ($dados['remessas']['itens'] as &$r) {
-        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+        if (estoque_tag($r['tag'] ?? '') === $tag) {
             $r['material'] = $nome;
             $r['produto'] = $produto;
             $r['etapa'] = $etapa !== '' ? $etapa : ($r['etapa'] ?? '');
@@ -1315,12 +1368,12 @@ function acao_estoque_material(array $corpo)
     }
     unset($r);
     foreach ($dados['consumo_fisico']['itens'] ?? [] as $k => $r) {
-        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+        if (estoque_tag($r['tag'] ?? '') === $tag) {
             $dados['consumo_fisico']['itens'][$k]['produto'] = $produto;
         }
     }
     foreach ($dados['inventario'] ?? [] as $k => $r) {
-        if (mb_strtoupper((string)($r['tag'] ?? '')) === $tag) {
+        if (estoque_tag($r['tag'] ?? '') === $tag) {
             $dados['inventario'][$k]['material'] = $nome;
             $dados['inventario'][$k]['produto'] = $produto;
             $dados['inventario'][$k]['planejado'] = $planejado;
@@ -1437,27 +1490,27 @@ function acao_estoque_consumo(array $corpo)
     $lancamentos = [];
     foreach (itens_do_corpo($corpo) as $k => $it) {
         $n = $k + 1;
-        $tag = mb_strtoupper(trim((string)($it['tag'] ?? '')));
+        $tag = estoque_tag($it['tag'] ?? '');
         $empresa = mb_strtoupper(trim((string)($it['empresa'] ?? $corpo['empresa'] ?? '')));
         if ($tag === '') {
             throw new ErroValidacao("Item $n: escolha a TAG do material.");
         }
         if (!isset($porTag[$tag])) {
             $matCad = q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
-            if ($matCad && material_eh_fixador($matCad)) {
+            if ($matCad && (material_eh_fixador($matCad) || obra_preserva_identidade_ifc())) {
                 estoque_incluir_cadastro($matCad);
                 $dados = estoque_planilha_ler();
                 $porTag = [];
                 foreach ($dados['consumo_fisico']['itens'] as $i => $it0) {
-                    $porTag[mb_strtoupper((string)$it0['tag'])] = $i;
+                    $porTag[estoque_tag($it0['tag'])] = $i;
                 }
             }
         }
         if (!isset($porTag[$tag])) {
             throw new ErroValidacao("Item $n: TAG $tag não existe no consumo. Escolha uma da lista.");
         }
-        if (!in_array($empresa, ['EJ', 'CMM'], true)) {
-            throw new ErroValidacao("Item $n: empresa deve ser EJ ou CMM.");
+        if (!in_array($empresa, estoque_empresas_consumo(), true)) {
+            throw new ErroValidacao("Item $n: escolha uma empresa cadastrada nesta obra.");
         }
         $chave = "$tag|$empresa";
         $lancamentos[$chave] = ($lancamentos[$chave] ?? 0) + qtd_positiva($it, $n);
@@ -1505,14 +1558,14 @@ function acao_estoque_consumo_celula(array $corpo)
     if ($dados === null) {
         throw new ErroValidacao('Estoque da planilha não importado.');
     }
-    $tag = mb_strtoupper(trim((string)($corpo['tag'] ?? '')));
+    $tag = estoque_tag($corpo['tag'] ?? '');
     $semana = trim((string)($corpo['semana'] ?? ''));
     $empresa = mb_strtoupper(trim((string)($corpo['empresa'] ?? '')));
     if ($tag === '' || $semana === '') {
         throw new ErroValidacao('Informe a TAG e a semana.');
     }
-    if (!in_array($empresa, ['EJ', 'CMM'], true)) {
-        throw new ErroValidacao('Empresa deve ser EJ ou CMM.');
+    if (!in_array($empresa, estoque_empresas_consumo(), true)) {
+        throw new ErroValidacao('Escolha uma empresa cadastrada nesta obra.');
     }
     $q = ($corpo['quantidade'] ?? null) === null || $corpo['quantidade'] === '' ? 0 : numero($corpo['quantidade']);
     if ($q === null || $q < 0) {
@@ -1523,18 +1576,18 @@ function acao_estoque_consumo_celula(array $corpo)
     }
     $idx = null;
     foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
-        if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+        if (estoque_tag($it['tag'] ?? '') === $tag) {
             $idx = $i;
             break;
         }
     }
     if ($idx === null) {
         $matCad = q('SELECT codigo, material, tipo_material, local, etapa, servico, obs, saldo_inicial FROM materiais WHERE codigo = ? LIMIT 1', [$tag])->fetch();
-        if ($matCad && material_eh_fixador($matCad)) {
+        if ($matCad && (material_eh_fixador($matCad) || obra_preserva_identidade_ifc())) {
             estoque_incluir_cadastro($matCad);
             $dados = estoque_planilha_ler();
             foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
-                if (mb_strtoupper((string)($it['tag'] ?? '')) === $tag) {
+                if (estoque_tag($it['tag'] ?? '') === $tag) {
                     $idx = $i;
                     break;
                 }
@@ -1596,11 +1649,11 @@ function acao_estoque_consumo_semana(array $corpo)
     }
     $valores = [];
     foreach ((array)($corpo['valores'] ?? []) as $v) {
-        $tag = mb_strtoupper(trim((string)($v['tag'] ?? '')));
+        $tag = estoque_tag($v['tag'] ?? '');
         if ($tag === '') {
             continue;
         }
-        foreach (['EJ', 'CMM'] as $emp) {
+        foreach (estoque_empresas_consumo() as $emp) {
             if (!array_key_exists($emp, $v)) {
                 continue;
             }
@@ -1612,7 +1665,7 @@ function acao_estoque_consumo_semana(array $corpo)
         }
     }
     foreach ($dados['consumo_fisico']['itens'] as $i => $it) {
-        $tag = mb_strtoupper((string)($it['tag'] ?? ''));
+        $tag = estoque_tag($it['tag'] ?? '');
         $cs = isset($it['consumo_semanas']) && is_array($it['consumo_semanas']) ? $it['consumo_semanas'] : [];
         $novoCs = [];
         foreach ($cs as $nome => $e) {   // reconstrói mantendo a ordem das semanas
@@ -1853,6 +1906,20 @@ function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
     return ['bm' => ['codigo' => $atv['codigo'], 'data' => $data, 'total' => $novo, 'delta' => $delta]];
 }
 
+function acao_mapa_obra_atualizar(array $corpo, array $usuario)
+{
+    if (($usuario['perfil'] ?? '') !== 'admin') {
+        throw new ErroValidacao('Só o administrador pode refazer o mapa pela leitura do IFC.');
+    }
+    require_once __DIR__ . '/inc/importacao.php';
+    require_once __DIR__ . '/inc/importacao_leitura.php';
+    try {
+        return importacao_atualizar_mapa(obra_atual_id());
+    } catch (RuntimeException $e) {
+        throw new ErroValidacao($e->getMessage());
+    }
+}
+
 function acao_apontamento_pecas(array $corpo, array $usuario)
 {
     $mapa = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
@@ -1901,8 +1968,13 @@ function acao_apontamento_pecas(array $corpo, array $usuario)
         throw new ErroValidacao('Selecione de 1 a 3.000 peças no mapa.');
     }
     $validas = [];   // guid da peça => [fase, produto, marca] (a marca do Tekla se repete entre peças iguais; o GUID é único)
+    $decisoes = ($mapa['versao'] ?? 1) >= 2 ? vinculos_material_ler() : null;
     foreach ($mapa['pecas'] ?? [] as $p) {
         if (!empty($p[7])) {
+            if ($decisoes !== null) {
+                $d = $decisoes[$p[8] ?? ''] ?? [];
+                if (($d['estado'] ?? '') !== 'confirmado' || ($d['atividade'] ?? '') !== $atv['codigo'] || trim((string)$p[2]) === '') continue;
+            }
             $validas[$p[7]] = [$p[0], $p[1], $p[2]];
         }
     }
@@ -1925,8 +1997,11 @@ function acao_apontamento_pecas(array $corpo, array $usuario)
     $n = count($novas);
     $lanca = !array_key_exists('lanca_producao', $corpo) || !empty($corpo['lanca_producao']);
     $qtdTotal = array_key_exists('quantidade', $corpo) && $corpo['quantidade'] !== null && $corpo['quantidade'] !== '' ? (float)$corpo['quantidade'] : (float)$n;
-    if ($qtdTotal < 0) {
+    if (!is_finite($qtdTotal) || $qtdTotal <= 0) {
         throw new ErroValidacao('Quantidade inválida.');
+    }
+    if (($mapa['versao'] ?? 1) >= 2 && !preg_match('/^(un|und|unid|pe[cç]a)/iu', (string)$atv['unidade']) && (!isset($corpo['quantidade']) || $corpo['quantidade'] === '')) {
+        throw new ErroValidacao('Informe a quantidade na unidade do catálogo; quantidade de peças não equivale a área, peso ou comprimento.');
     }
     $porPeca = $qtdTotal / $n;
     foreach ($novas as $p) {
@@ -2520,7 +2595,7 @@ function acao_vinculos(array $corpo)
         }
         $chave = trim((string)($it['chave'] ?? ''));
         $estado = (string)($it['estado'] ?? '');
-        if ($chave === '' || mb_strlen($chave) > 160 || !in_array($estado, ['confirmado', 'ignorado', 'desfeito'], true)) {
+        if ($chave === '' || mb_strlen($chave) > 600 || !in_array($estado, ['confirmado', 'ignorado', 'desfeito'], true)) {
             continue;
         }
         if ($estado === 'desfeito') {
@@ -2532,12 +2607,19 @@ function acao_vinculos(array $corpo)
         if ($estado === 'confirmado' && !preg_match('/^[A-Za-z0-9_.\-]{3,40}$/', $atividade)) {
             throw new ErroValidacao('Escolha a atividade do catálogo para confirmar o vínculo.');
         }
+        $regrasIfc = carregar_regras_baixa() ?: [];
+        if (($regrasIfc['versao_identidade'] ?? 0) === 1) {
+            if (!isset($regrasIfc['vinculos_ifc'][$chave])) throw new ErroValidacao('Grupo fora do IFC desta obra.');
+            if ($estado === 'confirmado' && !q('SELECT codigo FROM bm_atividades WHERE codigo = ?', [$atividade])->fetch()) {
+                throw new ErroValidacao('A atividade precisa pertencer ao catálogo desta obra.');
+            }
+        }
         $atual[$chave] = [
             'estado' => $estado,
             'atividade' => $estado === 'confirmado' ? $atividade : '',
             'familia' => mb_substr(trim((string)($it['familia'] ?? '')), 0, 80),
             'produto' => mb_substr(trim((string)($it['produto'] ?? '')), 0, 120),
-            'local' => mb_substr(trim((string)($it['local'] ?? '')), 0, 60),
+            'local' => (string)($regrasIfc['vinculos_ifc'][$chave]['local'] ?? trim((string)($it['local'] ?? ''))),
             'por' => $por,
             'em' => $em,
         ];
@@ -2647,6 +2729,39 @@ function plano_data($v, $rotulo, $obrigatoria = false)
     return $v;
 }
 
+// Divisão da atividade por empresa (5W2H com 2 ou mais empresas): quantidade (produção), valor estimado (financeiro), como (How) e quando (When) de cada uma.
+function plano_divisao($lista): array
+{
+    $r = [];
+    if (!is_array($lista)) {
+        return $r;
+    }
+    foreach ($lista as $d) {
+        if (!is_array($d)) {
+            continue;
+        }
+        $emp = plano_texto($d['empresa'] ?? '', 80);
+        $q = numero($d['qtd'] ?? null);
+        if ($emp === '' || $q === null || $q < 0) {
+            continue;
+        }
+        $v = numero($d['valor'] ?? null);
+        $ini = (string)($d['inicio'] ?? '');
+        $fim = (string)($d['fim'] ?? '');
+        $ini = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ini) ? $ini : '';
+        $fim = preg_match('/^\d{4}-\d{2}-\d{2}$/', $fim) ? $fim : '';
+        if ($ini !== '' && $fim !== '' && $fim < $ini) {
+            $fim = $ini;
+        }
+        $r[] = ['empresa' => $emp, 'qtd' => $q, 'valor' => ($v !== null && $v >= 0) ? $v : null, 'valor_manual' => !empty($d['valor_manual']),
+            'como' => plano_texto($d['como'] ?? '', 300), 'inicio' => $ini, 'fim' => $fim, 'quando_manual' => !empty($d['quando_manual'])];
+        if (count($r) >= 8) {
+            break;
+        }
+    }
+    return count($r) >= 2 ? $r : [];
+}
+
 // Cria, altera ou exclui um plano 5W2H. O plano guarda o período, as atividades e o 5W2H de cada uma; o realizado,
 // a curva S, o que falta e a divisão por dia são calculados na tela a partir da produção lançada.
 // Portões do fluxo (material chegou? descarregado? checklist?): 'sim' prossegue, 'nao' retorna.
@@ -2750,6 +2865,7 @@ function acao_planos(array $corpo, array $usuario)
             'o_que' => plano_texto($it['o_que'] ?? ''), 'por_que' => plano_texto($it['por_que'] ?? ''), 'onde' => plano_texto($it['onde'] ?? ''),
             'quem' => plano_texto($it['quem'] ?? ''), 'como' => plano_texto($it['como'] ?? ''),
             'custo' => numero($it['custo'] ?? null), 'meta_dia' => (($m = numero($it['meta_dia'] ?? null)) !== null && $m > 0) ? $m : null, 'obs' => plano_texto($it['obs'] ?? ''),
+            'divisao' => plano_divisao($it['divisao'] ?? []),
             'portoes' => plano_portoes($it['portoes'] ?? [], $itensAntigos[$chave] ?? [], $agoraBrt, $quemPortao),
         ];
         if (count($itens) > 300) {

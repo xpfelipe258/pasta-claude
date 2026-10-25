@@ -46,7 +46,7 @@ function plMeta(it, ativ, nDias) {
   const m = Number(it.meta_dia) > 0 ? Number(it.meta_dia) : Number(ativ?.it?.meta_dia) > 0 ? Number(ativ.it.meta_dia) : 0;
   return m > 0 ? m : it.qtd / Math.max(1, nDias);
 }
-const plInteiro = un => ['un', 'und', 'pç', 'pc'].includes(String(un || '').toLowerCase());
+const plInteiro = un => ['un', 'und', 'pç', 'pc', 'rua', 'vão', 'vao'].includes(String(un || '').toLowerCase());
 const plFmtTaxa = v => nf(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);   // taxas por dia: sempre com casas, mesmo em unidades inteiras
 const plFmt = (v, un) => { if (Math.abs(v) < 0.005) v = 0; return nf(v, plInteiro(un) ? (Math.abs(v) < 10 && v % 1 ? 1 : 0) : 1); };   // unidade inteira: casas só nos valores pequenos que não fecham
 const plDiaSemana = d => DIAS[dow(d)].slice(0, 1);
@@ -57,6 +57,7 @@ function plSegunda(d) { return add(d, -dow(d)); }
 // mesmo o que saiu antes do início do período. Planos salvos com o item antigo (27 un juntos) são divididos ao abrir (plMigrarEclusa).
 // ---------------------------------------------------------------- atividades (todas as do cronograma)
 function plUnidade(it) {
+  if (it._bmAt) return it._bmAt.unidade || 'un';   // atividade do catálogo do BM: a unidade é a do catálogo
   if (it._eclusa) return 'un';
   if (it.bm_percentual || it.fonte_pct) return '%';
   const s = ganNorm(it.servico);
@@ -74,22 +75,67 @@ function plEmpresasDe(it) {
   });
   return nomes;
 }
-// Todas as atividades do cronograma (Gantt), de todas as frentes e fases, ignorando o filtro de fase do topo.
+// Todas as atividades do planejamento. Galpão e Eclusa: as linhas do cronograma (Gantt), com o catálogo do BM como fonte de quantidade e preço.
+// Anexos (Portaria, Refeitório, Vestiário, Passarelas, Área de Vivência): cada linha vira as ATIVIDADES DO CATÁLOGO DO BM que ela contém (mesmo código,
+// nome, unidade, quantidade e preço de Produção/Medição), e as atividades do catálogo sem linha no cronograma entram no período do prédio.
+// Assim o valor planejado nunca passa do contrato e o que é lançado em Produção alimenta o planejamento.
+const plCodigoCurto = c => String(c || '').replace(/^[A-Z]+-/, '');
+function plDatasPredio(ls, pr) {
+  const tok = { P: /PORTARIA/, R: /REFEITORIO/, V: /VESTIARIO/, PD: /PEDESTRE|PASSARELA|VIVENCIA/, AV: /VIVENCIA|PASSARELA/, E: /ECLUSA/ }[pr];
+  const doPredio = ls.filter(l => ehFrenteAnexa(l.it.frente) && !ganNorm(l.it.frente).includes('GALPAO') && l.ini && (l.prazo || l.fimPrev) && (!tok || tok.test(ganNorm(l.it.frente + ' ' + l.it.servico))));
+  const l = doPredio.length ? doPredio : ls.filter(x => ehFrenteAnexa(x.it.frente) && !ganNorm(x.it.frente).includes('GALPAO') && x.ini && (x.prazo || x.fimPrev));
+  if (!l.length) return { ini: null, prazo: null };
+  return { ini: l.map(x => x.ini).sort()[0], prazo: l.map(x => x.prazo || x.fimPrev).sort().pop() };
+}
+// Item de planejamento de uma atividade do catálogo; modelo = linha do cronograma (ou só as datas do prédio).
+function plItemDoCatalogo(at, modelo, base) {
+  const ini = modelo.ini || null, prazo = modelo.prazo || modelo.fimPrev || null;
+  const nDias = ini && prazo ? Math.max(1, contarDiasUteis(add(ini, -1), prazo)) : 0, qtd = Number(at.qtd) || 0;
+  const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
+  const frente = modelo.it?.frente || ANEXO_FRENTE[pr] || ANEXO_FRENTE.C;
+  const it = { ...(modelo.it || {}), frente, fase: modelo.it?.fase || '1', servico: `${at.atividade} · ${plCodigoCurto(at.codigo)}`, qtd, peso: qtd || 1, meta_dia: nDias ? qtd / nDias : 0,
+    inicio_plan: ini, prazo, fontes: [], _bmAt: at, bm_percentual: false, virtual_gantt: true, _eclusa: undefined, servico_exib: undefined, responsavel: at.empresa };
+  const real = bmRealizado(at, base), brutos = ganBmDatasAtividade(at, base), tot = soma0(brutos, ([, v]) => v), fator = tot > 0 ? real / tot : 0;
+  const ds = brutos.map(([d, v]) => [d, v * fator]).filter(([, v]) => v > 0).sort((x, y) => x[0].localeCompare(y[0]));
+  const prevAc = prevCliente(it, base), status = real >= qtd - 1e-9 && qtd > 0 ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+  const linha = { it, ini, fimPrev: prazo, prazo, ri: ds.length ? ds[0][0] : null, rf: status === 'CONCLUÍDO' && ds.length ? ds[ds.length - 1][0] : (ds.length ? base : null), ultimo: ds.length ? ds[ds.length - 1][0] : null,
+    realAc: real, prevAc, pctReal: qtd ? Math.min(1, real / qtd) : 0, pctPrev: qtd ? Math.min(1, prevAc / qtd) : 0, projecao: null, status, porEmp: ds.length ? [{ nome: at.empresa, ds }] : [], dsReal: ds };
+  return { chave: 'BM|' + at.codigo, nome: cap(it.servico), frente, fase: ganFaseNumero(it), unidade: at.unidade || 'un', qtd, ini, prazo, status, realAc: real, prevAc,
+    empresas: [at.empresa], it, linha, codigo: at.codigo, itemBm: at.item, itemDesc: at.item_desc };
+}
 function plAtividades(forcar) {
   if (PL._atv && !forcar) return PL._atv;
   const f = faseFiltro;
   faseFiltro = '';
   let ls = [];
   try { ls = ganLinhas(plBase()); } finally { faseFiltro = f; }   // até a data de referência (não o fim do período da barra), senão lançamentos recentes ficam de fora
-  PL._atv = ls.map(l => {
-    let a;
-    const base = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
-      unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
-      realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
-    a = base();
-    if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
-    return a;
-  }).sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || a.nome.localeCompare(b.nome));
+  const base = plBase(), usados = new Set(), migra = new Map(), lista = [];
+  ls.forEach(l => {
+    const cat = ganBmAnexoLinha(l.it);
+    if (!cat) {
+      const base0 = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
+        unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
+        realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
+      const a = base0();
+      if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
+      lista.push(a);
+      return;
+    }
+    const novas = [];
+    cat.forEach(at => { if (usados.has(at.codigo)) return; usados.add(at.codigo); novas.push(plItemDoCatalogo(at, l, base)); });
+    migra.set(ganDataKey(l.it), novas.map(a => a.chave));   // plano salvo com a linha antiga passa para as atividades do catálogo
+    lista.push(...novas);
+  });
+  // atividades do catálogo dos anexos que não pertencem a nenhuma linha do cronograma (escadas, linha de vida, marquise, QDF, comuns...)
+  const fora = new Set(usados);
+  ECLUSA_VJ.forEach(e => (e[2] || []).forEach(c => fora.add(c)));
+  ls.forEach(l => ganBmAtividadesEspecificas(l.it).forEach(a => fora.add(a.codigo)));
+  bmTab('bm_atividades').filter(a => /^3\.(3|4)\./.test(String(a.item)) && a.codigo && !fora.has(a.codigo)).forEach(at => {
+    const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
+    lista.push(plItemDoCatalogo(at, { ...plDatasPredio(ls, pr), it: { frente: ANEXO_FRENTE[pr] || ANEXO_FRENTE.C, fase: '1' } }, base));
+  });
+  PL._migra = migra;
+  PL._atv = lista.sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || (a.it._bmAt?.linha || 0) - (b.it._bmAt?.linha || 0) || a.nome.localeCompare(b.nome));
   return PL._atv;
 }
 const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
@@ -98,6 +144,7 @@ const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
 // frente e, na Eclusa, o avanço do BM; as demais usam a série do Gantt (produção, BM e apontamentos, a fonte maior).
 function plSerieReal(a) {
   const it = a.it;
+  if (it._bmAt) return a.linha.dsReal || [];   // atividade do catálogo: o que foi lançado (grade ou BM) nessa atividade
   if (a.acumulado) return a.linha.dsReal || [];   // Eclusa – Vigas e Joists: só o que foi lançado, acumulado
   if (it.bm_percentual) return a.linha.dsReal || [];   // linha em % (Eclusa etc.): só o avanço do BM, nunca unidades da grade
   if (ehFrenteAnexa(it.frente)) {
@@ -212,6 +259,7 @@ async function plCarregar(forcar) {
   } catch { PL.dados = { planos: [] }; }
   if (!Array.isArray(PL.dados.planos)) PL.dados = { planos: [] };
   plMigrarEclusa(PL.dados.planos);
+  try { plMigrarAnexos(PL.dados.planos); } catch (e) { console.warn('migração dos anexos', e); }
   return PL.dados;
 }
 // Planos salvos com "ECLUSA – VIGAS E JOISTS" (27 un juntos) passam a ter dois itens, vigas (9) e joists (18), na proporção do contratado.
@@ -226,6 +274,21 @@ function plMigrarEclusa(planos) {
     p.itens = p.itens.flatMap(i => {
       if (!(/ECLUSA/.test(ganNorm(i.chave)) && /VIGAS E JOISTS/.test(ganNorm(i.chave + ' ' + (i.atividade || ''))))) return [i];
       return novos.map(a => { const f = a.qtd / tot; return { ...i, chave: a.chave, atividade: a.nome, unidade: 'un', qtd_contrato: a.qtd, qtd: +(Number(i.qtd) * f).toFixed(1), peso: (Number(i.peso) || 1) * f, meta_dia: i.meta_dia ? +(Number(i.meta_dia) * f).toFixed(3) : null }; });
+    });
+  });
+}
+// Planos salvos com as linhas antigas dos anexos (ex.: "Portaria – Vigas e Terças", em peças do IFC) passam a ter as atividades do catálogo do BM que a linha contém,
+// na mesma proporção do que estava planejado. A linha sem atividade no catálogo (ex.: fechamento em ACM, não contratado) sai do plano. Vale na tela; é gravada ao salvar o plano de novo.
+function plMigrarAnexos(planos) {
+  const vivas = new Set(plAtividades().map(a => a.chave)), mapa = PL._migra;
+  if (!mapa || !mapa.size) return;
+  planos.forEach(p => {
+    if (!(p.itens || []).some(i => !vivas.has(i.chave) && mapa.has(i.chave))) return;
+    p.itens = p.itens.flatMap(i => {
+      if (vivas.has(i.chave) || !mapa.has(i.chave)) return [i];
+      const f = Number(i.qtd_contrato) > 0 ? Math.min(1, Math.max(0, Number(i.qtd) / Number(i.qtd_contrato))) : 1;
+      return mapa.get(i.chave).map(plAtivPorChave).filter(Boolean).map(a => ({ ...i, chave: a.chave, atividade: a.nome, unidade: a.unidade, qtd_contrato: a.qtd,
+        qtd: plInteiro(a.unidade) ? Math.max(1, Math.round(a.qtd * f)) : +(a.qtd * f).toFixed(1), meta_dia: null, empresa: a.empresas.join(' / ') || i.empresa, o_que: `Executar ${a.nome}` }));
     });
   });
 }
@@ -332,7 +395,7 @@ function plSugLinhaHtml({ a, s }, g) {
   const un = a.unidade, marca = g.sel.has(a.chave), temAcao = s.precisa > 1e-9;
   const st = s.concluida ? 'CONCLUÍDO' : a.status;
   return `<tr class="${marca ? 'marcada' : ''}"><td><input type="checkbox" data-pl-sug-marca="${esc(a.chave)}" ${marca ? 'checked' : ''} ${temAcao ? '' : 'disabled title="Nada a realizar neste período"'}></td>
-    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div>${plExcessoHtml(a)}</td><td>${esc(plQuem(a))}</td>
+    <td><b>${esc(a.nome)}</b><div class="nota">${esc(cap(a.frente))}${a.itemDesc ? ` · ${esc(String(a.itemDesc).slice(0, 80))}` : ''} · cronograma ${fd(a.ini)} a ${fd(a.prazo)}</div>${plExcessoHtml(a)}</td><td>${esc(plQuem(a))}</td>
     <td class="n">${plFmt(a.qtd, un)} ${esc(un)}</td><td class="n">${plFmt(s.prevPerRef, un)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(a.chave)}" data-ini="${g.ini}" data-fim="${g.fim}" title="Ver de onde vem este número">${plFmt(s.realPeriodo, un)}</button></td>
     <td class="n ${s.desvioPer < -1e-9 ? 'valor-neg' : ''}">${s.desvioPer > 0 ? '+' : ''}${plFmt(s.desvioPer, un)}</td><td class="n">${plFmt(s.previstoPeriodo, un)}</td>
     <td class="n pl-precisa ${temAcao ? '' : 'ok'}" title="Saldo para cumprir o cronograma até ${fdA(PL.sug.fim)}: previsto acumulado ${plFmt(s.P1, un)} − realizado acumulado na obra ${plFmt(s.Rb, un)}${s.atraso > 1e-9 ? ' (inclui atraso anterior ao período: ' + plFmt(s.atraso, un) + ')' : ''}">${temAcao ? `<b>${plFmt(s.precisa, un)}</b> ${esc(un)}${s.atraso > 1e-9 ? `<div class="nota">inclui ${plFmt(s.atraso, un)} de atraso anterior</div>` : ''}` : '—'}</td>
@@ -644,7 +707,7 @@ function plW5(pl, c, box) {
     <div class="tabela-rolagem"><table class="pl-tab pl-w5"><thead><tr><th>Atividade</th><th>O quê <span class="nota">(What)</span></th><th>Por quê <span class="nota">(Why)</span></th><th>Onde <span class="nota">(Where)</span></th><th>Quando <span class="nota">(When)</span></th>
       <th>Quem <span class="nota">(Who)</span></th><th>Como <span class="nota">(How)</span></th><th class="n">Quanto <span class="nota">(How much)</span></th><th>Situação</th></tr></thead><tbody>` +
     c.itens.map(x => { const it = x.it; return `<tr><td><b>${esc(it.atividade)}</b></td><td>${esc(it.o_que || '—')}</td><td>${esc(it.por_que || '—')}</td><td>${esc(it.onde || it.frente || '—')}</td>
-      <td>${fdA(it.inicio)} a ${fdA(it.fim)}<div class="nota">${plDias(it.inicio, it.fim).length} dias úteis</div></td><td>${esc(it.quem || it.empresa || '—')}</td><td>${esc(it.como || '—')}</td>
+      <td>${fdA(it.inicio)} a ${fdA(it.fim)}<div class="nota">${plDias(it.inicio, it.fim).length} dias úteis</div></td><td>${esc(it.quem || it.empresa || '—')}${Array.isArray(it.divisao) && it.divisao.length >= 2 ? it.divisao.map(d => `<div class="nota"><b>${esc(d.empresa)}</b>: ${plFmt(d.qtd, it.unidade)} ${esc(it.unidade)}${d.valor != null ? ' · ' + rs(d.valor) : ''}<br>${fdA(d.inicio || it.inicio)} a ${fdA(d.fim || it.fim)}${d.como ? ' · ' + esc(d.como) : ''}</div>`).join('') : ''}</td><td>${esc(it.como || '—')}</td>
       <td class="n"><b>${plFmt(it.qtd, it.unidade)} ${esc(it.unidade)}</b><div class="nota">${plFmt(it.qtd / plDias(it.inicio, it.fim).length, it.unidade)} ${esc(it.unidade)}/dia útil${it.custo ? ' · ' + rs(it.custo) : ''}</div></td><td>${plFarol(x.status)}</td></tr>`; }).join('') +
     '</tbody></table></div></div>';
 }
@@ -701,11 +764,12 @@ function plWizRender() {
       <span class="nota"><b>${w.sel.size}</b> selecionada(s) · ${ats.length} atividades no cronograma</span></div>
       <div class="tabela-rolagem pl-lista"><table class="pl-tab"><thead><tr><th></th><th>Atividade</th><th>Frente</th><th>Empresa</th><th class="n">Contrato</th><th class="n" title="Produção lançada dentro do período do planejamento (início e fim escolhidos)">Realizado no período</th><th class="n">Precisa realizar</th><th>Cronograma</th><th>Situação</th></tr></thead><tbody>` +
       (vis.length ? vis.map(a => `<tr class="${w.sel.has(a.chave) ? 'marcada' : ''} ${sobrepoe(a) ? '' : 'fora'}"><td><input type="checkbox" data-pl-marca="${esc(a.chave)}" ${w.sel.has(a.chave) ? 'checked' : ''}></td>
-        <td><b>${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(plSugestao(a, w.inicio, w.fim).realPeriodo, a.unidade)}</td>
+        <td><b title="${esc(a.itemDesc || '')}">${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(plSugestao(a, w.inicio, w.fim).realPeriodo, a.unidade)}</td>
         <td class="n"><b>${plFmt(plSugestao(a, w.inicio, w.fim).precisa, a.unidade)}</b></td><td>${fd(a.ini)} a ${fd(a.prazo)}</td><td>${plFarol(a.status)}</td></tr>`).join('') : '<tr><td colspan="9" class="vazio">Nenhuma atividade encontrada.</td></tr>') +
       '</tbody></table></div><p class="nota">Linhas esmaecidas não têm nada a realizar no período (em dia ou concluídas); dá para marcá-las mesmo assim.</p>';
   } else {
     const itens = [...w.sel.values()];
+    itens.forEach(plDivisaoSync);   // 2 ou mais empresas: abre a divisão por empresa (produção e financeiro)
     corpo = `<p class="nota">Preencha o 5W2H de cada atividade. O quê, onde, quem e a quantidade já vêm sugeridos do cronograma. A divisão por dia usa a meta/dia atual de cada atividade (ou a que você digitar) e, no painel, também o ritmo real.</p>
       <div class="barra-acoes"><button class="btn" data-pl-aplicar-periodo>Aplicar o período do plano a todas</button><span class="nota">${itens.length} atividade(s)</span></div><div class="pl-cartoes5">` +
       itens.map(it => { const a = plAtivPorChave(it.chave), k = esc(it.chave); const campo = (nome, rot, tipo = 'text', extra = '') => `<label>${rot}<input ${tipo === 'num' ? 'type="number" step="any" min="0"' : tipo === 'date' ? 'type="date"' : 'type="text" maxlength="500"'} data-pl-i="${nome}" data-k="${k}" value="${esc(it[nome] ?? '')}" ${extra}></label>`;
@@ -713,7 +777,7 @@ function plWizRender() {
             <button class="btn-link" data-pl-remover="${k}" title="Tirar do planejamento">remover</button></div>
           <div class="pl-form5">${campo('o_que', '<span><b>What</b> — O quê</span>')}${campo('por_que', '<span><b>Why</b> — Por quê</span>')}${campo('onde', '<span><b>Where</b> — Onde</span>')}
             <div class="pl-quando"><label><span><b>When</b> — Início</span><input type="date" data-pl-i="inicio" data-k="${k}" value="${it.inicio}"></label><label><span>Fim</span><input type="date" data-pl-i="fim" data-k="${k}" value="${it.fim}"></label></div>
-            ${plQuemSelect(it, a, k)}${campo('como', '<span><b>How</b> — Como</span>')}
+            ${plQuemSelect(it, a, k)}<div data-pl-div-slot="${k}">${plDivisaoHtml(it, it.chave)}</div>${campo('como', '<span><b>How</b> — Como</span>')}
             <div class="pl-quanto"><label><span><b>How much</b> — Quantidade (${esc(it.unidade)})</span><input type="number" step="any" min="0" data-pl-i="qtd" data-k="${k}" value="${it.qtd}"></label>
               <label><span>Custo estimado (R$)</span><input type="number" step="any" min="0" data-pl-i="custo" data-k="${k}" value="${it.custo ?? ''}"></label><label><span>Meta/dia (${esc(it.unidade)}) <span class="nota">em branco = meta atual${a?.it?.meta_dia ? ': ' + plFmtTaxa(a.it.meta_dia) : ''}</span></span><input type="number" step="any" min="0" data-pl-i="meta_dia" data-k="${k}" value="${it.meta_dia ?? ''}"></label>${plTaxaSelect(it, a, k)}<label><span>Peso na curva S</span><input type="number" step="any" min="0.1" data-pl-i="peso" data-k="${k}" value="${it.peso ?? 1}"></label></div></div>
           <div class="pl-prev nota" data-pl-prev="${k}">${plPrevTexto(it)}</div></div>`; }).join('') + '</div>';
@@ -749,6 +813,72 @@ function plQuemAplicar(it, antes) {   // grava no item a escolha (empresa e quem
   it.empresa = nomes.join(' / ');
   if (!it.quem || it.quem === antes) it.quem = it.empresa;   // "quem" acompanha a empresa enquanto não foi personalizado
 }
+// Divisão da atividade por empresa: com 2 ou mais empresas no Who, cada uma recebe a sua quantidade (produção) e o seu valor estimado (financeiro).
+// O valor sugerido é a quantidade × preço unitário do catálogo do BM; ao digitar o valor ele passa a ser manual. it.custo = soma dos valores.
+const plEmpresasMarcadas = it => { const q = plQuemLista(it), o = String(q.outra || '').trim(); return [...q.marcadas, ...(o ? [o] : [])]; };
+function plPrecoUnit(it, emp) {   // preço unitário do catálogo do BM; com `emp`, o da própria empresa (cada uma tem o seu valor)
+  try { const a = plAtivPorChave(it.chave); if (a && typeof pjPreco === 'function') return pjPreco(a, 'RÓTULA', new Map(), emp || '', it).unit || 0; } catch { /* sem preço */ }
+  return 0;
+}
+const plArred = (v, inteiro) => (inteiro ? Math.round(v) : +v.toFixed(3));
+function plDivisaoSomaCusto(it) {
+  const v = (it.divisao || []).map(d => d.valor).filter(x => x !== '' && x != null && Number.isFinite(Number(x)));
+  if (v.length) it.custo = +v.reduce((t, x) => t + Number(x), 0).toFixed(2);
+}
+function plDivisaoSync(it) {
+  const emps = plEmpresasMarcadas(it);
+  if (emps.length < 2) { delete it.divisao; return; }
+  const mesmas = Array.isArray(it.divisao) && it.divisao.length === emps.length && emps.every(e => it.divisao.some(d => ganNorm(d.empresa) === ganNorm(e)));
+  if (mesmas) return;
+  const qtd = Number(it.qtd) || 0, inteiro = plInteiro(it.unidade), n = emps.length;
+  const parte = plArred(qtd / n, inteiro);
+  const antigas = new Map((it.divisao || []).map(d => [ganNorm(d.empresa), d]));   // quem já estava mantém o How e o When
+  it.divisao = emps.map((e, i) => { const q = i === 0 ? plArred(qtd - parte * (n - 1), inteiro) : parte; const ant = antigas.get(ganNorm(e)); const pu = plPrecoUnit(it, e); return { empresa: e, qtd: q, valor: pu > 0 ? +(q * pu).toFixed(2) : null, valor_manual: false, como: ant?.como || '', inicio: ant?.inicio || it.inicio || '', fim: ant?.fim || it.fim || '', quando_manual: !!ant?.quando_manual }; });
+  plDivisaoSomaCusto(it);
+}
+function plDivisaoRescalar(it) {   // a quantidade do item mudou: mantém as proporções entre as empresas
+  if (!Array.isArray(it.divisao) || it.divisao.length < 2) return;
+  const qtd = Number(it.qtd) || 0, soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), inteiro = plInteiro(it.unidade);
+  if (!(soma > 0) || !(qtd > 0)) return;
+  const f = qtd / soma;
+  let acum = 0;
+  it.divisao.forEach((d, i) => {
+    const q = i === it.divisao.length - 1 ? plArred(qtd - acum, inteiro) : plArred((Number(d.qtd) || 0) * f, inteiro);
+    acum += q;
+    const pu = plPrecoUnit(it, d.empresa);
+    d.valor = d.valor_manual && d.valor !== '' && d.valor != null ? +(Number(d.valor) * f).toFixed(2) : (pu > 0 ? +(q * pu).toFixed(2) : d.valor);
+    d.qtd = q;
+  });
+  plDivisaoSomaCusto(it);
+}
+function plDivisaoQuando(it) {   // início/fim do item mudaram: as empresas que não tiveram data própria acompanham
+  (it.divisao || []).forEach(d => { if (!d.quando_manual) { d.inicio = it.inicio || ''; d.fim = it.fim || ''; } });
+}
+function plDivisaoResumo(it) {
+  const d = it.divisao || [], qtd = Number(it.qtd) || 0, soma = d.reduce((t, x) => t + (Number(x.qtd) || 0), 0), dif = qtd - soma, un = esc(it.unidade);
+  const ok = Math.abs(dif) <= Math.max(0.01, qtd * 0.005), val = d.reduce((t, x) => t + (Number(x.valor) || 0), 0);
+  return `Soma das empresas: <b>${plFmt(soma, it.unidade)}</b> de ${plFmt(qtd, it.unidade)} ${un} · ${ok ? '<span class="pl-ok">fecha com a quantidade</span>' : `<span class="pl-erro">${dif > 0 ? 'faltam' : 'sobram'} ${plFmt(Math.abs(dif), it.unidade)} ${un}</span>`} · valor total <b>${rs(val)}</b>`;
+}
+function plDivisaoHtml(it, k) {
+  const d = it.divisao;
+  if (!Array.isArray(d) || d.length < 2) return '';
+  const un = esc(it.unidade), ek = esc(k);
+  return `<div class="pl-div"><span class="pl-quem-rot"><b>Divisão por empresa</b> — produção e financeiro de cada uma</span>
+    <table class="pl-tab"><thead><tr><th>Empresa</th><th class="n">Produção (${un})</th><th class="n">Valor estimado (R$)</th><th><b>When</b> — Início</th><th>Fim</th><th><b>How</b> — Como esta empresa executa</th></tr></thead><tbody>${d.map(x => `<tr><td><b>${esc(x.empresa)}</b></td>
+      <td class="n"><input type="number" step="any" min="0" data-pl-div="qtd" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${x.qtd ?? ''}"></td>
+      <td class="n"><input type="number" step="any" min="0" data-pl-div="valor" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${x.valor ?? ''}" title="${x.valor_manual ? 'Valor digitado' : 'Sugerido: produção × preço do catálogo do BM'}"></td>
+      <td><input type="date" data-pl-div="inicio" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.inicio || it.inicio || '')}"></td>
+      <td><input type="date" data-pl-div="fim" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.fim || it.fim || '')}"></td>
+      <td><input type="text" maxlength="300" data-pl-div="como" data-k="${ek}" data-emp="${esc(x.empresa)}" value="${esc(x.como || '')}" placeholder="ex.: fase 1 montada pela ${esc(x.empresa)}"></td></tr>`).join('')}</tbody></table>
+    <div class="nota" data-pl-div-resumo="${ek}">${plDivisaoResumo(it)}</div></div>`;
+}
+function plDivisaoAtualizarSlot(it, k) {
+  const slot = [...document.querySelectorAll('[data-pl-div-slot]')].find(x => x.dataset.plDivSlot === k);
+  if (slot) slot.innerHTML = plDivisaoHtml(it, k);
+  const campo = [...document.querySelectorAll('[data-pl-i="custo"]')].find(x => x.dataset.k === k);
+  if (campo && it.divisao) campo.value = it.custo ?? '';
+}
+
 function plTaxasItem(it, a) {
   const n = it.inicio && it.fim && it.fim >= it.inicio ? plDias(it.inicio, it.fim).length : 0;
   const nec = n && it.qtd > 0 ? it.qtd / n : 0;
@@ -829,6 +959,15 @@ function plWizValidar(passo) {
       if (!(Number(it.qtd) > 0)) return `${it.atividade}: informe a quantidade (How much).`;
       if (!ehISO(it.inicio) || !ehISO(it.fim) || it.fim < it.inicio) return `${it.atividade}: confira o início e o fim (When).`;
       if (!String(it.empresa || '').trim()) return `${it.atividade}: selecione a empresa que irá executar (Who).`;
+      if (Array.isArray(it.divisao) && it.divisao.length >= 2) {
+        const soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), dif = Number(it.qtd) - soma;
+        for (const d of it.divisao) {
+          const di = d.inicio || it.inicio, df = d.fim || it.fim;
+          if (!ehISO(di) || !ehISO(df) || df < di) return `${it.atividade} — ${d.empresa}: confira o início e o fim (When) da empresa.`;
+          if (di < it.inicio || df > it.fim) return `${it.atividade} — ${d.empresa}: o período da empresa (${fdA(di)} a ${fdA(df)}) precisa ficar dentro do período da atividade (${fdA(it.inicio)} a ${fdA(it.fim)}).`;
+        }
+        if (Math.abs(dif) > Math.max(0.01, Number(it.qtd) * 0.005)) return `${it.atividade}: a divisão por empresa soma ${plFmt(soma, it.unidade)} ${it.unidade} e a quantidade é ${plFmt(it.qtd, it.unidade)} ${it.unidade} — ajuste a produção de cada empresa.`;
+      }
     }
   }
   return '';
@@ -839,7 +978,8 @@ async function plWizSalvar(rascunho) {
   if (erro) return plWizMsg(erro, true);
   const status = rascunho ? 'rascunho' : (w.status === 'rascunho' ? 'ativo' : w.status);   // publicar um rascunho o torna ativo
   const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status,
-    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd) || 0, peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null })) };
+    itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd) || 0, peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null,
+      divisao: Array.isArray(i.divisao) && i.divisao.length >= 2 ? i.divisao.map(d => ({ empresa: d.empresa, qtd: Number(d.qtd) || 0, valor: d.valor === '' || d.valor == null ? null : Number(d.valor), valor_manual: !!d.valor_manual, como: d.como || '', inicio: d.inicio || i.inicio || '', fim: d.fim || i.fim || '', quando_manual: !!d.quando_manual })) : [] })) };
   try {
     const r = await postar(API + 'planos', { plano });
     await plCarregar(true);
@@ -890,7 +1030,7 @@ function plOrigemRealizado(a, ini, fim, todas) {
       if (per || ac || todas) grade.push({ empresa: e.nome, coluna: s.nome, col: s.col, frente: s.frente, per, ac, dias, junta: f !== 1 });
     });
   });
-  const ats = it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
+  const ats = it._bmAt ? [it._bmAt] : it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
     : ehFrenteAnexa(it.frente) || ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);   // anexo: só as atividades do BM da própria frente (como plSerieReal)
   ats.forEach(at => {
     let per = 0, ac = 0;
@@ -1187,10 +1327,37 @@ document.addEventListener('input', ev => {
   }
   if (t.dataset.plW) { w[t.dataset.plW] = t.value; return; }
   if (t.dataset.plBusca !== undefined) { w.busca = t.value; clearTimeout(plWizRender._t); plWizRender._t = setTimeout(() => { plWizRender(); const i = document.querySelector('[data-pl-busca]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); return; }
+  if (t.dataset.plDiv) {   // produção ou valor de uma empresa na divisão
+    const it = w.sel.get(t.dataset.k), d = it?.divisao?.find(x => x.empresa === t.dataset.emp);
+    if (!d) return;
+    if (['inicio', 'fim', 'como'].includes(t.dataset.plDiv)) {   // When / How da empresa (texto e datas)
+      d[t.dataset.plDiv] = t.value;
+      if (t.dataset.plDiv !== 'como') d.quando_manual = true;
+      return;
+    }
+    const v = t.value === '' ? '' : Number(t.value);
+    if (t.dataset.plDiv === 'qtd') {
+      d.qtd = v;
+      const pu = plPrecoUnit(it, d.empresa);
+      if (!d.valor_manual && pu > 0) {
+        d.valor = +((Number(v) || 0) * pu).toFixed(2);
+        const campo = [...document.querySelectorAll('[data-pl-div="valor"]')].find(x => x.dataset.k === t.dataset.k && x.dataset.emp === t.dataset.emp);
+        if (campo) campo.value = d.valor;
+      }
+    } else { d.valor = v; d.valor_manual = v !== ''; }
+    plDivisaoSomaCusto(it);
+    const campoCusto = [...document.querySelectorAll('[data-pl-i="custo"]')].find(x => x.dataset.k === t.dataset.k);
+    if (campoCusto) campoCusto.value = it.custo ?? '';
+    const res = [...document.querySelectorAll('[data-pl-div-resumo]')].find(x => x.dataset.plDivResumo === t.dataset.k);
+    if (res) res.innerHTML = plDivisaoResumo(it);
+    return;
+  }
   if (t.dataset.plI) {
     const it = w.sel.get(t.dataset.k);
     if (!it) return;
     it[t.dataset.plI] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value;
+    if (t.dataset.plI === 'qtd' && Array.isArray(it.divisao)) { plDivisaoRescalar(it); plDivisaoAtualizarSlot(it, t.dataset.k); }
+    if ((t.dataset.plI === 'inicio' || t.dataset.plI === 'fim') && Array.isArray(it.divisao)) { plDivisaoQuando(it); plDivisaoAtualizarSlot(it, t.dataset.k); }
     const prev = document.querySelector(`[data-pl-prev="${CSS.escape(t.dataset.k)}"]`);
     if (prev) prev.innerHTML = plPrevTexto(it);
   }
@@ -1207,6 +1374,12 @@ document.addEventListener('change', ev => {
     it.empresa = [...set].join(' / ');
     plQuemAplicar(it, antes);
     const chip = t.closest('.pl-chip'); if (chip) chip.classList.toggle('on', t.checked);
+    plDivisaoSync(it); plDivisaoAtualizarSlot(it, t.dataset.k);
+    return;
+  }
+  if (t.dataset.plQuemOutra !== undefined && w) {   // empresa digitada em "outra": ao sair do campo
+    const it = w.sel.get(t.dataset.k);
+    if (it) { plDivisaoSync(it); plDivisaoAtualizarSlot(it, t.dataset.k); }
     return;
   }
   if (t.dataset.plTaxa !== undefined && w) {   // escolher a taxa por dia do item no assistente 5W2H

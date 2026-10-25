@@ -44,7 +44,7 @@ const VC_REGRA_SERV = [
 ];
 
 const vcUp = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
-const vcChaveAtiv = cod => String(cod || '').replace(/^(EJ|CMM)-/, '');
+const vcChaveAtiv = cod => M?.estoque_ifc?.regras?.versao_identidade === 1 ? String(cod || '') : String(cod || '').replace(/^(EJ|CMM)-/, '');
 const vcDias = (a, b) => Math.round((Date.parse(b + 'T12:00:00') - Date.parse(a + 'T12:00:00')) / 864e5);
 const vcPerm = () => !document.body.classList.contains('somente-leitura');
 
@@ -119,6 +119,19 @@ function vcGrupos(cat) {
     const g = mapa.get(chave);
     g.tags.push(m.tag); g.planejado += Number(m.planejado) || 0; g.chegou += Number(m.chegou) || 0;
   });
+  const gruposIfc = M?.estoque_ifc?.regras?.vinculos_ifc;
+  if (gruposIfc) {
+    mapa.clear();
+    const recebido = new Map(estMateriaisComCadastros().map(m => [m.tag, Number(m.chegou) || 0]));
+    const totais = new Map();
+    Object.values(gruposIfc).forEach(g => Object.entries(g.tagqtd).forEach(([tag, n]) => totais.set(tag, (totais.get(tag) || 0) + n)));
+    Object.entries(gruposIfc).forEach(([chave, g]) => {
+      // Recebimento ainda é global por TAG: cobertura por local é proporcional e explicitamente estimada.
+      let chegou = 0;
+      Object.entries(g.tagqtd).forEach(([tag, n]) => { if (!(M.estoque_ifc.regras.tags_conflitantes || []).includes(tag)) chegou += Math.min(totais.get(tag), recebido.get(tag) || 0) * n / totais.get(tag); });
+      mapa.set(chave, { chave, produto: vcUp(g.produto), local: g.local, tags: [...new Set(g.tags)], planejado: g.qtd, chegou, recebidoEstimado: true });
+    });
+  }
   return [...mapa.values()].map(g => {
     const fam = fams[g.produto] != null ? g.produto : (g.produto === 'TELHA_COB' ? 'TELHA COBERTURA' : null);
     const noGalpao = vcUp(g.local) === 'GALPÃO' && fam && fams[fam] != null;
@@ -130,9 +143,10 @@ function vcGrupos(cat) {
     g.diverge = g.ifc != null && Math.round(g.dif) !== 0;
     g.nec = g.ifc != null ? g.ifc : g.planejado;
     g.kit = noGalpao ? vcKit(fam) : [];
-    g.sug = vcSugerir(g.produto, g.local, cat);
+    g.sug = gruposIfc ? null : vcSugerir(g.produto, g.local, cat);
     g.dec = dec[g.chave] || null;
     g.estado = g.dec ? g.dec.estado : (g.sug ? 'sugerida' : 'sem par');
+    if (g.estado === 'pendente') g.estado = 'sem par';
     g.ativ = g.dec && g.dec.estado === 'confirmado' ? g.dec.atividade : '';
     return g;
   }).sort((a, b) => a.produto.localeCompare(b.produto, 'pt') || a.local.localeCompare(b.local, 'pt'));
@@ -162,7 +176,7 @@ function vcBom(grupos, cat) {
   });
   grupos.filter(g => g.ativ && cat.has(g.ativ)).forEach(g => {
     get(g.ativ).linhas.push({ tipo: 'peça', tag: g.tags.length > 3 ? `${g.tags.length} TAGs` : g.tags.join(', '), rotulo: `${cap(g.produto.toLowerCase())} · ${g.local}`, nec: g.nec, chegou: g.chegou,
-      origem: g.ifc != null ? `IFC: ${nf(g.ifc, 0)} peças${g.diverge ? ' (cadastro ' + nf(g.planejado, 0) + ')' : ''}` : 'planejado do cadastro (peça sem família no IFC)', grupo: g.chave, diverge: g.diverge });
+      origem: g.recebidoEstimado ? 'IFC por TAG/local; recebimento por local estimado a partir do total da TAG' : g.ifc != null ? `IFC: ${nf(g.ifc, 0)} peças${g.diverge ? ' (cadastro ' + nf(g.planejado, 0) + ')' : ''}` : 'planejado do cadastro (peça sem família no IFC)', grupo: g.chave, diverge: g.diverge });
     g.kit.forEach(k => {
       const nec = k.qtd * g.nec, mi = info.get(k.codigo);
       get(g.ativ).linhas.push({ tipo: 'fixador', tag: k.codigo, rotulo: k.descricao || (mi && mi.produto) || k.codigo, nec, chegou: chegouTag.get(k.codigo) || 0, origem: `kit: ${nf(k.qtd, 0)} por ${g.produto.toLowerCase()}`, grupo: g.chave });
@@ -386,6 +400,7 @@ function vcAcharCad(it, cad) {
 }
 // soma a quantidade do projeto ao planejado de cada TAG de fixador (cópia: o cadastro gravado não muda)
 function vcAplicarTrb(base) {
+  if (M?.estoque_ifc?.regras?.versao_identidade === 1) return base; // já incluído pelo importador
   const itens = vcTrbItens();
   if (!itens.length) return base;
   const cad = base.map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k && ehFixador(x.m));

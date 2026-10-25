@@ -1209,3 +1209,118 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 .rdo-foto img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--pend-bg); }
 .rdo-foto figcaption { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: .8rem; }
 .rdo-up { cursor: pointer; }
+
+/* Materiais: seleção em lote */
+#tabEstMat th.mat-ck, #tabEstMat td.mat-ck { width: 34px; text-align: center; padding-left: 6px; padding-right: 6px; }
+#tabEstMat tr.mat-sel td { background: color-mix(in srgb, var(--acento) 10%, transparent); }
+.mat-lote { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 6px 0 10px; padding: 8px 12px; border: 1px solid var(--acento); border-radius: 8px; background: color-mix(in srgb, var(--acento) 8%, var(--card)); position: sticky; top: 0; z-index: 5; }
+.mat-lote[hidden] { display: none; }
+.mat-lote-acoes { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+dialog.dlg-mat-lote { width: min(520px, calc(100vw - 32px)); }
+dialog.dlg-mat-lote .mat-lote-corpo { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+dialog.dlg-mat-lote input[type="text"], dialog.dlg-mat-lote select { padding: 7px 9px; border: 1px solid var(--linha); border-radius: 6px; background: var(--card); color: var(--fg); font: inherit; }
+dialog.dlg-mat-lote .mat-lote-forcar { flex-direction: row; align-items: center; gap: 8px; font-size: .8rem; }
+
+/* Apontar montagem (obra importada): planta do projeto */
+.mo-planta { border: 1px solid var(--linha); border-radius: 8px; background: #fff; padding: 4px; display: inline-block; }
+.mo-planta-barra { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; font-size: .78rem; }
+.mo-leg { display: inline-flex; align-items: center; gap: 6px; }
+.mo-leg i { width: 18px; height: 6px; border-radius: 3px; display: inline-block; }
+.mo-zoom { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+#aba-apont details.bloco > summary { cursor: pointer; padding: 4px 0; }
+.mo-projetos { display: flex; flex-wrap: wrap; gap: 8px; }
+.mo-projetos a.btn { text-decoration: none; }
+/* Planejamento 5W2H — divisão da atividade por empresa (produção e financeiro) */
+.pl-ok { color: var(--verde, #1a7f37); font-weight: 700; }
+.pl-div { grid-column: 1 / -1; border: 1px solid var(--borda, #d0d7de); border-radius: 8px; padding: 10px 12px; margin: 6px 0; background: var(--card-2, rgba(127,127,127,.06)); }
+.pl-div table { margin: 6px 0; }
+.pl-div input[type="number"] { width: 140px; text-align: right; }
+
+/* ================================================================================================
+   CELULAR / TABLET PEQUENO
+   Regras: nada pode estourar a largura da tela (no iPhone a página inteira "encolhe" e fica ilegível); campos com 16 px (senão o
+   Safari dá zoom ao tocar); botões e itens de menu com área de toque de 40 px; tabelas largas rolam dentro delas mesmas.
+   ================================================================================================ */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.mo-planta, .mo-planta *, #apMapaSvg, #apMapaSvg *, [data-ap-slot], [data-ap-telha], [data-mo-p] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+body.pintando-toque { overflow: hidden; touch-action: none; }
+@media (max-width: 900px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .topo { padding-top: max(10px, env(safe-area-inset-top, 0px)); }
+  .sidebar { width: min(86vw, 300px); padding-top: max(12px, env(safe-area-inset-top, 0px)); }
+  main, .periodo, .topo, .faixa, .bloco, .tiles, .barra-acoes { min-width: 0; max-width: 100%; }
+  input, select, textarea { font-size: 16px !important; max-width: 100%; min-width: 0; }
+  input[type=checkbox], input[type=radio], input[type=range], input[type=color] { font-size: inherit !important; }
+  .btn, .barra-acoes button, .acoes button, dialog button, .modal-card button, .pl-modal button, .sidebar button, .abas button, .pl-sub button { min-height: 40px; }
+  .barra-acoes, .acoes, .legenda, .bloco-cab { flex-wrap: wrap; row-gap: 8px; }
+  .rot-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; max-width: 100%; }
+  .rot-sel select, .rot-sel input:not([type=range]) { flex: 1 1 160px; }
+  /* tabelas sem o quadro de rolagem passam a rolar dentro de si */
+  body table:not(.tabela-rolagem table) { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabela-rolagem { max-width: 100%; -webkit-overflow-scrolling: touch; }
+  .tabela-rolagem table { display: table; }
+  dialog, .modal-card, .pl-modal, .re-previa { max-width: calc(100vw - 12px) !important; }
+  dialog { width: calc(100vw - 12px) !important; max-height: calc(100dvh - 12px); }
+  .grafico, .pl-grafico { max-width: 100%; }
+  .toast { left: 12px; right: 12px; max-width: none; }
+}
+@media (max-width: 600px) {
+  .periodo { gap: 8px 10px; padding: 10px 14px; }
+  .periodo label { flex: 1 1 130px; min-width: 0; }
+  .periodo input, .periodo select { width: 100%; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tile { padding: 12px; }
+  .tile .val { font-size: 1.35rem; }
+  .tile .rot { font-size: .62rem; }
+  main { padding-inline: 12px; }
+  .bloco { padding: 12px; }
+  h2 { font-size: 1.05rem; }
+  .pl-sug th, .pl-sug td, .pj-tab th, .pj-tab td, .tabela-rolagem th, .tabela-rolagem td { padding: 6px 7px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .sidebar-nav button, .sidebar-titulo { min-height: 44px; }
+  .mat-tag, .btn-link, .link { padding: 6px 4px; }
+}
+
+/* Celular — ajustes de cabeçalho */
+@media (max-width: 900px) {
+  .obra-contexto { padding: 8px 12px 8px 60px; gap: 8px; flex-wrap: wrap; min-height: 38px; }
+  .obra-contexto span { margin-right: 0; }
+  .periodo { margin-left: 0 !important; }
+  .topo { margin-left: 0 !important; padding: 8px 12px; gap: 8px; }
+  .marca-sigla { width: 34px; height: 34px; font-size: .85rem; }
+  .marca h1 { font-size: 1rem; }
+  .ref { width: 100%; flex-wrap: nowrap; gap: 6px; }
+  .ref-data { flex: 1 1 auto; min-width: 0; }
+  .ref-data input { width: 100%; }
+  .semana-txt { display: none; }
+  .sidebar-toggle { top: 6px; }
+  #aba-proj .acoes, #aba-proj .rot-sel, #pjCob { flex-wrap: wrap; max-width: 100%; }
+}
+@media (max-width: 900px) {
+  .rot-sel { width: 100%; }
+  .rot-sel select { width: 100%; flex: 1 1 100%; text-overflow: ellipsis; }
+  select { max-width: 100%; text-overflow: ellipsis; }
+}
+@media (max-width: 900px) {
+  .mo-larg { max-width: 100% !important; box-sizing: border-box; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mo-midia { height: auto; overflow: visible; }
+  .mo-campo { width: 100% !important; overflow: hidden; }
+  .mo-tabela { display: block; }
+}
+/* Celular: os temas (Névoa, Grafite, Sálvia) reservam a coluna do menu; no celular o menu é gaveta e o conteúdo ocupa a tela toda */
+@media (max-width: 900px) {
+  html .topo, html .faixa, html main, html .periodo,
+  :root[data-theme] .topo, :root[data-theme] .faixa, :root[data-theme] main, :root[data-theme] .periodo,
+  :root[data-menu="topo"] .topo, :root[data-menu="topo"] .faixa, :root[data-menu="topo"] main, :root[data-menu="topo"] .periodo { margin-left: 0 !important; margin-right: 0 !important; }
+  main, .periodo { box-sizing: border-box; width: 100%; }
+}
+@media (max-width: 900px) {
+  html .sidebar { transform: translateX(calc(-100% - 40px)); left: 0; top: 0; bottom: 0; border-radius: 0; }
+  html .sidebar.aberta { transform: translateX(0); }
+  :root[data-menu="topo"] .sidebar { position: fixed; top: 0; bottom: 0; height: auto; display: block; padding: 12px 0; }
+}
+
+/* Obra própria de empresa: aviso na faixa do topo */
+.obra-contexto .obra-empresa-aviso { font-style: normal; font-size: .72rem; font-weight: 700; background: var(--marca, #d97706); color: #fff; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }

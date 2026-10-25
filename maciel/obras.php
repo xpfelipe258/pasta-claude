@@ -228,6 +228,12 @@ $acessos = [];
 if ($admin) {
     foreach (q_global('SELECT usuario_id,obra_id FROM usuarios_obras')->fetchAll() as $a) { $acessos[$a['usuario_id']][] = (int)$a['obra_id']; }
 }
+// Usuário de empresa (uma só obra, a obra própria dela): entra direto, sem passar pela lista
+if (!$admin && count($obras) === 1 && $_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['todas']) && obra_empresa_info((int)$obras[0]['id'])) {
+    definir_obra_atual((int)$obras[0]['id']);
+    header('Location: index.php');
+    exit;
+}
 $csrf = token_csrf();
 $logoGlobal = global_ler('logo', '');
 pagina_inicio('Central de obras');
@@ -274,7 +280,7 @@ pagina_inicio('Central de obras');
           <?php if (!empty($o['logo'])): ?><img src="<?= h($o['logo']) ?>" alt="Logo da obra"><?php else: ?><span class="obra-avatar"><?= h(strtoupper(substr($o['nome'],0,2))) ?></span><?php endif; ?>
           <span class="status <?= h($o['status']) ?>"><?= h($o['status']) ?></span>
         </div>
-        <h2><?= h($o['nome']) ?></h2><p><?= h($o['cliente'] ?: 'Cliente não informado') ?> · <?= h($o['cidade'] ?: 'Local não informado') ?></p>
+        <h2><?= h($o['nome']) ?></h2><?php if (!empty($o['empresa_vinculada'])): ?><p><span class="status ativa" title="Cópia isolada da obra principal: o que a empresa altera aqui não muda a obra principal">Obra da empresa <?= h($o['empresa_vinculada']) ?></span></p><?php endif; ?><p><?= h($o['cliente'] ?: 'Cliente não informado') ?> · <?= h($o['cidade'] ?: 'Local não informado') ?></p>
         <ul class="obra-info">
           <li><b>Responsável</b><?= !empty($o['responsavel']) ? h($o['responsavel']) : '<em class="falta">não informado</em>' ?></li>
           <?php if (!empty($o['encarregado'])): ?><li><b>Encarregado</b><?= h($o['encarregado']) ?></li><?php endif; ?>

@@ -44,17 +44,42 @@ function pjAtividadesBm(it) {
   const esp = ganBmAtividadesEspecificas(it);
   return esp.length ? esp : ganBmAtividades(it);
 }
-function pjPreco(ativ, R, cache) {
-  const it = ativ.it, ats = pjAtividadesBm(it);
-  let total = 0;
+// Valor (R$) e quantidade do catálogo do BM de UMA lista de atividades (valor do item × peso, contrato R).
+function pjValorCatalogo(ats, R, cache) {
+  let total = 0, qtd = 0;
   ats.forEach(a => {
     let its = cache.get(a.empresa);
     if (!its) { its = bmItens(a.empresa, ref); cache.set(a.empresa, its); }
     const bi = its.find(x => x.item === a.item), x = bi && bi.ats.find(y => y.a.codigo === a.codigo);
-    if (bi && x) total += bmPrecoAtividade(bi, x.a, R).total;
+    if (bi && x) { total += bmPrecoAtividade(bi, x.a, R).total; qtd += Number(a.qtd) || 0; }
   });
-  const base = Number(it.qtd) || 0, bm = base > 0 && total > 0 ? total / base : 0, man = Number(pjManual()[ativ.chave]) || 0;
-  return { unit: man > 0 ? man : bm, bm, manual: man > 0, origem: man > 0 ? 'manual' : bm > 0 ? 'BM' : 'sem', codigos: ats.map(a => a.codigo) };
+  return { total, qtd };
+}
+// Preço unitário da atividade. Cada empresa tem o SEU valor no catálogo do BM (EJ e CMM têm valores diferentes):
+//  • com `emp` (visão/relatório de uma empresa): valor das atividades DA EMPRESA ÷ quantidade delas no catálogo dela;
+//  • sem `emp` e atividade feita por 2 ou mais empresas: média dos preços de cada empresa, ponderada pela produção que cada uma recebeu
+//    na divisão do 5W2H (sem divisão informada, partes iguais);
+//  • atividade de uma empresa só: valor do catálogo ÷ quantidade do item (como antes). Preço digitado na tela vale sobre todos.
+function pjPreco(ativ, R, cache, emp, it0) {
+  const it = ativ.it, ats = pjAtividadesBm(it), man = Number(pjManual()[ativ.chave]) || 0;
+  const codigos = ats.map(a => a.codigo);
+  const resp = (bm, origem) => ({ unit: man > 0 ? man : bm, bm, manual: man > 0, origem: man > 0 ? 'manual' : bm > 0 ? (origem || 'BM') : 'sem', codigos });
+  const daEmp = e => ats.filter(a => ganNorm(a.empresa) === ganNorm(e));
+  const unitEmp = e => { const l = daEmp(e); if (!l.length) return 0; const v = pjValorCatalogo(l, R, cache); return v.qtd > 0 && v.total > 0 ? v.total / v.qtd : 0; };
+  if (emp && daEmp(emp).length) return resp(unitEmp(emp), 'BM ' + emp);
+  const empresasCat = [...new Set(ats.map(a => a.empresa))];
+  if (!emp && empresasCat.length >= 2) {
+    const dv = Array.isArray(it0?.divisao) && it0.divisao.length >= 2 ? it0.divisao : null;
+    const lista = dv ? dv.map(d => ({ e: empresasCat.find(c => ganNorm(c) === ganNorm(d.empresa)), q: Number(d.qtd) || 0 })).filter(x => x.e)
+      : empresasCat.map(e => ({ e, q: 1 }));
+    const tot = soma0(lista, x => x.q);
+    if (lista.length && tot > 0) {
+      const bm = soma0(lista, x => x.q * unitEmp(x.e)) / tot;
+      if (bm > 0) return resp(bm, 'BM por empresa');
+    }
+  }
+  const v = pjValorCatalogo(ats, R, cache), base = Number(it.qtd) || 0;
+  return resp(base > 0 && v.total > 0 ? v.total / base : 0);
 }
 
 // ---------------------------------------------------------------- recorte por empresa
@@ -70,12 +95,24 @@ function pjSerieEmpresa(a, emp) {
 }
 function pjDaEmpresa(c, emp, pl) {
   const itens = c.itens.map(x => {
-    const a = x.ativ, emps = plEmpresasDoItem(x.it, a), n = emps.includes(emp) && emps.length > 1 ? emps.length : 1, f = 1 / n;
-    if (n === 1) return x;
+    const a = x.ativ, emps = plEmpresasDoItem(x.it, a), n = emps.includes(emp) && emps.length > 1 ? emps.length : 1;
+    // divisão informada no 5W2H (produção de cada empresa) manda sobre a divisão em partes iguais
+    const dv = Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 && Number(x.it.qtd) > 0 ? x.it.divisao.find(d => ganNorm(d.empresa) === ganNorm(emp)) : null;
+    const f = dv ? Math.min(1, Math.max(0, Number(dv.qtd) / Number(x.it.qtd))) : 1 / n;
+    if (n === 1 && !dv) return x;
     const jan = x.it._plano || { inicio: pl.inicio, fim: pl.fim }, base = c.base;
     const serie = pjSerieEmpresa(a, emp);
-    const mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
-    const it = { ...x.it, qtd: (Number(x.it.qtd) || 0) * f, meta_dia: Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia };
+    // When da empresa: período próprio (dentro do da atividade); fora disso o planejado dela é a parte proporcional do planejado da atividade
+    const iniE = dv?.inicio && ehISO(dv.inicio) ? dv.inicio : x.it.inicio, fimE = dv?.fim && ehISO(dv.fim) ? dv.fim : x.it.fim;
+    const janelaPropria = !!dv && (iniE !== x.it.inicio || fimE !== x.it.fim) && fimE >= iniE;
+    let mapaPlan = new Map([...x.mapaPlan].map(([d, v]) => [d, v * f]));
+    const qtdE = (Number(x.it.qtd) || 0) * f;
+    if (janelaPropria) {
+      const diasE = plDias(iniE, fimE), inteiroE = plInteiro(x.it.unidade);
+      if (diasE.length) { const planE = plDistribuirTaxa(qtdE, diasE.length, qtdE / diasE.length, inteiroE); mapaPlan = new Map(diasE.map((d, i) => [d, planE[i]])); }
+    }
+    const it = { ...x.it, qtd: qtdE, meta_dia: janelaPropria ? null : (Number(x.it.meta_dia) > 0 ? Number(x.it.meta_dia) * f : x.it.meta_dia), inicio: janelaPropria ? iniE : x.it.inicio, fim: janelaPropria ? fimE : x.it.fim,
+      como: dv?.como ? dv.como : x.it.como };
     const real = new Map();
     const r0 = 0;   // só o produzido dentro do período do plano
     if (serie) {
@@ -87,7 +124,8 @@ function pjDaEmpresa(c, emp, pl) {
     const ultimos = [];
     for (let d = base, k = 0; k < 5 && d >= jan.inicio; d = add(d, -1)) if (diaUtil(d)) { ultimos.push(d); k++; }
     const ritmo = ultimos.length ? soma0(ultimos, d => real.get(d) || 0) / ultimos.length : 0;
-    const taxaProj = ritmo > 0 ? ritmo : x.meta * f;
+    const metaE = janelaPropria ? qtdE / Math.max(1, plDias(iniE, fimE).length) : x.meta * f;
+    const taxaProj = ritmo > 0 ? ritmo : metaE;
     let acum = r0, concluiu = null;
     [...real.keys()].sort().forEach(d => { acum += real.get(d); if (!concluiu && acum >= it.qtd - 1e-9) concluiu = d; });
     const ratio = planAc > 0 ? realAc / planAc : null;
@@ -97,9 +135,9 @@ function pjDaEmpresa(c, emp, pl) {
     else if (ratio === null) status = realAc > 0 ? 'ADIANTADO' : 'A INICIAR';
     else status = ratio >= 1.05 ? 'ADIANTADO' : ratio >= 1 ? 'NO PRAZO' : ratio >= .95 ? 'NO LIMITE' : 'ATRASADO';
     if (status === 'NO PRAZO' && base > it.fim && it.qtd - realAc > 0) status = 'ATRASADO';
-    return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: x.meta * f, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n };
+    return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: metaE, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n, _dv: dv || null };
   });
-  return { ...c, itens };
+  return { ...c, itens, emp };
 }
 
 // ---------------------------------------------------------------- cálculo
@@ -108,7 +146,7 @@ function pjCalc(pl, c, fator, R) {
   const cache = new Map(), base = c.base;
   const itens = c.itens.map(x => {
     const ativ = x.ativ || { it: x.it, chave: x.it.chave };
-    const pr = pjPreco(ativ, R, cache), qtd = Number(x.it.qtd) || 0;
+    const pr = pjPreco(ativ, R, cache, c.emp || '', x.it), qtd = Number(x.it.qtd) || 0;
     const falta = Math.max(0, qtd - x.realAc), taxa = (x.taxaProj > 0 ? x.taxaProj : 0) * fator;
     const proj = new Map();
     let termina = falta <= 1e-9 ? (x.concluiu || base) : null;
@@ -399,6 +437,7 @@ async function renderProjecao() {
       <label class="rot-sel">Produtividade daqui para frente <input type="range" id="pjProd" min="40" max="200" step="5" value="${PJ.prod}" style="vertical-align:middle"> <b id="pjProdTxt">${PJ.prod}%</b> <span class="nota">do ritmo atual</span></label>
       <label class="rot-sel">Colunas <select id="pjVista"><option value="semana" ${PJ.vista === 'semana' ? 'selected' : ''}>Por semana</option><option value="mes" ${PJ.vista === 'mes' ? 'selected' : ''}>Por mês</option></select></label>
       <button class="btn" id="pjCsv">Exportar CSV</button>
+      <button class="btn primario" id="pjRel">Baixar relatório</button>
     </div></div>`;
   h += '<div class="tiles">' +
     tile('Valor do plano', rs(r.totalPlano), `${r.itens.length} atividade(s) · contrato ${esc(R)}`, 'var(--acento)') +
@@ -422,7 +461,7 @@ async function renderProjecao() {
     i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
     const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p;
     const est = pjEstado(i, r.base);
-    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
+    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(PJ.emp || plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, un)} ${esc(un)}</td>
       <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${i.p ? nf(i.p, 2) : ''}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}">${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
       <td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(i.ativ.chave)}" data-ini="${(x.it._plano || pl).inicio}" data-fim="${(x.it._plano || pl).fim}" title="Ver de onde vem o executado (${plFmt(x.realAc, un)} ${esc(un)})">${rs(exec)}</button></td><td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td>
@@ -462,6 +501,7 @@ async function renderProjecao() {
   h += pjEquipHtml(r, eq);
   box.innerHTML = h;
   PJ._csv = { per, r, matriz, totPer, acum };
+  PJ._rel = { r, c, pl, eq, sel, empresas, per, matriz, totPer, acum, R, sim, fator, vista: PJ.vista, emp: PJ.emp, prod: PJ.prod, cob: PJ.cob };
 
   // gráfico
   const lab = r.eixo.map(fd), n0 = v => (v == null ? null : Math.round(v));
@@ -478,6 +518,112 @@ async function renderProjecao() {
       plugins: { legend: { display: true, labels: { color: cor('--fg2'), usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.raw == null ? '—' : rs(x.raw)}` } } },
       scales: eixos({ max: Math.max(r.totalPlano, 1) * 1.04, ticks: { color: cor('--fg2'), callback: v => rs(v) } }, { ticks: { color: cor('--fg2'), maxTicksLimit: 14 } }) },
   });
+}
+
+
+// ---------------------------------------------------------------- relatório (visualização padrão → Baixar PDF)
+// Curva S em imagem (fora da tela, cores claras), para o documento impresso.
+function pjCurvaImagem(d) {
+  const { r, eq, sim } = d, cv = document.createElement('canvas');
+  cv.width = 1300; cv.height = 380; cv.style.cssText = 'position:fixed;left:-9999px;top:0';
+  document.body.appendChild(cv);
+  let ch = null;
+  const n0 = v => (v == null ? null : Math.round(v));
+  try {
+    ch = new Chart(cv, {
+      type: 'line',
+      data: { labels: r.eixo.map(fd), datasets: [
+        { label: 'Planejado', data: r.planAc.map(n0), borderColor: '#2f5d8c', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: .2 },
+        { label: 'Executado', data: r.realAc.map(n0), borderColor: '#1a8a4a', backgroundColor: '#1a8a4a', borderWidth: 3, pointRadius: 1.5, tension: .2 },
+        { label: sim ? `Projeção (${d.prod}% do ritmo)` : 'Projeção (ritmo atual)', data: r.projAc.map((v, k) => (k >= Math.max(r.iBase, 0) ? n0(v) : null)), borderColor: '#d99a00', borderDash: [2, 3], borderWidth: 2.5, pointRadius: 0, tension: .2 },
+        ...(eq.itens.length && eq.K > 0 ? [{ label: 'Gasto com equipamento do içamento (acumulado)', data: pjCurvaEquip(r, eq), borderColor: '#b42318', borderWidth: 2, pointRadius: 0, tension: .2 }] : []),
+        { label: 'Necessário para fechar no prazo', data: r.nec.map(n0), borderColor: '#7a8794', borderDash: [1, 4], borderWidth: 1.5, pointRadius: 0, tension: 0 },
+      ] },
+      options: { responsive: false, animation: false, scales: { y: { beginAtZero: true, max: Math.max(r.totalPlano, 1) * 1.04, ticks: { callback: v => rs(v) } }, x: { ticks: { maxTicksLimit: 14 } } }, plugins: { legend: { position: 'top' } } },
+      plugins: [{ id: 'fundo', beforeDraw: c => { c.ctx.save(); c.ctx.fillStyle = '#fff'; c.ctx.fillRect(0, 0, c.width, c.height); c.ctx.restore(); } }],
+    });
+    return ch.toBase64Image('image/png', 1);
+  } catch (e) { console.error(e); return ''; } finally { if (ch) ch.destroy(); cv.remove(); }
+}
+const pjBarraRel = (p, h = 10) => { const w = v => Math.max(0, Math.min(100, v * 100)); return `<div style="position:relative;height:${h}px;background:#e6eaef;border-radius:5px;overflow:hidden;min-width:120px"><div style="position:absolute;left:0;top:0;bottom:0;width:${w(p.proj)}%;background:#f3d27a"></div><div style="position:absolute;left:0;top:0;bottom:0;width:${w(p.real)}%;background:#2e9d5c"></div><div style="position:absolute;top:0;bottom:0;left:${w(p.plan)}%;width:2px;background:#222"></div></div>`; };
+
+async function pjRelatorio() {
+  const d = PJ._rel; if (!d) return;
+  const btn = document.getElementById('pjRel'), rot = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Montando…'; }
+  try {
+    await tplLogosCarregar();
+    const { r, c, eq, per, matriz, totPer, acum, R, sim } = d, vista = d.vista;
+    const un = x => esc(x.it.unidade);
+    const desv = r.exec - r.planoAteHoje, pctFis = r.totalPlano ? r.exec / r.totalPlano * 100 : 0, pctPrev = r.totalPlano ? r.planoAteHoje / r.totalPlano * 100 : 0;
+    const aoFim = r.aoFimPlano ?? 0, foraPrazo = Math.max(0, r.totalPlano - aoFim);
+    const card = (rt, v, sub, cl) => `<div class="card ${cl}"><div class="rot">${rt}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
+    const fimPer = k => (vista === 'mes' ? k + '-31' : add(k, 6));
+    const cls = k => (fimPer(k) <= r.base ? 'pj-real' : (k <= r.base ? 'pj-misto' : 'pj-proj'));
+    const planosTxt = (d.pl.itens ? [...new Set(d.pl.itens.map(i => i._planoNome).filter(Boolean))] : []).join(', ');
+    const g = pjTotaisPct(r), img = pjCurvaImagem(d);
+    const resumoEmp = d.emp ? [] : pjResumoEmpresas(d.sel, d.empresas, d.fator, R);
+
+    const secResumoEmp = resumoEmp.length > 1 ? `<h2>Resumo por empresa</h2>` + reTab(['Empresa', '#nAtividades', '#nValor do plano', '#nPlanejado até hoje', '#nRealizado', '#nProjetado no fim do plano', 'Realizado × projetado'],
+      resumoEmp.map(e => `<tr><td><b>${esc(e.nome)}</b></td><td class="n">${e.n}</td><td class="n">${rs(e.total)}</td><td class="n">${pjPct(e.g.plan)}</td><td class="n"><b>${pjPct(e.g.real)}</b></td><td class="n">${pjPct(e.g.proj)}</td><td>${pjBarraRel(e.g)}</td></tr>`)) : '';
+
+    const secPainel = `<h2>Painel — realizado × projetado (% do valor do plano)</h2><p class="sub-cab">Verde = realizado · amarelo = projetado até o fim do plano · traço preto = planejado até hoje.</p>` +
+      reTab(['Atividade', 'Quem', '#nPlanejado até hoje', '#nRealizado', '#nProjetado no fim', 'Realizado × projetado', 'Situação'],
+        r.itens.map(i => { const p = pjPcts(i, r), est = pjEstado(i, r.base);
+          return `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td>${esc(plEmpresasDoItem(i.x.it, i.x.ativ).join(' / ') || i.x.it.empresa || '—')}</td><td class="n">${pjPct(p.plan)}</td><td class="n"><b>${pjPct(p.real)}</b></td><td class="n">${pjPct(p.proj)}</td><td>${pjBarraRel(p)}</td><td>${esc(est.rot)}<div class="nota">${esc(est.dica)}</div></td></tr>`; }),
+        `<tfoot><tr><th colspan="2">Total (ponderado pelo valor)</th><th class="n">${pjPct(g.plan)}</th><th class="n">${pjPct(g.real)}</th><th class="n">${pjPct(g.proj)}</th><td>${pjBarraRel(g)}</td><th></th></tr></tfoot>`);
+
+    const linhasAtiv = r.itens.map(i => {
+      const x = i.x, planoHoje = Math.min(x.planAc, i.qtd) * i.p, exec = Math.min(x.realAc, i.qtd) * i.p;
+      let ac = Math.min(i.qtd, x.realAc);
+      i.proj.forEach((v, dd) => { if (dd <= r.fimPlano) ac += v; });
+      const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p, est = pjEstado(i, r.base);
+      const div = !d.emp && Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 ? x.it.divisao.map(e => `<div class="nota"><b>${esc(e.empresa)}</b>: ${plFmt(e.qtd, x.it.unidade)} ${esc(x.it.unidade)}${e.valor != null ? ' · ' + rs(e.valor) : ''} · ${fdA(e.inicio || x.it.inicio)} a ${fdA(e.fim || x.it.fim)}${e.como ? ' · ' + esc(e.como) : ''}</div>`).join('') : '';
+      return `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fdA(x.it.inicio)} a ${fdA(x.it.fim)}${x.it.como ? ' · Como: ' + esc(x.it.como) : ''}</div>${div}</td><td>${esc(d.emp || plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
+        <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${un(x)}</td><td class="n">${i.p ? rs2(i.p) : '—'}${i.pr.manual ? '<div class="nota">preço digitado</div>' : ''}</td><td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><b>${rs(exec)}</b></td>
+        <td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td><td class="n">${rs(noFim)}</td><td class="n">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td>${esc(est.rot)}</td></tr>`;
+    });
+    const secAtiv = `<h2>Por atividade</h2><p class="sub-cab">Preço unitário = valor da atividade no catálogo do BM ÷ quantidade dela no catálogo (de cada empresa, com o valor próprio dela; ou o preço digitado na Projeção). Executado = lançado até ${fdA(c.baseRef)}.</p>` +
+      reTab(['Atividade', 'Quem', '#nQuantidade', '#nPreço unit.', '#nValor do plano', '#nPlanejado até hoje', '#nExecutado (R$)', '#n% físico', '#nProjeção no fim do plano', '#nTermina em', '#nSaldo a medir', 'Situação'], linhasAtiv,
+        `<tfoot><tr><th colspan="4">Total</th><th class="n">${rs(r.totalPlano)}</th><th class="n">${rs(r.planoAteHoje)}</th><th class="n">${rs(r.exec)}</th><th class="n">${nf(pctFis, 0)}%</th><th class="n">${rs(aoFim)}</th><th class="n">${r.termina ? fdA(r.termina) : '—'}</th><th class="n">${rs(soma0(r.itens, i => Math.max(0, i.qtd - i.x.realAc) * i.p))}</th><th></th></tr></tfoot>`);
+
+    let matHtml = `<thead><tr><th>Atividade</th><th class="n">Valor do plano</th>${per.map(k => `<th class="n ${cls(k)}">${pjRotPeriodo(k, vista)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
+    r.itens.forEach((i, ix) => { const tot = soma0(matriz[ix], m => m.ex + m.pj);
+      matHtml += `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td class="n">${rs(i.valor)}</td>${matriz[ix].map((m, j) => { const v = m.ex + m.pj; return `<td class="n ${cls(per[j])}">${v > 0.5 ? rs(v) : ''}</td>`; }).join('')}<td class="n"><b>${rs(tot)}</b></td></tr>`; });
+    matHtml += `</tbody><tfoot>
+      <tr><th>Planejado no período</th><th class="n">${rs(r.totalPlano)}</th>${totPer.map(t => `<th class="n">${t.pla > 0.5 ? rs(t.pla) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.pla))}</th></tr>
+      <tr><th>Executado + projetado no período</th><th></th>${totPer.map((t, j) => `<th class="n ${cls(per[j])}">${t.ex + t.pj > 0.5 ? rs(t.ex + t.pj) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.ex + t.pj))}</th></tr>
+      <tr><th>Acumulado planejado</th><th></th>${acum.map(a => `<th class="n">${rs(a.p)}</th>`).join('')}<th></th></tr>
+      <tr><th>Acumulado executado + projetado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${rs(a.e)}</th>`).join('')}<th></th></tr>
+      <tr><th>% físico-financeiro acumulado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${r.totalPlano ? nf(Math.min(100, a.e / r.totalPlano * 100), 0) + '%' : ''}</th>`).join('')}<th></th></tr>
+      <tr><th>Desvio acumulado (projetado − planejado)</th><th></th>${acum.map(a => `<th class="n ${a.e - a.p < -0.5 ? 'valor-neg' : ''}">${(a.e - a.p >= 0 ? '+' : '−') + rs(Math.abs(a.e - a.p))}</th>`).join('')}<th></th></tr></tfoot>`;
+    const secMatriz = `<h2>Cronograma físico-financeiro por ${vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = executado · amarelas = projetado · a que contém ${fdA(r.base)} mistura os dois. Projetado = saldo distribuído por dia útil no ritmo atual × ${d.prod}%.</p><div class="cff-mat"><table>${matHtml}</table></div>`;
+
+    let secEquip = '';
+    if (eq.itens.length && eq.K > 0) {
+      const totalProj = eq.totReal + eq.totProj, fat = soma0(eq.itens, i => Math.min(i.qtd, i.x.realAc) * i.p) + soma0(eq.itens, i => { let q = 0; i.proj.forEach(v => { q += v; }); return Math.min(i.qtd - Math.min(i.qtd, i.x.realAc), q) * i.p; });
+      secEquip = `<h2>Gasto com equipamento — içamento de joist e vigas</h2><p class="sub-cab">Conjunto: ${esc(eq.kit.join(' + ') || '—')} · diária do conjunto ${rs2(eq.K)} · ${d.cob === 'corridos' ? 'todos os dias corridos' : 'só dias com içamento'}.</p>
+        <div class="cards">${card('Gasto planejado', rs(eq.totPlan), 'no plano', 'nd')}${card('Gasto até hoje', rs(eq.totReal), `até ${fdA(eq.base)}`, 'vd')}${card('Gasto projetado', rs(eq.totProj), `total até concluir ${rs(totalProj)}`, 'am')}${card('Equipamento ÷ faturamento', fat > 0 ? nf(totalProj / fat * 100, 1) + '%' : '—', `faturamento do içamento ${rs(fat)}`, 'vm')}${card('Margem bruta do içamento', rs(fat - totalProj), 'faturamento − equipamento', fat - totalProj < 0 ? 'vm' : 'vd')}</div>` +
+        reTab(['Atividade', '#nQtd do plano', '#nGasto planejado', '#nGasto até hoje', '#nGasto projetado', '#nTotal até concluir'], eq.porItem.map(x => `<tr><td><b>${esc(x.i.x.it.atividade)}</b></td><td class="n">${plFmt(x.i.qtd, x.i.x.it.unidade)} ${esc(x.i.x.it.unidade)}</td><td class="n">${rs(x.plan)}</td><td class="n">${rs(x.exec)}</td><td class="n">${rs(x.proj)}</td><td class="n"><b>${rs(x.exec + x.proj)}</b></td></tr>`));
+    }
+
+    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:340px;object-fit:contain}td .nota{font-size:9px;color:#555;white-space:normal}</style>`;
+    const corpo = `<section class="emp-sec"><div class="pag">
+      <p class="sub-cab"><b>Escopo:</b> ${d.emp ? 'empresa ' + esc(d.emp) : 'todas as empresas'} · contrato ${esc(R)} · produtividade ${d.prod}% do ritmo atual · posição em ${fdA(c.baseRef)}${planosTxt ? ' · planos: ' + esc(planosTxt) : ''}.</p>
+      <div class="cards">${card('Valor do plano', rs(r.totalPlano), `${r.itens.length} atividade(s) · contrato ${esc(R)}`, 'az')}${card('Planejado até hoje', rs(r.planoAteHoje), `${nf(pctPrev, 1)}% do valor do plano`, 'nd')}${card('Executado até hoje', rs(r.exec), `${nf(pctFis, 1)}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(r.planoAteHoje, 1) ? 'vm' : desv < 0 ? 'am' : 'vd')}${card(`Projeção no fim do plano${sim ? ' (simulada)' : ''}`, rs(aoFim), `${r.totalPlano ? nf(aoFim / r.totalPlano * 100, 0) : 0}% do plano${foraPrazo > 0.5 ? ' · ' + rs(foraPrazo) + ' ficam para depois' : ' · fecha no prazo'}`, foraPrazo > 0.5 ? 'vm' : 'vd')}${card('Término projetado', r.termina ? fdA(r.termina) : '—', r.termina && r.termina > r.fimPlano ? `${contarDiasUteis(r.fimPlano, r.termina)} dias úteis depois do fim do plano (${fdA(r.fimPlano)})` : `plano termina em ${fdA(r.fimPlano)}`, r.termina && r.termina > r.fimPlano ? 'am' : 'vd')}</div>
+      ${r.semValor.length ? `<p class="aviso">${r.semValor.length} atividade(s) sem valor no BM (R$ 0): ${r.semValor.map(i => esc(i.x.it.atividade)).join(', ')}.</p>` : ''}
+      ${secResumoEmp}
+      ${secPainel}
+      ${img ? `<h2>Curva S financeira (R$ acumulado)</h2><p class="sub-cab">Tracejada = planejado · verde = executado · amarela pontilhada = projeção · cinza = necessário para fechar no prazo.</p><img class="cff-curva" src="${img}" alt="Curva S financeira">` : ''}
+      ${secAtiv}
+      ${secMatriz}
+      ${secEquip}
+      <p class="sub-cab">É uma simulação a partir do planejamento 5W2H e do que foi lançado; não substitui a medição (BM).</p>
+    </div></section>`;
+    const html = tplDocumento({ titulo: 'Projeção físico-financeira', subtitulo: `${d.emp || 'Todas as empresas'} — plano ${fdA(r.inicioPlano || r.eixo[0])} a ${fdA(r.fimPlano)} · posição em ${fdA(c.baseRef)}`, meta: 'Planejado = divisão do plano 5W2H · executado = lançamentos e apontamentos do BM · projeção = saldo no ritmo atual · valor = catálogo do BM', corpo, css });
+    reAbrirPrevia(html, `projecao-fisico-financeira-${(d.emp || 'geral').replace(/\s+/g, '-')}-${c.baseRef}`, `Projeção físico-financeira · ${d.emp || 'Todas as empresas'}`);
+  } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
 
 function pjCsv() {
@@ -521,6 +667,7 @@ document.addEventListener('click', ev => {
   if (reset) { delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
   if (ev.target.closest && ev.target.closest('[data-pj-kit-auto]')) { delete pjCfg().kit; pjGravarCfg({ kit: null }).then(renderProjecao); return; }
   if (ev.target.id === 'pjCsv') pjCsv();
+  if (ev.target.id === 'pjRel') pjRelatorio();
 });
 
 // volta para a aba depois de lançar produção em outra janela/aba do navegador: relê os dados para refletir o que foi salvo

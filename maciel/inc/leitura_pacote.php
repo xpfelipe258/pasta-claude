@@ -17,12 +17,16 @@ function leitura_modelo(array $leituras)
     $vistos = [];
     $dup = 0;
     $eixos = ['V' => [], 'H' => []];
+    $linhasMalha = [];   // eixos com coordenadas (nome, x1, y1, x2, y2) do primeiro IFC que traz a malha
     $arquivos = [];
     $fixTot = [];
     $furos = $falsos = 0;
     foreach ($leituras as $l) {
         $n = 0;
         $nfix = 0;
+        if (!$linhasMalha && !empty($l['linhas_malha'])) {
+            $linhasMalha = $l['linhas_malha'];
+        }
         foreach (['V', 'H'] as $k) {
             foreach ($l['eixos'][$k] as $e) {
                 $eixos[$k][$e] = true;
@@ -104,7 +108,7 @@ function leitura_modelo(array $leituras)
     $eh = array_keys($eixos['H']);
     usort($ev, 'lp_eixo_ord');
     usort($eh, 'lp_eixo_ord');
-    return ['arquivos' => $arquivos, 'malha' => ['V' => $ev, 'H' => $eh], 'fases' => array_values($fases), 'material' => $material, 'fixadores' => $fixadores,
+    return ['arquivos' => $arquivos, 'malha' => ['V' => $ev, 'H' => $eh, 'linhas' => $linhasMalha], 'fases' => array_values($fases), 'material' => $material, 'fixadores' => $fixadores,
         'fixadores_resumo' => ['furos_sem_parafuso' => $furos, 'falsos_excluidos' => $falsos], 'conjuntos' => $conjuntos,
         'totais' => ['conjuntos' => count($conjuntos), 'peso_kg' => round(array_sum(array_column($conjuntos, 'peso_kg')), 1), 'sem_posicao' => count(array_filter($conjuntos, function ($c) { return !$c['pos']; })), 'parafusos' => $parafusos],
         'avisos' => $avisos];

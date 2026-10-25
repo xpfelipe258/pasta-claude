@@ -378,6 +378,7 @@ async function carregar() {
   $('#btnImportarEq').hidden = rec.importar_mensal === false;
   if (j.usuario) {
     const u = j.usuario;
+    window.USUARIO_PERFIL = u.perfil;
     $('#usuarioBox').hidden = false;
     $('#usuarioBox').innerHTML = `<span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
     const menuDash = document.getElementById('menuDashboardGeral');
@@ -566,10 +567,29 @@ function renderTudo() {
 function renderAba() {
   if (!M) return;
   try {
-  ({ tarefas: renderTarefas, painel: renderPainel, semana: renderSemana, lanc: renderLanc, avanco: renderAvanco, cliente: renderCliente, gantt: renderGantt,
-     estmat: renderEstMateriais, estrem: renderEstRemessas, estcons: renderEstConsumo, estinv: renderEstInventario, estcrit: renderEstCriticos, estsis: renderEstoque, estvinc: renderVinculos, estpronto: renderPronto,
-     equip: renderEquip, bm: renderBM, metas: renderMetas, impactos: renderImpactos, dp: renderDP, tendencia: renderTendencia, proj: renderProjecao, cff: renderCff, apont: renderApont, rdo: renderRdo,
-     plan: renderPlanejamento })[abaAtual]();
+  // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
+  const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
+     estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(),
+     plan: () => renderPlanejamento() };
+  const rendFn = ABAS[abaAtual];
+  if (!rendFn) return;
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'] }[abaAtual];
+  if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
+    const chave = '_script_' + exigido[1];
+    if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar
+    if (!window[chave]) {
+      window[chave] = 'carregando';
+      const sc = document.createElement('script');
+      sc.src = exigido[1] + '?r=' + Date.now();
+      sc.onload = () => { window[chave] = 'ok'; document.querySelectorAll('.erro-aba').forEach(e => e.remove()); if (typeof tfCarregar === 'function' && exigido[1] === 'tarefas.js') tfCarregar(true).then(() => { if (typeof tfAvisoAoAbrir === 'function') tfAvisoAoAbrir(); renderAba(); }); else renderAba(); };
+      sc.onerror = () => { window[chave] = 'erro'; renderAba(); };
+      document.head.appendChild(sc);
+      return;
+    }
+    throw new Error('O arquivo ' + exigido[1] + ' não carregou. Atualize a página (Ctrl+F5); se continuar, avise o administrador.');
+  }
+  rendFn();
   } catch (err) {   // um erro de desenho não pode deixar a aba em branco sem explicação: mostra o que houve (e segue com o resto do carregamento)
     console.error('Erro ao desenhar a aba', abaAtual, err);
     const sec = document.getElementById('aba-' + abaAtual);
@@ -1669,6 +1689,10 @@ function ganItensCliente() {
       alvo.fontes = [...new Set([...(alvo.fontes || []), ...(cr.fontes || []), cr.servico])];
     } else {
       const porBm = ganBmAtividadesEspecificas(cr).length > 0;
+      if (M.obra_empresa && !porBm) {   // obra própria da empresa: só entra a linha do cronograma geral que for de um serviço dela (a Fase 2 acompanha a Fase 1)
+        const semFase = x => `${ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, ''))}|${ganNorm(x.servico)}`;
+        if (!(M.cliente || []).some(c => ganChavePlanejada(c) === ganChavePlanejada(cr) || semFase(c) === semFase(cr))) return;
+      }   // obra própria da empresa: linha do cronograma geral que não é dela não aparece
       const qtd = cr._eclusa ? eclusaQtd(cr._eclusa) : porBm ? 100 : ganQtdRef(cr);
       base.push({ ...cr, qtd, peso: porBm ? 1 : qtd || 1, meta_dia: qtd ? qtd / Math.max(1, contarDiasUteis(add(cr.inicio_plan, -1), cr.prazo)) : 0, virtual_gantt: true, bm_percentual: porBm });
     }
@@ -1707,7 +1731,46 @@ function ganProducaoFase(it, empNome) {
   return ganSerieFase(it, ganProducao(it, empNome));
 }
 
+// Anexos (Portaria, Refeitório, Vestiário, Passarelas, Área de Vivência, Eclusa – platibanda): cada linha do cronograma corresponde a poucas atividades
+// EXATAS do catálogo do BM. A busca por semelhança de nome juntava atividades de outros prédios e inflava valor e avanço (Portaria: 34 mil planejados para 14 mil contratados).
+const ANEXO_CAT = {
+  P: { EST: ['EJ-3.3.3-01', 'EJ-3.3.3-02', 'EJ-3.3.3-03', 'EJ-3.3.3-04'], CAL: ['GLO-3.4.10-02', 'GLO-3.4.10-09'], TEL: ['GLO-3.4.1-02'], PLAT: ['EJ-3.3.4-01', 'EJ-3.3.4-02'] },
+  R: { EST: ['EJ-3.3.7-01', 'EJ-3.3.7-02', 'EJ-3.3.7-03', 'EJ-3.3.7-04'], CAL: ['GLO-3.4.10-06', 'GLO-3.4.10-13'], TEL: ['GLO-3.4.2-01', 'GLO-3.4.2-02', 'GLO-3.4.2-04'], RUF: ['GLO-3.4.2-03'] },
+  V: { EST: ['EJ-3.3.8-01', 'EJ-3.3.8-02', 'EJ-3.3.8-03', 'EJ-3.3.8-04'], CAL: ['GLO-3.4.10-04', 'GLO-3.4.10-11'], TEL: ['GLO-3.4.1-04'] },
+  PD: { EST: ['EJ-3.3.13-01', 'EJ-3.3.13-02', 'EJ-3.3.13-03', 'EJ-3.3.13-04', 'EJ-3.3.15-01', 'EJ-3.3.15-02', 'EJ-3.3.15-03', 'EJ-3.3.15-04'], CAL: ['GLO-3.4.10-03', 'GLO-3.4.10-10'], TEL: ['GLO-3.4.1-03'] },
+  AV: { EST: ['EJ-3.3.11-01', 'EJ-3.3.11-02', 'EJ-3.3.11-03', 'EJ-3.3.11-04'], CAL: ['GLO-3.4.10-07', 'GLO-3.4.10-14'], TEL: ['GLO-3.4.3-01', 'GLO-3.4.3-02', 'GLO-3.4.3-03', 'GLO-3.4.3-04'] },
+  E: { PLAT_EST: ['EJ-3.3.2-01', 'EJ-3.3.2-02'], PLAT_TEL: ['GLO-3.4.4-01', 'GLO-3.4.4-02', 'GLO-3.4.4-03', 'GLO-3.4.4-04'] },
+};
+const ANEXO_FRENTE = { P: 'PORTARIA', R: 'REFEITÓRIO', V: 'VESTIÁRIO', PD: 'PASSARELAS / ÁREA DE VIVÊNCIA', AV: 'PASSARELAS / ÁREA DE VIVÊNCIA', QDF: 'QDF CAG', E: 'ECLUSA', C: 'ANEXOS – COMUNS' };
+function anexoPredio(texto) {
+  const t = ganNorm(texto);
+  if (/VIVENCIA|PRACA/.test(t)) return 'AV';
+  const achou = [/PORTARIA/.test(t) && 'P', /REFEITORIO/.test(t) && 'R', /VESTIARIO/.test(t) && 'V', /PEDESTRE|PASSARELA|ONIBUS/.test(t) && 'PD', /QDF/.test(t) && 'QDF', /ECLUSA/.test(t) && 'E'].filter(Boolean);
+  return achou.length === 1 ? achou[0] : null;
+}
+// Atividades do catálogo da linha do cronograma de um anexo; null = a linha não é desse tipo (segue a busca por nome).
+function ganBmAnexoLinha(it) {
+  if (it._bmAt || it._eclusa || it.bm_percentual || !ehFrenteAnexa(it.frente) || ganNorm(it.frente).includes('GALPAO')) return null;
+  const sv = ganNorm(it.servico);
+  let pr = anexoPredio(it.frente + ' ' + it.servico);
+  if (!pr || pr === 'QDF') return null;
+  if (pr === 'E' && !ganBmAtividadesEspecificas(it).length) {
+    const k = /PLATIBANDA/.test(sv) ? (/TELHA/.test(sv) ? 'PLAT_TEL' : 'PLAT_EST') : null;
+    if (!k && !/FECHAMENTO|RUFO|ARREMATE/.test(sv)) return null;
+    return bmTab('bm_atividades').filter(a => (ANEXO_CAT.E[k] || []).includes(a.codigo));
+  }
+  if (pr === 'E') return null;
+  const tab = ANEXO_CAT[pr];
+  let tipo = /PLATIBANDA/.test(sv) ? 'PLAT' : /CALHA/.test(sv) ? 'CAL' : /TELHA/.test(sv) ? 'TEL' : /RUFO|ARREMATE/.test(sv) ? 'RUF' : /VIGA|TERCA|PILAR|ESTRUTURA/.test(sv) ? 'EST' : null;
+  let cods = tipo ? (tab[tipo] || []) : [];
+  if (!tipo && pr === 'AV') cods = [...tab.EST, ...tab.TEL];   // "Cobertura Área de Vivência": estrutura + telhas
+  return bmTab('bm_atividades').filter(a => cods.includes(a.codigo));
+}
+
 function ganBmAtividades(it) {
+  if (it._bmAt) return [it._bmAt];
+  const anexo = ganBmAnexoLinha(it);
+  if (anexo) return anexo;
   const serv = ganNorm(it.servico), frente = ganNorm(it.frente), fontes = ganServicosFonte(it).map(ganNorm);
   if (!serv || it._eclusa) return [];
   const ehFechamentoGalpao = serv === 'FECHAMENTO';
@@ -1724,8 +1787,10 @@ function ganBmAtividades(it) {
   });
 }
 
-function ganBmDatasAtividade(a, ate) {
+function ganBmDatasAtividade(a, ate, comEspelho = false) {   // comEspelho: relatórios de lançamento mostram também os dias espelhados (as séries do Planejamento/Gantt não)
   const ds = [];
+  const esp = comEspelho ? bmApontEfetivos(a) : null;
+  if (esp) { esp.forEach((q, d) => { if (d <= ate && q > 0) ds.push([d, q]); }); return ds; }
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     if (e && col) Object.keys(e.registros).forEach(d => {
@@ -1827,6 +1892,7 @@ function ganBmMarquise(it) {
   return null;
 }
 function ganBmAtividadesEspecificas(it) {
+  if (it._bmAt) return [];
   const filtroMarquise = ganBmMarquise(it);
   if (filtroMarquise) return bmTab('bm_atividades').filter(filtroMarquise);
   if (ganNorm(it.frente) !== 'ECLUSA') return [];
@@ -2845,6 +2911,7 @@ function renderEstoque() {
 // ---------------------------------------- BAIXA POR IFC (regras × eventos) ----
 function renderEstoqueIfc() {
   const box = M && M.estoque_ifc;
+  if (box?.regras?.versao_identidade === 1) return renderBaixaIdentidadeIfc();
   const nota = $('#estIfcNota'), tiles = $('#estIfcTiles'), resumo = $('#estIfcResumo');
   const tabMat = $('#tabEstIfc'), tabRuas = $('#tabEstIfcRuas'), tabEv = $('#tabEstEventos'), al = $('#estIfcAlertas');
   if (!box || !box.inventario || !box.regras) {
@@ -3001,6 +3068,7 @@ function renderEstoquePlanilha() {
   renderEstConsumo();
   renderEstInventario();
   renderEstCriticos();
+  if (M?.estoque_ifc?.regras?.versao_identidade === 1 && abaAtual === 'estsis') renderEstoqueIfc();
 }
 
 function _filtroMat() { return ($('#estMatFiltro')?.value || '').toUpperCase(); }
@@ -3017,12 +3085,13 @@ function ehFixadorCadastro(m) {
 function matCadastroProduto(m) { return m.material || m.produto || m.codigo || ''; }
 function matCadastroEtapa(m) { return m.etapa || m.servico || (ehFixadorCadastro(m) ? 'FIXADORES' : 'CADASTRO MANUAL'); }
 function matCadastroLocal(m) { return m.local || (ehFixadorCadastro(m) ? 'FIXADORES' : 'SUPRIMENTOS'); }
+const matChaveTag = tag => M?.estoque_ifc?.regras?.versao_identidade === 1 ? String(tag || '').trim() : ganNorm(tag);
 function estMateriaisComCadastros() {
   const base = EP && Array.isArray(EP.materiais) ? EP.materiais.map(m => ({ ...m })) : [];
-  const vistos = new Set(base.map(m => ganNorm(m.tag)));
+  const vistos = new Set(base.map(m => matChaveTag(m.tag)));
   (T?.materiais || []).forEach(m => {
     const tag = String(m.codigo || '').trim();
-    if (!tag || vistos.has(ganNorm(tag))) return;
+    if (!tag || vistos.has(matChaveTag(tag))) return;
     const planejado = Number(m.saldo_inicial || 0) || 0;
     base.push({
       linha: m.linha,
@@ -3041,7 +3110,7 @@ function estMateriaisComCadastros() {
       prioridade: ehFixadorCadastro(m) ? 'FIXADOR' : '',
       origem_cadastro: 'manual',
     });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   // quantidade de parafusos, arruelas e porcas do projeto (modelos TRB) somada ao planejado das TAGs de fixador (vinculos.js)
   return typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
@@ -3049,10 +3118,10 @@ function estMateriaisComCadastros() {
 function estRemessasComCadastros() {
   const rem = EP?.remessas || { colunas: [], datas: {}, itens: [] };
   const out = { ...rem, colunas: [...(rem.colunas || [])], datas: { ...(rem.datas || {}) }, itens: (rem.itens || []).map(i => ({ ...i, qtd_por_remessa: { ...(i.qtd_por_remessa || {}) } })) };
-  const vistos = new Set(out.itens.map(i => ganNorm(i.tag)));
+  const vistos = new Set(out.itens.map(i => matChaveTag(i.tag)));
   (T?.materiais || []).forEach(m => {
     const tag = String(m.codigo || '').trim();
-    if (!tag || vistos.has(ganNorm(tag))) return;
+    if (!tag || vistos.has(matChaveTag(tag))) return;
     out.itens.push({
       tag,
       material: m.material || tag,
@@ -3062,7 +3131,7 @@ function estRemessasComCadastros() {
       total_recebido: 0,
       origem_cadastro: 'manual',
     });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return out;
 }
@@ -3070,31 +3139,31 @@ function estRemessasComCadastros() {
 // Fixadores cadastrados em Materiais (T.materiais) entram também no Consumo físico e no Inventário, com a mesma TAG,
 // mesmo que a planilha importada não os tenha (o servidor também cria essas linhas ao cadastrar o fixador).
 function fixadoresCadastrados() {
-  return (T?.materiais || []).filter(m => String(m.codigo || '').trim() && ehFixadorCadastro(m));
+  return (T?.materiais || []).filter(m => String(m.codigo || '').trim() && (M?.estoque_ifc?.regras?.versao_identidade === 1 || ehFixadorCadastro(m)));
 }
 function estConsumoComCadastros() {
   const cf = EP?.consumo_fisico || { semanas: [], empresas: [], itens: [], inventarios_datas: [] };
   const itens = [...(cf.itens || [])];
-  const vistos = new Set(itens.map(i => ganNorm(i.tag)));
+  const vistos = new Set(itens.map(i => matChaveTag(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
-    if (vistos.has(ganNorm(tag))) return;
+    if (vistos.has(matChaveTag(tag))) return;
     itens.push({ tag, produto: matCadastroProduto(m), consumo_semanas: {}, total_consumo: 0, inventarios_fisicos: {}, origem_cadastro: 'manual' });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return { ...cf, itens };
 }
 function estInventarioComCadastros() {
   const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
   const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
-  const vistos = new Set(inv.map(i => ganNorm(i.tag)));
+  const vistos = new Set(inv.map(i => matChaveTag(i.tag)));
   fixadoresCadastrados().forEach(m => {
     const tag = String(m.codigo).trim();
-    if (vistos.has(ganNorm(tag))) return;
+    if (vistos.has(matChaveTag(tag))) return;
     inv.push({ tag, material: m.material || tag, produto: matCadastroProduto(m), planejado: Number(m.saldo_inicial || 0) || 0,
       estoque_virtual_base: 0, estoque_fisico: 0, consumo_virtual: 0, consumo_fisico: 0, estoque_virtual_atual: 0, dif_estoque: 0,
       perda_real: 0, taxa_perda: 0, acuracidade: 1, status: 'CONFORME', acao: 'OK', obs: '', origem_cadastro: 'manual' });
-    vistos.add(ganNorm(tag));
+    vistos.add(matChaveTag(tag));
   });
   return inv;
 }
@@ -3148,12 +3217,14 @@ function renderEstMateriais() {
     if (s === 'Crítico') return 'vermelho';
     return 'pendente';
   };
-  $('#tabEstMat').innerHTML = `<thead><tr><th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
+  const podeLote = matPodeEditar();
+  const visTags = vis.map(m => m.tag), nSelVis = visTags.filter(t => MAT_SEL.has(t)).length;
+  $('#tabEstMat').innerHTML = `<thead><tr>${podeLote ? `<th class="mat-ck"><input type="checkbox" id="matSelTodos" title="Selecionar (ou limpar) todos os itens que aparecem na lista" aria-label="Selecionar todos os itens da lista" ${vis.length && nSelVis === vis.length ? 'checked' : ''}></th>` : ''}<th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
       const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button>`;
       const tagBtn = `<button type="button" class="link mat-tag" data-mat-edit="${esc(m.tag)}" title="Clique para editar este item (tipo, nome, local, etapa, planejado)"><b>${esc(m.tag)}</b></button>`;
-      return `<tr>
-      <td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
+      return `<tr class="${MAT_SEL.has(m.tag) ? 'mat-sel' : ''}">
+      ${podeLote ? `<td class="mat-ck"><input type="checkbox" data-mat-sel="${esc(m.tag)}" aria-label="Selecionar ${esc(m.tag)}" ${MAT_SEL.has(m.tag) ? 'checked' : ''}></td>` : ''}<td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
       <td>${esc(m.local || '—')}</td><td>${esc(m.etapa)}</td>
       <td class="n">${nf(m.planejado)}${m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
@@ -3161,7 +3232,128 @@ function renderEstMateriais() {
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
       <td>${esc(m.prioridade || '')}</td><td>${acoes}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="14" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+    : `<tr><td colspan="${podeLote ? 15 : 14}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+  const ckTodos = $('#matSelTodos');
+  if (ckTodos) ckTodos.indeterminate = nSelVis > 0 && nSelVis < vis.length;
+  matBarraLote(itens);
+}
+
+// ---- seleção em lote na aba Materiais: caixa em cada linha + ações para os selecionados (mudar local, mudar tipo, excluir)
+const MAT_SEL = new Set();
+const matPodeEditar = () => !document.body.classList.contains('somente-leitura');
+function matBarraLote(itens) {
+  const sec = $('#aba-estmat');
+  if (!sec) return;
+  let el = $('#matLote');
+  if (!el) { el = document.createElement('div'); el.id = 'matLote'; const bl = sec.querySelector('.bloco'); sec.insertBefore(el, bl); }
+  const existentes = new Set(itens.map(m => m.tag));
+  [...MAT_SEL].forEach(t => { if (!existentes.has(t)) MAT_SEL.delete(t); });   // item que sumiu (excluído em outra tela) sai da seleção
+  if (!MAT_SEL.size || !matPodeEditar()) { el.hidden = true; el.innerHTML = ''; return; }
+  const n = MAT_SEL.size, fora = [...MAT_SEL].filter(t => !matFiltroPassa(itens.find(m => m.tag === t))).length;
+  el.hidden = false;
+  el.className = 'mat-lote';
+  el.innerHTML = `<b>${nf(n, 0)} item(ns) selecionado(s)</b>${fora ? ` <span class="nota">(${nf(fora, 0)} fora do filtro atual)</span>` : ''}
+    <span class="mat-lote-acoes">
+      <button type="button" class="btn" data-mat-lote="local">Mudar local</button>
+      <button type="button" class="btn" data-mat-lote="tipo">Mudar tipo</button>
+      <button type="button" class="btn perigo" data-mat-lote="excluir">Excluir</button>
+      <button type="button" class="btn" data-mat-lote="limpar">Limpar seleção</button>
+    </span>`;
+}
+function matFiltroPassa(m) {
+  if (!m) return false;
+  const f = _filtroMat(), fe = _filtroMatEtapa(), fs = _filtroMatStatus(), fl = _filtroMatLocal(), ft = _filtroMatTipo();
+  if (f && !m.tag.toUpperCase().includes(f) && !(m.produto || '').toUpperCase().includes(f) && !(m.etapa || '').toUpperCase().includes(f) && !(m.local || '').toUpperCase().includes(f)) return false;
+  if (fl && (m.local || '') !== fl) return false;
+  if (ft === 'SO_FIXADOR' && !ehFixador(m)) return false;
+  if (ft === 'SEM_FIXADOR' && ehFixador(m)) return false;
+  if (fe && m.etapa !== fe) return false;
+  if (fs && m.status_logistico !== fs) return false;
+  return true;
+}
+const matTemMovimento = m => (Number(m.chegou) || 0) > 0 || (Number(m.consumido) || 0) > 0;
+
+function matLoteAbrir(acao) {
+  if (!matPodeEditar() || !MAT_SEL.size) return;
+  const itens = estMateriaisComCadastros(), sel = [...MAT_SEL].map(t => itens.find(m => m.tag === t)).filter(Boolean);
+  if (!sel.length) return;
+  let dlg = $('#dlgMatLote');
+  if (!dlg) {
+    dlg = document.createElement('dialog'); dlg.id = 'dlgMatLote'; dlg.className = 'dlg-mat-lote';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', ev => { if (ev.target === dlg && !dlg.dataset.rodando) dlg.close(); });
+  }
+  dlg.dataset.acao = acao; dlg.dataset.rodando = '';
+  const lista = sel.slice(0, 8).map(m => esc(m.tag)).join(', ') + (sel.length > 8 ? ` e mais ${nf(sel.length - 8, 0)}` : '');
+  let corpo = '', rotBtn = 'Aplicar', perigo = false;
+  if (acao === 'local') {
+    const locais = [...new Set(itens.map(m => m.local).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+    corpo = `<p>Novo local para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Local / grupo<input type="text" id="matLoteLocal" list="matLoteLocais" maxlength="120" placeholder="Digite ou escolha um local já existente" autocomplete="off"></label>
+      <datalist id="matLoteLocais">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
+    rotBtn = 'Mudar local';
+  } else if (acao === 'tipo') {
+    const tipos = [...new Set(['ESTRUTURA', 'FIXADOR', 'CONSUMO', 'OUTROS', ...itens.map(m => String(m.tipo_material || '').toUpperCase()).filter(Boolean)])];
+    corpo = `<p>Novo tipo para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Tipo de material<select id="matLoteTipo">${tipos.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label>
+      <p class="nota">Trocar entre fixador e carga leva o item para as remessas, o consumo físico e o inventário do tipo novo. Itens que já receberam quantidade numa remessa do outro tipo são recusados pelo sistema e listados no fim.</p>`;
+    rotBtn = 'Mudar tipo';
+  } else if (acao === 'excluir') {
+    const comMov = sel.filter(matTemMovimento);
+    corpo = `<p>Excluir <b>${nf(sel.length, 0)}</b> item(ns) da lista de materiais (e do cadastro, quando existir): <span class="nota">${lista}</span></p>
+      <p><b class="perigo-txt">Não há como desfazer.</b> O item some das abas Materiais, Remessas, Consumo físico e Inventário.</p>
+      ${comMov.length ? `<p class="aviso">${nf(comMov.length, 0)} item(ns) já têm <b>recebimento ou consumo lançado</b> (${comMov.slice(0, 5).map(m => esc(m.tag)).join(', ')}${comMov.length > 5 ? '…' : ''}). Por segurança eles <b>não são excluídos</b>, a menos que você marque a caixa abaixo.</p>
+      <label class="mat-lote-forcar"><input type="checkbox" id="matLoteForcar"> Excluir também os itens que já têm recebimento ou consumo lançado</label>` : ''}`;
+    rotBtn = `Excluir ${nf(sel.length, 0)} item(ns)`; perigo = true;
+  }
+  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
+    <div class="mat-lote-corpo">${corpo}</div><p class="nota" id="matLoteProg" hidden></p>
+    <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-mat-lote-fechar>Cancelar</button>
+    <button type="button" class="btn ${perigo ? 'perigo' : 'primario'}" id="matLoteAplicar">${rotBtn}</button></div></form>`;
+  dlg.showModal();
+  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
+}
+
+async function matLoteAplicar() {
+  const dlg = $('#dlgMatLote'), btn = $('#matLoteAplicar'), prog = $('#matLoteProg');
+  if (!dlg || dlg.dataset.rodando) return;
+  const acao = dlg.dataset.acao, itens = estMateriaisComCadastros();
+  const sel = [...MAT_SEL].map(t => itens.find(m => m.tag === t)).filter(Boolean);
+  let campos = null, alvo = sel, forcar = false;
+  if (acao === 'local') {
+    const v = ($('#matLoteLocal')?.value || '').trim();
+    if (!v) { toast('Informe o novo local.', true); return; }
+    campos = { local: v };
+  } else if (acao === 'tipo') {
+    campos = { tipo_material: $('#matLoteTipo').value };
+  } else if (acao === 'excluir') {
+    if (!btn.dataset.confirmar) { btn.dataset.confirmar = '1'; btn.textContent = 'Confirmar exclusão'; return; }
+    forcar = !!$('#matLoteForcar')?.checked;
+    alvo = forcar ? sel : sel.filter(m => !matTemMovimento(m));
+    if (!alvo.length) { dlg.close(); toast('Nenhum item foi excluído: todos os selecionados já têm recebimento ou consumo lançado.', true, 6000); return; }
+  }
+  if (!alvo.length) { dlg.close(); return; }
+  dlg.dataset.rodando = '1'; btn.disabled = true;
+  prog.hidden = false;
+  const falhas = [], feitos = [];
+  salvando = true;
+  try {
+    for (let i = 0; i < alvo.length; i++) {
+      const m = alvo[i];
+      prog.textContent = `Processando ${i + 1} de ${alvo.length} — ${m.tag}…`;
+      try {
+        if (acao === 'excluir') await postarBruto(API + 'estoque-planilha/material', { tag: m.tag, excluir: true, forcar });
+        else await postarBruto(API + 'estoque-planilha/material', { tag: m.tag, campos });
+        feitos.push(m.tag);
+      } catch (err) { falhas.push(`${m.tag}: ${err.message}`); }
+    }
+  } finally { salvando = false; dlg.dataset.rodando = ''; }
+  feitos.forEach(t => MAT_SEL.delete(t));
+  dlg.close();
+  try { await carregar(); } catch (e) { /* a tela é atualizada na próxima leitura */ }
+  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
+  toast(`${nf(feitos.length, 0)} item(ns) ${verbo}.${falhas.length ? ` ${falhas.length} não foi(ram) alterado(s): ${falhas.slice(0, 3).join(' · ')}${falhas.length > 3 ? '…' : ''}` : ''}`, !!falhas.length && !feitos.length, falhas.length ? 9000 : undefined);
+  if (falhas.length) console.warn('Ação em lote nos materiais — falhas:', falhas);
 }
 
 // ---- editar um item da aba Materiais (clicar na TAG): abre o mesmo pop-up do cadastro, já preenchido
@@ -3169,7 +3361,7 @@ function matAbrirEdicao(tag) {
   if (document.body.classList.contains('somente-leitura')) return;
   const m = estMateriaisComCadastros().find(x => x.tag === tag);
   if (!m) return;
-  const cad = (T.materiais || []).find(x => String(x.codigo || '').trim().toUpperCase() === String(tag).toUpperCase());
+  const cad = (T.materiais || []).find(x => matChaveTag(x.codigo) === matChaveTag(tag));
   const planBase = m.planejado_trb ? m.planejado_cad : m.planejado;   // o que vem do projeto (TRB) é somado à parte e não se edita aqui
   abrirDialogo('materiais_edit', cad ? cad.linha : null, {
     ...(cad || {}), codigo: m.tag, material: m.material || '', produto: m.produto || '', tipo_material: (m.tipo_material || 'ESTRUTURA').toUpperCase(),
@@ -3369,7 +3561,20 @@ async function salvarDataRemessa(inp) {
 function ligarEdicaoEstoque() {
   const secs = [$('#aba-estrem'), $('#aba-estcons')];
   const sec = { addEventListener: (ev, fn) => secs.forEach(s => s.addEventListener(ev, fn)) };
-  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); });
+  $('#aba-estmat')?.addEventListener('click', ev => { const t = ev.target.closest('[data-mat-edit]'); if (t) matAbrirEdicao(t.dataset.matEdit); const b = ev.target.closest('[data-mat-lote]'); if (b) { if (b.dataset.matLote === 'limpar') { MAT_SEL.clear(); renderEstMateriais(); } else matLoteAbrir(b.dataset.matLote); } });
+  $('#aba-estmat')?.addEventListener('change', ev => {
+    const c = ev.target.closest('[data-mat-sel]');
+    if (c) { c.checked ? MAT_SEL.add(c.dataset.matSel) : MAT_SEL.delete(c.dataset.matSel); renderEstMateriais(); return; }
+    if (ev.target.id === 'matSelTodos') {   // marca ou limpa todos os itens que aparecem na lista (respeita os filtros)
+      const vis = estMateriaisComCadastros().filter(matFiltroPassa).map(m => m.tag);
+      vis.forEach(t => ev.target.checked ? MAT_SEL.add(t) : MAT_SEL.delete(t));
+      renderEstMateriais();
+    }
+  });
+  document.addEventListener('click', ev => {
+    if (ev.target.closest && ev.target.closest('[data-mat-lote-fechar]')) { const d = $('#dlgMatLote'); if (d && !d.dataset.rodando) d.close(); }
+    else if (ev.target.id === 'matLoteAplicar') matLoteAplicar();
+  });
   $('#btnNovaRemessaCarga').onclick = () => edAbrir('rem', 'CARGA');
   $('#btnNovaRemessaFixador').onclick = () => edAbrir('rem', 'FIXADOR');
   $('#segRemTipo').addEventListener('click', ev => {
@@ -3565,7 +3770,7 @@ const consSem = { semana: '', originais: new Map(), novos: new Map(), dataOrig: 
 function abrirConsSemana(semana) {
   const cf = estConsumoComCadastros();
   consSem.semana = semana; consSem.novos = new Map(); consSem.originais = new Map();
-  cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, { EJ: Number(d.EJ) || 0, CMM: Number(d.CMM) || 0 }); });
+  cf.itens.forEach(m => { const d = m.consumo_semanas[semana] || {}; consSem.originais.set(m.tag, Object.fromEntries(relConsEmpresas().map(e => [e, Number(d[e]) || 0]))); });
   $('#tituloConsSemana').textContent = `Editar coluna — ${semana}`;
   $('#consSemNome').value = semana; $('#consSemBusca').value = '';
   const dt = consSemanasDatas(cf).get(semana), per = consSemanasPeriodos(cf)[semana], salva = (per && per.ini) || (cf.semanas_datas && !Array.isArray(cf.semanas_datas) ? cf.semanas_datas[semana] : '') || '';
@@ -3582,9 +3787,9 @@ function consSemDesenhar() {
   const cf = estConsumoComCadastros(), f = ganNorm($('#consSemBusca').value || '');
   const vis = cf.itens.filter(m => !f || ganNorm(m.tag + ' ' + (m.produto || '')).includes(f));
   const val = (tag, emp) => { const n = consSem.novos.get(tag); const v = n && emp in n ? n[emp] : consSem.originais.get(tag)[emp]; return v ? String(v).replace('.', ',') : ''; };
-  $('#tabConsSemana').innerHTML = '<thead><tr><th>TAG</th><th>Produto</th><th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th></tr></thead><tbody>' +
+  $('#tabConsSemana').innerHTML = '<thead><tr><th>TAG</th><th>Produto</th>' + relConsEmpresas().map(e => `<th class="n">${esc(e)}</th>`).join('') + '</tr></thead><tbody>' +
     (vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto || '')}</td>` +
-      ['EJ', 'CMM'].map(e => `<td class="n"><input type="text" inputmode="decimal" data-cs-tag="${esc(m.tag)}" data-cs-emp="${e}" value="${esc(val(m.tag, e))}" aria-label="${esc(m.tag)} ${e}"></td>`).join('') + '</tr>').join('')
+      relConsEmpresas().map(e => `<td class="n"><input type="text" inputmode="decimal" data-cs-tag="${esc(m.tag)}" data-cs-emp="${esc(e)}" value="${esc(val(m.tag, e))}" aria-label="${esc(m.tag)} ${esc(e)}"></td>`).join('') + '</tr>').join('')
       || '<tr><td colspan="4" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
 }
 async function salvarConsSemana() {
@@ -3593,7 +3798,7 @@ async function salvarConsSemana() {
   const valores = [];
   consSem.novos.forEach((n, tag) => {
     const o = consSem.originais.get(tag), v = { tag };
-    ['EJ', 'CMM'].forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
+    relConsEmpresas().forEach(e => { if (e in n && n[e] !== o[e]) v[e] = n[e]; });
     if (Object.keys(v).length > 1) valores.push(v);
   });
   const dataNova = $('#consSemData').value || '', fimNovo = $('#consSemFim').value || '';
@@ -3728,6 +3933,9 @@ function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
 }
 
 function consumoVirtualPorTag(regras) {
+  if (regras.versao_identidade === 1) {
+    return consumoIdentidadeIfc(regras, M.vinculos_material || {}, bmTab('bm_atividades'), T.apontamentos || [], a => bmRealizado(a, '9999-12-31'), M.fixadores_atividade || {});
+  }
   const servicos = regras.consumo_por_servico || {};
   const cfgAp = regras.apontamento || {};
   const aps = T.apontamentos || [];
@@ -3842,6 +4050,7 @@ function renderEstInventario() {
   const pendJ = Math.max(0, ic - soma0(aps.filter(a => (a.tipo || '').toUpperCase() === 'JOIST'), a => a.qtd));
   const pendV = Math.max(0, prodServico(cfgAp.servico_viga || 'VIGAS', null, '0000-01-01', '9999-12-31') - aps.filter(a => (a.tipo || '').toUpperCase() === 'VIGA').length);
   $('#estInvNota').textContent = `Consumo virtual = produção acumulada (${nf(prem)} joists pré-montadas, ${nf(ic)} içadas) × regras de baixa, com o tipo exato vindo do Apontamento de montagem. Faltam apontar ${nf(pendJ)} joists (quadrante) e ${nf(pendV)} vigas (tipo): por isso ≈ (parafusos estimados) e ≥ (fixadores de viga parciais).`;
+  if (regras.versao_identidade === 1) $('#estInvNota').textContent = 'Consumo por TAG e local do IFC, ligado ao catálogo. ≈ indica distribuição estimada de produção sem peça identificada; apontar no mapa concilia a parcela exata.';
   $('#estInvTiles').innerHTML =
     tile('Itens avaliados', avaliados.length, `${vis.length} visíveis`, 'var(--fg)') +
     tile('Acuracidade média', nf(acuMedia, 1) + '%', 'meta >= 98%', 'var(--acento)') +
@@ -5313,6 +5522,7 @@ const bmChave = (emp, cod, d) => `${emp}|${cod}|${d}`;
 const bmTile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
 const bmNormUn = u => String(u || '').trim().toUpperCase().replace('²', '2').replace('³', '3');
 function bmAtividadeUsaBaseFinanceira(a) {
+  if (M?.estoque_ifc?.regras?.versao_identidade === 1) return true;
   const un = bmNormUn(a?.unidade || '');
   const txt = ganNorm(`${a?.item_desc || ''} ${a?.atividade || ''} ${a?.controle || ''}`);
   const alvo = txt.includes('COBERTURA') || txt.includes('TELHA') || txt.includes('TELHAR') || txt.includes('FACEFELT') || txt.includes('FECHAMENTO LATERAL');
@@ -5347,11 +5557,35 @@ function bmFatorControle(a) {
 function bmQtdFinanceira(a, qtdProducao) {
   return (Number(qtdProducao) || 0) * bmFatorControle(a);
 }
+// "Instalação de isolamento acústico - facefelt" é feito junto com a instalação de telhas (é um conjunto): o que é produzido/lançado em
+// "Instalação de telhas" da mesma empresa e item aparece igual nela, dia a dia. Um lançamento próprio da atividade, no mesmo dia, vale mais que o espelho.
+// O espelho é só de leitura (não vira linha em bm_apontamentos): assim as séries de produção do Planejamento/Gantt não contam a mesma telha duas vezes.
+function bmFonteEspelho(a) {
+  if (!a || a.controle) return null;
+  const nome = ganNorm(a.atividade);
+  if (!(nome.includes('FACEFELT') || nome.includes('ISOLAMENTO ACUSTICO'))) return null;
+  return bmTab('bm_atividades').find(x => x.empresa === a.empresa && x.item === a.item && x.codigo !== a.codigo && !x.controle
+    && ganNorm(x.atividade).includes('INSTALACAO DE TELHAS') && !ganNorm(x.atividade).includes('ISOLAMENTO') && !ganNorm(x.atividade).includes('PERFIL')) || null;
+}
+function bmApontEfetivos(a) {   // null = a atividade não tem espelho; senão Map data → quantidade (própria; na falta, a das telhas)
+  const fonte = bmFonteEspelho(a);
+  if (!fonte) return null;
+  const m = new Map();
+  bmTab('bm_apontamentos').forEach(x => { if (x.empresa === fonte.empresa && x.codigo === fonte.codigo && x.data && (Number(x.quantidade) || 0) > 0) m.set(x.data, (m.get(x.data) || 0) + Number(x.quantidade)); });
+  const proprios = new Map();
+  bmTab('bm_apontamentos').forEach(x => { if (x.empresa === a.empresa && x.codigo === a.codigo && x.data) proprios.set(x.data, (proprios.get(x.data) || 0) + (Number(x.quantidade) || 0)); });
+  proprios.forEach((q, d) => m.set(d, q));
+  return m;
+}
+const bmSomaEfetiva = (m, ini, fim) => { let t = 0; m.forEach((q, d) => { if (d >= ini && d <= fim) t += q; }); return t; };
+
 function bmQtdProducaoBruta(a, ini, fim) {
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? soma(e, col, ini, fim) : 0;
   }
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, ini, fim);
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data >= ini && x.data <= fim) t += x.quantidade || 0; });
   return t;
@@ -5385,6 +5619,8 @@ function bmRealizado(a, ate) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? bmQtdFinanceira(a, soma(e, col, '0000', ate)) : 0;
   }
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, '0000', ate);
   let t = 0;
   bmTab('bm_apontamentos').forEach(x => { if (x.codigo === a.codigo && x.data && x.data <= ate) t += x.quantidade || 0; });
   return t;
@@ -5839,10 +6075,14 @@ async function semearMateriais() {
 
 // lançamento por serviço (linha por atividade do BM dentro do Lançamentos)
 function bmQtdSalva(emp, cod, d) {
+  const ativ = bmTab('bm_atividades').find(x => x.empresa === emp && x.codigo === cod), esp = ativ && bmApontEfetivos(ativ);
+  if (esp) return esp.has(d) ? String(esp.get(d)).replace('.', ',') : '';
   const r = bmTab('bm_apontamentos').find(x => x.empresa === emp && x.codigo === cod && x.data === d);
   return r && r.quantidade != null ? String(r.quantidade).replace('.', ',') : '';
 }
 function bmSomaSemana(a, ini, fim) {
+  const esp = bmApontEfetivos(a);
+  if (esp) return bmSomaEfetiva(esp, ini, fim);
   return soma0(bmTab('bm_apontamentos').filter(x => x.codigo === a.codigo && x.data >= ini && x.data <= fim), x => x.quantidade);
 }
 
@@ -7464,7 +7704,7 @@ function ligarEventos() {
   patchDatas();
   atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) ? aba : 'tarefas');
-  tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // contador do menu, alertas e aviso ao abrir
+  if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });

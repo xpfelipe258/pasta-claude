@@ -436,7 +436,8 @@ function reSuprimentos(emp, ini, fim, c) {
 const RE_COR_OUTRA = '#b8c2cc';
 const reEstadoPeca = (row, emp, ini, validas) => (!row ? 'pend' : (emp ? row.empresa === emp : (!validas || validas.has(row.empresa))) ? (row.data >= ini ? 'per' : 'ant') : 'outra');   // geral: só empresas com montagem (validas) pintam a peça; as demais ficam em cinza   // sem empresa (geral): toda peça apontada é das empresas, na cor de quem montou
 const reCorPeca = (cores, row) => (cores.porEmp && row && row.empresa ? (corEmpHex(row.empresa) || cores.forte) : cores.forte);
-const rePinta = (est, cores, row) => { const f = reCorPeca(cores, row); return ({ pend: 'fill="#ffffff" stroke="#c4cdd8"', ant: `fill="${f}" fill-opacity=".35" stroke="${f}" stroke-opacity=".6"`,
+const rePinta = (est, cores, row) => { const f = reCorPeca(cores, row); return ({ pend: cores.pend ? `fill="${cores.pend}" stroke="${cores.pendTr || '#c4cdd8'}"` : 'fill="#ffffff" stroke="#c4cdd8"',
+  ant: cores.ant ? `fill="${cores.ant}" stroke="${cores.antTr || cores.ant}"` : `fill="${f}" fill-opacity=".35" stroke="${f}" stroke-opacity=".6"`,
   per: `fill="${f}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est]; };
 const reTxt = (x, y, t, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="#51606f" font-family="Arial,Helvetica,sans-serif" ${o}>${esc(t)}</text>`;
 
@@ -507,7 +508,7 @@ function reMapaContrav(emp, ini, cores, feitas) {
     if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
     const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b), y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
     const row = feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), st = reEstadoPeca(row, emp, ini, cores.validas); n[st]++;
-    const traco = st === 'pend' ? '#c4cdd8' : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : reCorPeca(cores, row);
+    const traco = st === 'pend' ? (cores.pendTr || '#c4cdd8') : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : st === 'ant' && cores.antTr ? cores.antTr : reCorPeca(cores, row);
     o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores, row)} stroke-width=".6"/>`,
       `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/>`);
   });
@@ -538,7 +539,7 @@ function reMapaTelhas(emp, ini, cores, ate, chave, tipo) {
   return { fases, n: cont, total: n, m2: (t.comprimento_m || 177.32) * lar / 1000 };
 }
 
-function reMapa(emp, ini, c) {
+function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já feito / falta em cores fixas, sem cor por empresa)
   const regras = window._regras_baixa, es = emp ? [empresa(emp)].filter(Boolean) : (M.empresas || []);   // sem empresa = geral: vale o catálogo de qualquer empresa
   const cfgAp = (regras && regras.apontamento) || {};
   const temJoist = !!(regras && es.some(e => e.servicos.some(s => s.nome === cfgAp.servico_joist || s.nome === cfgAp.servico_viga)));
@@ -547,7 +548,7 @@ function reMapa(emp, ini, c) {
   const todos = T.apontamentos || [], ate = todos.filter(a => !a.data || a.data <= c);
   // geral: montagem de joist, viga e contraventamento é só das empresas que têm esse serviço (EJ e CMM); apontamento de outra empresa não pinta o mapa
   const validas = !emp && temJoist ? new Set(es.filter(e => e.servicos.some(sv => sv.nome === cfgAp.servico_joist || sv.nome === cfgAp.servico_viga)).map(e => e.nome)) : null;
-  const forte = (emp && corEmpHex(emp)) || '#2563eb', cores = { forte, porEmp: !emp, validas }, out = { cores };
+  const forte = (emp && corEmpHex(emp)) || '#2563eb', cores = { forte, porEmp: !emp, validas, ...(opc || {}) }, out = { cores };
   const tipo = t => ate.filter(a => (a.tipo || '').toUpperCase() === t);
   const tipoOk = t => tipo(t).filter(a => !validas || validas.has(a.empresa));   // total da obra só com as empresas que montam
   const meus = (t, de) => tipo(t).filter(a => (emp ? a.empresa === emp : (!validas || t === 'TELHA' || t === 'PERFILAGEM' || validas.has(a.empresa))) && (de ? a.data >= ini : a.data < ini));
@@ -801,7 +802,9 @@ function reItensSomados(itens) {
   itens.forEach(x => { const k = reChaveItem(x); (g.get(k) || g.set(k, []).get(k)).push(x); });
   return [...g.values()].map(xs => {
     const qtd = soma0(xs, x => Number(x.it.qtd) || 0), realAc = soma0(xs, x => Math.min(x.realAc, Number(x.it.qtd) || Infinity));
-    return { nome: xs[0].it.atividade, un: xs[0].it.unidade, qtd, planAc: soma0(xs, x => x.planAc), realAc, falta: Math.max(0, qtd - realAc),
+    const ini = xs.map(x => x.it.inicio).filter(Boolean).sort()[0] || '', fim = xs.map(x => x.it.fim).filter(Boolean).sort().pop() || '';
+    const como = [...new Set(xs.map(x => String(x.it.como || '').trim()).filter(Boolean))].join(' / ');
+    return { nome: xs[0].it.atividade, un: xs[0].it.unidade, qtd, ini, fim, como, planAc: soma0(xs, x => x.planAc), realAc, falta: Math.max(0, qtd - realAc),
       status: realAc >= qtd - 1e-9 ? 'CONCLUÍDO' : reStatusPior(xs.map(x => x.status)) };
   });
 }
@@ -813,7 +816,7 @@ function reSecPlanos(d) {
   return `<p><b>Resumo dos planos${d.geral ? '' : ' da empresa'}:</b> ${reSm(g.veredito[0], g.veredito[1])} — realizado ${rePct(g.pctReal, 1)} × planejado até hoje ${rePct(g.pctPlan, 1)} (desvio ${g.desvio >= 0 ? '+' : ''}${nf(g.desvio, 1)} p.p.) em ${g.atividades} atividade(s) de ${g.n} plano(s).</p>`
     + p.rows.map(r => `<h3>${esc(r.plano.nome)} <span class="nota">${fdA(r.plano.inicio)} a ${fdA(r.plano.fim)}</span> ${reSm(r.veredito[0], r.veredito[1])}</h3>
     <p class="nota">Realizado ${rePct(r.c.pctReal, 1)} × planejado até hoje ${rePct(r.c.pctPlan, 1)} (desvio ${r.c.desvio >= 0 ? '+' : ''}${nf(r.c.desvio, 1)} p.p.) · situação ${esc(r.st)}${r.c.terminaEm ? ` · no ritmo atual termina em ${fdA(r.c.terminaEm)}` : ''}.</p>`
-    + reTab(['Atividade', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
+    + reTab(['Atividade (How)', 'Quando (When)', '#nPlano', '#nPlanejado até hoje', '#nRealizado', '#nFalta', 'Situação'], reItensSomados(r.itens).map(x => `<tr><td>${esc(x.nome)}${x.como ? `<div class="nota">Como: ${esc(x.como)}</div>` : ''}</td><td>${x.ini ? fdA(x.ini) + ' a ' + fdA(x.fim) : '—'}</td><td class="n">${plFmt(x.qtd, x.un)} ${esc(x.un)}</td><td class="n">${plFmt(x.planAc, x.un)}</td><td class="n"><b>${plFmt(x.realAc, x.un)}</b></td><td class="n">${plFmt(x.falta, x.un)}</td><td><span class="nota">${esc(x.status)}</span></td></tr>`))).join('');
 }
 function reSecBM(d) {
   const b = d.bm;

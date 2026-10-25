@@ -618,6 +618,53 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
     }
 }
 
+// Refaz o mapa de apontamento a partir dos IFC guardados da obra (posição e comprimento de cada peça na planta). Obras importadas antes da planta usam isto.
+// O GUID de cada peça e o grupo (produto + local) não mudam, então apontamentos e vínculos já feitos continuam valendo.
+function importacao_atualizar_mapa($obraId)
+{
+    @set_time_limit(300);
+    @ini_set('memory_limit', '768M');
+    $docs = importacao_arquivos_por_tipo($obraId);
+    $tmp = importacao_diretorio($obraId) . '/_leitura';
+    if (!is_dir($tmp)) {
+        @mkdir($tmp, 0755, true);
+    }
+    $limpar = [];
+    try {
+        $arquivos = importacao_expandir_documentos($docs['ifc'] ?? [], ['ifc'], $tmp, 'ifc', $limpar);
+        if (!$arquivos) {
+            throw new RuntimeException('Os arquivos IFC desta obra não estão mais guardados no servidor; reenvie o IFC na importação.');
+        }
+        $leituras = [];
+        foreach ($arquivos as list($nome, $caminho)) {
+            $leituras[] = ifc_ler_arquivo($caminho, $nome);
+            gc_collect_cycles();
+        }
+        $modelo = leitura_modelo($leituras);
+    } finally {
+        foreach ($limpar as $f) {
+            @unlink($f);
+        }
+        @rmdir($tmp);
+    }
+    $atual = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+    $faseItem = [];
+    foreach ((is_array($atual) ? ($atual['fases'] ?? []) : []) as $f) {
+        if (!empty($f['item'])) {
+            $faseItem[$f['fase']] = $f['item'];
+        }
+    }
+    importacao_gravar_mapa($obraId, $modelo, $faseItem);
+    $mapa = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true) ?: [];
+    $comXY = 0;
+    foreach ($mapa['pecas'] ?? [] as $p) {
+        if (isset($p[9]) && $p[9] !== null) {
+            $comXY++;
+        }
+    }
+    return ['pecas' => count($mapa['pecas'] ?? []), 'com_posicao' => $comXY, 'eixos' => count($mapa['malha']['linhas'] ?? [])];
+}
+
 // Um clique: lê os documentos, guarda o pacote (relatório) e cria a obra.
 function importacao_gerar($obraId, array $op)
 {
