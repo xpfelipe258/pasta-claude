@@ -98,6 +98,12 @@ try {
             }
             responder_json(200, tarefas_listar($usuario));
         }
+        if ($rota === 'configuracoes') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Configurações pessoais não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, configuracoes_ler($usuario));
+        }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
@@ -130,6 +136,16 @@ try {
     }
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
+    }
+    if ($rota === 'configuracoes') {   // preferências e dados do próprio usuário: não mexem nos dados da obra nem na versão do modelo
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Configurações pessoais não estão disponíveis por token de máquina.']);
+        }
+        $corpoC = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoC)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_configuracoes($corpoC, $usuario));
     }
     if ($rota === 'tarefas-msgs') {   // conversa entre os usuários: não mexe nos dados da obra
         if ($via_token) {
@@ -315,6 +331,125 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
         throw new ErroValidacao('Ação inválida.');
     }
     return tarefas_msgs_listar($usuario, $tarefaId);
+}
+
+// ---- Configurações pessoais (aba Configurações) -------------------------------------------------------------------
+function configuracoes_ler(array $usuario)
+{
+    $u = q_global('SELECT id, nome, login, perfil, empresa, email, tema, menu_pos FROM usuarios WHERE id = ?', [(int)$usuario['id']])->fetch();
+    $pref = preferencias_usuario((int)$usuario['id']);
+    $obras = q_global('SELECT o.nome FROM usuarios_obras uo JOIN obras o ON o.id = uo.obra_id WHERE uo.usuario_id = ? ORDER BY o.nome', [(int)$usuario['id']])->fetchAll(PDO::FETCH_COLUMN);
+    $mods = modulos_usuario($usuario);
+    $ult = q_global("SELECT quando FROM auditoria_global WHERE usuario = ? AND acao = 'senha_alterada' ORDER BY id DESC LIMIT 1", [$u['login']])->fetchColumn();
+    return [
+        'nome' => $u['nome'], 'login' => $u['login'], 'perfil' => $u['perfil'], 'empresa' => $u['empresa'], 'email' => (string)($u['email'] ?? ''),
+        'idioma' => $pref['idioma'], 'tam_texto' => $pref['tam_texto'],
+        'tema' => in_array((string)$u['tema'], TEMAS_VALIDOS, true) ? $u['tema'] : '',
+        'menu' => ($u['menu_pos'] ?? '') === 'topo' ? 'topo' : 'lateral',
+        'tutorial' => $pref['tutorial'],
+        'obras' => $obras ?: [], 'modulos' => $mods,
+        'senha_alterada_em' => $ult ?: null,
+        'idiomas' => IDIOMAS_VALIDOS, 'temas' => TEMAS_VALIDOS,
+    ];
+}
+
+function acao_configuracoes(array $corpo, array $usuario)
+{
+    $id = (int)$usuario['id'];
+    $acao = (string)($corpo['acao'] ?? '');
+    $u = q_global('SELECT id, nome, login, senha, email FROM usuarios WHERE id = ? AND ativo = 1', [$id])->fetch();
+    if (!$u) {
+        throw new ErroValidacao('Usuário não encontrado. Entre de novo.');
+    }
+    garantir_preferencias_usuario();
+    if ($acao === 'perfil') {
+        $nome = trim(strip_tags((string)($corpo['nome'] ?? '')));
+        $nome = preg_replace('/\s+/u', ' ', $nome);
+        if (mb_strlen($nome) < 2 || mb_strlen($nome) > 80) {
+            throw new ErroValidacao('Informe o nome (de 2 a 80 caracteres).');
+        }
+        $email = trim((string)($corpo['email'] ?? ''));
+        if ($email !== '') {
+            if (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new ErroValidacao('E-mail inválido.');
+            }
+            $outro = q_global('SELECT id FROM usuarios WHERE LOWER(email) = ? AND id <> ?', [mb_strtolower($email), $id])->fetchColumn();
+            if ($outro) {
+                throw new ErroValidacao('Este e-mail já está em uso por outro usuário.');
+            }
+        }
+        q_global('UPDATE usuarios SET nome = ?, email = ? WHERE id = ?', [$nome, $email !== '' ? $email : null, $id]);
+        registrar_global('perfil_alterado', ['usuario' => $u['login']]);
+        return ['ok' => true, 'mensagem' => 'Dados atualizados.', 'nome' => $nome, 'email' => $email];
+    }
+    if ($acao === 'senha') {
+        $atual = (string)($corpo['atual'] ?? '');
+        $nova = (string)($corpo['nova'] ?? '');
+        $conf = (string)($corpo['confirmar'] ?? '');
+        $limite = date('Y-m-d H:i:s', time() - 900);
+        $falhas = (int)q_global("SELECT COUNT(*) FROM auditoria_global WHERE usuario = ? AND acao = 'senha_falha' AND quando >= ?", [$u['login'], $limite])->fetchColumn();
+        if ($falhas >= 5) {
+            throw new ErroValidacao('Muitas tentativas com a senha atual errada. Aguarde 15 minutos e tente de novo.');
+        }
+        if ($atual === '' || !password_verify($atual, (string)$u['senha'])) {
+            registrar_global('senha_falha', null);
+            throw new ErroValidacao('A senha atual não confere.');
+        }
+        if (strlen($nova) < 8) {
+            throw new ErroValidacao('A nova senha precisa ter pelo menos 8 caracteres.');
+        }
+        if (strlen($nova) > 200) {
+            throw new ErroValidacao('A nova senha é longa demais (máximo 200 caracteres).');
+        }
+        if ($nova !== $conf) {
+            throw new ErroValidacao('A confirmação da nova senha não confere.');
+        }
+        if (hash_equals($atual, $nova)) {
+            throw new ErroValidacao('A nova senha precisa ser diferente da atual.');
+        }
+        if (mb_strtolower($nova) === mb_strtolower((string)$u['login'])) {
+            throw new ErroValidacao('A senha não pode ser igual ao seu login.');
+        }
+        q_global('UPDATE usuarios SET senha = ? WHERE id = ?', [password_hash($nova, PASSWORD_DEFAULT), $id]);
+        registrar_global('senha_alterada', null);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+        return ['ok' => true, 'mensagem' => 'Senha alterada. Use a nova senha no próximo acesso.'];
+    }
+    if ($acao === 'preferencias') {
+        $idioma = (string)($corpo['idioma'] ?? 'pt-BR');
+        $tam = (string)($corpo['tam_texto'] ?? 'normal');
+        $tema = (string)($corpo['tema'] ?? '');
+        $menu = (string)($corpo['menu'] ?? 'lateral');
+        if (!in_array($idioma, IDIOMAS_VALIDOS, true)) { throw new ErroValidacao('Idioma inválido.'); }
+        if (!in_array($tam, TAMANHOS_TEXTO, true)) { throw new ErroValidacao('Tamanho de texto inválido.'); }
+        if ($tema !== '' && !in_array($tema, TEMAS_VALIDOS, true)) { throw new ErroValidacao('Tema inválido.'); }
+        if (!in_array($menu, MENUS_VALIDOS, true)) { throw new ErroValidacao('Posição do menu inválida.'); }
+        q_global('UPDATE usuarios SET idioma = ?, tam_texto = ?, tema = ?, menu_pos = ? WHERE id = ?',
+            [$idioma, $tam, $tema !== '' ? $tema : null, $menu === 'topo' ? 'topo' : null, $id]);
+        return ['ok' => true, 'mensagem' => 'Preferências salvas.', 'idioma' => $idioma, 'tam_texto' => $tam, 'tema' => $tema, 'menu' => $menu];
+    }
+    if ($acao === 'tutorial') {
+        $in = $corpo['tutorial'] ?? [];
+        $limpo = [];
+        if (is_array($in)) {
+            foreach (array_slice($in, 0, 300, true) as $chave => $passos) {
+                if (!is_string($chave) || !preg_match('/^[a-z0-9_.-]{1,40}$/', $chave) || !is_array($passos)) { continue; }
+                $lista = [];
+                foreach (array_slice($passos, 0, 60) as $n) {
+                    if (is_int($n) || (is_string($n) && ctype_digit($n))) {
+                        $n = (int)$n;
+                        if ($n >= 0 && $n < 60) { $lista[$n] = $n; }
+                    }
+                }
+                if ($lista) { $limpo[$chave] = array_values($lista); }
+            }
+        }
+        q_global('UPDATE usuarios SET tutorial = ? WHERE id = ?', [$limpo ? json_encode($limpo) : null, $id]);
+        return ['ok' => true, 'tutorial' => $limpo];
+    }
+    throw new ErroValidacao('Ação desconhecida.');
 }
 
 function acao_tarefas(array $corpo, array $usuario)

@@ -123,6 +123,12 @@
       </div>
     </div>
     <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
+    <div class="sidebar-grupo sidebar-dashboard sidebar-sistema">
+      <div class="sidebar-itens aberto">
+        <button data-aba="tutorial" title="Guia interativo do sistema, com passo a passo e PDF">Tutorial</button>
+        <button data-aba="config" title="Seus dados, senha, idioma e aparência">Configurações</button>
+      </div>
+    </div>
   </nav>
 </aside>
 
@@ -180,6 +186,18 @@
         <div class="tf-conv" data-cv="0"></div>
       </div>
     </div>
+  </section>
+
+  <!-- CONFIGURAÇÕES (todos os usuários) -->
+  <section id="aba-config" hidden>
+    <div class="bloco-cab"><h2>Configurações</h2><span class="nota" id="cfgNota">Seus dados, senha, idioma e aparência. Vale só para o seu usuário.</span></div>
+    <div id="cfgCorpo"><div class="bloco"><span class="nota">Carregando…</span></div></div>
+  </section>
+
+  <!-- TUTORIAL (interativo, com PDF) -->
+  <section id="aba-tutorial" hidden>
+    <div class="bloco-cab"><h2>Tutorial</h2><div class="acoes"><button class="btn" id="tutPdf">Baixar tutorial (PDF)</button><button class="btn primario" id="tutTour">Começar visita guiada</button></div></div>
+    <div id="tutCorpo"></div>
   </section>
 
   <!-- PAINEL -->
@@ -806,6 +824,15 @@
   </form>
 </dialog>
 
+<dialog id="dlgTutPdf">
+  <form id="tutPdfForm" method="dialog">
+    <div class="bloco-cab"><h2>Escolha o que entra no PDF</h2></div>
+    <label class="cfg-op sel" data-tut-escopo="tudo"><input type="radio" name="escopo" value="tudo" checked><span>Tudo</span></label>
+    <label class="cfg-op" data-tut-escopo="mod"><input type="radio" name="escopo" value="mod"><span>Só o módulo aberto</span></label>
+    <p class="nota">O PDF leva o seu progresso (☑ passos concluídos, ☐ pendentes) e abre na visualização antes de baixar.</p>
+    <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-tut-cancelar>Cancelar</button><button type="submit" class="btn primario">Gerar PDF</button></div>
+  </form>
+</dialog>
 <dialog id="dlgTfRel">
   <form id="tfRelForm" method="dialog">
     <div class="bloco-cab"><h2>Relatório de tarefas</h2></div>
@@ -897,6 +924,9 @@
 <script src="mapa_obra.js"></script>
 <script src="vinculos.js"></script>
 <script src="tabelas.js"></script>
+<script src="i18n.js"></script>
+<script src="config.js"></script>
+<script src="tutorial.js"></script>
 <script src="toque.js"></script>
 </body>
 </html>

@@ -571,10 +571,10 @@ function renderAba() {
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
      equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(),
-     plan: () => renderPlanejamento() };
+     plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
-  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'] }[abaAtual];
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
   if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
     const chave = '_script_' + exigido[1];
     if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar

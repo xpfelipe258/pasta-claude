@@ -864,6 +864,42 @@ function tema_attr()
     return $t !== '' ? ' data-theme="' . $t . '"' : '';
 }
 
+// ---- Preferências pessoais (aba Configurações): idioma, tamanho do texto e progresso do tutorial (2026-10-26) ----
+const IDIOMAS_VALIDOS = ['pt-BR', 'en', 'es'];
+const TAMANHOS_TEXTO = ['normal', 'grande', 'maior'];
+// Colunas criadas na hora (sem bump de esquema): o SELECT falha em banco antigo e a coluna é adicionada uma vez.
+function garantir_preferencias_usuario()
+{
+    static $ok = false;
+    if ($ok) {
+        return;
+    }
+    try {
+        q_global('SELECT idioma, tam_texto, tutorial FROM usuarios WHERE 1 = 0')->fetchAll();
+    } catch (Throwable $e) {
+        $pdo = bd();
+        foreach (['idioma' => 'VARCHAR(10) NULL', 'tam_texto' => 'VARCHAR(10) NULL', 'tutorial' => 'TEXT NULL'] as $col => $def) {
+            try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN $col $def"); } catch (Throwable $e2) { /* já existe */ }
+        }
+    }
+    $ok = true;
+}
+function preferencias_usuario($id = null)
+{
+    $id = $id ?? (int)(usuario_atual()['id'] ?? 0);
+    if (!$id) {
+        return ['idioma' => 'pt-BR', 'tam_texto' => 'normal', 'tutorial' => []];
+    }
+    garantir_preferencias_usuario();
+    $l = q_global('SELECT idioma, tam_texto, tutorial FROM usuarios WHERE id = ?', [$id])->fetch() ?: [];
+    $tut = json_decode((string)($l['tutorial'] ?? ''), true);
+    return [
+        'idioma' => in_array($l['idioma'] ?? '', IDIOMAS_VALIDOS, true) ? $l['idioma'] : 'pt-BR',
+        'tam_texto' => in_array($l['tam_texto'] ?? '', TAMANHOS_TEXTO, true) ? $l['tam_texto'] : 'normal',
+        'tutorial' => is_array($tut) ? $tut : [],
+    ];
+}
+
 // $app = tela do sistema (Dashboard geral): usa o tema E a posição do menu do usuário e não carrega o visual do portal.
 function pagina_inicio($titulo, $app = false)
 {

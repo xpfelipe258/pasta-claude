@@ -14,7 +14,8 @@ foreach (modulos_sistema() as $moduloMenu) {
         $html = preg_replace($padrao, '<div class="sidebar-grupo" hidden>$1', $html, 1);
     }
 }
-$html = str_replace('<html lang="pt-BR">', '<html lang="pt-BR"' . tema_attr() . menu_attr() . '>', $html);
+$prefs = preferencias_usuario((int)$u['id']);
+$html = str_replace('<html lang="pt-BR">', '<html lang="' . h($prefs['idioma']) . '"' . tema_attr() . menu_attr() . ($prefs['tam_texto'] !== 'normal' ? ' data-texto="' . h($prefs['tam_texto']) . '"' : '') . '>', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $html = str_replace('<script src="app.js', '<script src="consumo_ifc.js?v=' . @filemtime(__DIR__ . '/consumo_ifc.js') . '"></script><script src="app.js', $html);
@@ -32,6 +33,9 @@ $html = str_replace('src="tarefas.js"', 'src="tarefas.js?v=' . @filemtime(__DIR_
 $html = str_replace('src="cff.js"', 'src="cff.js?v=' . @filemtime(__DIR__ . '/cff.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . '/toque.js') . '"', $html);
+foreach (['i18n.js', 'config.js', 'tutorial.js'] as $arqNovo) {
+    $html = str_replace('src="' . $arqNovo . '"', 'src="' . $arqNovo . '?v=' . @filemtime(__DIR__ . '/' . $arqNovo) . '"', $html);
+}
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);
 $primaria = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
@@ -42,7 +46,7 @@ $contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? 
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);
-$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
+$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 echo $html;
