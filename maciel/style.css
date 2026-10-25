@@ -1309,3 +1309,15 @@ body.pintando-toque { overflow: hidden; touch-action: none; }
   .mo-campo { width: 100% !important; overflow: hidden; }
   .mo-tabela { display: block; }
 }
+/* Celular: os temas (Névoa, Grafite, Sálvia) reservam a coluna do menu; no celular o menu é gaveta e o conteúdo ocupa a tela toda */
+@media (max-width: 900px) {
+  html .topo, html .faixa, html main, html .periodo,
+  :root[data-theme] .topo, :root[data-theme] .faixa, :root[data-theme] main, :root[data-theme] .periodo,
+  :root[data-menu="topo"] .topo, :root[data-menu="topo"] .faixa, :root[data-menu="topo"] main, :root[data-menu="topo"] .periodo { margin-left: 0 !important; margin-right: 0 !important; }
+  main, .periodo { box-sizing: border-box; width: 100%; }
+}
+@media (max-width: 900px) {
+  html .sidebar { transform: translateX(calc(-100% - 40px)); left: 0; top: 0; bottom: 0; border-radius: 0; }
+  html .sidebar.aberta { transform: translateX(0); }
+  :root[data-menu="topo"] .sidebar { position: fixed; top: 0; bottom: 0; height: auto; display: block; padding: 12px 0; }
+}
