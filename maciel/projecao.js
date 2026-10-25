@@ -44,17 +44,42 @@ function pjAtividadesBm(it) {
   const esp = ganBmAtividadesEspecificas(it);
   return esp.length ? esp : ganBmAtividades(it);
 }
-function pjPreco(ativ, R, cache) {
-  const it = ativ.it, ats = pjAtividadesBm(it);
-  let total = 0;
+// Valor (R$) e quantidade do catálogo do BM de UMA lista de atividades (valor do item × peso, contrato R).
+function pjValorCatalogo(ats, R, cache) {
+  let total = 0, qtd = 0;
   ats.forEach(a => {
     let its = cache.get(a.empresa);
     if (!its) { its = bmItens(a.empresa, ref); cache.set(a.empresa, its); }
     const bi = its.find(x => x.item === a.item), x = bi && bi.ats.find(y => y.a.codigo === a.codigo);
-    if (bi && x) total += bmPrecoAtividade(bi, x.a, R).total;
+    if (bi && x) { total += bmPrecoAtividade(bi, x.a, R).total; qtd += Number(a.qtd) || 0; }
   });
-  const base = Number(it.qtd) || 0, bm = base > 0 && total > 0 ? total / base : 0, man = Number(pjManual()[ativ.chave]) || 0;
-  return { unit: man > 0 ? man : bm, bm, manual: man > 0, origem: man > 0 ? 'manual' : bm > 0 ? 'BM' : 'sem', codigos: ats.map(a => a.codigo) };
+  return { total, qtd };
+}
+// Preço unitário da atividade. Cada empresa tem o SEU valor no catálogo do BM (EJ e CMM têm valores diferentes):
+//  • com `emp` (visão/relatório de uma empresa): valor das atividades DA EMPRESA ÷ quantidade delas no catálogo dela;
+//  • sem `emp` e atividade feita por 2 ou mais empresas: média dos preços de cada empresa, ponderada pela produção que cada uma recebeu
+//    na divisão do 5W2H (sem divisão informada, partes iguais);
+//  • atividade de uma empresa só: valor do catálogo ÷ quantidade do item (como antes). Preço digitado na tela vale sobre todos.
+function pjPreco(ativ, R, cache, emp, it0) {
+  const it = ativ.it, ats = pjAtividadesBm(it), man = Number(pjManual()[ativ.chave]) || 0;
+  const codigos = ats.map(a => a.codigo);
+  const resp = (bm, origem) => ({ unit: man > 0 ? man : bm, bm, manual: man > 0, origem: man > 0 ? 'manual' : bm > 0 ? (origem || 'BM') : 'sem', codigos });
+  const daEmp = e => ats.filter(a => ganNorm(a.empresa) === ganNorm(e));
+  const unitEmp = e => { const l = daEmp(e); if (!l.length) return 0; const v = pjValorCatalogo(l, R, cache); return v.qtd > 0 && v.total > 0 ? v.total / v.qtd : 0; };
+  if (emp && daEmp(emp).length) return resp(unitEmp(emp), 'BM ' + emp);
+  const empresasCat = [...new Set(ats.map(a => a.empresa))];
+  if (!emp && empresasCat.length >= 2) {
+    const dv = Array.isArray(it0?.divisao) && it0.divisao.length >= 2 ? it0.divisao : null;
+    const lista = dv ? dv.map(d => ({ e: empresasCat.find(c => ganNorm(c) === ganNorm(d.empresa)), q: Number(d.qtd) || 0 })).filter(x => x.e)
+      : empresasCat.map(e => ({ e, q: 1 }));
+    const tot = soma0(lista, x => x.q);
+    if (lista.length && tot > 0) {
+      const bm = soma0(lista, x => x.q * unitEmp(x.e)) / tot;
+      if (bm > 0) return resp(bm, 'BM por empresa');
+    }
+  }
+  const v = pjValorCatalogo(ats, R, cache), base = Number(it.qtd) || 0;
+  return resp(base > 0 && v.total > 0 ? v.total / base : 0);
 }
 
 // ---------------------------------------------------------------- recorte por empresa
@@ -112,7 +137,7 @@ function pjDaEmpresa(c, emp, pl) {
     if (status === 'NO PRAZO' && base > it.fim && it.qtd - realAc > 0) status = 'ATRASADO';
     return { ...x, it, r0, mapaPlan, real, realAc, planAc, taxaProj, ritmoAtual: ritmo, meta: metaE, concluiu, status, falta: Math.max(0, it.qtd - realAc), pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0, pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, _parte: n, _dv: dv || null };
   });
-  return { ...c, itens };
+  return { ...c, itens, emp };
 }
 
 // ---------------------------------------------------------------- cálculo
@@ -121,7 +146,7 @@ function pjCalc(pl, c, fator, R) {
   const cache = new Map(), base = c.base;
   const itens = c.itens.map(x => {
     const ativ = x.ativ || { it: x.it, chave: x.it.chave };
-    const pr = pjPreco(ativ, R, cache), qtd = Number(x.it.qtd) || 0;
+    const pr = pjPreco(ativ, R, cache, c.emp || '', x.it), qtd = Number(x.it.qtd) || 0;
     const falta = Math.max(0, qtd - x.realAc), taxa = (x.taxaProj > 0 ? x.taxaProj : 0) * fator;
     const proj = new Map();
     let termina = falta <= 1e-9 ? (x.concluiu || base) : null;
@@ -436,7 +461,7 @@ async function renderProjecao() {
     i.proj.forEach((v, d) => { if (d <= r.fimPlano) ac += v; });
     const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p;
     const est = pjEstado(i, r.base);
-    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
+    h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(PJ.emp || plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, un)} ${esc(un)}</td>
       <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${i.p ? nf(i.p, 2) : ''}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}">${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
       <td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(i.ativ.chave)}" data-ini="${(x.it._plano || pl).inicio}" data-fim="${(x.it._plano || pl).fim}" title="Ver de onde vem o executado (${plFmt(x.realAc, un)} ${esc(un)})">${rs(exec)}</button></td><td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td>
@@ -553,12 +578,12 @@ async function pjRelatorio() {
       let ac = Math.min(i.qtd, x.realAc);
       i.proj.forEach((v, dd) => { if (dd <= r.fimPlano) ac += v; });
       const noFim = Math.min(ac, i.qtd) * i.p, saldo = Math.max(0, i.qtd - x.realAc) * i.p, est = pjEstado(i, r.base);
-      const div = Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 ? x.it.divisao.map(e => `<div class="nota"><b>${esc(e.empresa)}</b>: ${plFmt(e.qtd, x.it.unidade)} ${esc(x.it.unidade)}${e.valor != null ? ' · ' + rs(e.valor) : ''} · ${fdA(e.inicio || x.it.inicio)} a ${fdA(e.fim || x.it.fim)}${e.como ? ' · ' + esc(e.como) : ''}</div>`).join('') : '';
-      return `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fdA(x.it.inicio)} a ${fdA(x.it.fim)}${x.it.como ? ' · Como: ' + esc(x.it.como) : ''}</div>${div}</td><td>${esc(plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
+      const div = !d.emp && Array.isArray(x.it.divisao) && x.it.divisao.length >= 2 ? x.it.divisao.map(e => `<div class="nota"><b>${esc(e.empresa)}</b>: ${plFmt(e.qtd, x.it.unidade)} ${esc(x.it.unidade)}${e.valor != null ? ' · ' + rs(e.valor) : ''} · ${fdA(e.inicio || x.it.inicio)} a ${fdA(e.fim || x.it.fim)}${e.como ? ' · ' + esc(e.como) : ''}</div>`).join('') : '';
+      return `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fdA(x.it.inicio)} a ${fdA(x.it.fim)}${x.it.como ? ' · Como: ' + esc(x.it.como) : ''}</div>${div}</td><td>${esc(d.emp || plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
         <td class="n">${plFmt(x.it.qtd, x.it.unidade)} ${un(x)}</td><td class="n">${i.p ? rs2(i.p) : '—'}${i.pr.manual ? '<div class="nota">preço digitado</div>' : ''}</td><td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><b>${rs(exec)}</b></td>
         <td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td><td class="n">${rs(noFim)}</td><td class="n">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td>${esc(est.rot)}</td></tr>`;
     });
-    const secAtiv = `<h2>Por atividade</h2><p class="sub-cab">Preço unitário = valor da atividade no BM ÷ quantidade do item no cronograma (ou o preço digitado na Projeção). Executado = lançado até ${fdA(c.baseRef)}.</p>` +
+    const secAtiv = `<h2>Por atividade</h2><p class="sub-cab">Preço unitário = valor da atividade no catálogo do BM ÷ quantidade dela no catálogo (de cada empresa, com o valor próprio dela; ou o preço digitado na Projeção). Executado = lançado até ${fdA(c.baseRef)}.</p>` +
       reTab(['Atividade', 'Quem', '#nQuantidade', '#nPreço unit.', '#nValor do plano', '#nPlanejado até hoje', '#nExecutado (R$)', '#n% físico', '#nProjeção no fim do plano', '#nTermina em', '#nSaldo a medir', 'Situação'], linhasAtiv,
         `<tfoot><tr><th colspan="4">Total</th><th class="n">${rs(r.totalPlano)}</th><th class="n">${rs(r.planoAteHoje)}</th><th class="n">${rs(r.exec)}</th><th class="n">${nf(pctFis, 0)}%</th><th class="n">${rs(aoFim)}</th><th class="n">${r.termina ? fdA(r.termina) : '—'}</th><th class="n">${rs(soma0(r.itens, i => Math.max(0, i.qtd - i.x.realAc) * i.p))}</th><th></th></tr></tfoot>`);
 

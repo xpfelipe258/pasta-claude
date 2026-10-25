@@ -816,8 +816,8 @@ function plQuemAplicar(it, antes) {   // grava no item a escolha (empresa e quem
 // Divisão da atividade por empresa: com 2 ou mais empresas no Who, cada uma recebe a sua quantidade (produção) e o seu valor estimado (financeiro).
 // O valor sugerido é a quantidade × preço unitário do catálogo do BM; ao digitar o valor ele passa a ser manual. it.custo = soma dos valores.
 const plEmpresasMarcadas = it => { const q = plQuemLista(it), o = String(q.outra || '').trim(); return [...q.marcadas, ...(o ? [o] : [])]; };
-function plPrecoUnit(it) {
-  try { const a = plAtivPorChave(it.chave); if (a && typeof pjPreco === 'function') return pjPreco(a, 'RÓTULA', new Map()).unit || 0; } catch { /* sem preço */ }
+function plPrecoUnit(it, emp) {   // preço unitário do catálogo do BM; com `emp`, o da própria empresa (cada uma tem o seu valor)
+  try { const a = plAtivPorChave(it.chave); if (a && typeof pjPreco === 'function') return pjPreco(a, 'RÓTULA', new Map(), emp || '', it).unit || 0; } catch { /* sem preço */ }
   return 0;
 }
 const plArred = (v, inteiro) => (inteiro ? Math.round(v) : +v.toFixed(3));
@@ -830,21 +830,22 @@ function plDivisaoSync(it) {
   if (emps.length < 2) { delete it.divisao; return; }
   const mesmas = Array.isArray(it.divisao) && it.divisao.length === emps.length && emps.every(e => it.divisao.some(d => ganNorm(d.empresa) === ganNorm(e)));
   if (mesmas) return;
-  const qtd = Number(it.qtd) || 0, inteiro = plInteiro(it.unidade), pu = plPrecoUnit(it), n = emps.length;
+  const qtd = Number(it.qtd) || 0, inteiro = plInteiro(it.unidade), n = emps.length;
   const parte = plArred(qtd / n, inteiro);
   const antigas = new Map((it.divisao || []).map(d => [ganNorm(d.empresa), d]));   // quem já estava mantém o How e o When
-  it.divisao = emps.map((e, i) => { const q = i === 0 ? plArred(qtd - parte * (n - 1), inteiro) : parte; const ant = antigas.get(ganNorm(e)); return { empresa: e, qtd: q, valor: pu > 0 ? +(q * pu).toFixed(2) : null, valor_manual: false, como: ant?.como || '', inicio: ant?.inicio || it.inicio || '', fim: ant?.fim || it.fim || '', quando_manual: !!ant?.quando_manual }; });
+  it.divisao = emps.map((e, i) => { const q = i === 0 ? plArred(qtd - parte * (n - 1), inteiro) : parte; const ant = antigas.get(ganNorm(e)); const pu = plPrecoUnit(it, e); return { empresa: e, qtd: q, valor: pu > 0 ? +(q * pu).toFixed(2) : null, valor_manual: false, como: ant?.como || '', inicio: ant?.inicio || it.inicio || '', fim: ant?.fim || it.fim || '', quando_manual: !!ant?.quando_manual }; });
   plDivisaoSomaCusto(it);
 }
 function plDivisaoRescalar(it) {   // a quantidade do item mudou: mantém as proporções entre as empresas
   if (!Array.isArray(it.divisao) || it.divisao.length < 2) return;
-  const qtd = Number(it.qtd) || 0, soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), inteiro = plInteiro(it.unidade), pu = plPrecoUnit(it);
+  const qtd = Number(it.qtd) || 0, soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), inteiro = plInteiro(it.unidade);
   if (!(soma > 0) || !(qtd > 0)) return;
   const f = qtd / soma;
   let acum = 0;
   it.divisao.forEach((d, i) => {
     const q = i === it.divisao.length - 1 ? plArred(qtd - acum, inteiro) : plArred((Number(d.qtd) || 0) * f, inteiro);
     acum += q;
+    const pu = plPrecoUnit(it, d.empresa);
     d.valor = d.valor_manual && d.valor !== '' && d.valor != null ? +(Number(d.valor) * f).toFixed(2) : (pu > 0 ? +(q * pu).toFixed(2) : d.valor);
     d.qtd = q;
   });
@@ -1337,7 +1338,7 @@ document.addEventListener('input', ev => {
     const v = t.value === '' ? '' : Number(t.value);
     if (t.dataset.plDiv === 'qtd') {
       d.qtd = v;
-      const pu = plPrecoUnit(it);
+      const pu = plPrecoUnit(it, d.empresa);
       if (!d.valor_manual && pu > 0) {
         d.valor = +((Number(v) || 0) * pu).toFixed(2);
         const campo = [...document.querySelectorAll('[data-pl-div="valor"]')].find(x => x.dataset.k === t.dataset.k && x.dataset.emp === t.dataset.emp);
