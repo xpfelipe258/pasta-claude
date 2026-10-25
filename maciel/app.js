@@ -4659,9 +4659,72 @@ function apTelhaHtml(ctx, fr) {
     <p class="nota">Cada faixa é ${perf ? 'uma fiada de perfilagem' : 'uma telha'} de ${nf(t.comprimento_m || 177.32, 2)} m que corre do eixo A (topo) ao H (base), com ${nf((t.largura_mm || 485) / 1000, 3)} m de largura entre eixos, numerada de 0001 a ${String(n).padStart(4, '0')} a partir do eixo 01 (${nf((t.comprimento_galpao_mm || 0) / 1000, 1)} m de galpão); cada uma vale ${nf(apTelhaM2(fr), 2)} m². Ao salvar, o apontamento lança <b>${nf(apTelhaM2(fr), 2)} m² por faixa</b> no serviço <b>${esc(cap(fr.servico))}</b> da empresa em Lançamentos (no dia apontado) e na atividade <b>${esc(t.codigo_bm || '')}</b> do catálogo do BM; excluir o apontamento devolve os dois.</p>`;
 }
 
+// ---- telhas do fechamento lateral (Globo Aços): cada telha do IFC é uma faixa, nas elevações dos lados A e H e dos oitões 01 e 20, agrupadas por trecho
+// (vão entre eixos nos lados; faixa AB…GH nos oitões). O IFC dá a contagem de telhas por trecho; dentro do trecho elas seguem a ordem 01, 02, 03…
+// Apontamento antigo do trecho inteiro (sem "/nn") vale para todas as telhas dele.
+function apTFechFeitas(fr) {
+  const m = new Map();
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHAFECH').forEach(a => {
+    if (String(a.rua).includes('/')) { m.set(`${a.faixa}|${a.rua}`, a); return; }
+    const p = fr.partes.find(x => x.id === a.faixa);
+    (p ? p.celulas : []).filter(c => c.vao === a.rua).forEach(c => m.set(`${p.id}|${c.trecho}`, a));
+  });
+  return m;
+}
+function apTFechAgrupar(p) {
+  const vaos = [];
+  p.celulas.forEach(c => { let v = vaos[vaos.length - 1]; if (!v || v.vao !== c.vao) { v = { vao: c.vao, cels: [] }; vaos.push(v); } v.cels.push(c); });
+  return vaos;
+}
+function apTFechSvg(fr) {
+  const px = AP_TELHA_PX[apEst.zoom] || 3, gap = px + 3, mEsq = 104, mTop = 40, alto = 46, passo = alto + 64, m2 = apTelhaM2(fr);
+  const feitas = apTFechFeitas(fr), parts = fr.partes.map(p => ({ p, vaos: apTFechAgrupar(p) }));
+  const larg = pt => pt.p.celulas.length * px + pt.vaos.length * gap;
+  const W = mEsq + Math.max(...parts.map(larg)) + 24, H = mTop + parts.length * passo;
+  const o = [`<svg class="apt" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Telhas do fechamento lateral por trecho">`];
+  parts.forEach((pt, i) => {
+    const y0 = mTop + i * passo;
+    o.push(`<text x="${mEsq - 10}" y="${y0 + alto / 2 - 2}" text-anchor="end" class="apt-rot b">${esc(pt.p.nome)}</text><text x="${mEsq - 10}" y="${y0 + alto / 2 + 11}" text-anchor="end" class="apt-rot">${nf(pt.p.total)} telhas</text>`);
+    let x = mEsq;
+    pt.vaos.forEach(v => {
+      const feitasV = v.cels.filter(c => feitas.has(`${pt.p.id}|${c.trecho}`)).length, w = v.cels.length * px;
+      o.push(`<g class="apt-eixo" data-ap-tfech="${esc(pt.p.id)}|${esc(v.vao)}"><title>${esc(pt.p.nome)} · trecho ${esc(v.vao)}: ${v.cels.length} telhas — clique para marcar todas as pendentes</title>` +
+        `<text x="${x + w / 2}" y="${y0 - 8}" text-anchor="middle" class="apt-rot b">${esc(v.vao)}</text><text x="${x + w / 2}" y="${y0 + alto + 16}" text-anchor="middle" class="apt-rot">${feitasV}/${v.cels.length}</text></g>`);
+      v.cels.forEach(c => {
+        const k = `${pt.p.id}|${c.trecho}|`, ap = feitas.get(`${pt.p.id}|${c.trecho}`), emp = apEst.frente.get(`TELHAFECH|${k}`);
+        const cls = ap ? 'feita' : emp ? 'sel' : 'pend', cor = ap && ap.empresa ? corSelEmp(ap.empresa) : emp ? corSelEmp(emp) : '';
+        const info = `${pt.p.nome} · trecho ${c.vao} · telha ${c.n} de ${c.de} · ${nf(m2, 2)} m²` + (ap ? ` · instalada em ${fdA(ap.data)} (${ap.empresa || ''})` : '');
+        o.push(`<rect class="apt-t ${cls}" ${cor ? `style="--sel:${cor}"` : ''} x="${x}" y="${y0}" width="${Math.max(px - .6, 1)}" height="${alto}" data-ap-telha="${esc(k)}" data-ap-info="${esc(info)}"/>`);
+        x += px;
+      });
+      x += gap;
+    });
+  });
+  return o.join('') + '</svg>';
+}
+function apTFechResumoHtml(fr) {
+  const n = fr.total, m2 = apTelhaM2(fr), feitas = soma0((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'TELHAFECH'), a => a.qtd || 1);
+  const sel = [...apEst.frente.keys()].filter(k => k.startsWith('TELHAFECH|')).length, pend = Math.max(0, n - feitas - sel);
+  const tile = (rot, q, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${nf(q)} <small>telhas</small></div><div class="sub"><b>${nf(q * m2, 1)} m²</b> · ${sub}</div></div>`;
+  return `<div class="tiles ap-telha-tiles">${tile('Instaladas', feitas, `${nf(n ? feitas / n * 100 : 0, 1)}% das ${nf(n)} telhas do projeto`, 'var(--verde)')}${tile('Selecionadas — a lançar', sel, sel ? `ao salvar: +${nf(sel * m2, 1)} m² em Lançamentos (FECHAMENTO) e no BM (GLO-3.2.2-01)` : 'nada selecionado', 'var(--acento)')}${tile('Pendentes após lançar', pend, 'ainda sem apontamento', 'var(--fg3)')}${tile('Total do fechamento lateral', n, `${nf(m2 * n, 0)} m² (${nf(m2, 2)} m² por telha)`, 'var(--amarelo)')}</div>`;
+}
+function apTFechHtml(ctx, fr) {
+  const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
+  const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
+  const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
+  return `<div id="apTelhaResumo">${apTFechResumoHtml(fr)}</div>
+    <div class="ap-linha ap-mapa-barra">${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
+      <div class="ap-legenda">${leg('joist feita', 'instalada')}${leg('joist pend', 'pendente')}${selLeg}</div>
+      <span class="nota">clique ou arraste o mouse sobre as telhas; o nome do trecho marca todas as pendentes dele.</span></div>
+    <div id="apMapaInfo" class="ap-info">Passe o mouse sobre uma telha para ver o trecho e o número dela.</div>
+    <div class="tabela-rolagem apm-caixa">${apTFechSvg(fr)}</div>
+    <p class="nota">Cada faixa é uma telha do fechamento lateral (família TELHA FECHAMENTO do IFC): ${nf(fr.total)} telhas, em elevação — Lado A e Lado H (vãos entre eixos, do eixo 01 ao 20) e oitões dos eixos 01 e 20 (faixas AB a GH). O IFC informa quantas telhas há em cada trecho; dentro do trecho elas aparecem na ordem 01, 02, 03… Cada telha vale ${nf(apTelhaM2(fr), 2)} m² (${nf((fr.telha || {}).m2_total_contrato || 0, 1)} m² da atividade "Instalação das telhas" do catálogo do BM ÷ ${nf(fr.total)} telhas) e soma no serviço FECHAMENTO da Globo Aços e na medição (GLO-3.2.2-01).</p>`;
+}
+
 function apFrenteHtml(ctx) {
   const fr = apFrenteAtual();
   if (fr && apModoTelha()) return apTelhaHtml(ctx, fr);
+  if (fr && apEst.modo === 'tfech') return apTFechHtml(ctx, fr);
   if (!fr) return window._frentes
     ? '<p class="vazio">O mapa desta frente ainda não chegou no programa. Ele vem junto com a atualização automática: aguarde alguns minutos ou clique em "Verificar atualização" no topo da tela.</p>'
     : '<p class="vazio">Carregando o mapa do IFC…</p>';
@@ -5056,6 +5119,7 @@ function apPintarTelha(el, modo) {   // só a faixa muda (redesenhar as 882 troc
 function apTelhaResumoAtualizar() {
   const el = $('#apTelhaResumo'), fr = apFrenteAtual();
   if (el && fr && apModoTelha()) el.innerHTML = apTelhaResumoHtml(fr);
+  else if (el && fr && apEst.modo === 'tfech') el.innerHTML = apTFechResumoHtml(fr);
 }
 function apTelhasMarcar(de, ate) {   // marca (ou, se todas já estavam marcadas, desmarca) as telhas pendentes do intervalo
   const fr = apFrenteAtual(), id = fr.partes[0].id, tp = apTipoT(), feitas = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === tp).map(a => String(a.rua)));
@@ -5145,6 +5209,15 @@ function ligarApontamento() {
       if (!apExigirEmpresa()) return;
       const n = apTelhaN(apFrenteAtual()), a = Math.max(1, Math.min(n, +$('#apTelDe').value || 1)), b = Math.max(1, Math.min(n, +$('#apTelAte').value || n));
       apTelhasMarcar(Math.min(a, b), Math.max(a, b));
+      return renderApont();
+    }
+    const tfT = ev.target.closest('[data-ap-tfech]');
+    if (tfT && apFrenteAtual()) {   // telhas do fechamento lateral: o nome do trecho marca (ou desmarca) as telhas pendentes dele
+      if (!apExigirEmpresa()) return;
+      const [pid, vao] = tfT.dataset.apTfech.split('|'), fr = apFrenteAtual(), feitas = apTFechFeitas(fr), p = fr.partes.find(x => x.id === pid);
+      const ks = (p ? p.celulas : []).filter(c => c.vao === vao && !feitas.has(`${pid}|${c.trecho}`)).map(c => `TELHAFECH|${pid}|${c.trecho}|`);
+      const todas = ks.length && ks.every(k => apEst.frente.get(k) === apEst.empresa);
+      ks.forEach(k => (todas ? apEst.frente.delete(k) : apEst.frente.set(k, apEst.empresa)));
       return renderApont();
     }
     if (ev.target.closest('[data-ap-telha]')) return;   // telhas são tratadas em mousedown/arraste
@@ -5260,7 +5333,7 @@ function ligarApontamento() {
   });
   sec.addEventListener('mouseover', ev => {
     const alvo = ev.target.closest('[data-ap-info]'), info = $('#apMapaInfo');
-    if (info) info.textContent = alvo ? alvo.dataset.apInfo : (apModoTelha() ? 'Passe o mouse sobre uma faixa para ver o número e a posição no galpão.' : AP_INFO_PADRAO);
+    if (info) info.textContent = alvo ? alvo.dataset.apInfo : (apModoTelha() ? 'Passe o mouse sobre uma faixa para ver o número e a posição no galpão.' : apEst.modo === 'tfech' ? 'Passe o mouse sobre uma telha para ver o trecho e o número dela.' : AP_INFO_PADRAO);
     const slot = ev.target.closest('[data-ap-slot]');
     // durante o arraste só o retângulo muda (redesenhar o mapa trocaria o elemento sob o mouse e perderia retângulos)
     if (apArraste && slot && regras()) apArrastarAte(apContexto(regras()), slot.dataset.apSlot);

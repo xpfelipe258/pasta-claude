@@ -548,7 +548,7 @@ function reTelhasFech(emp, ini, ate) {
   const n = { per: 0, ant: 0, outra: 0, pend: 0 };
   const partes = fr.partes.map(p => {
     const o = { nome: p.nome, total: p.total, per: 0, ant: 0, outra: 0, pend: 0 };
-    p.celulas.forEach(c => { const st = reEstadoPeca(feitas.get(`${p.id}|${c.trecho}`), emp, ini); o[st] += c.total || 0; n[st] += c.total || 0; });
+    p.celulas.forEach(c => { const st = reEstadoPeca(feitas.get(`${p.id}|${c.trecho}`) || feitas.get(`${p.id}|${c.vao}`), emp, ini); o[st] += c.total || 0; n[st] += c.total || 0; });   // apontamento antigo do trecho inteiro (sem "/nn") vale para todas as telhas dele
     return o;
   });
   return { n, partes, total: fr.total, m2: apTelhaM2(fr), m2Contrato: (fr.telha || {}).m2_total_contrato || 0 };

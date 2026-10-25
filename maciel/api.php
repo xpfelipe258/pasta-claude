@@ -1844,9 +1844,9 @@ function frente_telhas_fechamento(array $fech)
         $soma = 0;
         foreach (($p['celulas'] ?? []) as $c) {
             $n = (int)(($c['pecas'] ?? [])[$familia] ?? 0);
-            if ($n > 0) {
-                $cel[] = ['trecho' => $c['trecho'], 'pecas' => [$familia => $n], 'total' => $n];
-                $soma += $n;
+            for ($i = 1; $i <= $n; $i++) {   // uma célula por TELHA: "01-02/07" = 7ª telha do vão 01-02 (o IFC dá a contagem por trecho; a posição dentro do trecho é a ordem)
+                $cel[] = ['trecho' => $c['trecho'] . '/' . sprintf('%02d', $i), 'vao' => $c['trecho'], 'n' => $i, 'de' => $n, 'pecas' => [$familia => 1], 'total' => 1];
+                $soma++;
             }
         }
         if ($cel) {
@@ -2105,7 +2105,7 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
     }
     $validos = array_column($parte['celulas'], 'trecho');
     $porTrecho = array_column($parte['celulas'], 'total', 'trecho');
-    $telhaFech = $tipo === 'TELHAFECH';   // uma célula = todas as telhas do trecho
+    $telhaFech = $tipo === 'TELHAFECH';   // uma célula = uma telha ("vão/nn"); apontamento antigo do vão inteiro (sem "/nn") bloqueia as telhas dele
     $novas = [];
     $vistos = [];
     foreach (($item['trechos'] ?? []) as $trecho) {
@@ -2118,6 +2118,10 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
             throw new ErroValidacao("{$frente['titulo']} · {$parte['nome']}: trecho '$trecho' não existe no mapa.");
         }
         $chave = "$tipo|{$parte['id']}|$trecho|$etapa";
+        if ($telhaFech && strpos($trecho, '/') !== false) {
+            $vaoChave = "$tipo|{$parte['id']}|" . explode('/', $trecho)[0] . "|$etapa";
+            if (isset($ja[$vaoChave]) && !isset($ja[$chave])) { $chave = $vaoChave; }   // o vão inteiro já tinha sido apontado
+        }
         if (isset($ja[$chave])) {
             $quando = $ja[$chave]['data'] ?? null;
             $rot = "{$parte['nome']} · $trecho" . ($etapa ? " · $etapa" : '');
