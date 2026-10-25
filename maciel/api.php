@@ -1873,6 +1873,25 @@ function frente_telhas_fechamento(array $fech)
 {
     $familia = 'TELHA FECHAMENTO';   // (constante global não serve: api.php roda as rotas antes de chegar nesta linha)
     $pag = paginacao_telhas_ler();
+    if (!$pag) {   // obra que não é a legada mas tem o mesmo fechamento (lados A e H, oitões 01 e 20, contagem do IFC a ±2 telhas da prancha): usa a prancha do arquivo
+        $arq = __DIR__ . '/inc/paginacao_telhas.json';
+        $l = is_file($arq) ? json_decode(file_get_contents($arq), true) : null;
+        if (is_array($l) && !empty($l['paredes'])) {
+            $ok = true;
+            foreach ($l['paredes'] as $id => $pw) {
+                $esperado = isset($pw['grupos']) ? array_sum(array_column($pw['grupos'], 0)) : array_sum(array_column($pw['inferior'], 0)) + array_sum(array_column($pw['superior'], 0));
+                $ifc = null;
+                foreach (($fech['partes'] ?? []) as $p) {
+                    if ($p['id'] === $id) {
+                        $ifc = 0;
+                        foreach (($p['celulas'] ?? []) as $c) { $ifc += (int)(($c['pecas'] ?? [])['TELHA FECHAMENTO'] ?? 0); }
+                    }
+                }
+                if ($ifc === null || abs($ifc - $esperado) > 2) { $ok = false; }
+            }
+            $pag = $ok ? $l : null;
+        }
+    }
     $partes = [];
     $total = 0;
     foreach (($fech['partes'] ?? []) as $p) {
