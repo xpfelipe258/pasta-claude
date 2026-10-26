@@ -1458,3 +1458,10 @@ html[data-texto="maior"] { font-size: 125%; }
 .somente-leitura .tut-card .btn.primario, .somente-leitura #dlgTutPdf .btn.primario { display: inline-block !important; }
 .cfg-grupo .cfg-check { display: flex; align-items: flex-start; gap: 8px; font-size: .86rem; font-weight: 500; cursor: pointer; }
 .cfg-grupo .cfg-check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
+
+/* RDO: validação pelo administrador (dia validado = travado) */
+.rdo-valid { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; border-left: 4px solid #d9a400; }
+.rdo-valid.validado { border-left-color: #1a7f37; background: rgba(26,127,55,.08); }
+.rdo-valid-txt { display: flex; flex-direction: column; gap: 2px; font-size: .88rem; min-width: 240px; flex: 1 1 320px; }
+.rdo-valid.validado .rdo-valid-txt b { color: #1a7f37; }
+/* botão primário de validar só aparece para o administrador, que nunca é somente leitura */

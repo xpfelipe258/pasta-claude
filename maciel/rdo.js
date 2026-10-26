@@ -22,7 +22,11 @@ const rdoFotos = d => (T.rdo_fotos || []).filter(f => f.data === d).sort((a, b) 
 const rdoInfo = d => (T.rdo_dias || []).find(x => x.data === d) || null;
 const rdoDiaTxt = d => `${diaSemanaLonga(d)}, ${fdA(d)}`;
 function diaSemanaLonga(s) { return ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'][dow(s)] || ''; }
-const rdoPodeEditar = () => !document.body.classList.contains('somente-leitura');
+// RDO validado pelo administrador = travado (clima, observações, fotos e comentários). Só o administrador valida e retira a validação.
+const rdoValidacao = d => (M.rdo_validados || {})[d] || null;
+const rdoEhAdmin = () => !!(D && D.usuario && D.usuario.perfil === 'admin');
+const rdoPodeEditar = (d = rdoDia()) => !document.body.classList.contains('somente-leitura') && !rdoValidacao(d);
+const rdoTxtValidacao = v => `Validado por ${v.por || '—'} em ${fdA(String(v.em || '').slice(0, 10))} às ${String(v.em || '').slice(11, 16)}`;
 
 // ---------------------------------------------------------------- dados do dia
 function rdoProducao(dia) {
@@ -122,7 +126,7 @@ function rdoImpactosAbertos(dia) {
 function renderRdo() {
   const ae = document.activeElement;   // quem está digitando não é interrompido: o modelo já foi atualizado e a tela é refeita ao sair do campo
   if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date') return;
-  const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar();
+  const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar(dia), val = rdoValidacao(dia);
   const efet = rdoEfetivo(dia), prod = rdoProducao(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const nAtiv = rdoProducaoSomada(dia, prod).n;
@@ -132,6 +136,13 @@ function renderRdo() {
       <label class="rot-sel">Data do relatório <input type="date" id="rdoData" value="${esc(dia)}" ${M.datas.length ? `min="${esc(M.datas[0])}" max="${esc(M.datas[M.datas.length - 1])}"` : ''}></label>
       <button class="btn" data-rdo-dia="1" title="Próximo dia">›</button>
       <b class="rdo-dia-txt">${esc(rdoDiaTxt(dia))}</b>
+    </div>
+    <div class="bloco rdo-valid ${val ? 'validado' : ''}">
+      <div class="rdo-valid-txt">${val
+        ? `<b>✔ RDO VALIDADO</b> <span>${esc(rdoTxtValidacao(val))}. Clima, observações e fotos estão <b>travados</b> (envio e edição).</span>`
+        : `<b>RDO ainda não validado</b> <span>Enquanto não for validado, o relatório sai marcado como rascunho e as informações podem ser editadas.</span>`}</div>
+      ${rdoEhAdmin() ? (val ? `<button class="btn" data-rdo-retirar="${esc(dia)}">Retirar validação</button>` : `<button class="btn primario" data-rdo-validar="${esc(dia)}">Validar RDO</button>`)
+        : `<span class="nota">${val ? 'Só o administrador retira a validação.' : 'Só o administrador valida o RDO.'}</span>`}
     </div>
     <div class="tiles">
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
@@ -150,7 +161,7 @@ function renderRdo() {
         O <b>RDO da gestão</b> traz tudo isso + produzido e gasto em R$ e os impactos em aberto.</p>
     </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : 'Somente leitura.'}</span></div>
+      <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
         <label>Clima / condição do tempo<input type="text" id="rdoClima" list="rdoClimas" maxlength="120" value="${esc(info.clima || '')}" placeholder="ex.: ensolarado, chuva fraca à tarde" ${pode ? '' : 'disabled'}></label>
         <datalist id="rdoClimas"><option value="Ensolarado"><option value="Nublado"><option value="Chuva fraca"><option value="Chuva forte"><option value="Chuva — serviços paralisados"></datalist>
@@ -187,6 +198,7 @@ function rdoReduzir(arq, max = 1600, qualidade = 0.82) {   // reduz e converte p
 }
 async function rdoEnviar(lista) {
   const dia = rdoDia(), st = $('#rdoUpStatus');
+  if (rdoValidacao(dia)) { toast('RDO validado: envio de fotos travado.', true); return; }
   let n = 0;
   for (const arq of lista) {
     try {
@@ -204,8 +216,9 @@ async function rdoEnviar(lista) {
 let rdoFila = Promise.resolve();   // gravações em fila: duas edições seguidas não podem criar duas linhas para o mesmo dia
 function rdoSalvarObs() {
   const dia = rdoDia();
+  if (rdoValidacao(dia)) return;
   rdoFila = rdoFila.then(async () => {
-    if (rdoDia() !== dia || !$('#rdoClima')) return;
+    if (rdoDia() !== dia || !$('#rdoClima') || rdoValidacao(dia)) return;
     const campos = { data: dia, clima: $('#rdoClima').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
     const info = rdoInfo(dia);   // relido a cada vez: a gravação anterior já recarregou o modelo
     if (info && (info.clima || '') === campos.clima && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
@@ -217,11 +230,13 @@ function rdoSalvarObs() {
 }
 async function rdoSalvarLegenda(ta) {
   const id = +ta.dataset.rdoLeg, f = (T.rdo_fotos || []).find(x => x.linha === id);
-  if (!f || (f.legenda || '') === ta.value.trim()) return;
+  if (!f || rdoValidacao(f.data) || (f.legenda || '') === ta.value.trim()) return;
   try { await postar(API + 'registro', { tabela: 'rdo_fotos', linha: id, campos: { legenda: ta.value.trim() } }); await carregar(); }
   catch (e) { toast(e.message, true); }
 }
 async function rdoExcluirFoto(id) {
+  const fx = (T.rdo_fotos || []).find(x => x.linha === id);
+  if (fx && rdoValidacao(fx.data)) { toast('RDO validado: exclusão de fotos travada.', true); return; }
   if (!confirm('Excluir esta foto do RDO?')) return;
   const r = await fetch(`${RDO_FOTO}?acao=excluir&id=${id}`, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' } });
   const j = await r.json().catch(() => ({}));
@@ -238,6 +253,7 @@ async function rdoFotoDataUri(id) {   // a foto vai embutida no relatório (assi
 }
 
 const RDO_CSS = `<style>
+.rdo-selo{margin:0 0 14px;padding:7px 12px;border:1px dashed #b54708;background:#fffaeb;color:#93370d;font-weight:700;border-radius:4px}.rdo-selo.ok{border:1px solid #067647;background:#ecfdf3;color:#05603a}
 .rdo-fotos{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .rdo-fotos figure{margin:0;border:3px solid #1f3a5f;border-radius:8px;background:#fff;padding:8px;box-shadow:0 2px 6px rgba(16,24,40,.18);break-inside:avoid}
 .rdo-fotos .rdo-quadro{border:1px solid #98a2b3;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:150px;padding:4px}
@@ -421,6 +437,7 @@ async function rdoHtml(dia, modo) {
 
   const corpo = `${RDO_CSS}<section class="emp-sec"><div class="pag">
     <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${info.clima ? ` · Clima: ${esc(info.clima)}` : ''}</p>
+    ${(() => { const v = rdoValidacao(dia); return v ? `<p class="rdo-selo ok">✔ RDO VALIDADO — ${esc(rdoTxtValidacao(v))}</p>` : '<p class="rdo-selo">RASCUNHO — este RDO ainda não foi validado pelo administrador.</p>'; })()}
     <div class="cards">
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
       ${card('Efetivo no dia', nf(totEfet, 0), `${nf(efet.length, 0)} empresa(s)`, 'az')}
@@ -467,9 +484,23 @@ async function rdoGerar(modo) {
   finally { btn.disabled = false; btn.textContent = rot; }
 }
 
+async function rdoValidar(dia, retirar) {
+  const msg = retirar ? `Retirar a validação do RDO de ${fdA(dia)}? O dia volta a aceitar envio e edição de informações.`
+    : `Validar o RDO de ${fdA(dia)}? Clima, observações e fotos ficarão TRAVADOS (envio e edição) até o administrador retirar a validação.`;
+  if (!confirm(msg)) return;
+  try {
+    const j = await postar(API + 'rdo/validar', { acao: retirar ? 'retirar' : 'validar', data: dia });
+    M.rdo_validados = j.rdo_validados || {};
+    await carregar();
+    toast(retirar ? 'Validação retirada: o RDO pode ser editado de novo.' : 'RDO validado e travado.');
+  } catch (e) { toast(e.message, true); }
+}
+
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del]');
+  const t = ev.target.closest && ev.target.closest('#btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
   if (!t) return;
+  if (t.dataset.rdoValidar) { rdoValidar(t.dataset.rdoValidar, false); return; }
+  if (t.dataset.rdoRetirar) { rdoValidar(t.dataset.rdoRetirar, true); return; }
   if (t.id === 'btnRdoCliente') rdoGerar('cliente');
   else if (t.id === 'btnRdoGestao') rdoGerar('gestao');
   else if (t.dataset.rdoDia) rdoIrParaDia(add(rdoDia(), +t.dataset.rdoDia));

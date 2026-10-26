@@ -193,7 +193,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -944,6 +944,20 @@ function acao_registro(array $corpo)
     $id = isset($corpo['linha']) && $corpo['linha'] !== null ? (int)$corpo['linha'] : null;
     if ($id !== null && !q("SELECT id FROM $tabela WHERE id = ?", [$id])->fetch()) {
         throw new ErroValidacao('Registro não encontrado. Recarregue a tela.');
+    }
+    if ($tabela === 'rdo_dias' || $tabela === 'rdo_fotos') {   // RDO validado: clima, observações e legendas das fotos ficam travados
+        $datasRdo = [];
+        if ($id !== null) {
+            $datasRdo[] = (string)q("SELECT data FROM $tabela WHERE id = ?", [$id])->fetchColumn();
+        }
+        if (isset($corpo['campos']['data'])) {
+            $datasRdo[] = (string)$corpo['campos']['data'];
+        }
+        foreach ($datasRdo as $dRdo) {
+            if ($dRdo !== '' && ($vRdo = rdo_dia_validacao($dRdo))) {
+                throw new ErroValidacao(rdo_mensagem_travado($dRdo, $vRdo));
+            }
+        }
     }
     if (!empty($corpo['excluir'])) {
         if ($tabela === 'materiais') {
@@ -2969,6 +2983,36 @@ function fluxo_tem_ciclo(array $mapa)
         }
     }
     return false;
+}
+
+// Validar RDO / retirar a validação: SÓ o administrador. Dia validado = travado (clima, observações, fotos e legendas; o servidor recusa).
+function acao_rdo_validar(array $corpo, array $usuario)
+{
+    if (($usuario['perfil'] ?? '') !== 'admin') {
+        throw new ErroValidacao('Só o administrador pode validar o RDO ou retirar a validação.');
+    }
+    $data = (string)($corpo['data'] ?? '');
+    if (!data_valida($data)) {
+        throw new ErroValidacao('Data do RDO inválida.');
+    }
+    $v = rdo_validados();
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    if (($corpo['acao'] ?? '') === 'retirar') {
+        if (!isset($v[$data])) {
+            throw new ErroValidacao('Este RDO não está validado.');
+        }
+        unset($v[$data]);
+    } else {
+        if ($data > $hoje) {
+            throw new ErroValidacao('Não é possível validar o RDO de um dia que ainda não aconteceu.');
+        }
+        if (isset($v[$data])) {
+            throw new ErroValidacao('Este RDO já está validado.');
+        }
+        $v[$data] = ['por' => (string)$usuario['nome'], 'login' => (string)$usuario['login'], 'em' => tarefa_agora_brt()];
+    }
+    sistema_gravar('rdo_validados', json_encode((object)$v, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true, 'rdo_validados' => (object)$v];
 }
 
 function acao_fluxo_config(array $corpo)

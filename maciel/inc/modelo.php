@@ -171,6 +171,7 @@ function montar_modelo()
         'cliente' => $cliente,
         'impactos' => $impactos,
         'contratos_cliente' => (object)(json_decode((string)sistema_ler('contratos_cliente', '{}'), true) ?: []),   // contrato editado na tela do Dashboard cliente
+        'rdo_validados' => (object)rdo_validados(),   // dias de RDO validados pelo administrador (travados)
         'fluxo_config' => (object)(json_decode((string)sistema_ler('fluxo_config', '{}'), true) ?: []),   // dependências entre as etapas do fluxo da obra (Planejamento › Fluxo da obra)
         'vinculos_material' => (object)(json_decode((string)sistema_ler('vinculos_material', '{}'), true) ?: []),   // vínculo TAG/peça do IFC ↔ atividade (Suprimentos › Vínculos)
         'obra_empresa' => obra_empresa_info(),   // obra própria de uma empresa (cópia isolada da obra principal) ou null

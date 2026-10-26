@@ -256,6 +256,23 @@ function tarefa_conversa_acesso(array $u, $tarefaId)
     }
     return ($u['perfil'] ?? '') === 'admin' || (int)$t['criado_por'] === (int)$u['id'] || (int)$t['responsavel_id'] === (int)$u['id'];
 }
+// ---- Validação do RDO (2026-10-26): só o administrador valida / retira a validação; dia validado trava clima, observações e fotos ----
+// sistema.rdo_validados (por obra) = { "2026-10-14": { "por": "Felipe", "login": "admin", "em": "2026-10-15 08:10:00" } }
+function rdo_validados()
+{
+    $d = json_decode((string)sistema_ler('rdo_validados', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+function rdo_dia_validacao($data)
+{
+    $v = rdo_validados();
+    return isset($v[$data]) && is_array($v[$data]) ? $v[$data] : null;
+}
+function rdo_mensagem_travado($data, array $v)
+{
+    return 'O RDO de ' . tarefa_data_br($data) . ' está VALIDADO por ' . ($v['por'] ?? '—') . ' e travado para envio e edição. Só o administrador pode retirar a validação.';
+}
+
 // ---- E-mail das tarefas (2026-10-26): tarefa enviada, tarefa respondida e mensagem na conversa --------------------
 function tarefa_data_br($d)
 {
