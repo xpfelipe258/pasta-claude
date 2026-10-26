@@ -379,6 +379,8 @@ async function carregar() {
   if (j.usuario) {
     const u = j.usuario;
     window.USUARIO_PERFIL = u.perfil;
+    window.USUARIO_EMPRESA = u.empresa || '';
+    if (typeof tplIdentidadeCarregar === 'function') tplIdentidadeCarregar();
     $('#usuarioBox').hidden = false;
     $('#usuarioBox').innerHTML = `<button type="button" class="tf-chat-btn" id="tfChatBtn" title="Mensagens das tarefas e do mural">💬 <span>Mensagens</span><span class="tf-chat-badge" id="tfChatBadge" hidden>0</span></button><span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
     if (typeof tfChatPintar === 'function') tfChatPintar();
@@ -5982,7 +5984,7 @@ function bmImprimir(r, emp, p) {
     .bm-assin b{color:#1c1b18;font-size:11px}
   </style>`;
   const html = tplDocumento({ titulo: `Boletim de Medição · BM${p.n}`, subtitulo: `Empresa terceirizada: ${emp} · Contrato RÓTULA · período ${periodoStr}`,
-    meta: `BM da empresa terceirizada ${emp} · ${situacao} · emitido em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, corpo, css });
+    meta: `BM da empresa terceirizada ${emp} · ${situacao} · emitido em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, corpo, css, empresa: emp });
   // mesma visualização e mesmo PDF (Baixar PDF) dos demais relatórios
   reAbrirPrevia(html, `BM${p.n}-${emp}`, `Boletim de medição · BM${p.n} · ${emp} (empresa terceirizada)`);
 }

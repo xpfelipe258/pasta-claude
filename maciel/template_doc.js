@@ -47,6 +47,7 @@ body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:
 .tpl-marcas{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .tpl-marca small{display:block;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;opacity:.9;margin:0 0 5px 2px;font-weight:700}
 .tpl-chip-obra{font-weight:800;font-size:17px;letter-spacing:.06em;color:var(--tae);min-height:30px}
+.tpl-obra-leg{margin:5px 0 0 2px;font-size:10px;font-weight:700;letter-spacing:.1em;opacity:.92}
 .tpl-chip{background:#fff;border-radius:6px 16px 6px 16px;padding:7px 15px;box-shadow:0 4px 12px rgba(0,0,0,.28);display:inline-flex;align-items:center}
 .tpl-titulos{position:relative;margin-top:22px;max-width:76%}
 .tpl-titulos h1{color:#fff;font-size:28px;line-height:1.12;margin:0 0 5px;font-weight:800;letter-spacing:.01em;text-shadow:0 2px 8px rgba(0,0,0,.28)}
@@ -112,16 +113,22 @@ function tplFichaObra() {
 }
 
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
-function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '' }) {
+function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '', empresa = '' }) {
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const obraNome = ((typeof D !== 'undefined' && D && D.obra && D.obra.nome) || 'OBRA').toString().trim().toUpperCase();   // gestão = a própria obra (cadastro do portal); cliente = Rótula
+  const ident = tplIdentidade(empresa);
+  const gestaoNome = ident ? ident.nome : 'GESTÃO';
+  const marcaGestao = ident && ident.logo
+    ? `<span class="tpl-chip"><img src="${ident.logo}" alt="${esc(ident.nome)}" style="height:44px;max-width:240px;display:block"></span><div class="tpl-obra-leg">${esc(obraNome)}</div>`
+    : `<span class="tpl-chip tpl-chip-obra">${esc(obraNome)}</span>`;
+  const corIdent = ident && ident.cor ? `<style>:root{--tv:${ident.cor};--tve:${tplEscurecer(ident.cor)}}</style>` : '';
   const base = typeof RE_CSS === 'string' ? RE_CSS : '';   // classes de conteúdo já usadas pelo relatório das empresas
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>${base}${cssAntes}${TPL_CSS}${css}</head><body>
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title><meta name="tpl-gestao" content="${esc(obraNome + ' · ' + gestaoNome)}">${base}${cssAntes}${TPL_CSS}${corIdent}${css}</head><body>
     ${barra || '<div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ' + esc(quando) + ' (horário de Brasília)</span></div>'}
     <div class="tpl-pagina">
       <header class="tpl-capa"><div class="tpl-capa-fundo">
         <div class="tpl-marcas">
-          <div class="tpl-marca"><small>Gestão</small><span class="tpl-chip tpl-chip-obra">${esc(obraNome)}</span></div>
+          <div class="tpl-marca"><small>Gestão</small>${marcaGestao}</div>
           <div class="tpl-marca" style="text-align:right"><small>Cliente</small><span class="tpl-chip">${tplLogo('rotula')}</span></div>
         </div>
         <div class="tpl-titulos"><h1>${esc(titulo)}</h1>${subtitulo ? `<p>${esc(subtitulo)}</p>` : ''}</div>
@@ -130,7 +137,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
       ${tplFichaObra()}
       <div class="tpl-corpo">${corpo}</div>
     </div>
-    <div class="tpl-rodape"><span>${esc(obraNome)} · GESTÃO</span><span>${esc(titulo)} · RÓTULA · ${esc(quando)}</span></div>
+    <div class="tpl-rodape"><span>${esc(obraNome)} · ${esc(gestaoNome)}</span><span>${esc(titulo)} · RÓTULA · ${esc(quando)}</span></div>
   </body></html>`;
   return tplProtegerImpressao(html);
 }
@@ -163,5 +170,23 @@ function tplAdaptarRelatorio(html, tituloPadrao = 'Relatório') {
   const estilos = [...doc.querySelectorAll('style')].map(s => s.textContent), tam = (estilos.join(' ').match(/@page\s*\{[^}]*?size\s*:\s*([^;}]+)/) || [])[1];   // mantém o formato do papel do relatório (ex.: A4 paisagem)
   const cssAntes = estilos.map(t => `<style>${t.replace(/@page\s*\{[^}]*\}/g, '')}</style>`).join('') + (tam ? `<style>@page{size:${tam.trim()}}</style>` : '');
   return tplDocumento({ titulo, subtitulo, corpo: doc.body.innerHTML, cssAntes });
+}
+// ---- Identidade visual da empresa (Configurações › Identidade visual dos relatórios): logo e cor da empresa no lado "Gestão" da capa; o cliente continua a Rótula.
+const TPL_IDENT = { dados: {} };
+async function tplIdentidadeCarregar() {
+  try {
+    const r = await fetch(API + 'identidade', { cache: 'no-store' });
+    if (r.ok) TPL_IDENT.dados = (await r.json()).dados || {};
+  } catch { /* sem identidade: o relatório sai no padrão da Rótula */ }
+}
+// empresa explícita (relatório de uma empresa) ou, se o usuário é de uma empresa, a dele
+function tplIdentidade(empresa) {
+  const k = String(empresa || window.USUARIO_EMPRESA || '').trim().toUpperCase();
+  const d = k && TPL_IDENT.dados && TPL_IDENT.dados[k];
+  return d && (d.logo || d.cor) ? { nome: k, logo: d.logo || '', cor: d.cor || '' } : null;
+}
+function tplEscurecer(hex, f = 0.55) {
+  const n = parseInt(String(hex).slice(1), 16);
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v * f).toString(16).padStart(2, '0')).join('');
 }
 tplLogosCarregar();   // já deixa as marcas oficiais (assets/) prontas quando o primeiro relatório for aberto

@@ -100,7 +100,7 @@ function lcHtmlEmpresa(d) {
 
 async function lcHtml(ini, fim, emps) {
   await tplLogosCarregar();
-  return tplDocumento({ titulo: 'Produção do período', subtitulo: `${emps.join(' · ')} — ${fdA(ini)} a ${fdA(fim)}`, meta: 'Atividades do catálogo (BM) com avanço no período · custo de equipamentos (mensal fixo + diário + abastecimento)', corpo: emps.map(emp => lcHtmlEmpresa(lcDados(emp, ini, fim))).join('') });
+  return tplDocumento({ titulo: 'Produção do período', subtitulo: `${emps.join(' · ')} — ${fdA(ini)} a ${fdA(fim)}`, meta: 'Atividades do catálogo (BM) com avanço no período · custo de equipamentos (mensal fixo + diário + abastecimento)', corpo: emps.map(emp => lcHtmlEmpresa(lcDados(emp, ini, fim))).join(''), empresa: emps.length === 1 ? emps[0] : '' });
 }
 
 let lcBarPer = '';

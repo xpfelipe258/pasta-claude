@@ -1496,3 +1496,12 @@ html[data-texto="maior"] { font-size: 125%; }
 .tf-chat-vazio { padding: 16px 12px; margin: 0; }
 .tf-chat-rodape { display: flex; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--linha); }
 @media (max-width: 900px) { .tf-chat-painel { top: 8px; right: 8px; left: 8px; width: auto; max-height: 82dvh; } .tf-chat-btn { min-height: 36px; } }
+
+/* Configurações › identidade visual dos relatórios */
+.cfg-ident-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; align-items: start; }
+.cfg-ident-previa { max-width: 520px; }
+.cfg-ident-capa { display: flex; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 4px 18px 4px 18px; color: #fff; }
+.cfg-ident-capa small { display: block; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+.cfg-ident-chip { display: inline-flex; align-items: center; min-height: 40px; padding: 4px 12px; background: #fff; border-radius: 6px 14px 6px 14px; box-shadow: 0 3px 10px rgba(0,0,0,.25); color: #0a2c57; font-weight: 800; }
+.cfg-ident-chip img { height: 36px; max-width: 220px; display: block; }
+.somente-leitura #cfgIdent .btn.primario { display: inline-block !important; }

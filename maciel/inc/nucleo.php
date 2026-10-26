@@ -1071,10 +1071,11 @@ function criar_token_redefinicao(array $u)
 function enviar_link_redefinicao(array $u)
 {
     if (empty($u['email']) || !filter_var($u['email'], FILTER_VALIDATE_EMAIL)) { return false; }
+    if (empty($u['login'])) { $u['login'] = (string)q_global('SELECT login FROM usuarios WHERE id = ?', [(int)$u['id']])->fetchColumn(); }
     $token = criar_token_redefinicao($u);
     $link = url_base_sistema() . '/redefinir_senha.php?token=' . urlencode($token);
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
-    $msg = "Olá, {$u['nome']}.\n\nRecebemos uma solicitação para redefinir sua senha no {$nome}.\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 2 horas:\n{$link}\n\nSe você não solicitou essa redefinição, ignore esta mensagem.";
+    $msg = "Olá, {$u['nome']}.\n\nRecebemos uma solicitação para redefinir sua senha no {$nome}.\n\nSeu login de acesso: {$u['login']}\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 2 horas:\n{$link}\n\nSe você não solicitou essa redefinição, ignore esta mensagem.";
     return enviar_email_sistema($u['email'], 'Redefinição de senha - ' . $nome, $msg);
 }
 

@@ -990,7 +990,7 @@ async function reHtml(ini, fim, emps, geral = false) {
   const c = minD(fim, ref), ls = reLinhas(c);
   const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));   // geral = um documento só, sem seção por empresa
   await tplLogosCarregar();
-  return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join('') });
+  return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join(''), empresa: !geral && emps.length === 1 ? emps[0] : '' });
 }
 
 // ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)

@@ -104,6 +104,12 @@ try {
             }
             responder_json(200, configuracoes_ler($usuario));
         }
+        if ($rota === 'identidade') {   // logos/cores das empresas para montar os relatórios
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
+            }
+            responder_json(200, ['dados' => identidade_mapa($usuario)]);
+        }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
@@ -453,7 +459,86 @@ function configuracoes_ler(array $usuario)
         'obras' => $obras ?: [], 'modulos' => $mods,
         'senha_alterada_em' => $ult ?: null,
         'idiomas' => IDIOMAS_VALIDOS, 'temas' => TEMAS_VALIDOS,
+        'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)],
     ];
+}
+
+// ---- Identidade visual dos relatórios por empresa (2026-10-26): logo + cor; o cliente continua sendo a Rótula.
+// Fica em config_global.identidade_empresas = { "EJ": { logo: "data:image/png;base64,…", cor: "#rrggbb", por, em } }.
+function identidade_todas()
+{
+    $d = json_decode((string)global_ler('identidade_empresas', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+function identidade_chave($e)
+{
+    return mb_strtoupper(trim((string)$e));
+}
+// Empresas cuja identidade o usuário pode editar: o administrador, todas; o editor de uma empresa, só a dele; leitura e Rótula sem empresa, nenhuma.
+function identidade_empresas_editaveis(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin') {
+        return array_values(array_unique(array_map('identidade_chave', q_global("SELECT DISTINCT nome FROM empresas WHERE nome <> ''")->fetchAll(PDO::FETCH_COLUMN))));
+    }
+    $e = identidade_chave($u['empresa'] ?? '');
+    return ($e !== '' && ($u['perfil'] ?? '') !== 'leitura' && !tarefa_usuario_rotula($u)) ? [$e] : [];
+}
+// O que o usuário precisa para montar relatórios: a Rótula (e o administrador) vê todas as empresas; usuário de empresa, só a dele.
+function identidade_mapa(array $u)
+{
+    $todas = identidade_todas();
+    $out = [];
+    $meu = identidade_chave($u['empresa'] ?? '');
+    foreach ($todas as $emp => $d) {
+        if (tarefa_usuario_rotula($u) || identidade_chave($emp) === $meu) {
+            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
+        }
+    }
+    return (object)$out;
+}
+function acao_identidade(array $corpo, array $usuario)
+{
+    $emp = identidade_chave($corpo['empresa'] ?? '');
+    if ($emp === '' || !in_array($emp, identidade_empresas_editaveis($usuario), true)) {
+        throw new ErroValidacao('Você não pode alterar a identidade visual desta empresa.');
+    }
+    $todas = identidade_todas();
+    $atual = $todas[$emp] ?? [];
+    if (($corpo['acao'] ?? '') === 'identidade_remover') {
+        unset($todas[$emp]);
+        registrar_global('identidade_removida', ['empresa' => $emp, 'por' => $usuario['login'] ?? '']);
+    } else {
+        $cor = trim((string)($corpo['cor'] ?? ''));
+        if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) {
+            throw new ErroValidacao('Cor inválida (use o formato #rrggbb).');
+        }
+        $logo = (string)($atual['logo'] ?? '');
+        if (!empty($corpo['remover_logo'])) {
+            $logo = '';
+        }
+        if (isset($corpo['logo']) && $corpo['logo'] !== '' && $corpo['logo'] !== null) {
+            if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', (string)$corpo['logo'], $m)) {
+                throw new ErroValidacao('Envie o logo em PNG, JPG ou WEBP.');
+            }
+            $bin = base64_decode($m[2], true);
+            if ($bin === false || strlen($bin) > 400 * 1024) {
+                throw new ErroValidacao('O logo passa de 400 KB. Use uma imagem menor.');
+            }
+            $info = @getimagesizefromstring($bin);
+            if (!$info || $info[0] < 20 || $info[1] < 10 || $info[0] > 2500 || $info[1] > 2500 || !in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true)) {
+                throw new ErroValidacao('Imagem inválida: envie um PNG, JPG ou WEBP de até 2.500 px.');
+            }
+            $logo = (string)$corpo['logo'];
+        }
+        if ($logo === '' && $cor === '') {
+            unset($todas[$emp]);
+        } else {
+            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
+        }
+        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+    }
+    global_gravar('identidade_empresas', json_encode($todas, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true, 'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)]];
 }
 
 function acao_configuracoes(array $corpo, array $usuario)
@@ -465,6 +550,9 @@ function acao_configuracoes(array $corpo, array $usuario)
         throw new ErroValidacao('Usuário não encontrado. Entre de novo.');
     }
     garantir_preferencias_usuario();
+    if ($acao === 'identidade' || $acao === 'identidade_remover') {
+        return acao_identidade($corpo, $usuario);
+    }
     if ($acao === 'perfil') {
         $nome = trim(strip_tags((string)($corpo['nome'] ?? '')));
         $nome = preg_replace('/\s+/u', ' ', $nome);

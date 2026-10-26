@@ -211,7 +211,7 @@ $usuariosDaObra = [];
 foreach ($obrasEmpresa as $oe) {
     $usuariosDaObra[(int)$oe['id']] = q_global('SELECT u.nome, u.login, u.ativo FROM usuarios u JOIN usuarios_obras uo ON uo.usuario_id = u.id WHERE uo.obra_id = ? ORDER BY u.nome', [(int)$oe['id']])->fetchAll();
 }
-$historico = q('SELECT * FROM historico ORDER BY id DESC LIMIT 150')->fetchAll();
+$historico = q('SELECT * FROM historico ORDER BY id DESC LIMIT 5')->fetchAll();
 $obra = obra_info();
 $csrf = token_csrf();
 $token_ativo = (sistema_ler('machine_token', '') !== '');
@@ -434,7 +434,7 @@ pagina_inicio('Administração');
   </section>
 
   <section class="bloco">
-    <div class="bloco-cab"><h2>Histórico de alterações</h2><span class="nota">Últimos 150 registros: quem alterou, quando e o quê.</span></div>
+    <div class="bloco-cab"><h2>Histórico de alterações</h2><span class="nota">Últimos 5 registros: quem alterou, quando e o quê.</span></div>
     <div class="tabela-rolagem"><table>
       <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead>
       <tbody>
