@@ -1456,3 +1456,5 @@ html[data-texto="maior"] { font-size: 125%; }
 /* Configurações e Tutorial valem para TODOS os usuários, inclusive somente leitura (que normalmente não vê botões primários) */
 .somente-leitura #aba-config .btn.primario, .somente-leitura #aba-tutorial .btn.primario,
 .somente-leitura .tut-card .btn.primario, .somente-leitura #dlgTutPdf .btn.primario { display: inline-block !important; }
+.cfg-grupo .cfg-check { display: flex; align-items: flex-start; gap: 8px; font-size: .86rem; font-weight: 500; cursor: pointer; }
+.cfg-grupo .cfg-check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }

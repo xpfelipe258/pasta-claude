@@ -85,6 +85,10 @@ function cfgHtml(c) {
         <div class="cfg-grupo"><b>${esc(tx('Posição do menu'))}</b>
           <div class="cfg-ops">${[['lateral', 'Lateral'], ['topo', 'Barra superior']].map(([v, r]) => op('menu', v, r, c.menu === v, `<span class="cfg-menu cfg-menu-${v}"><i></i><i></i><i></i></span>`)).join('')}</div>
         </div>
+        <div class="cfg-grupo"><b>${esc(tx('Avisos por e-mail'))}</b>
+          <label class="cfg-check"><input type="checkbox" name="email_tarefas"${c.email_tarefas !== false ? ' checked' : ''}> ${esc(tx('Receber e-mail quando me enviarem uma tarefa, responderem uma tarefa ou escreverem na conversa dela'))}</label>
+          <small class="nota">${c.email ? esc(tx('Os avisos vão para {e}.', { e: c.email })) : esc(tx('Você ainda não tem e-mail cadastrado: preencha em Meu perfil para receber os avisos.'))}</small>
+        </div>
         <div class="cfg-acoes"><button type="submit" class="btn primario">${esc(tx('Salvar preferências'))}</button><span class="nota" id="cfgMsgPref" role="status"></span></div>
       </form>
     </section>
@@ -181,11 +185,11 @@ function cfgLigar(c) {
   fp.addEventListener('submit', async ev => {
     ev.preventDefault();
     const v = n => fp.querySelector(`input[name="${n}"]:checked`)?.value;
-    const novo = { acao: 'preferencias', idioma: v('idioma'), tam_texto: v('tam_texto'), tema: v('tema') ?? '', menu: v('menu') };
+    const novo = { acao: 'preferencias', idioma: v('idioma'), tam_texto: v('tam_texto'), tema: v('tema') ?? '', menu: v('menu'), email_tarefas: fp.querySelector('input[name=email_tarefas]').checked };
     const j = await cfgEnviar(novo, 'cfgMsgPref', fp.querySelector('button[type=submit]'));
     if (!j) return;
     const mudouIdioma = j.idioma !== c.idioma;
-    Object.assign(CFG.dados, { idioma: j.idioma, tam_texto: j.tam_texto, tema: j.tema, menu: j.menu });
+    Object.assign(CFG.dados, { email_tarefas: j.email_tarefas, idioma: j.idioma, tam_texto: j.tam_texto, tema: j.tema, menu: j.menu });
     cfgMsg('cfgMsgPref', tx('Preferências salvas.'));
     if (mudouIdioma) location.href = 'index.php?aba=config';   // recarrega no novo idioma e volta para esta aba
   });

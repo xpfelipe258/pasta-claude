@@ -304,6 +304,7 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
 {
     garantir_tarefas();
     $acao = (string)($corpo['acao'] ?? '');
+    $avisosMsg = [];
     $tarefaId = (int)($corpo['tarefa'] ?? 0);
     if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
         throw new ErroValidacao('Você não participa desta tarefa.');
@@ -315,6 +316,10 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
         }
         q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?)',
             [$tarefaId, (int)$usuario['id'], mb_substr((string)$usuario['nome'], 0, 100), $texto, tarefa_agora_brt()]);
+        if ($tarefaId > 0) {   // conversa da tarefa avisa a outra ponta por e-mail; o mural (todos os usuários) não manda e-mail
+            $tt = q_global('SELECT * FROM tarefas WHERE id = ?', [$tarefaId])->fetch();
+            if ($tt) { $avisosMsg = tarefa_notificar($tt, $usuario, 'mensagem', ['Mensagem: ' . mb_substr($texto, 0, 600) . (mb_strlen($texto) > 600 ? '…' : '')]); }
+        }
     } elseif ($acao === 'excluir') {
         $m = q_global('SELECT * FROM tarefas_msgs WHERE id = ? AND tarefa_id = ?', [(int)($corpo['id'] ?? 0), $tarefaId])->fetch();
         if (!$m) {
@@ -330,7 +335,9 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
     } else {
         throw new ErroValidacao('Ação inválida.');
     }
-    return tarefas_msgs_listar($usuario, $tarefaId);
+    $r = tarefas_msgs_listar($usuario, $tarefaId);
+    if (!empty($avisosMsg)) { $r['aviso_email'] = implode(' · ', $avisosMsg); }
+    return $r;
 }
 
 // ---- Configurações pessoais (aba Configurações) -------------------------------------------------------------------
@@ -343,7 +350,7 @@ function configuracoes_ler(array $usuario)
     $ult = q_global("SELECT quando FROM auditoria_global WHERE usuario = ? AND acao = 'senha_alterada' ORDER BY id DESC LIMIT 1", [$u['login']])->fetchColumn();
     return [
         'nome' => $u['nome'], 'login' => $u['login'], 'perfil' => $u['perfil'], 'empresa' => $u['empresa'], 'email' => (string)($u['email'] ?? ''),
-        'idioma' => $pref['idioma'], 'tam_texto' => $pref['tam_texto'],
+        'idioma' => $pref['idioma'], 'tam_texto' => $pref['tam_texto'], 'email_tarefas' => $pref['email_tarefas'],
         'tema' => in_array((string)$u['tema'], TEMAS_VALIDOS, true) ? $u['tema'] : '',
         'menu' => ($u['menu_pos'] ?? '') === 'topo' ? 'topo' : 'lateral',
         'tutorial' => $pref['tutorial'],
@@ -426,9 +433,10 @@ function acao_configuracoes(array $corpo, array $usuario)
         if (!in_array($tam, TAMANHOS_TEXTO, true)) { throw new ErroValidacao('Tamanho de texto inválido.'); }
         if ($tema !== '' && !in_array($tema, TEMAS_VALIDOS, true)) { throw new ErroValidacao('Tema inválido.'); }
         if (!in_array($menu, MENUS_VALIDOS, true)) { throw new ErroValidacao('Posição do menu inválida.'); }
-        q_global('UPDATE usuarios SET idioma = ?, tam_texto = ?, tema = ?, menu_pos = ? WHERE id = ?',
-            [$idioma, $tam, $tema !== '' ? $tema : null, $menu === 'topo' ? 'topo' : null, $id]);
-        return ['ok' => true, 'mensagem' => 'Preferências salvas.', 'idioma' => $idioma, 'tam_texto' => $tam, 'tema' => $tema, 'menu' => $menu];
+        $emailTar = array_key_exists('email_tarefas', $corpo) ? (empty($corpo['email_tarefas']) ? '0' : null) : null;   // '0' = desligado; vazio = ligado
+        q_global('UPDATE usuarios SET idioma = ?, tam_texto = ?, tema = ?, menu_pos = ?, email_tarefas = ? WHERE id = ?',
+            [$idioma, $tam, $tema !== '' ? $tema : null, $menu === 'topo' ? 'topo' : null, $emailTar, $id]);
+        return ['ok' => true, 'mensagem' => 'Preferências salvas.', 'email_tarefas' => $emailTar !== '0', 'idioma' => $idioma, 'tam_texto' => $tam, 'tema' => $tema, 'menu' => $menu];
     }
     if ($acao === 'tutorial') {
         $in = $corpo['tutorial'] ?? [];
@@ -464,6 +472,8 @@ function acao_tarefas(array $corpo, array $usuario)
         throw new ErroValidacao('Tarefa não encontrada. Recarregue a tela.');
     }
     $agora = tarefa_agora_brt();
+    $avisos = [];   // frases sobre os e-mails (quem recebeu / quem está sem e-mail), mostradas na tela
+    $rotSt = ['pendente' => 'A fazer', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'];
     if ($acao === 'salvar') {
         if ($t && !$admin && (int)$t['criado_por'] !== $eu) {
             throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode alterar os dados dela. Você pode mudar o andamento e escrever o retorno.');
@@ -509,6 +519,15 @@ function acao_tarefas(array $corpo, array $usuario)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora, tarefa_novo_codigo(substr($agora, 0, 4))]);
         }
+        // E-mail: tarefa enviada a outra pessoa (nova ou passada para outro responsável) vai para o e-mail de cadastro dela
+        if ($resp !== $eu && (!$t || (int)$t['responsavel_id'] !== $resp)) {
+            $nova = q_global('SELECT * FROM tarefas WHERE id = ?', [$t ? $id : (int)bd()->lastInsertId()])->fetch();
+            if ($nova) {
+                $extra = [];
+                if ($desc !== '') { $extra[] = 'Descrição: ' . $desc; }
+                $avisos = tarefa_notificar($nova, $usuario, 'enviada', $extra, [$resp]);
+            }
+        }
     } elseif ($acao === 'status') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
@@ -527,6 +546,13 @@ function acao_tarefas(array $corpo, array $usuario)
         }
         q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, iniciada_em=?, atualizado_em=? WHERE id=?',
             [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $iniciada !== '' ? $iniciada : null, $agora, $id]);
+        // E-mail: resposta (situação ou retorno mudou) avisa a outra ponta: quem criou e/ou o responsável, menos quem respondeu
+        if ($st !== (string)$t['status'] || $retorno !== (string)($t['retorno'] ?? '')) {
+            $nova = q_global('SELECT * FROM tarefas WHERE id = ?', [$id])->fetch();
+            $extra = ['Situação: ' . ($rotSt[$st] ?? $st)];
+            if ($retorno !== '') { $extra[] = 'Retorno: ' . $retorno; }
+            $avisos = tarefa_notificar($nova, $usuario, 'resposta', $extra);
+        }
     } elseif ($acao === 'excluir') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
@@ -542,7 +568,9 @@ function acao_tarefas(array $corpo, array $usuario)
     } else {
         throw new ErroValidacao('Ação de tarefa inválida.');
     }
-    return tarefas_listar($usuario);
+    $r = tarefas_listar($usuario);
+    if ($avisos) { $r['aviso_email'] = implode(' · ', $avisos); }
+    return $r;
 }
 
 // ----------------------------------------------------------------- ações
