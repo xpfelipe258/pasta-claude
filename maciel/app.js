@@ -4197,7 +4197,7 @@ function renderEstCriticos() {
 // A empresa é indicada em cada clique ("pincel" na barra do topo): quem montou é quem entra no BM.
 // Modos: 'mapa' (clicar na planta: 43 retângulos de joist por rua + quadrados de viga) e 'viga' (digitação por eixo).
 const apEst = { modo: 'mapa', data: null, empresa: null, eixo: '11', sel: new Set(),
-  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: 'normal', regular: false, obs: '',
+  mapaJ: new Map(), mapaV: new Map(), fase: 'fase1', zoom: (window.matchMedia && matchMedia('(max-width: 900px)').matches) ? 'grande' : 'normal', regular: false, obs: '',
   frente: new Map(), etapa: '', histSel: new Set(), histTodos: false, histFiltro: { emp: '', tipo: '', prod: '', ini: '', fim: '', q: '' }, histTotal: 0 };   // histSel = linhas marcadas em "Últimos apontamentos"; frente: chave `tipo|parte|trecho|etapa` -> empresa que montou
 // Frentes montadas fora do plano das joists, extraídas do IFC (fechamento lateral, marquise e contraventamento).
 const AP_FRENTE = { fech: 'FECHAMENTO', marq: 'MARQUISE', cont: 'CONTRAVENTAMENTO', telha: 'TELHA', perfil: 'PERFILAGEM', tfech: 'TELHAFECH' };
@@ -4216,7 +4216,7 @@ const apFrenteAtual = () => {
 };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01', VIGA_OITAO_MONTADA: 'Oitão' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
-const APM_PASSO = { compacto: 10, normal: 14, grande: 19 };
+const APM_PASSO = { compacto: 10, normal: 14, grande: 19, maximo: 26 };
 const APM = { mEsq: 70, mTop: 44, pad: 6 };
 const corSelEmp = emp => `var(${COR_EMP[emp] || '--acento'})`;
 
@@ -4816,7 +4816,7 @@ function apMapaHtml(ctx) {
     const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionada ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
     const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
     return `<div class="ap-linha ap-mapa-barra">${seg('segApFase', [['fase2', 'Fase 2 (Eixos 01-11)'], ['fase1', 'Fase 1 (Eixos 11-20)'], ['todos', 'Todos']], apEst.fase, 'data-ap-fase')}
-      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
+      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande'], ['maximo', 'Máximo']], apEst.zoom, 'data-ap-zoom')}
       <div class="ap-legenda">${leg('joist feita', 'joist montada')}${leg('viga feita', 'viga montada')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
       <div id="apMapaInfo" class="ap-info">${AP_INFO_PADRAO}</div>
       <div class="ap-mapa-grid">

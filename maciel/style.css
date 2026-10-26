@@ -1353,6 +1353,17 @@ body.pintando-toque { overflow: hidden; touch-action: none; }
   :root[data-menu="topo"] .sidebar { position: fixed; top: 0; bottom: 0; height: auto; display: block; padding: 12px 0; }
 }
 
+/* Celular — mapa de apontamento (joists/vigas): o mapa ocupa a largura toda e o painel de seleção vai para cima, com altura fixa
+   (altura fixa = o mapa não "pula" enquanto se marca peças); o mapa rola dentro do quadro e as peças ficam grandes para o dedo */
+@media (max-width: 900px) {
+  .ap-mapa-grid { flex-direction: column; align-items: stretch; gap: 8px; }
+  .ap-mapa-grid .ap-mapa-col { flex: none; width: 100%; }
+  .ap-mapa-grid .ap-sel-log { order: -1; width: 100%; height: 124px; max-height: none; box-sizing: border-box; }
+  .ap-mapa-barra { flex-wrap: wrap; gap: 8px; }
+  .ap-mapa-barra .seg { max-width: 100%; overflow-x: auto; }
+  #apMapaInfo { display: none; }
+}
+
 /* Obra própria de empresa: aviso na faixa do topo */
 .obra-contexto .obra-empresa-aviso { font-style: normal; font-size: .72rem; font-weight: 700; background: var(--marca, #d97706); color: #fff; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }
 
