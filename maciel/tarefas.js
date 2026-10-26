@@ -27,7 +27,7 @@ function tfConvEstrutura(el) {
     <div class="tf-conv-compor">
       <textarea rows="2" maxlength="4000" data-cv-texto placeholder="Escreva uma mensagem… (Ctrl+Enter envia)"></textarea>
       <div class="tf-conv-barra">
-        <button type="button" class="btn tf-enviar" data-cv-enviar>Enviar mensagem</button>
+        <button type="button" class="btn tf-enviar" data-cv-enviar>Enviar</button>
         <label class="btn tf-anexar">📎 Anexar arquivo<input type="file" data-cv-arquivo hidden></label>
         <span class="nota" data-cv-nota>Arquivos até 10 MB (PDF, imagem, Word, Excel, ZIP, DWG, IFC…). Se escrever algo antes de anexar, o texto vai junto.</span>
       </div>
