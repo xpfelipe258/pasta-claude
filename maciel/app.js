@@ -380,7 +380,8 @@ async function carregar() {
     const u = j.usuario;
     window.USUARIO_PERFIL = u.perfil;
     $('#usuarioBox').hidden = false;
-    $('#usuarioBox').innerHTML = `<span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
+    $('#usuarioBox').innerHTML = `<button type="button" class="tf-chat-btn" id="tfChatBtn" title="Mensagens das tarefas e do mural">💬 <span>Mensagens</span><span class="tf-chat-badge" id="tfChatBadge" hidden>0</span></button><span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
+    if (typeof tfChatPintar === 'function') tfChatPintar();
     const menuDash = document.getElementById('menuDashboardGeral');
     if (menuDash) menuDash.textContent = u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard';
     document.body.classList.toggle('somente-leitura', u.perfil === 'leitura');

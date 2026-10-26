@@ -10,13 +10,6 @@ const TF_PRIO = { baixa: 'Baixa', normal: 'Normal', alta: 'Alta', urgente: 'Urge
 // Só comunicação e troca de arquivos: não altera tarefas nem dados da obra. Mural = conversa 0, aberta a todos os usuários.
 const TFC = {};   // conversa (id da tarefa; 0 = mural) -> { msgs, ultimo }
 const TF_MAX_ARQ = 10 * 1048576;
-function tfVistoLer(chave) { try { return JSON.parse(localStorage.getItem('tfVisto_' + (TF.dados ? TF.dados.usuario_id : '')) || '{}')[chave] || 0; } catch (e) { return 0; } }
-function tfVistoGravar(chave, id) {
-  try {
-    const k = 'tfVisto_' + (TF.dados ? TF.dados.usuario_id : ''), o = JSON.parse(localStorage.getItem(k) || '{}');
-    if ((o[chave] || 0) < id) { o[chave] = id; localStorage.setItem(k, JSON.stringify(o)); }
-  } catch (e) { /* sem armazenamento local: só não lembra o que já foi lido */ }
-}
 function tfTamanho(n) { return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
 function tfHora(em) { const d = String(em || ''); return `${fdA(d.slice(0, 10))} ${d.slice(11, 16)}`; }
 
@@ -62,9 +55,10 @@ async function tfConvCarregar(el, silencioso) {
     if (!r.ok) throw new Error(j.erro || 'Falha ao ler a conversa');
     TFC[id] = Object.assign(TFC[id] || {}, { msgs: j.mensagens });
     tfConvLista(el, j);
-    const ult = j.mensagens.length ? j.mensagens[j.mensagens.length - 1].id : 0;
-    tfVistoGravar(id ? 't' + id : 'mural', ult);
-    tfAtualizarNovas();
+    if (j.mensagens.length && TF.dados) {   // o servidor já marcou como lida: apaga o aviso daqui e do ícone de chat
+      if (id) { const t = TF.dados.tarefas.find(x => x.id === id); if (t) t.nao_lidas = 0; } else TF.dados.mural_nao_lidas = 0;
+      tfAtualizarNovas(); tfChatAtualizar(true);
+    }
   } catch (err) { if (!silencioso) toast(err.message, true); }
 }
 
@@ -133,8 +127,8 @@ function tfConvLigar(raiz) {
 }
 
 // "novas" no menu da aba e ao lado de cada tarefa: mensagens de outras pessoas que ainda não abri
-function tfNovasMural() { const d = TF.dados; return !!d && d.mural_ultimo > tfVistoLer('mural') && d.mural_ultimo_usuario !== d.usuario_id; }
-function tfNovasTarefa(t) { return !!TF.dados && t.n_msgs > 0 && t.ult_msg_id > tfVistoLer('t' + t.id) && t.ult_msg_usuario !== TF.dados.usuario_id; }
+function tfNovasMural() { const d = TF.dados; return !!d && d.mural_nao_lidas > 0; }
+function tfNovasTarefa(t) { return !!TF.dados && t.nao_lidas > 0; }
 function tfAtualizarNovas() {
   const n = document.getElementById('tfMuralNovo');
   if (n) n.hidden = !tfNovasMural() || TF.aba === 'mural';
@@ -281,6 +275,8 @@ async function tfCarregar(silencioso) {
   return TF.carregando;
 }
 
+// Quem pode receber tarefa deste usuário: a Rótula envia a todos; empresa só para a própria empresa e a Rótula (o servidor confere).
+function tfPodeEnviar() { const d = TF.dados; return !!d && d.usuarios.some(u => u.id !== d.usuario_id); }
 function tfMinhas() { const d = TF.dados; return d ? d.tarefas.filter(t => t.responsavel_id === d.usuario_id) : []; }
 
 // Contador do menu: minhas tarefas abertas que estão atrasadas, vencem em breve ou começam hoje.
@@ -356,7 +352,7 @@ function renderTarefas() {
     tile('Atrasadas', atras, 'passaram da data de conclusão', atras ? 'var(--vermelho)' : 'var(--verde)') +
     tile('Vencem em breve', breve, 'dentro do prazo de aviso', breve ? 'var(--amarelo)' : 'var(--verde)') +
     tile('Concluídas no mês', feitas, 'por mim', 'var(--verde)');
-  if (d.admin) {
+  if (tfPodeEnviar()) {
     const atribuidas = d.tarefas.filter(t => t.criado_por === d.usuario_id && t.responsavel_id !== d.usuario_id && tfAberta(t));
     cards += tile('Atribuídas por mim', atribuidas.length, `${atribuidas.filter(t => sit(t).nivel === 'atrasada').length} atrasada(s)`, 'var(--acento)');
   }
@@ -364,7 +360,8 @@ function renderTarefas() {
   $('#tfAlertas').innerHTML = tfAlertasHtml();
 
   // barra de vista / filtros
-  const vistas = d.admin ? [['minhas', 'Minhas'], ['atribuidas', 'Atribuídas por mim'], ['todas', 'Todas']] : [['minhas', 'Minhas tarefas e lembretes']];
+  const vistas = d.admin ? [['minhas', 'Minhas'], ['atribuidas', 'Atribuídas por mim'], ['todas', 'Todas']]
+    : tfPodeEnviar() ? [['minhas', 'Minhas tarefas e lembretes'], ['atribuidas', 'Enviadas por mim']] : [['minhas', 'Minhas tarefas e lembretes']];
   $('#tfVistas').innerHTML = vistas.map(([k, r]) => `<button type="button" class="${TF.vista === k ? 'ativa' : ''}" data-tf-vista="${k}">${r}</button>`).join('');
   $('#tfFiltros').innerHTML = [['abertas', 'Em aberto'], ['atrasadas', 'Atrasadas'], ['concluidas', 'Concluídas'], ['todas', 'Todas']].map(([k, r]) => `<button type="button" class="${TF.filtro === k ? 'ativa' : ''}" data-tf-filtro="${k}">${r}</button>`).join('');
   const selR = $('#tfResp');
@@ -380,7 +377,7 @@ function renderTarefas() {
       return `<tr class="${tfAberta(t) ? '' : 'tf-fechada'} tf-p-${esc(t.prioridade)}">
         <td class="nw"><b class="tf-cod">${esc(t.codigo || '—')}</b></td>
         <td><span class="tf-prio tf-prio-${esc(t.prioridade)}">${esc(TF_PRIO[t.prioridade] || t.prioridade)}</span></td>
-        <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.n_msgs ? `<a href="#" data-tf-abrir="${t.id}" class="tf-msgs-n ${tfNovasTarefa(t) ? 'nova' : ''}" title="Conversa da tarefa">💬 ${t.n_msgs}${tfNovasTarefa(t) ? ' · nova' : ''}</a>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
+        <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.n_msgs ? `<a href="#" data-tf-chat="${t.id}" class="tf-msgs-n ${tfNovasTarefa(t) ? 'nova' : ''}" title="Conversa da tarefa">💬 ${t.n_msgs}${tfNovasTarefa(t) ? ' · nova' : ''}</a>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
         <td>${esc(t.responsavel_nome || '—')}<br>${origem}</td>
         <td>${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td>${t.data_fim ? fdA(t.data_fim) : '—'}</td>
         <td><span class="farol ${s.cls}">${esc(s.rot)}</span></td><td>${statusSel(t)}</td>
@@ -403,7 +400,7 @@ function renderTarefas() {
 }
 
 // ---- janela de criar/editar
-function tfAbrir(id) {
+function tfAbrir(id, chat) {
   const d = TF.dados;
   if (!d) return;
   const t = id ? d.tarefas.find(x => x.id === id) : null;
@@ -416,10 +413,13 @@ function tfAbrir(id) {
   f.elements.titulo.value = t ? t.titulo : '';
   f.elements.descricao.value = t ? (t.descricao || '') : '';
   const selR = f.elements.responsavel_id;
-  selR.innerHTML = d.usuarios.map(u => `<option value="${u.id}">${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}${u.id === d.usuario_id ? ' (eu)' : ''}</option>`).join('');
+  const opt = u => `<option value="${u.id}">${esc(u.nome)} · ${esc(u.grupo || 'RÓTULA')}${u.id === d.usuario_id ? ' (eu)' : ''}</option>`;
+  const grupos = [...new Set(d.usuarios.map(u => u.grupo || 'RÓTULA'))];
+  selR.innerHTML = grupos.length > 1 ? grupos.map(g => `<optgroup label="${esc(g)}">${d.usuarios.filter(u => (u.grupo || 'RÓTULA') === g).map(opt).join('')}</optgroup>`).join('') : d.usuarios.map(opt).join('');
+  if (t && !d.usuarios.some(u => u.id === t.responsavel_id)) selR.insertAdjacentHTML('afterbegin', `<option value="${t.responsavel_id}">${esc(t.responsavel_nome || '—')}</option>`);
   selR.value = String(t ? t.responsavel_id : d.usuario_id);
-  $('#tfRespBox').hidden = !d.admin;
-  $('#tfPessoalNota').hidden = d.admin;
+  $('#tfRespBox').hidden = !tfPodeEnviar();
+  $('#tfPessoalNota').hidden = tfPodeEnviar();
   f.elements.data_inicio.value = t ? (t.data_inicio || '') : hoje();
   f.elements.data_fim.value = t ? (t.data_fim || '') : '';
   f.elements.aviso_dias.value = t ? t.aviso_dias : 2;
@@ -434,7 +434,10 @@ function tfAbrir(id) {
   $('#tfConversaBox').hidden = !t;
   if (t) tfConvMontar($('#tfConvTarefa'), t.id);
   dlg.showModal();
-  f.elements.titulo.focus();
+  if (chat && t) {   // veio do ícone de chat: já na conversa, com o cursor na caixa de resposta
+    $('#tfConversaBox').scrollIntoView({ block: 'center' });
+    setTimeout(() => { const ta = $('#tfConvTarefa [data-cv-texto]'); if (ta) ta.focus(); }, 80);
+  } else f.elements.titulo.focus();
 }
 
 async function tfSalvar(ev) {
@@ -509,6 +512,8 @@ function ligarTarefas() {
   const sec = document.getElementById('aba-tarefas');
   if (!sec) return;
   sec.addEventListener('click', ev => {
+    const ch = ev.target.closest('[data-tf-chat]');
+    if (ch) { ev.preventDefault(); tfAbrir(+ch.dataset.tfChat, true); return; }
     const a = ev.target.closest('[data-tf-abrir]');
     if (a) { ev.preventDefault(); tfAbrir(+a.dataset.tfAbrir); return; }
     const x = ev.target.closest('[data-tf-excluir]');
@@ -546,6 +551,7 @@ function ligarTarefas() {
   // conversas abertas se atualizam a cada 15 s (mural na aba Mural; conversa da tarefa com a janela aberta)
   setInterval(() => {
     if (document.hidden) return;
+    tfChatAtualizar(true);
     if (abaAtual === 'tarefas' && TF.aba === 'mural') { const el = document.querySelector('#tfMuralView .tf-conv'); if (el.dataset.cvId) tfConvCarregar(el, true); }
     if (document.querySelector('#dlgTarefa[open]') && !$('#tfConversaBox').hidden) tfConvCarregar($('#tfConvTarefa'), true);
   }, 15000);
@@ -557,5 +563,74 @@ function ligarTarefas() {
     tfCarregar(true).then(() => { if (abaAtual === 'tarefas') renderTarefas(); });
   }, 60000);
 }
+
+// ------------------------------------------------------------ ÍCONE DE CHAT NO TOPO (mensagens novas das tarefas e do mural)
+// Mostra de quem é a mensagem e de qual tarefa; clicar abre direto a conversa para responder. As mensagens ficam gravadas.
+const TFCH = { dados: null, aberto: false, todas: false, vistoMax: null };
+async function tfChatAtualizar(silencioso) {
+  try {
+    const r = await fetch(API + 'tarefas-chat' + (TFCH.todas ? '&todas=1' : ''), { cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    const ant = TFCH.dados ? TFCH.dados.nao_lidas : null;
+    TFCH.dados = j;
+    if (ant !== null && j.nao_lidas > ant && !silencioso) {
+      const novo = j.conversas.filter(c => c.nao_lidas > 0 && !c.ultimo_minha).sort((a, b) => b.ultimo_id - a.ultimo_id)[0];
+      if (novo) toast(`💬 ${novo.ultimo_autor} · ${novo.tarefa_id ? (novo.codigo || 'tarefa') + ' ' + novo.titulo : 'Mural da equipe'}`, false, 7000);
+    }
+    tfChatPintar();
+  } catch (e) { /* sem rede: mantém o que já mostrava */ }
+}
+function tfChatPintar() {
+  const b = document.getElementById('tfChatBadge'), d = TFCH.dados;
+  if (b) { const n = d ? d.nao_lidas : 0; b.textContent = n > 99 ? '99+' : n; b.hidden = !n; const btn = document.getElementById('tfChatBtn'); if (btn) btn.classList.toggle('tem-novas', n > 0); }
+  if (TFCH.aberto) tfChatRender();
+}
+function tfChatRender() {
+  const box = document.getElementById('tfChatPainel');
+  if (!box) return;
+  const d = TFCH.dados;
+  const itens = !d ? '<p class="nota tf-chat-vazio">Carregando…</p>' : d.conversas.length ? d.conversas.map(c => {
+    const alvo = c.tarefa_id ? `<span class="tf-cod">${esc(c.codigo || '')}</span> ${esc(c.titulo)}` : '<b>Mural da equipe</b>';
+    const quem = c.tarefa_id ? `de ${esc(c.de || '—')} para ${esc(c.para || '—')}` : 'todos os usuários';
+    return `<button type="button" class="tf-chat-item ${c.nao_lidas ? 'nova' : ''} ${c.envolvido ? '' : 'de-outros'}" data-tf-chat-ir="${c.tarefa_id}">
+      <span class="tf-chat-linha1"><b>${c.ultimo_minha ? 'Você' : esc(c.ultimo_autor)}</b><span class="nota">${tfHora(c.ultimo_em)}</span>${c.nao_lidas ? `<span class="tf-novo">${c.nao_lidas}</span>` : ''}</span>
+      <span class="tf-chat-linha2">${alvo}</span>
+      <span class="tf-chat-linha3 nota">${quem}${c.envolvido ? '' : ' · conversa de outros'}</span>
+      <span class="tf-chat-txt-ult">${esc(c.ultimo_texto || '')}</span></button>`;
+  }).join('') : `<p class="nota tf-chat-vazio">${TFCH.todas ? 'Nenhuma mensagem gravada.' : 'Nenhuma conversa ainda. Quando alguém escrever numa tarefa sua ou no mural, aparece aqui.'}</p>`;
+  box.innerHTML = `<div class="tf-chat-cab"><b>Mensagens</b>${d && d.admin ? `<label class="tf-chat-todas"><input type="checkbox" id="tfChatTodas" ${TFCH.todas ? 'checked' : ''}> ver todas (administrador)</label>` : ''}<button type="button" class="link" data-tf-chat-fechar aria-label="Fechar">✕</button></div>
+    <div class="tf-chat-lista">${itens}</div>
+    <div class="tf-chat-rodape"><button type="button" class="link" data-tf-chat-lidas ${d && d.nao_lidas ? '' : 'disabled'}>Marcar tudo como lido</button><button type="button" class="link" data-tf-chat-ir="-1">Abrir Tarefas</button></div>`;
+}
+function tfChatAbrir() {
+  let box = document.getElementById('tfChatPainel');
+  if (!box) { box = document.createElement('div'); box.id = 'tfChatPainel'; box.className = 'tf-chat-painel'; document.body.appendChild(box); }
+  TFCH.aberto = true; box.hidden = false; tfChatRender(); tfChatAtualizar(true);
+}
+function tfChatFechar() { TFCH.aberto = false; const b = document.getElementById('tfChatPainel'); if (b) b.hidden = true; }
+async function tfChatIr(id) {
+  tfChatFechar();
+  if (id < 0) { TF.aba = 'tarefas'; mudarAba('tarefas'); return; }
+  if (id === 0) { TF.aba = 'mural'; mudarAba('tarefas'); setTimeout(() => { const ta = document.querySelector('#tfMuralView [data-cv-texto]'); if (ta) { ta.scrollIntoView({ block: 'center' }); ta.focus(); } }, 400); return; }
+  TF.aba = 'tarefas'; mudarAba('tarefas');
+  if (!TF.dados || !TF.dados.tarefas.some(t => t.id === id)) await tfCarregar(true);
+  if (!TF.dados || !TF.dados.tarefas.some(t => t.id === id)) { toast('Não encontrei esta tarefa. Ela pode ter sido excluída.', true); return; }
+  tfAbrir(id, true);
+}
+document.addEventListener('click', ev => {
+  if (ev.target.closest('#tfChatBtn')) { ev.preventDefault(); TFCH.aberto ? tfChatFechar() : tfChatAbrir(); return; }
+  const ir = ev.target.closest('[data-tf-chat-ir]');
+  if (ir) { tfChatIr(+ir.dataset.tfChatIr); return; }
+  if (ev.target.closest('[data-tf-chat-fechar]')) { tfChatFechar(); return; }
+  const li = ev.target.closest('[data-tf-chat-lidas]');
+  if (li && !li.disabled) { postar(API + 'tarefas-chat', { acao: 'lidas_tudo' }).then(j => { TFCH.dados = j; if (TF.dados) { TF.dados.tarefas.forEach(t => { t.nao_lidas = 0; }); TF.dados.mural_nao_lidas = 0; } tfChatPintar(); tfAtualizarNovas(); if (abaAtual === 'tarefas') renderTarefas(); }).catch(err => toast(err.message, true)); return; }
+  if (TFCH.aberto && !ev.target.closest('#tfChatPainel')) tfChatFechar();
+});
+document.addEventListener('change', ev => { if (ev.target.id === 'tfChatTodas') { TFCH.todas = ev.target.checked; tfChatAtualizar(true); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && TFCH.aberto) tfChatFechar(); });
+setInterval(() => { if (!document.hidden && document.getElementById('tfChatBtn')) tfChatAtualizar(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('tfChatBtn')) tfChatAtualizar(); });
+setTimeout(() => tfChatAtualizar(true), 1500);
 
 ligarTarefas();
