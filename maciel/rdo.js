@@ -93,13 +93,14 @@ function rdoMaquinasControle(maq) {
     const n = ganNorm(e.equipamento), manut = ganNorm(e.situacao || '').startsWith('MANUT');
     const usos = maq.filter(m => ganNorm(m.equipamento) === n);
     const emps = [...new Set(usos.map(m => m.empresa).filter(Boolean))];
-    const no = usadas.has(n) ? 'USADA' : manut ? 'MANUTENÇÃO' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
-    return { nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
+    const mensal = ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
+    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
+    return { mensal, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
   const cadNomes = new Set(cad.map(e => ganNorm(e.equipamento)));
   return {
     linhas, nAtivas: linhas.filter(l => l.situacao === 'Ativa').length, nManut: linhas.filter(l => l.situacao !== 'Ativa').length,
-    nUsadas: usadas.size, nParadas: linhas.filter(l => l.no === 'PARADA').length,
+    nUsadas: new Set([...usadas, ...linhas.filter(l => l.no === 'USADA').map(l => ganNorm(l.nome))]).size, nParadas: linhas.filter(l => l.no === 'PARADA').length,
     foraCadastro: [...usadas].filter(n => !cadNomes.has(n)).length,   // usada no dia, mas sem cadastro em Equipamentos
   };
 }
@@ -405,6 +406,8 @@ async function rdoHtml(dia, modo) {
   const tMaq = linhasMaq.map(m => `<tr><td><b>${esc(m.equipamento)}</b></td><td>${esc(m.empresa || '—')}</td><td>${esc(m.uso || '—')}</td><td class="n">${m.qtd ? nf(m.qtd, 2) : '—'}</td><td>${esc(m.operTxt || '—')}</td>${gestao ? `<td class="n">${m.litros ? nf(m.litros, 1) + ' L' : '—'}</td><td class="n">${rs2((m.custo || 0) + (m.comb || 0))}</td>` : ''}</tr>`).join('');
 
   const mctl = rdoMaquinasControle(maq);
+  const mensaisSemLanc = mctl.linhas.filter(l => l.mensal && l.no === 'USADA' && !l.lancada);   // locação mensal em uso, sem lançamento no dia
+  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>LOCAÇÃO MENSAL (em uso)</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
   const corNo = { 'USADA': 'vd', 'PARADA': 'vm', 'SÓ ABASTECIDA': 'am', 'MANUTENÇÃO': 'am' };
   const tAtivas = mctl.linhas.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.tipo || '—')}</td><td>${esc(l.resp || '—')}</td>${gestao ? `<td>${esc(l.cobranca || '—')}</td>` : ''}<td>${esc(l.situacao)}</td><td><span class="farol f-${corNo[l.no] === 'vd' ? 'verde' : corNo[l.no] === 'vm' ? 'vermelho' : 'amarelo'}">${esc(l.no)}</span></td></tr>`).join('');
 
@@ -422,7 +425,7 @@ async function rdoHtml(dia, modo) {
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
       ${card('Efetivo no dia', nf(totEfet, 0), `${nf(efet.length, 0)} empresa(s)`, 'az')}
       ${card('Máquinas ativas', nf(mctl.nAtivas, 0), mctl.nManut ? `${nf(mctl.nManut, 0)} em manutenção` : 'equipamentos em operação na obra', 'az')}
-      ${card('Máquinas usadas', nf(maquinas.size, 0), `${nf(mctl.nParadas, 0)} ativa(s) parada(s) no dia`, 'am')}
+      ${card('Máquinas usadas', nf(mctl.nUsadas, 0), `${nf(mctl.nParadas, 0)} ativa(s) parada(s) no dia · mensais sempre em uso`, 'am')}
       ${card('Fotos', nf(fotos.length, 0), rem.length ? `${nf(rem.length, 0)} remessa(s) chegaram` : 'sem chegada de remessa', 'vm')}
       ${gestao ? card('Produzido no dia', rs2(produzido), 'medição estimada (qtd × preço do BM)', 'vd') : ''}
       ${gestao ? card('Gasto no dia', rs2(gastoEq + gastoComb), `equipamentos ${rs2(gastoEq)} + combustível ${rs2(gastoComb)}`, 'vm') : ''}
@@ -441,9 +444,9 @@ async function rdoHtml(dia, modo) {
       <tfoot><tr><th colspan="${gestao ? 4 : 3}">Ativas: ${nf(mctl.nAtivas, 0)} · em manutenção: ${nf(mctl.nManut, 0)}</th><th colspan="2">Usadas no dia: ${nf(mctl.nUsadas, 0)} · paradas: ${nf(mctl.nParadas, 0)}</th></tr></tfoot></table>
     ${mctl.foraCadastro ? `<p class="nota">${nf(mctl.foraCadastro, 0)} máquina(s) usada(s) no dia não está(ão) no cadastro de Equipamentos (aparecem só na lista de usadas).</p>` : ''}
     <h2>Máquinas usadas no dia</h2>
-    <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
+    <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq + tMensais || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
       ${gestao && linhasMaq.length ? `<tfoot><tr><th colspan="6">Gasto de equipamentos e combustível lançado no dia</th><th class="n">${rs2(gastoEq + gastoComb)}</th></tr></tfoot>` : ''}</table>
-    ${gestao ? '<p class="nota">Locação mensal fixa não é rateada por dia neste relatório: só entram os usos e abastecimentos lançados no dia.</p>' : ''}
+    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
     <h2>Chegada de material</h2>
     ${rem.length ? `<p>Remessa(s) que chegaram na obra neste dia: <b>${rem.map(esc).join('</b>, <b>')}</b>.</p>` : '<p class="rdo-sem">Nenhuma remessa chegou na obra neste dia.</p>'}
     ${gestao ? `<h2>Impactos em aberto</h2>
