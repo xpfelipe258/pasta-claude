@@ -22,7 +22,11 @@ const rdoFotos = d => (T.rdo_fotos || []).filter(f => f.data === d).sort((a, b) 
 const rdoInfo = d => (T.rdo_dias || []).find(x => x.data === d) || null;
 const rdoDiaTxt = d => `${diaSemanaLonga(d)}, ${fdA(d)}`;
 function diaSemanaLonga(s) { return ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'][dow(s)] || ''; }
-const rdoPodeEditar = () => !document.body.classList.contains('somente-leitura');
+// RDO validado pelo administrador = travado (clima, observações, fotos e comentários). Só o administrador valida e retira a validação.
+const rdoValidacao = d => (M.rdo_validados || {})[d] || null;
+const rdoEhAdmin = () => !!(D && D.usuario && D.usuario.perfil === 'admin');
+const rdoPodeEditar = (d = rdoDia()) => !document.body.classList.contains('somente-leitura') && !rdoValidacao(d);
+const rdoTxtValidacao = v => `Validado por ${v.por || '—'} em ${fdA(String(v.em || '').slice(0, 10))} às ${String(v.em || '').slice(11, 16)}`;
 
 // ---------------------------------------------------------------- dados do dia
 function rdoProducao(dia) {
@@ -80,6 +84,30 @@ function rdoRemessas(dia) {
 function rdoMaquinas(dia) {
   try { return relEquipDados('geral', dia, dia, 'todos').linhas; } catch (e) { console.error('RDO máquinas', e); return []; }
 }
+// Controle de máquinas do dia: ATIVAS = equipamentos do cadastro que não estão desmobilizados (ATIVO ou em MANUTENÇÃO);
+// USADAS = as que tiveram uso lançado no dia (abastecimento sozinho não conta como uso). Ativa e sem uso = PARADA.
+function rdoMaquinasUsadasNomes(maq) {
+  return new Set(maq.filter(m => !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0).map(m => ganNorm(m.equipamento)));
+}
+function rdoMaquinasControle(maq) {
+  const usadas = rdoMaquinasUsadasNomes(maq);
+  const soAbast = new Set(maq.map(m => ganNorm(m.equipamento)).filter(n => !usadas.has(n)));
+  const cad = ((T && T.equipamentos) || []).filter(e => e.equipamento && ganNorm(e.situacao || '') !== 'DESMOBILIZADO');
+  const linhas = cad.map(e => {
+    const n = ganNorm(e.equipamento), manut = ganNorm(e.situacao || '').startsWith('MANUT');
+    const usos = maq.filter(m => ganNorm(m.equipamento) === n);
+    const emps = [...new Set(usos.map(m => m.empresa).filter(Boolean))];
+    const mensal = ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
+    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
+    return { mensal, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
+  }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
+  const cadNomes = new Set(cad.map(e => ganNorm(e.equipamento)));
+  return {
+    linhas, nAtivas: linhas.filter(l => l.situacao === 'Ativa').length, nManut: linhas.filter(l => l.situacao !== 'Ativa').length,
+    nUsadas: new Set([...usadas, ...linhas.filter(l => l.no === 'USADA').map(l => ganNorm(l.nome))]).size, nParadas: linhas.filter(l => l.no === 'PARADA').length,
+    foraCadastro: [...usadas].filter(n => !cadNomes.has(n)).length,   // usada no dia, mas sem cadastro em Equipamentos
+  };
+}
 function rdoApontamentos(dia) {
   const por = new Map();
   (T.apontamentos || []).filter(a => a.data === dia && (a.lanca_producao || '').toUpperCase() !== 'NAO').forEach(a => {
@@ -98,7 +126,7 @@ function rdoImpactosAbertos(dia) {
 function renderRdo() {
   const ae = document.activeElement;   // quem está digitando não é interrompido: o modelo já foi atualizado e a tela é refeita ao sair do campo
   if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date') return;
-  const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar();
+  const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar(dia), val = rdoValidacao(dia);
   const efet = rdoEfetivo(dia), prod = rdoProducao(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const nAtiv = rdoProducaoSomada(dia, prod).n;
@@ -109,11 +137,19 @@ function renderRdo() {
       <button class="btn" data-rdo-dia="1" title="Próximo dia">›</button>
       <b class="rdo-dia-txt">${esc(rdoDiaTxt(dia))}</b>
     </div>
+    <div class="bloco rdo-valid ${val ? 'validado' : ''}">
+      <div class="rdo-valid-txt">${val
+        ? `<b>✔ RDO VALIDADO</b> <span>${esc(rdoTxtValidacao(val))}. Clima, observações e fotos estão <b>travados</b> (envio e edição).</span>`
+        : `<b>RDO ainda não validado</b> <span>Enquanto não for validado, o relatório sai marcado como rascunho e as informações podem ser editadas.</span>`}</div>
+      ${rdoEhAdmin() ? (val ? `<button class="btn" data-rdo-retirar="${esc(dia)}">Retirar validação</button>` : `<button class="btn primario" data-rdo-validar="${esc(dia)}">Validar RDO</button>`)
+        : `<span class="nota">${val ? 'Só o administrador retira a validação.' : 'Só o administrador valida o RDO.'}</span>`}
+    </div>
     <div class="tiles">
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
-      ${tile('Máquinas usadas', nf(new Set(maq.map(m => m.equipamento)).size, 0), rem.length ? `${nf(rem.length, 0)} remessa(s) chegaram` : 'sem remessa no dia', 'var(--acento)')}
+      ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas ativas × usadas', `${nf(mc.nAtivas, 0)} × ${nf(mc.nUsadas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
+      ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'chegaram na obra no dia' : 'sem remessa no dia', 'var(--acento)')}
     </div>
     <div class="bloco rdo-gerar">
       <div class="bloco-cab"><h2>Gerar o relatório do dia</h2><span class="nota">O sistema reúne tudo o que foi lançado em ${esc(fdA(dia))}. Confira antes de baixar.</span></div>
@@ -125,7 +161,7 @@ function renderRdo() {
         O <b>RDO da gestão</b> traz tudo isso + produzido e gasto em R$ e os impactos em aberto.</p>
     </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : 'Somente leitura.'}</span></div>
+      <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
         <label>Clima / condição do tempo<input type="text" id="rdoClima" list="rdoClimas" maxlength="120" value="${esc(info.clima || '')}" placeholder="ex.: ensolarado, chuva fraca à tarde" ${pode ? '' : 'disabled'}></label>
         <datalist id="rdoClimas"><option value="Ensolarado"><option value="Nublado"><option value="Chuva fraca"><option value="Chuva forte"><option value="Chuva — serviços paralisados"></datalist>
@@ -162,6 +198,7 @@ function rdoReduzir(arq, max = 1600, qualidade = 0.82) {   // reduz e converte p
 }
 async function rdoEnviar(lista) {
   const dia = rdoDia(), st = $('#rdoUpStatus');
+  if (rdoValidacao(dia)) { toast('RDO validado: envio de fotos travado.', true); return; }
   let n = 0;
   for (const arq of lista) {
     try {
@@ -179,8 +216,9 @@ async function rdoEnviar(lista) {
 let rdoFila = Promise.resolve();   // gravações em fila: duas edições seguidas não podem criar duas linhas para o mesmo dia
 function rdoSalvarObs() {
   const dia = rdoDia();
+  if (rdoValidacao(dia)) return;
   rdoFila = rdoFila.then(async () => {
-    if (rdoDia() !== dia || !$('#rdoClima')) return;
+    if (rdoDia() !== dia || !$('#rdoClima') || rdoValidacao(dia)) return;
     const campos = { data: dia, clima: $('#rdoClima').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
     const info = rdoInfo(dia);   // relido a cada vez: a gravação anterior já recarregou o modelo
     if (info && (info.clima || '') === campos.clima && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
@@ -192,11 +230,13 @@ function rdoSalvarObs() {
 }
 async function rdoSalvarLegenda(ta) {
   const id = +ta.dataset.rdoLeg, f = (T.rdo_fotos || []).find(x => x.linha === id);
-  if (!f || (f.legenda || '') === ta.value.trim()) return;
+  if (!f || rdoValidacao(f.data) || (f.legenda || '') === ta.value.trim()) return;
   try { await postar(API + 'registro', { tabela: 'rdo_fotos', linha: id, campos: { legenda: ta.value.trim() } }); await carregar(); }
   catch (e) { toast(e.message, true); }
 }
 async function rdoExcluirFoto(id) {
+  const fx = (T.rdo_fotos || []).find(x => x.linha === id);
+  if (fx && rdoValidacao(fx.data)) { toast('RDO validado: exclusão de fotos travada.', true); return; }
   if (!confirm('Excluir esta foto do RDO?')) return;
   const r = await fetch(`${RDO_FOTO}?acao=excluir&id=${id}`, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' } });
   const j = await r.json().catch(() => ({}));
@@ -213,6 +253,7 @@ async function rdoFotoDataUri(id) {   // a foto vai embutida no relatório (assi
 }
 
 const RDO_CSS = `<style>
+.rdo-selo{margin:0 0 14px;padding:7px 12px;border:1px dashed #b54708;background:#fffaeb;color:#93370d;font-weight:700;border-radius:4px}.rdo-selo.ok{border:1px solid #067647;background:#ecfdf3;color:#05603a}
 .rdo-fotos{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .rdo-fotos figure{margin:0;border:3px solid #1f3a5f;border-radius:8px;background:#fff;padding:8px;box-shadow:0 2px 6px rgba(16,24,40,.18);break-inside:avoid}
 .rdo-fotos .rdo-quadro{border:1px solid #98a2b3;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:150px;padding:4px}
@@ -380,6 +421,12 @@ async function rdoHtml(dia, modo) {
   const linhasMaq = maq.filter(m => gestao || !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0);
   const tMaq = linhasMaq.map(m => `<tr><td><b>${esc(m.equipamento)}</b></td><td>${esc(m.empresa || '—')}</td><td>${esc(m.uso || '—')}</td><td class="n">${m.qtd ? nf(m.qtd, 2) : '—'}</td><td>${esc(m.operTxt || '—')}</td>${gestao ? `<td class="n">${m.litros ? nf(m.litros, 1) + ' L' : '—'}</td><td class="n">${rs2((m.custo || 0) + (m.comb || 0))}</td>` : ''}</tr>`).join('');
 
+  const mctl = rdoMaquinasControle(maq);
+  const mensaisSemLanc = mctl.linhas.filter(l => l.mensal && l.no === 'USADA' && !l.lancada);   // locação mensal em uso, sem lançamento no dia
+  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>LOCAÇÃO MENSAL (em uso)</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
+  const corNo = { 'USADA': 'vd', 'PARADA': 'vm', 'SÓ ABASTECIDA': 'am', 'MANUTENÇÃO': 'am' };
+  const tAtivas = mctl.linhas.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.tipo || '—')}</td><td>${esc(l.resp || '—')}</td>${gestao ? `<td>${esc(l.cobranca || '—')}</td>` : ''}<td>${esc(l.situacao)}</td><td><span class="farol f-${corNo[l.no] === 'vd' ? 'verde' : corNo[l.no] === 'vm' ? 'vermelho' : 'amarelo'}">${esc(l.no)}</span></td></tr>`).join('');
+
   // 4. fotos (embutidas)
   const uris = await Promise.all(fotos.map(f => rdoFotoDataUri(f.linha).catch(() => '')));
   const tFotos = fotos.map((f, i) => `<figure><div class="rdo-quadro">${uris[i] ? `<img src="${uris[i]}" alt="Foto ${i + 1}">` : '<div class="rdo-sem" style="padding:30px">foto indisponível</div>'}</div><figcaption><b>Foto ${i + 1} de ${fotos.length}</b><span>${f.legenda ? esc(f.legenda) : '<i class="rdo-sem">sem comentário</i>'}</span></figcaption></figure>`).join('');
@@ -390,10 +437,12 @@ async function rdoHtml(dia, modo) {
 
   const corpo = `${RDO_CSS}<section class="emp-sec"><div class="pag">
     <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${info.clima ? ` · Clima: ${esc(info.clima)}` : ''}</p>
+    ${(() => { const v = rdoValidacao(dia); return v ? `<p class="rdo-selo ok">✔ RDO VALIDADO — ${esc(rdoTxtValidacao(v))}</p>` : '<p class="rdo-selo">RASCUNHO — este RDO ainda não foi validado pelo administrador.</p>'; })()}
     <div class="cards">
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
       ${card('Efetivo no dia', nf(totEfet, 0), `${nf(efet.length, 0)} empresa(s)`, 'az')}
-      ${card('Máquinas usadas', nf(maquinas.size, 0), 'equipamentos com uso lançado', 'am')}
+      ${card('Máquinas ativas', nf(mctl.nAtivas, 0), mctl.nManut ? `${nf(mctl.nManut, 0)} em manutenção` : 'equipamentos em operação na obra', 'az')}
+      ${card('Máquinas usadas', nf(mctl.nUsadas, 0), `${nf(mctl.nParadas, 0)} ativa(s) parada(s) no dia · mensais sempre em uso`, 'am')}
       ${card('Fotos', nf(fotos.length, 0), rem.length ? `${nf(rem.length, 0)} remessa(s) chegaram` : 'sem chegada de remessa', 'vm')}
       ${gestao ? card('Produzido no dia', rs2(produzido), 'medição estimada (qtd × preço do BM)', 'vd') : ''}
       ${gestao ? card('Gasto no dia', rs2(gastoEq + gastoComb), `equipamentos ${rs2(gastoEq)} + combustível ${rs2(gastoComb)}`, 'vm') : ''}
@@ -407,10 +456,14 @@ async function rdoHtml(dia, modo) {
     ${mapasHtml}
     <h2>Efetivo</h2>
     <table><thead><tr><th>Empresa</th><th>Função</th><th class="n">Pessoas</th></tr></thead><tbody>${tEfet || vazio(3, 'Sem efetivo lançado neste dia.')}</tbody>${efet.length ? `<tfoot><tr><th colspan="2">Total do dia</th><th class="n">${nf(totEfet, 0)}</th></tr></tfoot>` : ''}</table>
-    <h2>Máquinas e equipamentos</h2>
-    <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
+    <h2>Máquinas ativas na obra</h2>
+    <table><thead><tr><th>Equipamento</th><th>Tipo</th><th>Empresa</th>${gestao ? '<th>Cobrança</th>' : ''}<th>Situação</th><th>No dia</th></tr></thead><tbody>${tAtivas || vazio(gestao ? 6 : 5, 'Nenhum equipamento ativo no cadastro de Equipamentos.')}</tbody>
+      <tfoot><tr><th colspan="${gestao ? 4 : 3}">Ativas: ${nf(mctl.nAtivas, 0)} · em manutenção: ${nf(mctl.nManut, 0)}</th><th colspan="2">Usadas no dia: ${nf(mctl.nUsadas, 0)} · paradas: ${nf(mctl.nParadas, 0)}</th></tr></tfoot></table>
+    ${mctl.foraCadastro ? `<p class="nota">${nf(mctl.foraCadastro, 0)} máquina(s) usada(s) no dia não está(ão) no cadastro de Equipamentos (aparecem só na lista de usadas).</p>` : ''}
+    <h2>Máquinas usadas no dia</h2>
+    <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq + tMensais || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
       ${gestao && linhasMaq.length ? `<tfoot><tr><th colspan="6">Gasto de equipamentos e combustível lançado no dia</th><th class="n">${rs2(gastoEq + gastoComb)}</th></tr></tfoot>` : ''}</table>
-    ${gestao ? '<p class="nota">Locação mensal fixa não é rateada por dia neste relatório: só entram os usos e abastecimentos lançados no dia.</p>' : ''}
+    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
     <h2>Chegada de material</h2>
     ${rem.length ? `<p>Remessa(s) que chegaram na obra neste dia: <b>${rem.map(esc).join('</b>, <b>')}</b>.</p>` : '<p class="rdo-sem">Nenhuma remessa chegou na obra neste dia.</p>'}
     ${gestao ? `<h2>Impactos em aberto</h2>
@@ -419,7 +472,7 @@ async function rdoHtml(dia, modo) {
     ${fotos.length ? `<div class="rdo-fotos">${tFotos}</div>` : '<p class="rdo-sem">Sem fotos neste dia.</p>'}
   </div></section>`;
   return tplDocumento({ titulo: gestao ? 'RDO — Gestão' : 'Relatório Diário de Obra (RDO)', subtitulo: `${(D.obra && D.obra.nome) || ''} — ${rdoDiaTxt(dia)}`,
-    meta: gestao ? 'Uso interno: produção, efetivo, máquinas, financeiro do dia, impactos em aberto e fotos' : 'Produção, efetivo, máquinas, remessas e fotos do dia', corpo });
+    meta: gestao ? 'Uso interno: produção, efetivo, máquinas ativas e usadas, financeiro do dia, impactos em aberto e fotos' : 'Produção, efetivo, máquinas, remessas e fotos do dia', corpo });
 }
 
 async function rdoGerar(modo) {
@@ -431,9 +484,23 @@ async function rdoGerar(modo) {
   finally { btn.disabled = false; btn.textContent = rot; }
 }
 
+async function rdoValidar(dia, retirar) {
+  const msg = retirar ? `Retirar a validação do RDO de ${fdA(dia)}? O dia volta a aceitar envio e edição de informações.`
+    : `Validar o RDO de ${fdA(dia)}? Clima, observações e fotos ficarão TRAVADOS (envio e edição) até o administrador retirar a validação.`;
+  if (!confirm(msg)) return;
+  try {
+    const j = await postar(API + 'rdo/validar', { acao: retirar ? 'retirar' : 'validar', data: dia });
+    M.rdo_validados = j.rdo_validados || {};
+    await carregar();
+    toast(retirar ? 'Validação retirada: o RDO pode ser editado de novo.' : 'RDO validado e travado.');
+  } catch (e) { toast(e.message, true); }
+}
+
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del]');
+  const t = ev.target.closest && ev.target.closest('#btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
   if (!t) return;
+  if (t.dataset.rdoValidar) { rdoValidar(t.dataset.rdoValidar, false); return; }
+  if (t.dataset.rdoRetirar) { rdoValidar(t.dataset.rdoRetirar, true); return; }
   if (t.id === 'btnRdoCliente') rdoGerar('cliente');
   else if (t.id === 'btnRdoGestao') rdoGerar('gestao');
   else if (t.dataset.rdoDia) rdoIrParaDia(add(rdoDia(), +t.dataset.rdoDia));

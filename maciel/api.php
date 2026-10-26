@@ -98,6 +98,12 @@ try {
             }
             responder_json(200, tarefas_listar($usuario));
         }
+        if ($rota === 'configuracoes') {
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Configurações pessoais não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, configuracoes_ler($usuario));
+        }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
@@ -130,6 +136,16 @@ try {
     }
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) {
         responder_json(415, ['erro' => 'Envie os dados em JSON.']);
+    }
+    if ($rota === 'configuracoes') {   // preferências e dados do próprio usuário: não mexem nos dados da obra nem na versão do modelo
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Configurações pessoais não estão disponíveis por token de máquina.']);
+        }
+        $corpoC = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoC)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_configuracoes($corpoC, $usuario));
     }
     if ($rota === 'tarefas-msgs') {   // conversa entre os usuários: não mexe nos dados da obra
         if ($via_token) {
@@ -177,7 +193,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -288,6 +304,7 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
 {
     garantir_tarefas();
     $acao = (string)($corpo['acao'] ?? '');
+    $avisosMsg = [];
     $tarefaId = (int)($corpo['tarefa'] ?? 0);
     if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
         throw new ErroValidacao('Você não participa desta tarefa.');
@@ -299,6 +316,10 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
         }
         q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?)',
             [$tarefaId, (int)$usuario['id'], mb_substr((string)$usuario['nome'], 0, 100), $texto, tarefa_agora_brt()]);
+        if ($tarefaId > 0) {   // conversa da tarefa avisa a outra ponta por e-mail; o mural (todos os usuários) não manda e-mail
+            $tt = q_global('SELECT * FROM tarefas WHERE id = ?', [$tarefaId])->fetch();
+            if ($tt) { $avisosMsg = tarefa_notificar($tt, $usuario, 'mensagem', ['Mensagem: ' . mb_substr($texto, 0, 600) . (mb_strlen($texto) > 600 ? '…' : '')]); }
+        }
     } elseif ($acao === 'excluir') {
         $m = q_global('SELECT * FROM tarefas_msgs WHERE id = ? AND tarefa_id = ?', [(int)($corpo['id'] ?? 0), $tarefaId])->fetch();
         if (!$m) {
@@ -314,7 +335,129 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
     } else {
         throw new ErroValidacao('Ação inválida.');
     }
-    return tarefas_msgs_listar($usuario, $tarefaId);
+    $r = tarefas_msgs_listar($usuario, $tarefaId);
+    if (!empty($avisosMsg)) { $r['aviso_email'] = implode(' · ', $avisosMsg); }
+    return $r;
+}
+
+// ---- Configurações pessoais (aba Configurações) -------------------------------------------------------------------
+function configuracoes_ler(array $usuario)
+{
+    $u = q_global('SELECT id, nome, login, perfil, empresa, email, tema, menu_pos FROM usuarios WHERE id = ?', [(int)$usuario['id']])->fetch();
+    $pref = preferencias_usuario((int)$usuario['id']);
+    $obras = q_global('SELECT o.nome FROM usuarios_obras uo JOIN obras o ON o.id = uo.obra_id WHERE uo.usuario_id = ? ORDER BY o.nome', [(int)$usuario['id']])->fetchAll(PDO::FETCH_COLUMN);
+    $mods = modulos_usuario($usuario);
+    $ult = q_global("SELECT quando FROM auditoria_global WHERE usuario = ? AND acao = 'senha_alterada' ORDER BY id DESC LIMIT 1", [$u['login']])->fetchColumn();
+    return [
+        'nome' => $u['nome'], 'login' => $u['login'], 'perfil' => $u['perfil'], 'empresa' => $u['empresa'], 'email' => (string)($u['email'] ?? ''),
+        'idioma' => $pref['idioma'], 'tam_texto' => $pref['tam_texto'], 'email_tarefas' => $pref['email_tarefas'],
+        'tema' => in_array((string)$u['tema'], TEMAS_VALIDOS, true) ? $u['tema'] : '',
+        'menu' => ($u['menu_pos'] ?? '') === 'topo' ? 'topo' : 'lateral',
+        'tutorial' => $pref['tutorial'],
+        'obras' => $obras ?: [], 'modulos' => $mods,
+        'senha_alterada_em' => $ult ?: null,
+        'idiomas' => IDIOMAS_VALIDOS, 'temas' => TEMAS_VALIDOS,
+    ];
+}
+
+function acao_configuracoes(array $corpo, array $usuario)
+{
+    $id = (int)$usuario['id'];
+    $acao = (string)($corpo['acao'] ?? '');
+    $u = q_global('SELECT id, nome, login, senha, email FROM usuarios WHERE id = ? AND ativo = 1', [$id])->fetch();
+    if (!$u) {
+        throw new ErroValidacao('Usuário não encontrado. Entre de novo.');
+    }
+    garantir_preferencias_usuario();
+    if ($acao === 'perfil') {
+        $nome = trim(strip_tags((string)($corpo['nome'] ?? '')));
+        $nome = preg_replace('/\s+/u', ' ', $nome);
+        if (mb_strlen($nome) < 2 || mb_strlen($nome) > 80) {
+            throw new ErroValidacao('Informe o nome (de 2 a 80 caracteres).');
+        }
+        $email = trim((string)($corpo['email'] ?? ''));
+        if ($email !== '') {
+            if (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new ErroValidacao('E-mail inválido.');
+            }
+            $outro = q_global('SELECT id FROM usuarios WHERE LOWER(email) = ? AND id <> ?', [mb_strtolower($email), $id])->fetchColumn();
+            if ($outro) {
+                throw new ErroValidacao('Este e-mail já está em uso por outro usuário.');
+            }
+        }
+        q_global('UPDATE usuarios SET nome = ?, email = ? WHERE id = ?', [$nome, $email !== '' ? $email : null, $id]);
+        registrar_global('perfil_alterado', ['usuario' => $u['login']]);
+        return ['ok' => true, 'mensagem' => 'Dados atualizados.', 'nome' => $nome, 'email' => $email];
+    }
+    if ($acao === 'senha') {
+        $atual = (string)($corpo['atual'] ?? '');
+        $nova = (string)($corpo['nova'] ?? '');
+        $conf = (string)($corpo['confirmar'] ?? '');
+        $limite = date('Y-m-d H:i:s', time() - 900);
+        $falhas = (int)q_global("SELECT COUNT(*) FROM auditoria_global WHERE usuario = ? AND acao = 'senha_falha' AND quando >= ?", [$u['login'], $limite])->fetchColumn();
+        if ($falhas >= 5) {
+            throw new ErroValidacao('Muitas tentativas com a senha atual errada. Aguarde 15 minutos e tente de novo.');
+        }
+        if ($atual === '' || !password_verify($atual, (string)$u['senha'])) {
+            registrar_global('senha_falha', null);
+            throw new ErroValidacao('A senha atual não confere.');
+        }
+        if (strlen($nova) < 8) {
+            throw new ErroValidacao('A nova senha precisa ter pelo menos 8 caracteres.');
+        }
+        if (strlen($nova) > 200) {
+            throw new ErroValidacao('A nova senha é longa demais (máximo 200 caracteres).');
+        }
+        if ($nova !== $conf) {
+            throw new ErroValidacao('A confirmação da nova senha não confere.');
+        }
+        if (hash_equals($atual, $nova)) {
+            throw new ErroValidacao('A nova senha precisa ser diferente da atual.');
+        }
+        if (mb_strtolower($nova) === mb_strtolower((string)$u['login'])) {
+            throw new ErroValidacao('A senha não pode ser igual ao seu login.');
+        }
+        q_global('UPDATE usuarios SET senha = ? WHERE id = ?', [password_hash($nova, PASSWORD_DEFAULT), $id]);
+        registrar_global('senha_alterada', null);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+        return ['ok' => true, 'mensagem' => 'Senha alterada. Use a nova senha no próximo acesso.'];
+    }
+    if ($acao === 'preferencias') {
+        $idioma = (string)($corpo['idioma'] ?? 'pt-BR');
+        $tam = (string)($corpo['tam_texto'] ?? 'normal');
+        $tema = (string)($corpo['tema'] ?? '');
+        $menu = (string)($corpo['menu'] ?? 'lateral');
+        if (!in_array($idioma, IDIOMAS_VALIDOS, true)) { throw new ErroValidacao('Idioma inválido.'); }
+        if (!in_array($tam, TAMANHOS_TEXTO, true)) { throw new ErroValidacao('Tamanho de texto inválido.'); }
+        if ($tema !== '' && !in_array($tema, TEMAS_VALIDOS, true)) { throw new ErroValidacao('Tema inválido.'); }
+        if (!in_array($menu, MENUS_VALIDOS, true)) { throw new ErroValidacao('Posição do menu inválida.'); }
+        $emailTar = array_key_exists('email_tarefas', $corpo) ? (empty($corpo['email_tarefas']) ? '0' : null) : null;   // '0' = desligado; vazio = ligado
+        q_global('UPDATE usuarios SET idioma = ?, tam_texto = ?, tema = ?, menu_pos = ?, email_tarefas = ? WHERE id = ?',
+            [$idioma, $tam, $tema !== '' ? $tema : null, $menu === 'topo' ? 'topo' : null, $emailTar, $id]);
+        return ['ok' => true, 'mensagem' => 'Preferências salvas.', 'email_tarefas' => $emailTar !== '0', 'idioma' => $idioma, 'tam_texto' => $tam, 'tema' => $tema, 'menu' => $menu];
+    }
+    if ($acao === 'tutorial') {
+        $in = $corpo['tutorial'] ?? [];
+        $limpo = [];
+        if (is_array($in)) {
+            foreach (array_slice($in, 0, 300, true) as $chave => $passos) {
+                if (!is_string($chave) || !preg_match('/^[a-z0-9_.-]{1,40}$/', $chave) || !is_array($passos)) { continue; }
+                $lista = [];
+                foreach (array_slice($passos, 0, 60) as $n) {
+                    if (is_int($n) || (is_string($n) && ctype_digit($n))) {
+                        $n = (int)$n;
+                        if ($n >= 0 && $n < 60) { $lista[$n] = $n; }
+                    }
+                }
+                if ($lista) { $limpo[$chave] = array_values($lista); }
+            }
+        }
+        q_global('UPDATE usuarios SET tutorial = ? WHERE id = ?', [$limpo ? json_encode($limpo) : null, $id]);
+        return ['ok' => true, 'tutorial' => $limpo];
+    }
+    throw new ErroValidacao('Ação desconhecida.');
 }
 
 function acao_tarefas(array $corpo, array $usuario)
@@ -329,6 +472,8 @@ function acao_tarefas(array $corpo, array $usuario)
         throw new ErroValidacao('Tarefa não encontrada. Recarregue a tela.');
     }
     $agora = tarefa_agora_brt();
+    $avisos = [];   // frases sobre os e-mails (quem recebeu / quem está sem e-mail), mostradas na tela
+    $rotSt = ['pendente' => 'A fazer', 'andamento' => 'Em andamento', 'concluida' => 'Concluída', 'cancelada' => 'Cancelada'];
     if ($acao === 'salvar') {
         if ($t && !$admin && (int)$t['criado_por'] !== $eu) {
             throw new ErroValidacao('Só quem criou a tarefa (ou o administrador) pode alterar os dados dela. Você pode mudar o andamento e escrever o retorno.');
@@ -374,6 +519,15 @@ function acao_tarefas(array $corpo, array $usuario)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$titulo, $desc !== '' ? $desc : null, $eu, $resp, $ini, $fim, $aviso, $prio, 'pendente', $agora, $agora, tarefa_novo_codigo(substr($agora, 0, 4))]);
         }
+        // E-mail: tarefa enviada a outra pessoa (nova ou passada para outro responsável) vai para o e-mail de cadastro dela
+        if ($resp !== $eu && (!$t || (int)$t['responsavel_id'] !== $resp)) {
+            $nova = q_global('SELECT * FROM tarefas WHERE id = ?', [$t ? $id : (int)bd()->lastInsertId()])->fetch();
+            if ($nova) {
+                $extra = [];
+                if ($desc !== '') { $extra[] = 'Descrição: ' . $desc; }
+                $avisos = tarefa_notificar($nova, $usuario, 'enviada', $extra, [$resp]);
+            }
+        }
     } elseif ($acao === 'status') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
@@ -392,6 +546,13 @@ function acao_tarefas(array $corpo, array $usuario)
         }
         q_global('UPDATE tarefas SET status=?, retorno=?, concluida_em=?, iniciada_em=?, atualizado_em=? WHERE id=?',
             [$st, $retorno !== '' ? $retorno : null, $st === 'concluida' ? $agora : null, $iniciada !== '' ? $iniciada : null, $agora, $id]);
+        // E-mail: resposta (situação ou retorno mudou) avisa a outra ponta: quem criou e/ou o responsável, menos quem respondeu
+        if ($st !== (string)$t['status'] || $retorno !== (string)($t['retorno'] ?? '')) {
+            $nova = q_global('SELECT * FROM tarefas WHERE id = ?', [$id])->fetch();
+            $extra = ['Situação: ' . ($rotSt[$st] ?? $st)];
+            if ($retorno !== '') { $extra[] = 'Retorno: ' . $retorno; }
+            $avisos = tarefa_notificar($nova, $usuario, 'resposta', $extra);
+        }
     } elseif ($acao === 'excluir') {
         if (!$t) {
             throw new ErroValidacao('Tarefa não encontrada.');
@@ -407,7 +568,9 @@ function acao_tarefas(array $corpo, array $usuario)
     } else {
         throw new ErroValidacao('Ação de tarefa inválida.');
     }
-    return tarefas_listar($usuario);
+    $r = tarefas_listar($usuario);
+    if ($avisos) { $r['aviso_email'] = implode(' · ', $avisos); }
+    return $r;
 }
 
 // ----------------------------------------------------------------- ações
@@ -781,6 +944,20 @@ function acao_registro(array $corpo)
     $id = isset($corpo['linha']) && $corpo['linha'] !== null ? (int)$corpo['linha'] : null;
     if ($id !== null && !q("SELECT id FROM $tabela WHERE id = ?", [$id])->fetch()) {
         throw new ErroValidacao('Registro não encontrado. Recarregue a tela.');
+    }
+    if ($tabela === 'rdo_dias' || $tabela === 'rdo_fotos') {   // RDO validado: clima, observações e legendas das fotos ficam travados
+        $datasRdo = [];
+        if ($id !== null) {
+            $datasRdo[] = (string)q("SELECT data FROM $tabela WHERE id = ?", [$id])->fetchColumn();
+        }
+        if (isset($corpo['campos']['data'])) {
+            $datasRdo[] = (string)$corpo['campos']['data'];
+        }
+        foreach ($datasRdo as $dRdo) {
+            if ($dRdo !== '' && ($vRdo = rdo_dia_validacao($dRdo))) {
+                throw new ErroValidacao(rdo_mensagem_travado($dRdo, $vRdo));
+            }
+        }
     }
     if (!empty($corpo['excluir'])) {
         if ($tabela === 'materiais') {
@@ -2806,6 +2983,36 @@ function fluxo_tem_ciclo(array $mapa)
         }
     }
     return false;
+}
+
+// Validar RDO / retirar a validação: SÓ o administrador. Dia validado = travado (clima, observações, fotos e legendas; o servidor recusa).
+function acao_rdo_validar(array $corpo, array $usuario)
+{
+    if (($usuario['perfil'] ?? '') !== 'admin') {
+        throw new ErroValidacao('Só o administrador pode validar o RDO ou retirar a validação.');
+    }
+    $data = (string)($corpo['data'] ?? '');
+    if (!data_valida($data)) {
+        throw new ErroValidacao('Data do RDO inválida.');
+    }
+    $v = rdo_validados();
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    if (($corpo['acao'] ?? '') === 'retirar') {
+        if (!isset($v[$data])) {
+            throw new ErroValidacao('Este RDO não está validado.');
+        }
+        unset($v[$data]);
+    } else {
+        if ($data > $hoje) {
+            throw new ErroValidacao('Não é possível validar o RDO de um dia que ainda não aconteceu.');
+        }
+        if (isset($v[$data])) {
+            throw new ErroValidacao('Este RDO já está validado.');
+        }
+        $v[$data] = ['por' => (string)$usuario['nome'], 'login' => (string)$usuario['login'], 'em' => tarefa_agora_brt()];
+    }
+    sistema_gravar('rdo_validados', json_encode((object)$v, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true, 'rdo_validados' => (object)$v];
 }
 
 function acao_fluxo_config(array $corpo)

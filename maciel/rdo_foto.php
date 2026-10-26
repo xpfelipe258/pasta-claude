@@ -57,6 +57,9 @@ if ($acao === 'enviar') {
     if (!data_valida($data)) {
         rdo_resp(400, ['erro' => 'Data inválida.']);
     }
+    if ($vRdo = rdo_dia_validacao($data)) {
+        rdo_resp(403, ['erro' => rdo_mensagem_travado($data, $vRdo)]);
+    }
     $bin = (string)file_get_contents('php://input');
     if ($bin === '' || strlen($bin) > 15 * 1048576) {
         rdo_resp(400, ['erro' => 'Foto vazia ou maior que 15 MB.']);
@@ -100,9 +103,12 @@ if ($acao === 'enviar') {
 
 if ($acao === 'excluir') {
     $id = (int)($_GET['id'] ?? 0);
-    $f = q('SELECT arquivo FROM rdo_fotos WHERE id = ?', [$id])->fetch();
+    $f = q('SELECT arquivo, data FROM rdo_fotos WHERE id = ?', [$id])->fetch();
     if (!$f) {
         rdo_resp(404, ['erro' => 'Foto não encontrada.']);
+    }
+    if ($vRdo = rdo_dia_validacao((string)$f['data'])) {
+        rdo_resp(403, ['erro' => rdo_mensagem_travado((string)$f['data'], $vRdo)]);
     }
     q('DELETE FROM rdo_fotos WHERE id = ?', [$id]);
     @unlink($dir . '/' . basename((string)$f['arquivo']));

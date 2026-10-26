@@ -78,6 +78,13 @@ if ($acao === 'enviar') {
     $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
     q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, arquivo, arquivo_nome, arquivo_tipo, arquivo_tam, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$tarefa, (int)$u['id'], mb_substr((string)$u['nome'], 0, 100), $texto !== '' ? mb_substr($texto, 0, 1000) : null, $arq, $nomeOrig, $ext, strlen($bin), $agora]);
-    tf_resp(200, ['ok' => true, 'id' => (int)bd()->lastInsertId()]);
+    $novoId = (int)bd()->lastInsertId();
+    $avisoEmail = '';
+    if ($tarefa > 0 && ($tt = q_global('SELECT * FROM tarefas WHERE id = ?', [$tarefa])->fetch())) {   // avisa a outra ponta por e-mail (o mural não manda)
+        $extra = ['Arquivo: ' . $nomeOrig];
+        if ($texto !== '') { $extra[] = 'Mensagem: ' . mb_substr($texto, 0, 600); }
+        $avisoEmail = implode(' · ', tarefa_notificar($tt, $u, 'mensagem', $extra));
+    }
+    tf_resp(200, ['ok' => true, 'id' => $novoId, 'aviso_email' => $avisoEmail]);
 }
 tf_resp(400, ['erro' => 'Ação desconhecida.']);

@@ -86,6 +86,7 @@ async function tfConvEnviarTexto(el) {
   try {
     const j = await postar(API + 'tarefas-msgs', { acao: 'enviar', tarefa: +el.dataset.cvId, texto });
     ta.value = ''; tfConvLista(el, j); tfConvCarregar(el, true);
+    if (j.aviso_email) toast('Mensagem enviada · ' + j.aviso_email);
   } catch (err) { toast(err.message, true); }
   finally { b.disabled = false; }
 }
@@ -102,7 +103,7 @@ async function tfConvEnviarArquivo(el, input) {
     if (r.status === 401) { location.href = 'login.php'; return; }
     const j = await r.json().catch(() => ({ erro: 'O servidor recusou o arquivo (tamanho ou tipo).' }));
     if (!r.ok) throw new Error(j.erro || 'Falha ao enviar o arquivo');
-    ta.value = ''; toast('Arquivo enviado');
+    ta.value = ''; toast('Arquivo enviado' + (j.aviso_email ? ' · ' + j.aviso_email : ''));
     await tfConvCarregar(el, true);
   } catch (err) { toast(err.message, true); }
   finally { nota.textContent = orig; }
@@ -459,13 +460,13 @@ async function tfSalvar(ev) {
     const antes = new Set((TF.dados.tarefas || []).map(x => x.id));
     TF.dados = r; dlg.close(); tfAtualizarMenu(); renderTarefas();
     const nova = !t && r.tarefas.find(x => !antes.has(x.id));
-    toast(nova ? `Tarefa criada · código ${nova.codigo}` : 'Tarefa salva');
+    toast((nova ? `Tarefa criada · código ${nova.codigo}` : 'Tarefa salva') + (r.aviso_email ? ' · ' + r.aviso_email : ''));
   } catch (err) { toast(err.message, true); }
   finally { b.disabled = false; }
 }
 
 async function tfMudarStatus(id, status) {
-  try { TF.dados = await postar(API + 'tarefas', { acao: 'status', id, status }); tfAtualizarMenu(); renderTarefas(); }
+  try { TF.dados = await postar(API + 'tarefas', { acao: 'status', id, status }); tfAtualizarMenu(); renderTarefas(); if (TF.dados.aviso_email) toast('Situação atualizada · ' + TF.dados.aviso_email); }
   catch (err) { toast(err.message, true); renderTarefas(); }
 }
 

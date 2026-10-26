@@ -256,6 +256,75 @@ function tarefa_conversa_acesso(array $u, $tarefaId)
     }
     return ($u['perfil'] ?? '') === 'admin' || (int)$t['criado_por'] === (int)$u['id'] || (int)$t['responsavel_id'] === (int)$u['id'];
 }
+// ---- Validação do RDO (2026-10-26): só o administrador valida / retira a validação; dia validado trava clima, observações e fotos ----
+// sistema.rdo_validados (por obra) = { "2026-10-14": { "por": "Felipe", "login": "admin", "em": "2026-10-15 08:10:00" } }
+function rdo_validados()
+{
+    $d = json_decode((string)sistema_ler('rdo_validados', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+function rdo_dia_validacao($data)
+{
+    $v = rdo_validados();
+    return isset($v[$data]) && is_array($v[$data]) ? $v[$data] : null;
+}
+function rdo_mensagem_travado($data, array $v)
+{
+    return 'O RDO de ' . tarefa_data_br($data) . ' está VALIDADO por ' . ($v['por'] ?? '—') . ' e travado para envio e edição. Só o administrador pode retirar a validação.';
+}
+
+// ---- E-mail das tarefas (2026-10-26): tarefa enviada, tarefa respondida e mensagem na conversa --------------------
+function tarefa_data_br($d)
+{
+    return preg_match('/^(\d{4})-(\d{2})-(\d{2})/', (string)$d, $m) ? "$m[3]/$m[2]/$m[1]" : '—';
+}
+
+// Manda o aviso ao e-mail de cadastro de cada destinatário (menos o autor da ação). O envio acontece DEPOIS de a
+// resposta ir para a tela (não atrasa o clique). Devolve frases curtas para a tela: quem recebeu e quem ficou sem aviso.
+// $t = linha de `tarefas`; $evento = 'enviada' | 'resposta' | 'mensagem'; $extra = linhas de detalhe do evento.
+function tarefa_notificar(array $t, array $autor, $evento, array $extra, array $ids = null)
+{
+    $avisos = [];
+    $ids = $ids ?? [(int)$t['criado_por'], (int)$t['responsavel_id']];
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($i) use ($autor) { return $i && $i !== (int)$autor['id']; })));
+    if (!$ids) {
+        return $avisos;
+    }
+    garantir_preferencias_usuario();
+    $sistema = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
+    $link = url_base_sistema() . '/index.php?aba=tarefas';
+    $assuntos = ['enviada' => 'Nova tarefa para você', 'resposta' => 'Resposta na tarefa', 'mensagem' => 'Nova mensagem na tarefa'];
+    $intros = ['enviada' => '%s enviou uma tarefa para você.', 'resposta' => '%s respondeu a tarefa.', 'mensagem' => '%s escreveu na conversa da tarefa.'];
+    foreach ($ids as $uid) {
+        $d = q_global('SELECT id, nome, email, email_tarefas, ativo FROM usuarios WHERE id = ?', [$uid])->fetch();
+        if (!$d || (int)$d['ativo'] !== 1) { continue; }
+        if (($d['email_tarefas'] ?? '') === '0') { continue; }   // a própria pessoa desligou os avisos
+        if (!filter_var((string)$d['email'], FILTER_VALIDATE_EMAIL)) {
+            $avisos[] = $d['nome'] . ' não tem e-mail cadastrado (Configurações › Meu perfil) — ficou sem aviso por e-mail';
+            continue;
+        }
+        $linhas = ['Olá, ' . $d['nome'] . '.', '', sprintf($intros[$evento], $autor['nome']), '',
+            'Código: ' . ($t['codigo'] ?: '—'), 'Tarefa: ' . $t['titulo']];
+        foreach ($extra as $l) { $linhas[] = $l; }
+        $linhas[] = 'Prazo: ' . tarefa_data_br($t['data_inicio']) . ' a ' . tarefa_data_br($t['data_fim']) . ' · prioridade ' . ($t['prioridade'] ?: 'normal');
+        array_push($linhas, '', 'Abrir no sistema: ' . $link, '',
+            'Para não receber estes avisos, desligue em Configurações › Avisos por e-mail.');
+        $assunto = $assuntos[$evento] . ' ' . ($t['codigo'] ?: '') . ' - ' . $sistema;
+        $para = (string)$d['email'];
+        $msg = implode("\n", $linhas);
+        $nomeDest = $d['nome'];
+        register_shutdown_function(function () use ($para, $assunto, $msg, $nomeDest, $evento, $t) {
+            if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+            try {
+                $ok = enviar_email_sistema($para, $assunto, $msg);
+                registrar_global('email_tarefa', ['evento' => $evento, 'tarefa' => $t['codigo'] ?? null, 'para' => $nomeDest, 'ok' => (bool)$ok]);
+            } catch (Throwable $e) { /* falha de e-mail nunca atrapalha a tarefa */ }
+        });
+        $avisos[] = 'e-mail enviado para ' . $d['nome'];
+    }
+    return $avisos;
+}
+
 // Pasta dos arquivos da conversa (global, fora do Git e fechada ao público: só sai por tarefa_arquivo.php, com login).
 function tarefas_arquivos_dir()
 {
@@ -864,6 +933,43 @@ function tema_attr()
     return $t !== '' ? ' data-theme="' . $t . '"' : '';
 }
 
+// ---- Preferências pessoais (aba Configurações): idioma, tamanho do texto e progresso do tutorial (2026-10-26) ----
+const IDIOMAS_VALIDOS = ['pt-BR', 'en', 'es'];
+const TAMANHOS_TEXTO = ['normal', 'grande', 'maior'];
+// Colunas criadas na hora (sem bump de esquema): o SELECT falha em banco antigo e a coluna é adicionada uma vez.
+function garantir_preferencias_usuario()
+{
+    static $ok = false;
+    if ($ok) {
+        return;
+    }
+    try {
+        q_global('SELECT idioma, tam_texto, tutorial, email_tarefas FROM usuarios WHERE 1 = 0')->fetchAll();
+    } catch (Throwable $e) {
+        $pdo = bd();
+        foreach (['idioma' => 'VARCHAR(10) NULL', 'tam_texto' => 'VARCHAR(10) NULL', 'tutorial' => 'TEXT NULL', 'email_tarefas' => 'VARCHAR(1) NULL'] as $col => $def) {
+            try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN $col $def"); } catch (Throwable $e2) { /* já existe */ }
+        }
+    }
+    $ok = true;
+}
+function preferencias_usuario($id = null)
+{
+    $id = $id ?? (int)(usuario_atual()['id'] ?? 0);
+    if (!$id) {
+        return ['idioma' => 'pt-BR', 'tam_texto' => 'normal', 'tutorial' => [], 'email_tarefas' => true];
+    }
+    garantir_preferencias_usuario();
+    $l = q_global('SELECT idioma, tam_texto, tutorial, email_tarefas FROM usuarios WHERE id = ?', [$id])->fetch() ?: [];
+    $tut = json_decode((string)($l['tutorial'] ?? ''), true);
+    return [
+        'idioma' => in_array($l['idioma'] ?? '', IDIOMAS_VALIDOS, true) ? $l['idioma'] : 'pt-BR',
+        'tam_texto' => in_array($l['tam_texto'] ?? '', TAMANHOS_TEXTO, true) ? $l['tam_texto'] : 'normal',
+        'tutorial' => is_array($tut) ? $tut : [],
+        'email_tarefas' => ($l['email_tarefas'] ?? '') !== '0',   // vazio = recebe; '0' = desligou os avisos de tarefa por e-mail
+    ];
+}
+
 // $app = tela do sistema (Dashboard geral): usa o tema E a posição do menu do usuário e não carrega o visual do portal.
 function pagina_inicio($titulo, $app = false)
 {
@@ -902,6 +1008,10 @@ function enviar_email_sistema($para, $assunto, $mensagem)
         'Reply-To: no-reply@' . $dom,
         'X-Mailer: PHP/' . phpversion(),
     ];
+    $arqTeste = getenv('GESTAO_EMAIL_ARQUIVO');   // só nos testes automáticos: grava o e-mail num arquivo em vez de enviar
+    if ($arqTeste) {
+        return file_put_contents($arqTeste, "PARA: $para\nASSUNTO: $assunto\n$mensagem\n=====\n", FILE_APPEND) !== false;
+    }
     return @mail($para, '=?UTF-8?B?' . base64_encode($assunto) . '?=', $mensagem, implode("\r\n", $headers));
 }
 
