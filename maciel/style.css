@@ -1513,3 +1513,7 @@ html[data-texto="maior"] { font-size: 125%; }
 .acesso-abas .acesso-area>b{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;opacity:.75}
 .acesso-abas .check{white-space:normal}
 .acesso-abas .acesso-sub{margin-left:22px;font-size:.72rem;opacity:.9}
+.modal-admin-caixa .acesso-abas{width:100%;margin:10px 0 4px;box-sizing:border-box}
+.modal-admin-caixa .acesso-abas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px;max-height:250px;overflow:auto;padding-right:6px}
+.modal-admin-caixa .acesso-abas .acesso-area{margin:6px 0}
+@media(max-width:700px){.modal-admin-caixa .acesso-abas-lista{grid-template-columns:1fr}}

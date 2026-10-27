@@ -929,6 +929,16 @@ function ui_ocultos_usuario(array $u)
     ];
 }
 
+// Remove as ocultações de um usuário (ex.: virou administrador): volta a ver tudo.
+function ui_ocultos_remover($uid)
+{
+    $todos = json_decode((string)global_ler('ui_ocultos', '{}'), true);
+    if (is_array($todos) && isset($todos[(string)(int)$uid])) {
+        unset($todos[(string)(int)$uid]);
+        global_gravar('ui_ocultos', json_encode($todos, JSON_UNESCAPED_UNICODE));
+    }
+}
+
 // Grava o que o usuário PODE ver (marcado na Administração); o que não veio marcado fica oculto.
 function ui_ocultos_gravar($uid, array $abasVisiveis, array $subsVisiveis)
 {
