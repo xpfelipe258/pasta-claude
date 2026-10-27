@@ -77,9 +77,11 @@ function rdoEfetivo(dia) {
   });
   return [...por.entries()].map(([emp, l]) => ({ emp, linhas: l.sort((a, b) => a.funcao.localeCompare(b.funcao, 'pt')), total: soma0(l, x => x.qtd) })).sort((a, b) => a.emp.localeCompare(b.emp, 'pt'));
 }
+// Remessas que chegaram na obra no dia: a data "Obra" da aba Remessas é digitada como dd/mm/aaaa (ou aaaa-mm-dd), então
+// as duas formas são convertidas para ISO antes de comparar com o dia do RDO. Só o número da remessa (nunca os itens).
 function rdoRemessas(dia) {
-  const dt = (EP && EP.remessas && EP.remessas.datas) || {};
-  return Object.entries(dt).filter(([, v]) => v && v.chegada_obra === dia).map(([nome]) => nome).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+  const dt = (typeof estRemessasComCadastros === 'function' ? estRemessasComCadastros()?.datas : (EP && EP.remessas && EP.remessas.datas)) || {};
+  return Object.entries(dt).filter(([, v]) => v && dataRemessaIso(v.chegada_obra) === dia).map(([nome]) => nome).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
 }
 function rdoMaquinas(dia) {
   try { return relEquipDados('geral', dia, dia, 'todos').linhas; } catch (e) { console.error('RDO máquinas', e); return []; }
@@ -123,7 +125,12 @@ function rdoImpactosAbertos(dia) {
 }
 
 // ---------------------------------------------------------------- tela da aba
+let RDO_EP_PEDIDO = false;
 function renderRdo() {
+  if (!EP && !RDO_EP_PEDIDO) {   // remessas ainda não chegaram do servidor: busca uma vez e refaz a tela
+    RDO_EP_PEDIDO = true;
+    fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) { EP = j; if (abaAtual === 'rdo') renderRdo(); } }).catch(() => {});
+  }
   const ae = document.activeElement;   // quem está digitando não é interrompido: o modelo já foi atualizado e a tela é refeita ao sair do campo
   if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date') return;
   const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar(dia), val = rdoValidacao(dia);
@@ -149,7 +156,7 @@ function renderRdo() {
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
       ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
-      ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'chegaram na obra no dia' : 'sem remessa no dia', 'var(--acento)')}
+      ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'Remessa ' + rem.map(esc).join(', ') : 'sem remessa no dia', 'var(--acento)')}
     </div>
     <div class="bloco rdo-gerar">
       <div class="bloco-cab"><h2>Gerar o relatório do dia</h2><span class="nota">O sistema reúne tudo o que foi lançado em ${esc(fdA(dia))}. Confira antes de baixar.</span></div>
@@ -375,6 +382,7 @@ async function rdoMapasHtml(dia) {
 
 async function rdoHtml(dia, modo) {
   await tplLogosCarregar();
+  try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* segue com o que já está na tela */ }   // remessa lançada agora há pouco entra no relatório
   const gestao = modo === 'gestao', info = rdoInfo(dia) || {};
   const prod = rdoProducao(dia), efet = rdoEfetivo(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia), fotos = rdoFotos(dia), aps = rdoApontamentos(dia);
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
