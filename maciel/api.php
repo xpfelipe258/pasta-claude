@@ -2462,7 +2462,34 @@ function frentes_montagem()
             $d['frentes']['telha_fechamento'] = $tf;
         }
     }
+    if (!empty($d['frentes']['fechamento'])) {   // regra do sistema: o mapa da estrutura do fechamento lateral NÃO leva telha (a telha é da Globo Aços, apontada em "Telhas de fechamento")
+        $d['frentes']['fechamento'] = frente_fechamento_sem_telha($d['frentes']['fechamento']);
+    }
     return $d;
+}
+
+// Estrutura do fechamento lateral = só terças e espaçadores (os suportes de terça baixam junto com as terças, ver regras_baixa.json › estrutura_por_peca).
+// A família TELHA FECHAMENTO do IFC sai das células, do total e da lista de famílias: telha é apontada à parte pela Globo Aços (frente telha_fechamento),
+// e contá-la aqui lançaria a mesma produção duas vezes. Idempotente.
+function frente_fechamento_sem_telha(array $fech)
+{
+    $familia = 'TELHA FECHAMENTO';
+    $total = 0;
+    foreach (($fech['partes'] ?? []) as $i => $p) {
+        foreach (($p['celulas'] ?? []) as $j => $c) {
+            if (isset($c['pecas'][$familia])) {
+                $c['total'] = max(0, (int)($c['total'] ?? 0) - (int)$c['pecas'][$familia]);
+                unset($c['pecas'][$familia]);
+                $fech['partes'][$i]['celulas'][$j] = $c;
+            }
+            $total += (int)($c['total'] ?? 0);
+        }
+    }
+    if (isset($fech['partes'])) {
+        $fech['total'] = $total;
+    }
+    $fech['familias'] = array_values(array_filter($fech['familias'] ?? [], function ($f) use ($familia) { return $f !== $familia; }));
+    return $fech;
 }
 
 // Medição (BM) da Globo Aços: a atividade "Instalação de telhas" do catálogo é medida em m² pelos apontamentos do BM (bm_apontamentos, uma linha por

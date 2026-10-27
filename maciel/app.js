@@ -3936,6 +3936,31 @@ function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
   return saida;
 }
 
+// Estrutura que baixa junto com o trecho do fechamento lateral (regras_baixa › estrutura_por_peca): a própria terça/espaçador e o suporte de terça (ST).
+// O mapa do trecho só sabe QUANTAS peças há de cada família, não a marca (TAG) de cada uma; por isso a baixa é distribuída entre as TAGs do produto
+// (mesmo local) na proporção do planejado de cada TAG. Devolve [{produto, local, quantidade}].
+function estruturaDoTrecho(tipo, parte, trecho, etapa, regras) {
+  if (FRENTE_CHAVE[String(tipo || '').toUpperCase()] !== 'fechamento') return [];
+  const fr = ((window._frentes || {}).frentes || {}).fechamento;
+  if (!fr) return [];
+  const porPeca = ((regras.consumo_por_servico || {})[etapa || fr.servico] || {}).estrutura_por_peca || {};
+  const p = (fr.partes || []).find(x => x.id === parte);
+  const cel = p && p.celulas.find(c => c.trecho === trecho);
+  if (!cel) return [];
+  const saida = [];
+  Object.entries(cel.pecas).forEach(([familia, n]) =>
+    (porPeca[familia] || []).forEach(b => saida.push({ produto: b.produto, local: b.local || '', tags: b.tags || null, quantidade: b.quantidade * n })));
+  return saida;
+}
+
+// Reparte uma quantidade do produto entre as suas TAGs (Materiais) na proporção do planejado. Devolve [{tag, quantidade}] (vazio sem TAG).
+function tagsDaEstrutura(produto, local, quantidade, somenteTags) {
+  const prod = ganNorm(produto), loc = ganNorm(local), so = Array.isArray(somenteTags) && somenteTags.length ? new Set(somenteTags.map(t => String(t).toUpperCase())) : null;   // "tags" da regra separa produtos iguais de frentes diferentes (ST do fechamento × ST da marquise)
+  const tags = (EP && EP.materiais || []).filter(m => m.tag && ganNorm(m.produto) === prod && (!loc || ganNorm(m.local) === loc) && (!so || so.has(String(m.tag).toUpperCase())) && Number(m.planejado) > 0);
+  const total = tags.reduce((n, m) => n + Number(m.planejado), 0);
+  return total > 0 ? tags.map(m => ({ tag: m.tag, quantidade: quantidade * Number(m.planejado) / total })) : [];
+}
+
 function consumoVirtualPorTag(regras) {
   if (regras.versao_identidade === 1) {
     return consumoIdentidadeIfc(regras, M.vinculos_material || {}, bmTab('bm_atividades'), T.apontamentos || [], a => bmRealizado(a, '9999-12-31'), M.fixadores_atividade || {});
@@ -3950,7 +3975,7 @@ function consumoVirtualPorTag(regras) {
   const tagsViga = new Set((regras.eventos || []).filter(e => (e.codigo || '').startsWith('VIGA_')).flatMap(e => (e.baixa || []).map(b => b.codigo)));
 
   const acum = new Map();
-  const entrada = cod => { let o = acum.get(cod); if (!o) acum.set(cod, o = { qtd: 0, partes: [], estimado: false, parcial: false, apont: false }); return o; };
+  const entrada = cod => { let o = acum.get(cod); if (!o) acum.set(cod, o = { qtd: 0, partes: [], estimado: false, parcial: false, apont: false, extra: '' }); return o; };
   Object.entries(servicos).forEach(([nome, conf]) => {
     if (nome.startsWith('_') || !conf.itens) return;
     if (!M.empresas.some(e => e.servicos.some(s => s.nome === nome))) return;
@@ -3988,13 +4013,24 @@ function consumoVirtualPorTag(regras) {
   evCons.forEach((q, cod) => { const o = entrada(cod); o.qtd += q; o.apont = true; o.partes.push(`${nf(q)} por apontamento`); });
 
   // fechamento lateral e marquise: cada trecho apontado consome os fixadores do projeto
-  const porFrente = new Map();
+  const porFrente = new Map(), estruturaTag = new Map();
   aps.filter(a => FRENTE_CHAVE[(a.tipo || '').toUpperCase()]).forEach(a => {
     fixadoresDoTrecho(a.tipo, a.faixa, a.rua, a.letra || '', regras).forEach(b => {
       const o = porFrente.get(b.codigo) || { qtd: 0, trechos: 0 };
       o.qtd += b.quantidade; o.trechos++;
       porFrente.set(b.codigo, o);
     });
+    estruturaDoTrecho(a.tipo, a.faixa, a.rua, a.letra || '', regras).forEach(b =>
+      tagsDaEstrutura(b.produto, b.local, b.quantidade, b.tags).forEach(t => {
+        const o = estruturaTag.get(t.tag) || { qtd: 0, produto: b.produto };
+        o.qtd += t.quantidade; estruturaTag.set(t.tag, o);
+      }));
+  });
+  estruturaTag.forEach((o, tag) => {
+    const e = entrada(tag);
+    e.qtd += o.qtd; e.apont = true;
+    e.extra = 'baixa por trecho apontado, distribuída entre as TAGs do produto na proporção do planejado, pois o mapa não informa a marca da peça';
+    e.partes.push(`${nf(o.qtd, 1)} ${cap(o.produto)} nos trechos de fechamento apontados`);
   });
   porFrente.forEach((o, cod) => {
     const e = entrada(cod);
@@ -4005,9 +4041,9 @@ function consumoVirtualPorTag(regras) {
   const mapa = new Map();
   acum.forEach((o, tag) => {
     const parcial = o.apont && tagsViga.has(tag) && prodVigas > apVigas;
-    const nota = o.partes.join(' + ') + (o.estimado ? ' (joists sem quadrante: divisão entre tipos de parafuso estimada)' : '')
+    const nota = o.partes.join(' + ') + (o.estimado && !o.extra ? ' (joists sem quadrante: divisão entre tipos de parafuso estimada)' : '') + (o.extra ? ` (${o.extra})` : '')
       + (parcial ? ` (${nf(apVigas)} de ${nf(prodVigas)} vigas apontadas; as demais ainda não entram)` : '');
-    mapa.set(tag, { cv: Math.round(o.qtd), origem: o.apont ? 'apontamento' : 'producao', estimado: o.estimado, parcial, nota });
+    mapa.set(tag, { cv: Math.round(o.qtd), origem: o.apont ? 'apontamento' : 'producao', estimado: o.estimado || !!o.extra, parcial, nota });
   });
   (regras.inventario_ajustes || []).forEach(a => mapa.set(a.tag, { cv: a.consumo_virtual, origem: 'ajuste', estimado: false, parcial: false, nota: a.motivo }));
   return mapa;
@@ -4301,7 +4337,7 @@ function apSelecao(ctx) {
   const frente = [];
   apEst.frente.forEach((emp, k) => { const [tipo, parte, trecho, etapa] = k.split('|'); frente.push({ tipo, parte, trecho, etapa, emp }); });
 
-  const grupos = new Map(), baixa = new Map();
+  const grupos = new Map(), baixa = new Map(), estrutura = new Map();
   const soma = (cod, q) => baixa.set(cod, (baixa.get(cod) || 0) + q);
   const grupo = (emp, servico) => { const k = (emp || '') + '|' + servico; if (!grupos.has(k)) grupos.set(k, { emp, servico, delta: 0 }); return grupos.get(k); };
   joists.forEach(j => {
@@ -4334,10 +4370,11 @@ function apSelecao(ctx) {
     gSel.delta += nTel;
     if (f.tipo === 'TELHAFECH') gSel.m2 = (gSel.m2 || 0) + (((cfgF.partes || []).find(p => p.id === f.parte)?.celulas || []).find(c => c.trecho === f.trecho)?.m2 || apTelhaM2(cfgF));
     fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
+    estruturaDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => estrutura.set(b.produto, (estrutura.get(b.produto) || 0) + b.quantidade));
   });
   const porEmp = {};
   [...joists, ...vigas, ...frente].forEach(x => porEmp[x.emp || '?'] = (porEmp[x.emp || '?'] || 0) + 1);
-  return { joists, vigas, frente, grupos: [...grupos.values()], baixa, porEmp,
+  return { joists, vigas, frente, grupos: [...grupos.values()], baixa, estrutura, porEmp,
     semEmpresa: [...joists, ...vigas, ...frente].some(x => !x.emp),
     nJ: joists.length, nV: vigas.length, nF: frente.length, nTelFech, m2TelFech };
 }
@@ -4379,6 +4416,8 @@ function apEfeitosHtml(regras, ctx) {
   itens.push(baixa.length
     ? `<b>Estoque (baixa automática):</b> ${baixa.map(([c, q]) => `${esc(nomes[c] || c)} <b>×${nf(q)}</b>`).join(' · ')}.`
     : '<b>Estoque:</b> nenhum fixador mapeado para esta seleção.');
+  const estr = [...sel.estrutura].filter(([, q]) => q > 0);
+  if (estr.length) itens.push(`<b>Estrutura que baixa do estoque (TAGs de Materiais):</b> ${estr.map(([p, q]) => `${esc(cap(p))} <b>×${nf(q)}</b>`).join(' · ')}. A baixa é repartida entre as TAGs de cada produto na proporção do planejado; o suporte de terça (ST) baixa junto com as terças. A telha não entra aqui: é da Globo Aços (Telhas de fechamento).`);
 
 
   const idsSel = new Set(sel.vigas.map(v => ctx.vigaId(v.eixo, v.letra)));
@@ -4807,6 +4846,7 @@ function apFrenteHtml(ctx) {
   h += '</tbody></table></div>';
   if (ehTF) h += `<p class="nota"><b>Telhas do fechamento lateral (Globo Aços).</b> Cada telha é uma peça ${esc(fr.familias.join(', '))} do IFC, contada por vão entre eixos nos lados A e H e por faixa nos oitões 01 e 20. Cada telha vale ${nf(m2TF, 2)} m² (${nf(fr.telha.m2_total_contrato, 1)} m² do contrato ÷ ${nf(fr.total)} telhas do projeto).</p>`;
   h += `<p class="nota">Cada célula é um trecho montável deste mapa, extraído do IFC (${esc(fr.familias.join(', '))}). O número embaixo é a quantidade de peças do trecho; passe o mouse para ver a composição. ` +
+    (fr.servico && ganNorm(fr.servico).includes('FECH LATERAL ESTRUTURA') ? 'A telha do fechamento não faz parte desta estrutura: é apontada pela Globo Aços em "Telhas de fechamento". Ao apontar, baixam do estoque as terças, os espaçadores e os suportes de terça (ST). ' : '') +
     (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
       'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
   return h;
