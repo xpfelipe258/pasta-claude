@@ -888,7 +888,7 @@
     },
     "FECH. LATERAL – ESTRUTURA": {
       "descricao": "Fechamento lateral: pilaretes, terças e espaçadores. A baixa é por peça do trecho apontado no mapa do IFC.",
-      "regra_sistema": "O mapa da estrutura do fechamento lateral só tem TERÇA FECHAMENTO e ESPAÇADOR FECHAMENTO. A telha (TELHA FECHAMENTO) é da Globo Aços e se aponta em 'Telhas de fechamento'; contá-la aqui duplicaria a produção. Ao apontar um trecho baixam: a própria peça (TAG de terça ou de espaçador), o suporte de terça (ST) que recebe a terça e os fixadores de por_peca.",
+      "regra_sistema": "O mapa da estrutura do fechamento lateral só tem TERÇA FECHAMENTO e ESPAÇADOR FECHAMENTO. A telha (TELHA FECHAMENTO) é da Globo Aços e se aponta em 'Telhas de fechamento'; contá-la aqui duplicaria a produção. Ao apontar um trecho baixam: a própria peça (TAG de terça ou de espaçador), o suporte de terça (ST) que recebe a terça e os fixadores de por_peca (parafuso, porca e arruela da terça e 1 parabolt FG001 por suporte de terça).",
       "estrutura_por_peca": {
         "TERÇA FECHAMENTO": [
           {
@@ -935,6 +935,13 @@
             "descricao": "ARRUELA Ø1/2\"",
             "quantidade": 4,
             "fonte": "arruela do parafuso da terça"
+          },
+          {
+            "codigo": "FG001",
+            "descricao": "PARABOLT Ø1/2\" X 4\"",
+            "quantidade": 1,
+            "fonte": "1 parabolt por suporte de terça montado (regra informada pelo responsável da obra em 2026-10-27); o suporte baixa junto com a terça (1 ST por terça, ver estrutura_por_peca). O IFC (Bolts:Off, ST = chapa CH8X170 sem furos) e os desenhos disponíveis não detalham essa fixação; FG001 é o único parabolt do galpão no cadastro de Materiais.",
+            "conferir": true
           }
         ],
         "ESPAÇADOR FECHAMENTO": [
