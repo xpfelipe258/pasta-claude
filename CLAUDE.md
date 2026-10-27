@@ -47,6 +47,7 @@ Módulos: Estoque, Produção (apontamentos), DP (ponto/efetivo), Materiais, Map
 - Sempre usar `DateTimeZone('America/Sao_Paulo')` em timestamps (horário de Brasília)
 - Prepared statements PDO em todas as queries — nunca concatenar SQL
 - Nunca gravar senhas ou tokens em código-fonte commitado
+- **Todo commit é registrado no bloco de notas da Hostinger (pedido do usuário em 2026-10-27):** depois de cada `git commit` + `git push`, gerar as credenciais (`hosting_files_generate-upload-url`) e rodar `BASE=<url sem /api/tus/public_html> AUTH=<auth_key> REST=<rest_auth_key> ferramentas/registrar_commits_hostinger.sh`. Ele acrescenta (só o que falta, conferindo pelo código) uma linha `data hora (Brasília) | código | mensagem` em `maciel/dados_obras/registro_commits.txt` (pasta fechada pelo `.htaccess`, fora da sincronização com o GitHub). O próprio commit só entra no registro depois de existir, por isso o script roda após o commit.
 - **Sem pergunta de seleção no fim das respostas (pedido do usuário em 2026-10-18: "pare de manter a pergunta no fim da conversa, pois isso consome"):** NÃO usar a ferramenta de perguntas ao final de cada resposta; só perguntar quando uma decisão realmente bloquear o trabalho. Continuar agindo como gestor de planejamento sênior e estruturador de dados
 
 ---
