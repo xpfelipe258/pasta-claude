@@ -1517,3 +1517,16 @@ html[data-texto="maior"] { font-size: 125%; }
 .modal-admin-caixa .acesso-abas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px;max-height:250px;overflow:auto;padding-right:6px}
 .modal-admin-caixa .acesso-abas .acesso-area{margin:6px 0}
 @media(max-width:700px){.modal-admin-caixa .acesso-abas-lista{grid-template-columns:1fr}}
+
+/* ---- Datas em dd/mm/aaaa (datas_br.js): campo de texto com máscara + botão do calendário; o campo nativo fica escondido guardando o valor ISO ---- */
+.data-br-caixa { display: inline-flex; align-items: center; position: relative; gap: 2px; max-width: 100%; vertical-align: middle; }
+.data-br-caixa .data-br-txt { width: 9.4em; min-width: 0; text-align: center; letter-spacing: .02em; }
+.data-br-caixa .data-br-nat { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; padding: 0; border: 0; }
+.data-br-caixa .data-br-bt { border: 0; background: transparent; cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 3px; border-radius: 6px; filter: grayscale(.3); }
+.data-br-caixa .data-br-bt:hover { background: rgba(127, 127, 127, .18); }
+.data-br-caixa .data-br-bt:disabled { opacity: .4; cursor: default; }
+.data-br-txt.data-br-erro { outline: 2px solid #d63b3b; outline-offset: -1px; }
+.barra-filtros .data-br-txt, .rdo-barra .data-br-txt, .re-barra .data-br-txt, .ap-linha .data-br-txt, .pl-sug-per .data-br-txt, .edit-corte-inline .data-br-txt { padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); color: var(--fg); font: inherit; }
+.re-barra .data-br-txt { padding: 4px 6px; font-size: 12px; width: 8.6em; }
+.gan-datas-card table .data-br-txt { width: 130px; }
+@media (max-width: 900px) { .data-br-caixa .data-br-txt { font-size: 16px; } }

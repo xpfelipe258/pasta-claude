@@ -483,7 +483,7 @@ async function vcBaixarParafusosCsv() {
     const num = v => String(v).replace('.', ',');
     const lin = d.linhas.map(l => [T.modelo[l[0]], T.local[l[1]], T.tipo[l[2]], T.prf[l[3]], l[4], l[5], l[6], T.montagem[l[7]] === 'Site' ? 'Obra' : (T.montagem[l[7]] === 'Shop' ? 'Fábrica' : T.montagem[l[7]]), num(l[8]), num(l[9]), num(l[10]), T.fase_vizinha[l[11]], num(l[12]), T.arruela[l[13]], T.porca[l[14]]].map(q).join(';'));
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['﻿' + [cab.map(q).join(';'), ...lin].join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob(['﻿' + dataBR([cab.map(q).join(';'), ...lin].join('\r\n'))], { type: 'text/csv;charset=utf-8' }));
     a.download = 'parafusos-localizacao.csv';
     document.body.appendChild(a); a.click(); a.remove();
     toast(`${lin.length} conjuntos exportados.`);

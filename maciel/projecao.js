@@ -633,7 +633,7 @@ function pjCsv() {
   r.itens.forEach((i, ix) => linhas.push([q(i.x.it.atividade), num(i.p), num(i.valor), ...matriz[ix].map(m => num(m.ex + m.pj)), num(soma0(matriz[ix], m => m.ex + m.pj))].join(';')));
   linhas.push([q('Planejado no período'), '', num(r.totalPlano), ...d.totPer.map(t => num(t.pla)), num(soma0(d.totPer, t => t.pla))].join(';'));
   linhas.push([q('Executado + projetado no período'), '', '', ...d.totPer.map(t => num(t.ex + t.pj)), num(soma0(d.totPer, t => t.ex + t.pj))].join(';'));
-  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob(['﻿' + dataBR(linhas.join('\r\n'))], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = `projecao_fisico_financeira${PJ.emp ? '_' + PJ.emp.replace(/[^A-Za-z0-9]+/g, '_') : ''}_${hoje()}.csv`; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);

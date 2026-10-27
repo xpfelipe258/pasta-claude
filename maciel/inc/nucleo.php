@@ -1126,6 +1126,7 @@ function pagina_inicio($titulo, $app = false)
     echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     echo icones_html();
+    echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
     echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261003v7">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 

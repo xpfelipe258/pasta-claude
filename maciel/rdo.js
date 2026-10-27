@@ -132,7 +132,7 @@ function renderRdo() {
     fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) { EP = j; if (abaAtual === 'rdo') renderRdo(); } }).catch(() => {});
   }
   const ae = document.activeElement;   // quem está digitando não é interrompido: o modelo já foi atualizado e a tela é refeita ao sair do campo
-  if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date') return;
+  if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date' && !ae.classList.contains('data-br-txt')) return;
   const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar(dia), val = rdoValidacao(dia);
   const efet = rdoEfetivo(dia), prod = rdoProducao(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;

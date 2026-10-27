@@ -35,6 +35,7 @@ foreach (ui_catalogo() as $areaCat) {
 $prefs = preferencias_usuario((int)$u['id']);
 $html = str_replace('<html lang="pt-BR">', '<html lang="' . h($prefs['idioma']) . '"' . tema_attr() . menu_attr() . ($prefs['tam_texto'] !== 'normal' ? ' data-texto="' . h($prefs['tam_texto']) . '"' : '') . '>', $html);
 $html = str_replace('<!--ICONES-->', icones_html(), $html);
+$html = str_replace('src="datas_br.js"', 'src="datas_br.js?v=' . @filemtime(__DIR__ . '/datas_br.js') . '"', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $html = str_replace('<script src="app.js', '<script src="consumo_ifc.js?v=' . @filemtime(__DIR__ . '/consumo_ifc.js') . '"></script><script src="app.js', $html);
