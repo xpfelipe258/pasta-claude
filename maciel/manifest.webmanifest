@@ -1,24 +1,31 @@
 {
- "name": "Gestão de Obras",
- "short_name": "Obras",
+ "name": "MTEC Engenharia · Gestão de Obras",
+ "short_name": "MTEC Obras",
  "start_url": "obras.php",
  "scope": "./",
  "display": "standalone",
  "orientation": "any",
- "background_color": "#1c1b18",
+ "background_color": "#ffffff",
  "theme_color": "#1c1b18",
  "lang": "pt-BR",
  "icons": [
   {
    "src": "assets/icone-192.png",
    "sizes": "192x192",
-   "type": "image/png"
+   "type": "image/png",
+   "purpose": "any"
   },
   {
    "src": "assets/icone-512.png",
    "sizes": "512x512",
    "type": "image/png",
    "purpose": "any"
+  },
+  {
+   "src": "assets/icone-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
   }
  ]
 }

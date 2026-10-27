@@ -1107,16 +1107,25 @@ function preferencias_usuario($id = null)
 }
 
 // $app = tela do sistema (Dashboard geral): usa o tema E a posição do menu do usuário e não carrega o visual do portal.
+function icones_html()
+{
+    $v = '?v=' . (@filemtime(dirname(__DIR__) . '/assets/icone-512.png') ?: 1);
+    return '<link rel="icon" href="assets/favicon.ico' . $v . '" sizes="any">'
+        . '<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png' . $v . '">'
+        . '<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png' . $v . '">'
+        . '<link rel="apple-touch-icon" href="assets/icone-180.png' . $v . '">'
+        . '<link rel="manifest" href="manifest.webmanifest">';
+}
+
 function pagina_inicio($titulo, $app = false)
 {
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
-    $logo = config() ? global_ler('logo', '') : '';
     echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
-    if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
+    echo icones_html();
     echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261003v7">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 
