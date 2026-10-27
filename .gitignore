@@ -7,3 +7,4 @@ maciel/inc/config.php
 maciel/tmp_*.php
 maciel/dados_obras/
 servico_leitura/.venv/
+maciel/dados/sessoes/sess_*
