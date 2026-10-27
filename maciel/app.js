@@ -8,7 +8,13 @@ let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
+// Abas e sub-abas que o administrador ocultou para este usuário (index.php injeta window.UI_OCULTOS; administrador nunca tem ocultações)
+const UI_OCULTOS = Object.assign({ abas: [], subs: [] }, window.UI_OCULTOS || {});
+const subOculta = (aba, sub) => (UI_OCULTOS.subs || []).includes(aba + ':' + sub);
+// Lista [[id, rótulo], ...] sem as sub-abas ocultas (nunca devolve vazio: se tudo foi ocultado, mantém a primeira)
+function subsVisiveis(aba, lista) { const v = lista.filter(([k]) => !subOculta(aba, k)); return v.length ? v : lista.slice(0, 1); }
 let eqFiltroEmp = '', eqFiltroNome = '', eqFiltroUso = 'todos';
+let eqAgrup = 'auto', eqRtGrafico = [];   // agrupamento do gráfico de custo (automático, dia, semana, mês, ano) e os registros do último desenho
 let abaAtual = new URLSearchParams(window.location.search).get('aba') || 'tarefas';   // a primeira tela é sempre a das tarefas
 let empSel = null;
 let filtroImp = 'abertos';
@@ -393,6 +399,10 @@ async function carregar() {
       if (grupo === 'geral') return;   // área Geral (Tutorial, Configurações): todos os usuários
       const caixa = t.closest('.sidebar-grupo');
       if (caixa) caixa.hidden = !mods.includes(grupo);
+    });
+    document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(t => {   // área em que o administrador ocultou todas as abas
+      const caixa = t.closest('.sidebar-grupo');
+      if (caixa && !caixa.hidden && t.dataset.grupo !== 'geral' && t.dataset.grupo !== 'sesmt' && !caixa.querySelector('button[data-aba]')) caixa.hidden = true;
     });
     const ativa = document.querySelector('.sidebar-grupo:not([hidden]) button[data-aba]');
     if (ativa && (!document.querySelector(`button[data-aba="${abaAtual}"]`) || document.querySelector(`button[data-aba="${abaAtual}"]`).closest('.sidebar-grupo')?.hidden)) {
@@ -2144,58 +2154,6 @@ function renderGantt() {
   requestAnimationFrame(syncScrollTopo);
 }
 
-// ------------------------------------------------------------ PLANEJAMENTO DE MONTAGEM
-function hojeIso() { return hoje(); }
-let planDados = null; // cache dos dados de planejamento
-
-async function carregarPlanejamento() {
-  if (planDados) return planDados;
-  try {
-    const r = await fetch(API + 'planejamento');
-    if (r.ok) planDados = await r.json();
-    else planDados = { setores: [] };
-  } catch { planDados = { setores: [] }; }
-  return planDados;
-}
-
-// Retorna {inicio, fim} das datas de apontamento para um setor (frente|parte)
-function datasApontSsetor(frente, parte) {
-  const aps = T.apontamentos || [];
-  const tipo = frente === 'joist' ? 'JOIST' : frente.toUpperCase();
-  const relevantes = aps.filter(a => {
-    if ((a.tipo || '').toUpperCase() !== tipo) return false;
-    // joist: 'parte' é a rua (ex.: "01-02"); outros: 'parte' é o id da faixa/lado (ex.: "A", "AB", "A>")
-    if (frente === 'joist') return (a.rua || '') === parte;
-    return (a.faixa || '') === parte;
-  });
-  if (!relevantes.length) return null;
-  const datas = relevantes.map(a => a.data).filter(Boolean).sort();
-  return { inicio: datas[0], fim: datas[datas.length - 1] };
-}
-
-// Retorna a data de chegada mais recente de material para um etapa (JOIST / MONTAGEM)
-function dataChegadaMaterial(etapa, EP) {
-  if (!EP || !EP.remessas) return null;
-  const meta = EP.remessas.meta_remessas || [];
-  const itens = EP.remessas.itens || [];
-  // Filtrar remessas que têm itens dessa etapa
-  const colsComEtapa = new Set();
-  for (const item of itens) {
-    if ((item.etapa || '').toUpperCase() === etapa.toUpperCase()) {
-      Object.keys(item.qtd_por_remessa || {}).forEach(c => colsComEtapa.add(c));
-    }
-  }
-  let ultimaChegada = null;
-  for (const m of meta) {
-    if (colsComEtapa.has(m.nome) && m.data_chegada && m.data_chegada.includes('/')) {
-      const [d, mm, a] = m.data_chegada.split('/');
-      const iso = `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}`;
-      if (!ultimaChegada || iso > ultimaChegada) ultimaChegada = iso;
-    }
-  }
-  return ultimaChegada;
-}
-
 // Converte 'dd/mm/aaaa' → 'aaaa-mm-dd'
 function brParaIso(br) {
   if (!br) return null;
@@ -2204,335 +2162,6 @@ function brParaIso(br) {
   if (p.length !== 3) return null;
   return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
 }
-
-function diasEntreDatas(a, b) {
-  if (!a || !b) return null;
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
-}
-
-async function renderPlanejamentoLegado() {
-  // Carregamento lazy das frentes (mapas IFC)
-  const frObj = frentesMontagem(renderPlanejamentoLegado);
-  if (!frObj) return; // aguarda callback
-
-  const dados = await carregarPlanejamento();
-  const setoresMap = Object.fromEntries((dados.setores || []).map(s => [s.chave, s]));
-
-  // Filtros de frente
-  const todasFrentes = ['joist', 'fechamento', 'marquise', 'contraventamento'];
-  let filtroFrente = planEst?.frente || '';
-  const segEl = $('#segPlanFrente');
-  segEl.innerHTML = [['', 'Todas'], ...todasFrentes.map(f => [f, cap(f)])].map(([k, r]) =>
-    `<button data-plan-frente="${k}" class="${k === filtroFrente ? 'ativa' : ''}">${r}</button>`).join('');
-
-  // Calcular data de chegada de material por etapa
-  const chegadaJoist = dataChegadaMaterial('JOIST', EP);
-  const chegadaMont = dataChegadaMaterial('MONTAGEM', EP);
-
-  // Malha do IFC para lista de ruas
-  const malha = frObj.malha || {};
-  const ruas = malha.ruas || [];
-
-  // Montar linhas da tabela
-  const todasChaves = [
-    ...ruas.map(r => `joist|${r}`),
-    ...['fechamento', 'marquise', 'contraventamento'].flatMap(fn => {
-      const fr = (frObj.frentes || {})[fn];
-      return (fr?.partes || []).map(p => `${fn}|${p.id}`);
-    })
-  ];
-
-  // Tiles de sumário
-  const planSetores = todasChaves.map(chave => {
-    const s = setoresMap[chave] || { chave };
-    const [frente, parte] = chave.split('|');
-    const real = datasApontSsetor(frente, parte);
-    const etapa = frente === 'joist' ? 'JOIST' : 'MONTAGEM';
-    const chegada = etapa === 'JOIST' ? chegadaJoist : chegadaMont;
-    const ed = planEdits[chave] || {};
-    const planInicio = 'ini' in ed ? (ed.ini || null) : (s.data_plan_inicio || null);
-    const planFim = 'fim' in ed ? (ed.fim || null) : (s.data_plan_fim || null);
-    const obs = 'obs' in ed ? ed.obs : (s.obs || '');
-    const realInicio = real?.inicio || null;
-
-    let status = 'sem-dado';
-    let deltaPlanReal = null;
-    let deltaMaterial = null;
-
-    if (realInicio && planInicio) {
-      deltaPlanReal = diasEntreDatas(planInicio, realInicio);
-      if (deltaPlanReal <= 0) status = 'adiantado';
-      else if (deltaPlanReal <= 3) status = 'no-prazo';
-      else status = 'atrasado';
-    } else if (realInicio) {
-      status = 'realizado';
-    } else if (planInicio && planInicio < hojeIso()) {
-      status = 'pendente';
-    }
-
-    if (chegada && planInicio) {
-      deltaMaterial = diasEntreDatas(chegada, planInicio);
-    }
-
-    return { chave, frente, parte, s, real, etapa, chegada, planInicio, planFim, obs, realInicio, status, deltaPlanReal, deltaMaterial };
-  });
-
-  const matMuitoTarde = r => r.deltaMaterial !== null && r.deltaMaterial < 0;
-  const porFrente = filtroFrente ? planSetores.filter(r => r.frente === filtroFrente) : planSetores;
-  const filtrosStatus = [
-    ['', 'Todos', porFrente.length],
-    ['atrasado', 'Atrasados', porFrente.filter(r => r.status === 'atrasado').length],
-    ['pendente', 'Pendentes', porFrente.filter(r => r.status === 'pendente').length],
-    ['sem-plano', 'Sem plano', porFrente.filter(r => !r.planInicio).length],
-    ['material', 'Material tardio', porFrente.filter(matMuitoTarde).length]
-  ];
-  const filtroStatus = planEst.status || '';
-  $('#segPlanStatus').innerHTML = filtrosStatus.map(([k, rot, n]) =>
-    `<button data-plan-status="${k}" class="${k === filtroStatus ? 'ativa' : ''}">${rot} (${n})</button>`).join('');
-  const passaStatus = r => !filtroStatus ? true
-    : filtroStatus === 'sem-plano' ? !r.planInicio
-    : filtroStatus === 'material' ? matMuitoTarde(r)
-    : r.status === filtroStatus;
-  const filtrado = porFrente.filter(passaStatus);
-  planUltimo = filtrado;
-  const nPend = Object.keys(planEdits).length;
-  $('#planPendentes').textContent = nPend ? `● ${nPend} setor(es) com alteração não salva` : '';
-
-  // Tiles
-  const atrasados = planSetores.filter(r => r.status === 'atrasado').length;
-  const semMat = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0).length;
-  const realizados = planSetores.filter(r => r.realInicio).length;
-  const comPlan = planSetores.filter(r => r.planInicio).length;
-  const tile = (rot, val, sub, cor) => `<div class="tile" style="--c:${cor}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  $('#planTiles').innerHTML =
-    tile('Setores planejados', comPlan, `de ${planSetores.length} total`, 'var(--acento)') +
-    tile('Realizados', realizados, 'com ao menos 1 apontamento', 'var(--verde)') +
-    tile('Atrasados vs plano', atrasados, 'início real após data planejada', atrasados ? 'var(--vermelho)' : 'var(--verde)') +
-    tile('Material antes do plano', semMat, 'chegou depois da data planejada', semMat ? 'var(--amarelo)' : 'var(--verde)');
-
-  // Tabela principal
-  const corStatus = { 'adiantado': 'verde', 'no-prazo': 'verde', 'atrasado': 'vermelho', 'pendente': 'amarelo', 'realizado': 'pendente', 'sem-dado': '' };
-  const rotStatus = { 'adiantado': 'Adiantado', 'no-prazo': 'No prazo', 'atrasado': 'Atrasado', 'pendente': 'Pendente', 'realizado': 'Realizado', 'sem-dado': '—' };
-  const statusFarol = st => st && corStatus[st] ? `<span class="farol f-${corStatus[st]}">${rotStatus[st]}</span>` : '—';
-  const deltaIcon = d => d === null ? '—' : d === 0 ? 'No dia' : d > 0 ? `<span style="color:var(--vermelho)">+${d}d</span>` : `<span style="color:var(--verde)">${d}d</span>`;
-  const chave = r => r.chave;
-
-  $('#tabPlan').innerHTML = `<thead><tr>
-    <th>Frente</th><th>Setor</th>
-    <th>Início planejado</th><th>Fim planejado</th>
-    <th>Início real</th><th>Fim real</th>
-    <th class="n">Desvio (dias)</th>
-    <th>Chegada material</th>
-    <th class="n">Mat. antes do plano</th>
-    <th>Status</th><th>Obs.</th>
-  </tr></thead><tbody>` +
-  filtrado.map(r => `<tr data-plan-chave="${esc(r.chave)}">
-    <td class="nota">${esc(cap(r.frente))}</td>
-    <td><b>${esc(r.parte)}</b></td>
-    <td><input class="plan-dt plan-ini" type="date" value="${r.planInicio || ''}" data-chave="${esc(r.chave)}" aria-label="Início planejado"></td>
-    <td><input class="plan-dt plan-fim" type="date" value="${r.planFim || ''}" data-chave="${esc(r.chave)}" aria-label="Fim planejado"></td>
-    <td class="nota">${r.realInicio ? fdA(r.realInicio) : '—'}</td>
-    <td class="nota">${r.real?.fim && r.real.fim !== r.realInicio ? fdA(r.real.fim) : '—'}</td>
-    <td class="n">${deltaIcon(r.deltaPlanReal)}</td>
-    <td class="nota">${r.chegada ? fdA(r.chegada) : '—'}</td>
-    <td class="n">${deltaIcon(r.deltaMaterial)}</td>
-    <td>${statusFarol(r.status)}</td>
-    <td><input class="plan-obs" type="text" value="${esc(r.obs || '')}" data-chave="${esc(r.chave)}" placeholder="Obs." style="width:100%"></td>
-  </tr>`).join('') + '</tbody>';
-
-  // Análise de impacto
-  const impactados = planSetores.filter(r => r.deltaMaterial !== null && r.deltaMaterial < 0);
-  const impEl = $('#planImpacto');
-  if (!impactados.length) {
-    impEl.innerHTML = '<p class="vazio">Nenhum setor com chegada de material após a data planejada de início.</p>';
-  } else {
-    impEl.innerHTML = `<div class="tabela-rolagem"><table>
-      <thead><tr><th>Setor</th><th>Frente</th><th>Planejado início</th><th>Chegada material</th><th class="n">Atraso material (dias)</th><th>Impacto</th></tr></thead>
-      <tbody>` + impactados.map(r => {
-        const dias = Math.abs(r.deltaMaterial);
-        return `<tr>
-          <td><b>${esc(r.parte)}</b></td>
-          <td class="nota">${esc(cap(r.frente))}</td>
-          <td>${r.planInicio ? fdA(r.planInicio) : '—'}</td>
-          <td>${r.chegada ? fdA(r.chegada) : '—'}</td>
-          <td class="n"><span style="color:var(--vermelho)">${dias}d depois</span></td>
-          <td class="nota">Material chegou ${dias}d após o início previsto${r.realInicio ? ` — montagem iniciou ${fdA(r.realInicio)}` : ''}</td>
-        </tr>`;
-      }).join('') + '</tbody></table></div>';
-  }
-
-  renderPlanGantt(filtrado);
-
-  // Timeline simplificada de remessas
-  renderPlanTimeline(EP);
-}
-
-function renderPlanGantt(linhas) {
-  const el = $('#planGantt');
-  const hojeD = hoje();
-  const comData = linhas.filter(r => r.planInicio || r.planFim || r.realInicio);
-  if (!comData.length) { el.innerHTML = '<p class="vazio">Nenhum setor com data planejada ou apontamento para exibir.</p>'; return; }
-  const ext = r => ({
-    pi: r.planInicio || r.planFim, pf: r.planFim || r.planInicio,
-    ri: r.realInicio, rf: r.real?.fim || r.realInicio
-  });
-  const datas = [hojeD];
-  comData.forEach(r => { const e = ext(r); [e.pi, e.pf, e.ri, e.rf].forEach(d => d && datas.push(d)); });
-  datas.sort();
-  const ini = datas[0], fim = datas[datas.length - 1];
-  const dias = diasEntreDatas(ini, fim) + 1;
-  const px = Math.max(2, Math.min(14, 900 / dias));
-  const LAB = 170, LH = 22, TOP = 24;
-  const W = LAB + Math.round(dias * px) + 20;
-  const H = TOP + comData.length * LH + 6;
-  const X = d => LAB + Math.round(diasEntreDatas(ini, d) * px);
-  let svg = `<div style="overflow-x:auto"><svg width="${W}" height="${H}" style="font-family:inherit;font-size:10px">`;
-  // marcas mensais
-  let m = ini.slice(0, 7) + '-01';
-  while (m <= fim) {
-    const x = m < ini ? LAB : X(m);
-    svg += `<line x1="${x}" y1="${TOP - 4}" x2="${x}" y2="${H}" stroke="var(--linha)" stroke-width="1"/>`;
-    svg += `<text x="${x + 3}" y="${TOP - 8}" fill="var(--fg2)">${m.slice(5, 7)}/${m.slice(2, 4)}</text>`;
-    const [a, mes] = m.split('-').map(Number);
-    m = mes === 12 ? `${a + 1}-01-01` : `${a}-${String(mes + 1).padStart(2, '0')}-01`;
-  }
-  const corSt = { atrasado: 'var(--vermelho)', pendente: 'var(--amarelo)', adiantado: 'var(--verde)', 'no-prazo': 'var(--verde)' };
-  comData.forEach((r, i) => {
-    const y = TOP + i * LH;
-    const e = ext(r);
-    svg += `<text x="4" y="${y + 14}" fill="var(--fg)">${esc(cap(r.frente))} · ${esc(r.parte)}</text>`;
-    if (e.pi) {
-      const x1 = X(e.pi), w = Math.max(3, X(e.pf) - x1 + px);
-      svg += `<rect x="${x1}" y="${y + 3}" width="${w}" height="7" rx="2" fill="var(--acento)" opacity="0.35"><title>Planejado: ${fdA(e.pi)} a ${fdA(e.pf)}</title></rect>`;
-    }
-    if (e.ri) {
-      const x1 = X(e.ri), w = Math.max(3, X(e.rf) - x1 + px);
-      svg += `<rect x="${x1}" y="${y + 11}" width="${w}" height="7" rx="2" fill="${corSt[r.status] || 'var(--verde)'}"><title>Real: ${fdA(e.ri)} a ${fdA(e.rf)}</title></rect>`;
-    }
-  });
-  if (hojeD >= ini && hojeD <= fim) {
-    const x = X(hojeD);
-    svg += `<line x1="${x}" y1="${TOP - 4}" x2="${x}" y2="${H}" stroke="var(--vermelho)" stroke-width="1.5"/>`;
-  }
-  svg += '</svg></div>';
-  const ocultos = linhas.length - comData.length;
-  el.innerHTML = svg + (ocultos ? `<p class="nota">${ocultos} setor(es) sem datas não aparecem no Gantt.</p>` : '');
-}
-
-function planRegistrarEdicao(tr) {
-  const chave = tr.dataset.planChave;
-  planEdits[chave] = {
-    ini: tr.querySelector('.plan-ini')?.value || '',
-    fim: tr.querySelector('.plan-fim')?.value || '',
-    obs: tr.querySelector('.plan-obs')?.value || ''
-  };
-  const n = Object.keys(planEdits).length;
-  $('#planPendentes').textContent = `● ${n} setor(es) com alteração não salva`;
-}
-
-function planAplicarLote() {
-  const ini = $('#planLoteIni').value;
-  const dur = Math.max(1, parseInt($('#planLoteDur').value, 10) || 1);
-  const gap = Math.max(0, parseInt($('#planLoteGap').value, 10) || 0);
-  const soVazios = $('#planLoteVazios').checked;
-  if (!ini) { toast('Informe o início do 1º setor.', true); return; }
-  let cur = ini, n = 0;
-  planUltimo.forEach(r => {
-    if (soVazios && (r.planInicio || r.planFim)) return;
-    const fim = add(cur, dur - 1);
-    planEdits[r.chave] = { ini: cur, fim, obs: r.obs || '' };
-    cur = add(fim, gap + 1);
-    n++;
-  });
-  if (!n) { toast('Nenhum setor visível para preencher.', true); return; }
-  toast(`${n} setor(es) preenchidos. Revise e clique em Salvar planejamento.`);
-  renderPlanejamentoLegado();
-}
-
-function planLimparVisiveis() {
-  planUltimo.forEach(r => { planEdits[r.chave] = { ini: '', fim: '', obs: r.obs || '' }; });
-  renderPlanejamentoLegado();
-}
-
-function planExportarCsv() {
-  const campo = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const iso = d => d || '';
-  const linhas = [['Frente', 'Setor', 'Início planejado', 'Fim planejado', 'Início real', 'Fim real', 'Desvio início (dias)', 'Chegada material', 'Material antes do plano (dias)', 'Status', 'Obs.']];
-  planUltimo.forEach(r => linhas.push([
-    cap(r.frente), r.parte, iso(r.planInicio), iso(r.planFim), iso(r.realInicio), iso(r.real?.fim),
-    r.deltaPlanReal ?? '', iso(r.chegada), r.deltaMaterial ?? '', r.status, r.obs || ''
-  ]));
-  const csv = '﻿' + linhas.map(l => l.map(campo).join(';')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `planejamento-${hoje()}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-function renderPlanTimeline(ep) {
-  const el = $('#planTimeline');
-  if (!ep || !ep.remessas) { el.innerHTML = '<p class="vazio">Dados de remessas não disponíveis.</p>'; return; }
-  const meta = ep.remessas.meta_remessas || [];
-  const chegadas = meta.filter(m => m.data_chegada && m.data_chegada.includes('/'));
-  if (!chegadas.length) { el.innerHTML = '<p class="vazio">Sem datas de chegada registradas.</p>'; return; }
-
-  // Converter datas
-  const isos = chegadas.map(m => {
-    const [d, mm, a] = m.data_chegada.split('/');
-    return { ...m, iso: `${a}-${mm.padStart(2,'0')}-${d.padStart(2,'0')}` };
-  }).sort((a, b) => a.iso.localeCompare(b.iso));
-
-  const aps = T.apontamentos || [];
-  // Datas de apontamentos agrupadas por semana
-  const apPorDia = {};
-  aps.forEach(a => { if (a.data) apPorDia[a.data] = (apPorDia[a.data] || 0) + (a.qtd || 1); });
-
-  const ini = isos[0].iso;
-  const fim = isos[isos.length - 1].iso;
-  const diasTotal = diasEntreDatas(ini, fim) + 1;
-  if (!diasTotal) { el.innerHTML = ''; return; }
-
-  const px = Math.min(3, 960 / diasTotal);
-  const W = Math.round(diasTotal * px);
-  const X = d => Math.round(diasEntreDatas(ini, d) * px);
-
-  let svg = `<div style="overflow-x:auto"><svg width="${W + 120}" height="140" style="font-family:inherit;font-size:10px">`;
-  // Linha base
-  svg += `<line x1="0" y1="70" x2="${W}" y2="70" stroke="var(--fg3)" stroke-width="1"/>`;
-
-  // Remessas: marcações verticais
-  isos.forEach((m, i) => {
-    const x = X(m.iso);
-    const etapa = m.nome.includes('OE') ? 'Remessa' : m.nome;
-    svg += `<line x1="${x}" y1="40" x2="${x}" y2="70" stroke="var(--acento)" stroke-width="2"/>`;
-    if (i % 2 === 0) svg += `<text x="${x + 2}" y="38" fill="var(--fg2)" font-size="9" transform="rotate(-35,${x + 2},38)">${esc(m.data_chegada)}</text>`;
-    svg += `<title>${esc(m.nome)}: ${esc(m.data_chegada)}</title>`;
-  });
-
-  // Apontamentos: bolinhas acima da linha
-  const apDatas = Object.keys(apPorDia).filter(d => d >= ini && d <= fim).sort();
-  apDatas.forEach(d => {
-    const x = X(d);
-    const n = apPorDia[d];
-    const r = Math.min(8, 3 + n);
-    svg += `<circle cx="${x}" cy="85" r="${r}" fill="var(--verde)" opacity="0.7"><title>${fdA(d)}: ${n} apontamento(s)</title></circle>`;
-  });
-
-  // Legenda
-  svg += `<circle cx="8" cy="115" r="6" fill="var(--verde)" opacity="0.7"/>`;
-  svg += `<text x="18" y="119" fill="var(--fg2)">Apontamentos</text>`;
-  svg += `<line x1="120" y1="112" x2="128" y2="112" stroke="var(--acento)" stroke-width="2"/>`;
-  svg += `<text x="132" y="119" fill="var(--fg2)">Chegada de material</text>`;
-
-  svg += '</svg></div>';
-  el.innerHTML = svg;
-}
-
-// Estado do planejamento
-let planEst = { frente: '', status: '' };
-let planEdits = {};   // alterações ainda não salvas: chave → {ini, fim, obs}
-let planUltimo = [];  // linhas visíveis na última renderização
 
 function renderAvanco() {
   const linhas = contratoLinhas(); // já filtrado por faseFiltro via contratoLinhas()
@@ -3392,6 +3021,8 @@ function remTipoDe(rem, nome, fix) {
 function renderEstRemessas() {
   if (!EP) return;
   const rem = estRemessasComCadastros();
+  { const sr = subsVisiveis('estrem', [['carga', ''], ['fixador', '']]); if (!sr.some(([k]) => k.toUpperCase() === remTipoSel)) remTipoSel = sr[0][0].toUpperCase(); }   // tipo ocultado pelo administrador: usa o outro
+  const bnc = $('#btnNovaRemessaCarga'), bnf = $('#btnNovaRemessaFixador'); if (bnc) bnc.hidden = subOculta('estrem', 'carga'); if (bnf) bnf.hidden = subOculta('estrem', 'fixador');
   const fix = remTagsFixador(), tipo = remTipoSel, ehFix = tipo === 'FIXADOR';
   const edTipo = estEdit.rem?.tipo;
   const cols = rem.colunas.filter(c => { const t = remTipoDe(rem, c, fix); return t === tipo || t === 'MISTA'; });
@@ -3402,7 +3033,7 @@ function renderEstRemessas() {
     return true;
   });
   const segR = $('#segRemTipo');
-  if (segR) segR.innerHTML = [['CARGA', 'Remessas de carga'], ['FIXADOR', 'Remessas de fixador']].map(([k, r]) => `<button type="button" class="${tipo === k ? 'ativa' : ''}" data-rem-tipo="${k}">${r}</button>`).join('');
+  if (segR) segR.innerHTML = subsVisiveis('estrem', [['carga', 'Remessas de carga'], ['fixador', 'Remessas de fixador']]).map(([k, r]) => [k.toUpperCase(), r]).map(([k, r]) => `<button type="button" class="${tipo === k ? 'ativa' : ''}" data-rem-tipo="${k}">${r}</button>`).join('');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const itensTipo = rem.itens.filter(m => fix.has(m.tag) === ehFix);
   const totRec = soma0(itensTipo, m => m.total_recebido);
@@ -4976,6 +4607,8 @@ function apDefHtml(ctx) {
 }
 const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a.qtd || 0), 0); return `${nf(n)} ${apDef.tipo === 'VIGA' ? 'viga(s)' : 'joist(s)'} nessa região`; };
 
+const AP_MODOS = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
+  ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']];
 function renderApont() {
   if (!M) return;
   if (M.mapa_obra && typeof renderApontGenerico === 'function') return renderApontGenerico();   // obra criada pela importação automática: mapa por peça
@@ -4986,6 +4619,7 @@ function renderApont() {
   frentesMontagem(renderApont);   // mapas de fechamento, marquise e contraventamento (carga preguiçosa)
   const ctx = apContexto(regras);
   apGarantirEstado(ctx);
+  { const modosAp = subsVisiveis('apont', AP_MODOS); if (!modosAp.some(([k]) => k === apEst.modo)) apEst.modo = modosAp[0][0]; }   // modo ocultado pelo administrador: cai no primeiro visível
 
   const { cfg } = ctx;
   const prodJ = prodServico(cfg.servico_joist, null, '0000-01-01', '9999-12-31'), prodV = prodServico(cfg.servico_viga, null, '0000-01-01', '9999-12-31');
@@ -5001,8 +4635,7 @@ function renderApont() {
     tile('Ruas completas', `${completas}/${ctx.ruas.length}`, `${ctx.limRua} joists por rua · ${nf(ctx.limGalpao)} no galpão`, 'var(--verde)') +
     tile('Quadrantes liberados', `${lib}/${tot}`, 'vigas apontadas nos dois eixos', 'var(--acento)');
 
-  $('#segApModo').innerHTML = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
-    ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']]
+  $('#segApModo').innerHTML = subsVisiveis('apont', AP_MODOS)
     .map(([k, r]) => `<button data-ap-modo="${k}" class="${k === apEst.modo ? 'ativa' : ''}">${r}</button>`).join('');
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
@@ -5616,17 +5249,22 @@ function renderEquip() {
   graficoEquip(rtF);
 }
 
+const EQ_AGRUP = [['auto', 'Automático'], ['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês'], ['ano', 'Ano']];
 function graficoEquip(rt) {
-  const longo = diasEntre(per.ini, per.fim) > 45;
-  const chaveT = d => longo ? segunda(d) : d;
+  eqRtGrafico = rt;
+  const modo = eqAgrup === 'auto' ? (diasEntre(per.ini, per.fim) > 45 ? 'semana' : 'dia') : eqAgrup;
+  const chaveT = d => modo === 'dia' ? d : modo === 'semana' ? segunda(d) : modo === 'mes' ? d.slice(0, 7) : d.slice(0, 4);
+  const rotuloT = b => modo === 'dia' ? fd(b) : modo === 'semana' ? 'sem. ' + fd(b) : modo === 'mes' ? `${b.slice(5, 7)}/${b.slice(0, 4)}` : b;
+  const segEq = $('#segEqAgrup');
+  if (segEq) segEq.innerHTML = EQ_AGRUP.map(([k, r]) => `<button type="button" data-eq-agrup="${k}" class="${k === eqAgrup ? 'ativa' : ''}">${r}</button>`).join('');
   const buckets = [...new Set(rt.map(r => chaveT(r.data)))].sort();
   const emps = [...new Set(rt.map(r => r.empAjust))].sort((a, b) => (COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
-  $('#legEq').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('') + `<span class="nota">${longo ? 'por semana' : 'por dia'}</span>`;
+  $('#legEq').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('') + `<span class="nota">por ${({ dia: 'dia', semana: 'semana', mes: 'mês', ano: 'ano' })[modo]}</span>`;
   const outras = emps.filter(n => !COR_EMP[n]);
   trocarGrafico('gEquip', {
     type: 'bar',
     data: {
-      labels: buckets.map(b => longo ? 'sem. ' + fd(b) : fd(b)),
+      labels: buckets.map(rotuloT),
       datasets: emps.map(n => ({
         label: n, data: buckets.map(b => +soma0(rt.filter(r => r.empAjust === n && chaveT(r.data) === b), r => r.custoR + r.combR).toFixed(2)),
         backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, stack: 'custo',
@@ -6039,7 +5677,9 @@ function renderBM() {
   }
   if (!bmEmp || !emps.includes(bmEmp)) bmEmp = emps[0];
   $('#segBmEmp').innerHTML = emps.map(n => `<button data-bm-emp="${esc(n)}" class="${n === bmEmp ? 'ativa' : ''}">${esc(n)}</button>`).join('');
-  $('#segBmSub').innerHTML = [['boletim', 'Boletim (BM)'], ['periodos', 'Períodos e deduções'], ['catalogo', 'Catálogo de atividades']]
+  const subsBm = subsVisiveis('bm', [['boletim', 'Boletim (BM)'], ['periodos', 'Períodos e deduções'], ['catalogo', 'Catálogo de atividades']]);
+  if (!subsBm.some(([k]) => k === bmSub)) bmSub = subsBm[0][0];
+  $('#segBmSub').innerHTML = subsBm
     .map(([k, r]) => `<button data-bm-sub="${k}" class="${k === bmSub ? 'ativa' : ''}">${r}</button>`).join('');
   ({ boletim: renderBMBoletim, periodos: renderBMPeriodos, catalogo: renderBMCatalogo })[bmSub](box);
 }
@@ -7349,45 +6989,6 @@ function ligarEventos() {
     if (ev.target.id === 'btnCancelarConsCli') $('#cliConsolidar').hidden = true;
   });
 
-  // Planejamento de montagem
-  $('#segPlanFrente').addEventListener('click', ev => {
-    const b = ev.target.closest('[data-plan-frente]');
-    if (b) { planEst.frente = b.dataset.planFrente; renderPlanejamentoLegado(); }
-  });
-  $('#segPlanStatus').addEventListener('click', ev => {
-    const b = ev.target.closest('[data-plan-status]');
-    if (b) { planEst.status = b.dataset.planStatus; renderPlanejamentoLegado(); }
-  });
-  $('#tabPlan').addEventListener('input', ev => {
-    const tr = ev.target.closest('tr[data-plan-chave]');
-    if (tr) planRegistrarEdicao(tr);
-  });
-  $('#tabPlan').addEventListener('change', ev => {
-    if (ev.target.classList.contains('plan-dt')) renderPlanejamentoLegado();
-  });
-  $('#btnPlanLote').addEventListener('click', planAplicarLote);
-  $('#btnPlanLimparVis').addEventListener('click', planLimparVisiveis);
-  $('#btnPlanCsv').addEventListener('click', planExportarCsv);
-  $('#btnSalvarPlan').addEventListener('click', async () => {
-    const setores = [];
-    for (const [chave, e] of Object.entries(planEdits)) {
-      if (e.ini && e.fim && e.fim < e.ini) { toast(`Setor ${chave.split('|')[1]}: o fim planejado é anterior ao início.`, true); return; }
-      setores.push({ chave, data_plan_inicio: e.ini || null, data_plan_fim: e.fim || null, obs: e.obs || '' });
-    }
-    if (!setores.length) { toast('Nenhuma alteração para salvar.'); return; }
-    try {
-      const r = await postarBruto(API + 'planejamento', { setores });
-      if (r.ok) {
-        planDados = null;
-        planEdits = {};
-        toast(`${setores.length} setor(es) salvos!`);
-        renderPlanejamentoLegado();
-      } else {
-        const err = await r.json().catch(() => ({}));
-        toast(err.erro || 'Erro ao salvar planejamento.', true);
-      }
-    } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
-  });
   $('#refData').addEventListener('change', ev => definirRef(ev.target.value));
   $('#semAnt').onclick = () => definirRef(add(ref, -7));
   $('#semProx').onclick = () => definirRef(add(ref, 7));
@@ -7824,6 +7425,7 @@ function ligarEventos() {
   const _eqFE = $('#eqFiltroEmp'); if (_eqFE) _eqFE.addEventListener('change', e => { eqFiltroEmp = e.target.value; renderEquip(); });
   const _eqFN = $('#eqFiltroNome'); if (_eqFN) _eqFN.addEventListener('input', e => { eqFiltroNome = e.target.value.trim(); renderEquip(); });
   const _eqFU = $('#eqFiltroUso'); if (_eqFU) _eqFU.addEventListener('change', e => { eqFiltroUso = e.target.value; renderEquip(); });
+  const _eqAg = $('#segEqAgrup'); if (_eqAg) _eqAg.addEventListener('click', e => { const b = e.target.closest('[data-eq-agrup]'); if (b) { eqAgrup = b.dataset.eqAgrup; graficoEquip(eqRtGrafico); } });
   const _eqFC = $('#eqFiltroClear'); if (_eqFC) _eqFC.addEventListener('click', () => { eqFiltroEmp = ''; eqFiltroNome = ''; eqFiltroUso = 'todos'; renderEquip(); });
   $('#btnCopiarCli').onclick = copiarResumo;
 
@@ -7850,7 +7452,7 @@ function ligarEventos() {
   catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
-  mudarAba(document.getElementById('aba-' + aba) ? aba : 'tarefas');
+  mudarAba(document.getElementById('aba-' + aba) && !UI_OCULTOS.abas.includes(aba) ? aba : (document.querySelector('#abas .sidebar-grupo:not([hidden]) button[data-aba]')?.dataset.aba || 'tarefas'));   // aba ocultada pelo administrador não abre nem pelo endereço
   if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);

@@ -488,11 +488,11 @@ async function renderPlanejamento() {
   const box = $('#planoNovo');
   if (!box) return;
   if (!PL._rascTentado) { PL._rascTentado = true; const r = plRascunhoLer(); if (r && Date.now() - r.ts < 6 * 3600 * 1000) setTimeout(() => plRascunhoRetomar(true), 200); }   // reabriu a página no meio da edição: retoma o rascunho
-  $('#segPlanSub').innerHTML = [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['fluxo', 'Fluxo da obra'], ['legado', 'Setores e impacto logístico']]
+  const subsPl = subsVisiveis('plan', [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['fluxo', 'Fluxo da obra']]);
+  if (!subsPl.some(([k]) => k === PL.sub)) PL.sub = subsPl[0][0];   // sub-aba ocultada pelo administrador: abre a primeira visível
+  $('#segPlanSub').innerHTML = subsPl
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
-  $('#planoLegado').hidden = PL.sub !== 'legado';
-  box.hidden = PL.sub === 'legado';
-  if (PL.sub === 'legado') return renderPlanejamentoLegado();
+  box.hidden = false;
   if (PL.sub === 'sug') { await plCarregar(); return renderSugestao(box); }
   if (PL.sub === 'qual') return renderQualidade(box);
   if (PL.sub === 'fluxo') return renderFluxoObra(box);

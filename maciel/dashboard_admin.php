@@ -47,7 +47,8 @@ pagina_inicio($titulo, true);
 // mesma aparência do sistema: cores da obra e faixa "← Todas as obras" no topo
 $corP=cor_segura($obra['cor_primaria']??'',global_ler('cor_primaria','#d97706')); $corS=cor_segura($obra['cor_secundaria']??'',global_ler('cor_secundaria','#111827'));
 echo '<style>body{--marca:'.h($corP).';--marca2:'.h($corS).'}</style><div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>'.h($obra['nome']).'</span>'.($eu['perfil']==='admin'?'<a href="admin.php">Administrar obra</a>':'').'</div>';
-function dbbtn($aba,$txt){return '<button type="button" onclick="location.href=\'index.php?aba='.h($aba).'\'">'.h($txt).'</button>';}
+$uiOcultosDash=ui_ocultos_usuario($eu);
+function dbbtn($aba,$txt){global $uiOcultosDash; if(in_array($aba,$uiOcultosDash['abas'],true)) return ''; return '<button type="button" onclick="location.href=\'index.php?aba='.h($aba).'\'">'.h($txt).'</button>';}
 ?>
 <style>
 .dm-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;align-items:start}

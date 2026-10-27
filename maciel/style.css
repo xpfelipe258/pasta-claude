@@ -1505,3 +1505,11 @@ html[data-texto="maior"] { font-size: 125%; }
 .cfg-ident-chip { display: inline-flex; align-items: center; min-height: 40px; padding: 4px 12px; background: #fff; border-radius: 6px 14px 6px 14px; box-shadow: 0 3px 10px rgba(0,0,0,.25); color: #0a2c57; font-weight: 800; }
 .cfg-ident-chip img { height: 36px; max-width: 220px; display: block; }
 .somente-leitura #cfgIdent .btn.primario { display: inline-block !important; }
+
+/* Administração › acessos: abas e sub-abas visíveis por usuário */
+.acesso-abas{margin:8px 0;border:1px solid var(--linha,#ddd);border-radius:8px;padding:6px 10px;background:var(--card,#fff)}
+.acesso-abas summary{cursor:pointer;font-weight:700;white-space:nowrap}
+.acesso-abas .acesso-area{display:flex;flex-direction:column;gap:3px;margin:8px 0;padding-top:6px;border-top:1px dashed var(--linha,#ddd)}
+.acesso-abas .acesso-area>b{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;opacity:.75}
+.acesso-abas .check{white-space:normal}
+.acesso-abas .acesso-sub{margin-left:22px;font-size:.72rem;opacity:.9}
