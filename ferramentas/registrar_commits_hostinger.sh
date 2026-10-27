@@ -3,7 +3,7 @@
 # código do commit, data e hora (Brasília) e mensagem. Só acrescenta o que ainda
 # não está no arquivo (confere pelo código), então pode rodar quantas vezes quiser.
 #
-# Arquivo no servidor: maciel/dados_obras/registro_commits.txt
+# Arquivo no servidor: solucoes/obras/dados_obras/registro_commits.txt
 #   - fica em dados_obras/, pasta fechada pelo .htaccess (não abre pelo navegador)
 #   - não entra na sincronização Hostinger -> GitHub (dados_obras/ é excluída)
 #
@@ -15,7 +15,7 @@ set -euo pipefail
 
 : "${BASE:?defina BASE}" "${AUTH:?defina AUTH}" "${REST:?defina REST}"
 REV="${1:-HEAD}"
-ALVO="claude/maciel/dados_obras/registro_commits.txt"
+ALVO="solucoes/obras/dados_obras/registro_commits.txt"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
