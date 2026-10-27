@@ -329,6 +329,8 @@ function renderTarefas() {
     tfCarregar().then(() => { if (abaAtual === 'tarefas') renderTarefas(); });
     return;
   }
+  if (subOculta('tarefas', TF.aba)) TF.aba = ['tarefas', 'mural'].find(k => !subOculta('tarefas', k)) || 'tarefas';   // sub-aba ocultada pelo administrador
+  document.querySelectorAll('[data-tf-aba]').forEach(b => { b.hidden = subOculta('tarefas', b.dataset.tfAba); });
   $('#tfTarefasView').hidden = TF.aba !== 'tarefas';
   $('#tfMuralView').hidden = TF.aba !== 'mural';
   document.querySelectorAll('[data-tf-aba]').forEach(b => b.classList.toggle('ativa', b.dataset.tfAba === TF.aba));

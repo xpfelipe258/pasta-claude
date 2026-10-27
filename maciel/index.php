@@ -14,6 +14,24 @@ foreach (modulos_sistema() as $moduloMenu) {
         $html = preg_replace($padrao, '<div class="sidebar-grupo" hidden>$1', $html, 1);
     }
 }
+// Abas ocultas pelo administrador para este usuário: o botão nem chega ao navegador, e a área sem nenhuma aba visível some.
+$uiOcultos = ui_ocultos_usuario($u);
+foreach ($uiOcultos['abas'] as $abaOculta) {
+    $html = preg_replace('~<button data-aba="' . preg_quote($abaOculta, '~') . '"[^>]*>.*?</button>~s', '', $html, 1);
+}
+foreach (ui_catalogo() as $areaCat) {
+    if (in_array($areaCat[0], ['tarefas'], true) || !$uiOcultos['abas']) {
+        continue;
+    }
+    $todasOcultas = true;
+    foreach ($areaCat[2] as $abaCat) {
+        $todasOcultas = $todasOcultas && in_array($abaCat[0], $uiOcultos['abas'], true);
+    }
+    if ($todasOcultas) {
+        $padrao = '~<div class="sidebar-grupo">\s*(<div class="sidebar-titulo aberto" data-grupo="' . preg_quote($areaCat[0], '~') . '")~';
+        $html = preg_replace($padrao, '<div class="sidebar-grupo" hidden>$1', $html, 1);
+    }
+}
 $prefs = preferencias_usuario((int)$u['id']);
 $html = str_replace('<html lang="pt-BR">', '<html lang="' . h($prefs['idioma']) . '"' . tema_attr() . menu_attr() . ($prefs['tam_texto'] !== 'normal' ? ' data-texto="' . h($prefs['tam_texto']) . '"' : '') . '>', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
@@ -46,7 +64,7 @@ $contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? 
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);
-$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
+$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";window.UI_OCULTOS=" . json_encode($uiOcultos) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 echo $html;

@@ -315,44 +315,6 @@
   <section id="aba-plan" hidden>
     <div class="barra-acoes"><div class="seg" id="segPlanSub"></div></div>
     <div id="planoNovo"></div>
-    <div id="planoLegado" hidden>
-    <div class="tiles" id="planTiles"></div>
-    <div class="barra-acoes">
-      <div class="seg" id="segPlanFrente"></div>
-      <div class="seg" id="segPlanStatus"></div>
-      <span id="planPendentes" class="nota"></span>
-      <button class="btn" id="btnPlanCsv">Exportar CSV</button>
-      <button class="btn primario" id="btnSalvarPlan">Salvar planejamento</button>
-    </div>
-    <div class="barra-filtros" id="planLote">
-      <b>Preencher em lote (setores visíveis)</b>
-      <label>Início do 1º setor<input type="date" id="planLoteIni"></label>
-      <label>Duração por setor (dias)<input type="number" id="planLoteDur" min="1" value="3" style="width:70px"></label>
-      <label>Intervalo entre setores (dias)<input type="number" id="planLoteGap" min="0" value="0" style="width:70px"></label>
-      <label><input type="checkbox" id="planLoteVazios" checked> Só setores sem data</label>
-      <button type="button" class="btn" id="btnPlanLote">Aplicar</button>
-      <button type="button" class="btn" id="btnPlanLimparVis">Limpar datas visíveis</button>
-    </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Gantt: planejado × realizado</h2><span class="nota">Barra clara = planejado, barra cheia = real (primeiro ao último apontamento). Linha vermelha = hoje.</span></div>
-      <div id="planGantt"></div>
-    </div>
-    <div class="bloco">
-      <div class="bloco-cab">
-        <h2>Datas planejadas × realizadas × chegada de material</h2>
-        <span class="nota">Preencha as datas planejadas de início e fim por setor. O impacto é calculado comparando a montagem real com o planejado e com a chegada de material.</span>
-      </div>
-      <div class="tabela-rolagem"><table id="tabPlan"></table></div>
-    </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Análise de impacto logístico</h2><span class="nota">Setores onde chegada de material atrasou ou antecipou a montagem.</span></div>
-      <div id="planImpacto"></div>
-    </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Timeline de remessas × montagem</h2></div>
-      <div id="planTimeline"></div>
-    </div>
-    </div>
   </section>
 
   <section id="aba-avanco" hidden>
@@ -632,7 +594,7 @@
       <span id="eqFiltroContador" class="nota"></span>
     </div>
     <div class="bloco">
-      <div class="bloco-cab"><h2>Custo por empresa no período</h2><div class="legenda" id="legEq"></div></div>
+      <div class="bloco-cab"><h2>Custo por empresa no período</h2><div class="legenda" id="legEq"></div><div class="seg" id="segEqAgrup" title="Como agrupar o custo no gráfico"></div></div>
       <div class="grafico"><canvas id="gEquip"></canvas></div>
       <div class="tabela-rolagem"><table id="tabEqEmp"></table></div>
     </div>

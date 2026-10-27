@@ -873,6 +873,100 @@ function usuario_pode_modulo(array $u, $modulo)
     return ($u['perfil'] ?? '') === 'admin' || in_array($modulo, modulos_usuario($u), true);
 }
 
+// Catálogo de áreas > abas > sub-abas que o administrador pode mostrar ou ocultar por usuário (Administração › Usuários › acessos).
+// Cada aba: [id (data-aba), rótulo, [[id da sub-aba, rótulo], ...]]. Tutorial e Configurações ficam sempre visíveis (senha, idioma, ajuda).
+function ui_catalogo()
+{
+    return [
+        ['tarefas', 'Tarefas', [['tarefas', 'Tarefas a fazer', [['tarefas', 'Tarefas'], ['mural', 'Mural da equipe']]]]],
+        ['producao', 'Produção', [
+            ['painel', 'Painel', []], ['semana', 'Programação semanal', []], ['lanc', 'Lançamentos', []],
+            ['apont', 'Apontar montagem', [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'], ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']]],
+            ['rdo', 'Relatório diário (RDO)', []],
+            ['plan', 'Planejamento de montagem', [['sug', 'Sugestão do cronograma'], ['planos', 'Planos 5W2H'], ['qual', 'Qualidade dos dados'], ['fluxo', 'Fluxo da obra']]],
+            ['avanco', 'Avanço físico', []], ['gantt', 'Cronograma (Gantt)', []], ['cliente', 'Dashboard cliente', []], ['metas', 'Metas', []], ['tendencia', 'Tendências', []],
+        ]],
+        ['suprimentos', 'Suprimentos', [
+            ['estmat', 'Materiais', []], ['estrem', 'Remessas', [['carga', 'Remessas de carga'], ['fixador', 'Remessas de fixador']]],
+            ['estcons', 'Consumo físico', []], ['estinv', 'Inventário', []], ['estcrit', 'Consumo Joists', []],
+            ['estsis', 'Baixa automática', []], ['estvinc', 'Vínculos', []], ['estpronto', 'Pronto para iniciar', []],
+        ]],
+        ['consumo', 'Consumo', [['equip', 'Equipamentos', []]]],
+        ['financeiro', 'Financeiro', [
+            ['bm', 'Medição (BM)', [['boletim', 'Boletim (BM)'], ['periodos', 'Períodos e deduções'], ['catalogo', 'Catálogo de atividades']]],
+            ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []],
+        ]],
+        ['gestao', 'Gestão', [['impactos', 'Impactos', []], ['dp', 'Pessoal', []]]],
+    ];
+}
+
+// Ocultações por usuário: config_global.ui_ocultos = { "<id do usuário>": { "abas": ["rdo", ...], "subs": ["plan:fluxo", ...] } }.
+// É visibilidade da tela (o acesso aos dados continua sendo o das áreas/módulos). Administrador nunca é restringido.
+function ui_ocultos_usuario(array $u)
+{
+    $vazio = ['abas' => [], 'subs' => []];
+    if (($u['perfil'] ?? '') === 'admin') {
+        return $vazio;
+    }
+    $todos = json_decode((string)global_ler('ui_ocultos', '{}'), true);
+    $meu = is_array($todos) ? ($todos[(string)(int)$u['id']] ?? null) : null;
+    if (!is_array($meu)) {
+        return $vazio;
+    }
+    $abasOk = [];
+    $subsOk = [];
+    foreach (ui_catalogo() as $area) {
+        foreach ($area[2] as $aba) {
+            $abasOk[] = $aba[0];
+            foreach ($aba[2] as $sub) {
+                $subsOk[] = $aba[0] . ':' . $sub[0];
+            }
+        }
+    }
+    return [
+        'abas' => array_values(array_intersect((array)($meu['abas'] ?? []), $abasOk)),
+        'subs' => array_values(array_intersect((array)($meu['subs'] ?? []), $subsOk)),
+    ];
+}
+
+// Remove as ocultações de um usuário (ex.: virou administrador): volta a ver tudo.
+function ui_ocultos_remover($uid)
+{
+    $todos = json_decode((string)global_ler('ui_ocultos', '{}'), true);
+    if (is_array($todos) && isset($todos[(string)(int)$uid])) {
+        unset($todos[(string)(int)$uid]);
+        global_gravar('ui_ocultos', json_encode($todos, JSON_UNESCAPED_UNICODE));
+    }
+}
+
+// Grava o que o usuário PODE ver (marcado na Administração); o que não veio marcado fica oculto.
+function ui_ocultos_gravar($uid, array $abasVisiveis, array $subsVisiveis)
+{
+    $ocAbas = [];
+    $ocSubs = [];
+    foreach (ui_catalogo() as $area) {
+        foreach ($area[2] as $aba) {
+            if (!in_array($aba[0], $abasVisiveis, true)) {
+                $ocAbas[] = $aba[0];
+                continue;   // aba toda oculta: as sub-abas dela não importam
+            }
+            foreach ($aba[2] as $sub) {
+                if (!in_array($aba[0] . ':' . $sub[0], $subsVisiveis, true)) {
+                    $ocSubs[] = $aba[0] . ':' . $sub[0];
+                }
+            }
+        }
+    }
+    $todos = json_decode((string)global_ler('ui_ocultos', '{}'), true);
+    $todos = is_array($todos) ? $todos : [];
+    if ($ocAbas || $ocSubs) {
+        $todos[(string)(int)$uid] = ['abas' => $ocAbas, 'subs' => $ocSubs];
+    } else {
+        unset($todos[(string)(int)$uid]);
+    }
+    global_gravar('ui_ocultos', json_encode($todos, JSON_UNESCAPED_UNICODE));
+}
+
 function usuario_atual()
 {
     static $u = false;

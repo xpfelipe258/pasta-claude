@@ -10,6 +10,25 @@ $msg = '';
 $erro = '';
 $cfg = config();
 
+// Áreas (módulos) e abas/sub-abas que o usuário pode ver, vindas do formulário do pop-up de usuário (novo ou editar). Administrador não tem restrição.
+function salvar_acessos_usuario($uid, $perfil)
+{
+    q_global('DELETE FROM usuarios_modulos WHERE usuario_id=?', [(int)$uid]);
+    if ($perfil === 'admin') {
+        ui_ocultos_remover($uid);
+        return;
+    }
+    $mods = array_map('strval', (array)($_POST['modulos'] ?? []));
+    foreach (modulos_sistema() as $m) {
+        if (in_array($m, $mods, true)) {
+            q_global('INSERT INTO usuarios_modulos (usuario_id, modulo, permitido) VALUES (?, ?, 1)', [(int)$uid, $m]);
+        }
+    }
+    if (!empty($_POST['ui_enviado'])) {   // o que não veio marcado fica oculto
+        ui_ocultos_gravar($uid, array_map('strval', (array)($_POST['abas'] ?? [])), array_map('strval', (array)($_POST['subs'] ?? [])));
+    }
+}
+
 if (($_GET['acao'] ?? '') === 'exportar') {
     conferir_csrf();
     header('Content-Type: application/json; charset=utf-8');
@@ -39,7 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, texto_ou_nulo($_POST['empresa'] ?? null), texto_ou_nulo($email)]);
             $novoUid = (int)bd()->lastInsertId();
             q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [$novoUid, obra_atual_id()]);
-            if ($perfil !== 'admin') { foreach (modulos_sistema() as $m) { if (in_array($m, $_POST['modulos'] ?? [], true)) q_global('INSERT INTO usuarios_modulos (usuario_id, modulo, permitido) VALUES (?, ?, 1)', [$novoUid, $m]); } }
+            if ($perfil !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
+            salvar_acessos_usuario($novoUid, $perfil);
             registrar_alteracao('usuario_criado', ['login' => $login, 'perfil' => $perfil]);
             $msg = "Usuário $login criado.";
         } elseif ($acao === 'editar_usuario') {
@@ -56,10 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $existe = q_global('SELECT id FROM usuarios WHERE login = ? AND id <> ?', [$login, $id])->fetch();
             if ($existe) { throw new InvalidArgumentException('Já existe outro usuário com esse login.'); }
+            if ($perfil !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
             q_global('UPDATE usuarios SET nome=?, login=?, email=?, perfil=?, empresa=? WHERE id=?', [$nome, $login, texto_ou_nulo($email), $perfil, texto_ou_nulo($_POST['empresa'] ?? null), $id]);
-            if ($perfil === 'admin') {
-                q_global('DELETE FROM usuarios_modulos WHERE usuario_id=?', [$id]);
-            }
+            salvar_acessos_usuario($id, $perfil);
             registrar_alteracao('usuario_editado', ['id'=>$id,'login'=>$login,'email'=>$email,'perfil'=>$perfil]);
             $msg = 'Usuário atualizado.';
         } elseif ($acao === 'enviar_reset_usuario') {
@@ -70,16 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!enviar_link_redefinicao($alvo)) { throw new InvalidArgumentException('Não foi possível enviar o e-mail. Verifique se o servidor está com envio de e-mail habilitado.'); }
             registrar_alteracao('link_senha_enviado', ['id'=>$id,'email'=>$alvo['email']]);
             $msg = 'Link de redefinição enviado para ' . $alvo['email'] . '.';
-        } elseif ($acao === 'salvar_modulos') {
-            $uid = (int)($_POST['id'] ?? 0);
-            $alvo = q_global('SELECT id,perfil FROM usuarios WHERE id=?', [$uid])->fetch();
-            if (!$alvo) throw new InvalidArgumentException('Usuário inválido.');
-            q_global('DELETE FROM usuarios_modulos WHERE usuario_id=?', [$uid]);
-            if ($alvo['perfil'] !== 'admin') {
-                foreach (modulos_sistema() as $m) if (in_array($m, $_POST['modulos'] ?? [], true)) q_global('INSERT INTO usuarios_modulos (usuario_id,modulo,permitido) VALUES (?,?,1)', [$uid,$m]);
-            }
-            registrar_alteracao('modulos_usuario', ['id'=>$uid,'modulos'=>$_POST['modulos'] ?? []]);
-            $msg='Níveis de acesso atualizados.';
         } elseif ($acao === 'senha_usuario') {
             if (strlen($_POST['senha'] ?? '') < 8) {
                 throw new InvalidArgumentException('A nova senha precisa ter pelo menos 8 caracteres.');
@@ -287,10 +296,11 @@ pagina_inicio('Administração');
       <?php foreach ($usuarios as $u): ?>
         <tr>
           <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?= h(ucfirst($u['perfil'])) ?></td><td><?= h($u['empresa'] ?: 'Todas') ?></td>
-          <td><?php if ($u['perfil']==='admin'): ?><span class="farol f-verde">TODOS OS MÓDULOS</span><?php else: ?><details class="acesso-editar"><summary>Ver / editar acessos</summary><form method="post" class="access-checks access-checks-col"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar_modulos"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><?php $sel=$modsPorUsuario[(int)$u['id']]??modulos_sistema(); foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m,$sel,true)?'checked':'' ?>><?= h(ucfirst($m)) ?></label><?php endforeach; ?><button class="btn">Salvar acessos</button></form></details><?php endif; ?></td>
+          <?php $ocuU = ui_ocultos_usuario($u); $modsU = $modsPorUsuario[(int)$u['id']] ?? modulos_sistema(); $nOcu = count($ocuU['abas']) + count($ocuU['subs']); ?>
+          <td><?php if ($u['perfil']==='admin'): ?><span class="farol f-verde">TODOS OS MÓDULOS</span><?php else: ?><span class="nota"><?= h(implode(', ', array_map('ucfirst', array_values(array_intersect(modulos_sistema(), $modsU))))) ?></span><?php if ($nOcu): ?><br><span class="nota">· <?= (int)count($ocuU['abas']) ?> aba(s) e <?= (int)count($ocuU['subs']) ?> sub-aba(s) ocultas</span><?php endif; ?><br><span class="nota">Altere em <b>Editar</b></span><?php endif; ?></td>
           <td><span class="farol f-<?= $u['ativo'] ? 'verde' : 'pendente' ?>"><?= $u['ativo'] ? 'ATIVO' : 'INATIVO' ?></span></td>
           <td><div class="acoes-usuario"><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="senha_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><input type="password" name="senha" placeholder="nova senha" minlength="8" required><button class="btn">Salvar</button></form><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="enviar_reset_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn" <?= $u['email'] ? '' : 'disabled title="Cadastre e-mail antes"' ?>>Enviar link</button></form></div></td>
-          <td><div class="acoes-usuario"><button type="button" class="btn" data-editar-usuario data-id="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>" data-login="<?= h($u['login']) ?>" data-email="<?= h($u['email'] ?? '') ?>" data-perfil="<?= h($u['perfil']) ?>" data-empresa="<?= h($u['empresa'] ?? '') ?>">Editar</button><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="alternar_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn"><?= $u['ativo'] ? 'Desativar' : 'Ativar' ?></button></form></div></td>
+          <td><div class="acoes-usuario"><button type="button" class="btn" data-editar-usuario data-id="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>" data-login="<?= h($u['login']) ?>" data-email="<?= h($u['email'] ?? '') ?>" data-perfil="<?= h($u['perfil']) ?>" data-empresa="<?= h($u['empresa'] ?? '') ?>" data-modulos="<?= h(implode(',', array_values(array_intersect(modulos_sistema(), $modsU)))) ?>" data-abas-ocultas="<?= h(implode(',', $ocuU['abas'])) ?>" data-subs-ocultas="<?= h(implode(',', $ocuU['subs'])) ?>">Editar</button><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="alternar_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn"><?= $u['ativo'] ? 'Desativar' : 'Ativar' ?></button></form></div></td>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -354,13 +364,13 @@ pagina_inicio('Administração');
       <form method="post" class="form-novo-usuario">
         <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_usuario"><input type="hidden" name="id" value="">
         <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Perfil<select name="perfil" id="novoPerfil"><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="admin">Admin</option></select></label><label>Empresa<select name="empresa"><option value="">Todas</option><?php foreach ($empresas as $e): ?><option><?= h($e) ?></option><?php endforeach; ?></select></label></div>
-        <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" checked><span><?= h(ucfirst($m)) ?></span></label><?php endforeach; ?></div><small>Administradores sempre têm acesso total.</small></fieldset>
+        <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" checked><span><?= h(ucfirst($m)) ?></span></label><?php endforeach; ?></div><details class="acesso-abas"><summary>Abas e sub-abas visíveis</summary><input type="hidden" name="ui_enviado" value="1"><p class="nota">Desmarque o que este usuário não deve ver. A área inteira continua valendo pela marcação acima.</p><div class="acesso-abas-lista"><?php foreach (ui_catalogo() as $areaCat): ?><div class="acesso-area"><b><?= h($areaCat[1]) ?></b><?php foreach ($areaCat[2] as $abaCat): ?><label class="check"><input type="checkbox" name="abas[]" value="<?= h($abaCat[0]) ?>" checked><?= h($abaCat[1]) ?></label><?php foreach ($abaCat[2] as $subCat): ?><label class="check acesso-sub"><input type="checkbox" name="subs[]" value="<?= h($abaCat[0] . ':' . $subCat[0]) ?>" checked><?= h($subCat[1]) ?></label><?php endforeach; ?><?php endforeach; ?></div><?php endforeach; ?></div></details><small>Administradores sempre têm acesso total.</small></fieldset>
         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-modal>Cancelar</button><button class="btn primario" id="btnSalvarUsuarioModal">Criar usuário</button></div>
       </form>
     </div>
   </div>
   <script>
-  (()=>{const m=document.getElementById('modalNovoUsuario'),b=document.getElementById('btnNovoUsuario'),p=document.getElementById('novoPerfil'),a=document.getElementById('novoAcessos'),f=m.querySelector('form'),tit=document.getElementById('tituloNovoUsuario'),txt=document.getElementById('textoModalUsuario'),btn=document.getElementById('btnSalvarUsuarioModal'),campoSenha=m.querySelector('.campo-senha-modal'),senha=m.querySelector('input[name="senha"]'),acao=f.querySelector('input[name="acao"]'),uid=f.querySelector('input[name="id"]');const sync=()=>{const admin=p.value==='admin';a.classList.toggle('acesso-desabilitado',admin);a.querySelectorAll('input').forEach(x=>{x.disabled=admin;if(admin)x.checked=true})};const abrirNovo=()=>{f.reset();acao.value='criar_usuario';uid.value='';tit.textContent='Criar novo usuário';txt.textContent='Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.';btn.textContent='Criar usuário';campoSenha.hidden=false;senha.required=true;senha.disabled=false;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const abrirEditar=el=>{f.reset();acao.value='editar_usuario';uid.value=el.dataset.id||'';f.querySelector('input[name="nome"]').value=el.dataset.nome||'';f.querySelector('input[name="login"]').value=el.dataset.login||'';f.querySelector('input[name="email"]').value=el.dataset.email||'';f.querySelector('select[name="perfil"]').value=el.dataset.perfil||'editor';f.querySelector('select[name="empresa"]').value=el.dataset.empresa||'';tit.textContent='Editar usuário';txt.textContent='Atualize nome, login, e-mail de recuperação, perfil e empresa vinculada.';btn.textContent='Salvar usuário';campoSenha.hidden=true;senha.required=false;senha.disabled=true;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const fechar=()=>{m.hidden=true;document.body.classList.remove('modal-aberto')};b.addEventListener('click',abrirNovo);document.querySelectorAll('[data-editar-usuario]').forEach(x=>x.addEventListener('click',()=>abrirEditar(x)));m.querySelectorAll('[data-fechar-modal]').forEach(x=>x.addEventListener('click',fechar));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)fechar()});p.addEventListener('change',sync);})();
+  (()=>{const m=document.getElementById('modalNovoUsuario'),b=document.getElementById('btnNovoUsuario'),p=document.getElementById('novoPerfil'),a=document.getElementById('novoAcessos'),f=m.querySelector('form'),tit=document.getElementById('tituloNovoUsuario'),txt=document.getElementById('textoModalUsuario'),btn=document.getElementById('btnSalvarUsuarioModal'),campoSenha=m.querySelector('.campo-senha-modal'),senha=m.querySelector('input[name="senha"]'),acao=f.querySelector('input[name="acao"]'),uid=f.querySelector('input[name="id"]');const sync=()=>{const admin=p.value==='admin';a.classList.toggle('acesso-desabilitado',admin);a.querySelectorAll('input').forEach(x=>{x.disabled=admin;if(admin)x.checked=true})};const abrirNovo=()=>{f.reset();acao.value='criar_usuario';uid.value='';tit.textContent='Criar novo usuário';txt.textContent='Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.';btn.textContent='Criar usuário';{const d=f.querySelector('details.acesso-abas');if(d)d.open=false}campoSenha.hidden=false;senha.required=true;senha.disabled=false;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const abrirEditar=el=>{f.reset();acao.value='editar_usuario';uid.value=el.dataset.id||'';f.querySelector('input[name="nome"]').value=el.dataset.nome||'';f.querySelector('input[name="login"]').value=el.dataset.login||'';f.querySelector('input[name="email"]').value=el.dataset.email||'';f.querySelector('select[name="perfil"]').value=el.dataset.perfil||'editor';f.querySelector('select[name="empresa"]').value=el.dataset.empresa||'';const lista=v=>(v||'').split(',').filter(Boolean);const mods=lista(el.dataset.modulos),oa=lista(el.dataset.abasOcultas),os=lista(el.dataset.subsOcultas);f.querySelectorAll('input[name="modulos[]"]').forEach(x=>x.checked=mods.includes(x.value));f.querySelectorAll('input[name="abas[]"]').forEach(x=>x.checked=!oa.includes(x.value));f.querySelectorAll('input[name="subs[]"]').forEach(x=>x.checked=!os.includes(x.value));const det=f.querySelector('details.acesso-abas');if(det)det.open=false;tit.textContent='Editar usuário';txt.textContent='Atualize nome, login, e-mail de recuperação, perfil, empresa e o que o usuário pode ver (áreas, abas e sub-abas).';btn.textContent='Salvar usuário';campoSenha.hidden=true;senha.required=false;senha.disabled=true;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const fechar=()=>{m.hidden=true;document.body.classList.remove('modal-aberto')};b.addEventListener('click',abrirNovo);document.querySelectorAll('[data-editar-usuario]').forEach(x=>x.addEventListener('click',()=>abrirEditar(x)));m.querySelectorAll('[data-fechar-modal]').forEach(x=>x.addEventListener('click',fechar));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)fechar()});p.addEventListener('change',sync);})();
   </script>
 
   <div class="grade-2">
