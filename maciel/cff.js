@@ -354,7 +354,7 @@ async function cffRelatorio(op) {
       <h2>Por atividade</h2><p class="sub-cab">R$ previsto/realizado = % físico × valor da atividade (valor do item × peso no catálogo do BM) em ${fdA(D.base)}; “no período” = só o que cai entre ${fdA(J.ini)} e ${fdA(J.fim)}.</p>
       <table>${cffTabelaAtividades(D, mod, true)}</table>
     </div></section>`;
-    const html = tplDocumento({ titulo: 'Cronograma físico-financeiro', subtitulo: `${nome} — período de ${fdA(J.ini)} a ${fdA(J.fim)} · posição em ${fdA(D.base)}`, meta: 'Previsto = cronograma do cliente (linear por dia útil) · valor = catálogo do BM · realizado = lançamentos e apontamentos do BM', corpo, css });
+    const html = tplDocumento({ titulo: 'Cronograma físico-financeiro', subtitulo: `${nome} — período de ${fdA(J.ini)} a ${fdA(J.fim)} · posição em ${fdA(D.base)}`, meta: 'Previsto = cronograma do cliente (linear por dia útil) · valor = catálogo do BM · realizado = lançamentos e apontamentos do BM', corpo, css, empresa: mod || '' });
     reAbrirPrevia(html, `cronograma-fisico-financeiro-${(mod || 'geral').replace(/\s+/g, '-')}-${J.ini}_a_${J.fim}`, `Cronograma físico-financeiro · ${nome}`);
   } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
   finally { Object.assign(CFF, guarda); if (btn) { btn.disabled = false; btn.textContent = rot; } }

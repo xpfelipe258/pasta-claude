@@ -148,7 +148,7 @@ function renderRdo() {
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
-      ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas ativas × usadas', `${nf(mc.nAtivas, 0)} × ${nf(mc.nUsadas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
+      ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
       ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'chegaram na obra no dia' : 'sem remessa no dia', 'var(--acento)')}
     </div>
     <div class="bloco rdo-gerar">
@@ -441,8 +441,7 @@ async function rdoHtml(dia, modo) {
     <div class="cards">
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
       ${card('Efetivo no dia', nf(totEfet, 0), `${nf(efet.length, 0)} empresa(s)`, 'az')}
-      ${card('Máquinas ativas', nf(mctl.nAtivas, 0), mctl.nManut ? `${nf(mctl.nManut, 0)} em manutenção` : 'equipamentos em operação na obra', 'az')}
-      ${card('Máquinas usadas', nf(mctl.nUsadas, 0), `${nf(mctl.nParadas, 0)} ativa(s) parada(s) no dia · mensais sempre em uso`, 'am')}
+      ${card('Máquinas usadas / ativas', `${nf(mctl.nUsadas, 0)} / ${nf(mctl.nAtivas, 0)}`, `${nf(mctl.nParadas, 0)} ativa(s) parada(s)${mctl.nManut ? ` · ${nf(mctl.nManut, 0)} em manutenção` : ''} · mensais sempre em uso`, 'am')}
       ${card('Fotos', nf(fotos.length, 0), rem.length ? `${nf(rem.length, 0)} remessa(s) chegaram` : 'sem chegada de remessa', 'vm')}
       ${gestao ? card('Produzido no dia', rs2(produzido), 'medição estimada (qtd × preço do BM)', 'vd') : ''}
       ${gestao ? card('Gasto no dia', rs2(gastoEq + gastoComb), `equipamentos ${rs2(gastoEq)} + combustível ${rs2(gastoComb)}`, 'vm') : ''}

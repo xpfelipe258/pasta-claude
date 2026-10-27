@@ -30,13 +30,13 @@ const relPdfNome = nome => String(nome || 'relatorio').replace(/\.(html?|png)$/i
 const relPdfTxt = s => String(s == null ? '' : s).replace(/[^ -~ -ÿ–—•]/g, ' ');   // só caracteres que as fontes do PDF desenham
 
 // Rodapé de cada página (barra azul com a obra à esquerda e o título/data/página à direita)
-function relPdfRodape(pdf, pw, ph, titulo, pag, total) {
+function relPdfRodape(pdf, pw, ph, titulo, pag, total, gestao) {
   const obra = ((typeof D !== 'undefined' && D && D.obra && D.obra.nome) || 'OBRA').toString().toUpperCase();
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   pdf.setFillColor(10, 44, 87); pdf.rect(0, ph - 8, pw, 8, 'F');
   pdf.setFillColor(200, 30, 40); pdf.rect(0, ph - 8, pw * 0.32, 8, 'F');
   pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.5);
-  pdf.text(relPdfTxt(obra + ' · GESTÃO'), 6, ph - 3);
+  pdf.text(relPdfTxt(gestao || (obra + ' · GESTÃO')), 6, ph - 3);
   pdf.setFont('helvetica', 'normal');
   pdf.text(relPdfTxt(`${titulo} · RÓTULA · ${quando} · pág. ${pag}/${total}`), pw - 6, ph - 3, { align: 'right' });
 }
@@ -71,6 +71,7 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
   await relPdfLibs();
   const progresso = typeof aoProgredir === 'function' ? aoProgredir : () => {};
   const paisagem = /@page\s*\{[^}]*size\s*:[^;}]*landscape/i.test(html);
+  const gestaoTxt = ((html.match(/<meta name="tpl-gestao" content="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"') || '';   // "OBRA · EMPRESA" do rodapé (identidade visual da empresa)
   const LARG = paisagem ? 1400 : 1040;                       // largura (px) em que o relatório é desenhado
   const [pw, ph] = paisagem ? [297, 210] : [210, 297];      // página em mm
   const mx = 8, topo = 8, base = 12;                         // margens (mm)
@@ -193,7 +194,7 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
         });
         if (n > 0) pdf.addPage();
         pdf.addImage(pg.toDataURL('image/jpeg', 0.86), 'JPEG', mx, topo, LARG * mmPx, alt * mmPx, undefined, 'FAST');
-        relPdfRodape(pdf, pw, ph, titulo, n + 1, total);
+        relPdfRodape(pdf, pw, ph, titulo, n + 1, total, gestaoTxt);
         await new Promise(r => setTimeout(r, 0));   // deixa a tela respirar entre as páginas
       }
       bloco.width = 1; bloco.height = 1;   // libera a memória do bloco

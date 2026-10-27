@@ -104,11 +104,23 @@ try {
             }
             responder_json(200, configuracoes_ler($usuario));
         }
+        if ($rota === 'identidade') {   // logos/cores das empresas para montar os relatórios
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
+            }
+            responder_json(200, ['dados' => identidade_mapa($usuario)]);
+        }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
             }
             responder_json(200, tarefas_msgs_listar($usuario, (int)($_GET['tarefa'] ?? 0)));
+        }
+        if ($rota === 'tarefas-chat') {   // ícone de chat do topo: conversas com mensagem nova
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+            }
+            responder_json(200, tarefas_chat_resumo($usuario, !empty($_GET['todas'])));
         }
         if ($rota === 'planejamento') {
             $d = json_decode((string)sistema_ler('planejamento', '{"setores":[]}'), true);
@@ -146,6 +158,16 @@ try {
             throw new ErroValidacao('Dados inválidos.');
         }
         responder_json(200, acao_configuracoes($corpoC, $usuario));
+    }
+    if ($rota === 'tarefas-chat') {
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Tarefas não estão disponíveis por token de máquina.']);
+        }
+        $corpoH = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoH)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        responder_json(200, acao_tarefas_chat($corpoH, $usuario));
     }
     if ($rota === 'tarefas-msgs') {   // conversa entre os usuários: não mexe nos dados da obra
         if ($via_token) {
@@ -243,38 +265,115 @@ function tarefa_agora_brt()
 }
 
 // Administrador vê todas; os demais veem as que foram atribuídas a eles ou que eles mesmos criaram.
+// `usuarios` = para quem este usuário pode enviar tarefa (Rótula envia a todos; empresa só para a própria empresa e a Rótula).
 function tarefas_listar(array $usuario)
 {
     garantir_tarefas();
     $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $eu = (int)$usuario['id'];
     $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome,
         (SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS n_msgs, (SELECT MAX(m.id) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS ult_msg_id,
-        (SELECT m2.usuario_id FROM tarefas_msgs m2 WHERE m2.id = (SELECT MAX(m3.id) FROM tarefas_msgs m3 WHERE m3.tarefa_id = t.id)) AS ult_msg_usuario FROM tarefas t
+        (SELECT m2.usuario_id FROM tarefas_msgs m2 WHERE m2.id = (SELECT MAX(m3.id) FROM tarefas_msgs m3 WHERE m3.tarefa_id = t.id)) AS ult_msg_usuario,
+        (SELECT COUNT(*) FROM tarefas_msgs m4 WHERE m4.tarefa_id = t.id AND m4.usuario_id <> ? AND m4.id > COALESCE((SELECT l.ultimo_id FROM tarefas_lidas l WHERE l.usuario_id = ? AND l.tarefa_id = t.id), 0)) AS nao_lidas FROM tarefas t
         LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
-    $params = [];
+    $params = [$eu, $eu];
     if (!$admin) {
         $sql .= ' WHERE t.responsavel_id = ? OR t.criado_por = ?';
-        $params = [(int)$usuario['id'], (int)$usuario['id']];
+        array_push($params, $eu, $eu);
     }
     $sql .= ' ORDER BY t.data_fim, t.id';
     $linhas = q_global($sql, $params)->fetchAll();
     foreach ($linhas as &$l) {
-        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias', 'n_msgs', 'ult_msg_id', 'ult_msg_usuario'] as $k) {
+        foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias', 'n_msgs', 'ult_msg_id', 'ult_msg_usuario', 'nao_lidas'] as $k) {
             $l[$k] = (int)$l[$k];
         }
         $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
-        $l['pode_editar'] = $admin || $l['criado_por'] === (int)$usuario['id'];
+        $l['pode_editar'] = $admin || $l['criado_por'] === $eu;
     }
     unset($l);
-    $usuarios = $admin ? q_global('SELECT id, nome, empresa FROM usuarios WHERE ativo = 1 ORDER BY nome')->fetchAll()
-        : [['id' => (int)$usuario['id'], 'nome' => $usuario['nome'], 'empresa' => $usuario['empresa'] ?? null]];
-    foreach ($usuarios as &$u) {
-        $u['id'] = (int)$u['id'];
-    }
-    unset($u);
     $mural = q_global('SELECT id, usuario_id FROM tarefas_msgs WHERE tarefa_id = 0 ORDER BY id DESC LIMIT 1')->fetch();
-    return ['usuario_id' => (int)$usuario['id'], 'admin' => $admin, 'usuarios' => $usuarios, 'tarefas' => $linhas,
-        'mural_ultimo' => $mural ? (int)$mural['id'] : 0, 'mural_ultimo_usuario' => $mural ? (int)$mural['usuario_id'] : 0];
+    return ['usuario_id' => $eu, 'admin' => $admin, 'rotula' => tarefa_usuario_rotula($usuario), 'usuarios' => tarefa_destinos($usuario), 'tarefas' => $linhas,
+        'mural_ultimo' => $mural ? (int)$mural['id'] : 0, 'mural_ultimo_usuario' => $mural ? (int)$mural['usuario_id'] : 0,
+        'mural_nao_lidas' => tarefa_nao_lidas_conversa($eu, 0)];
+}
+
+function tarefa_nao_lidas_conversa($eu, $tarefaId)
+{
+    return (int)q_global('SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = ? AND m.usuario_id <> ? AND m.id > COALESCE((SELECT l.ultimo_id FROM tarefas_lidas l WHERE l.usuario_id = ? AND l.tarefa_id = ?), 0)',
+        [(int)$tarefaId, (int)$eu, (int)$eu, (int)$tarefaId])->fetchColumn();
+}
+
+// Ícone de chat do topo: as conversas em que o usuário está envolvido (criou, recebeu ou mural) com a última mensagem e quantas ainda não leu.
+// O administrador pode pedir `todas` e ver também as conversas de que não participa (as mensagens ficam sempre gravadas).
+function tarefas_chat_resumo(array $usuario, $todas = false)
+{
+    garantir_tarefas();
+    $eu = (int)$usuario['id'];
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $todas = $todas && $admin;
+    $tarefas = [];
+    $sqlT = 'SELECT t.id, t.codigo, t.titulo, t.criado_por, t.responsavel_id, c.nome AS criado_por_nome, r.nome AS responsavel_nome FROM tarefas t
+        LEFT JOIN usuarios c ON c.id = t.criado_por LEFT JOIN usuarios r ON r.id = t.responsavel_id';
+    foreach ($todas ? q_global($sqlT)->fetchAll() : q_global($sqlT . ' WHERE t.criado_por = ? OR t.responsavel_id = ?', [$eu, $eu])->fetchAll() as $t) {
+        $tarefas[(int)$t['id']] = $t;
+    }
+    $lidas = [];
+    foreach (q_global('SELECT tarefa_id, ultimo_id FROM tarefas_lidas WHERE usuario_id = ?', [$eu])->fetchAll() as $l) {
+        $lidas[(int)$l['tarefa_id']] = (int)$l['ultimo_id'];
+    }
+    $conv = [];
+    foreach (q_global('SELECT tarefa_id, COUNT(*) AS n, MAX(id) AS ult FROM tarefas_msgs GROUP BY tarefa_id')->fetchAll() as $g) {
+        $tid = (int)$g['tarefa_id'];
+        if ($tid !== 0 && !isset($tarefas[$tid])) { continue; }
+        $conv[$tid] = ['n' => (int)$g['n'], 'ult' => (int)$g['ult']];
+    }
+    $nao = [];
+    foreach (q_global('SELECT m.tarefa_id, COUNT(*) AS n FROM tarefas_msgs m LEFT JOIN tarefas_lidas l ON l.tarefa_id = m.tarefa_id AND l.usuario_id = ?
+        WHERE m.usuario_id <> ? AND m.id > COALESCE(l.ultimo_id, 0) GROUP BY m.tarefa_id', [$eu, $eu])->fetchAll() as $g) {
+        $nao[(int)$g['tarefa_id']] = (int)$g['n'];
+    }
+    uasort($conv, function ($a, $b) { return $b['ult'] <=> $a['ult']; });
+    $conv = array_slice($conv, 0, 30, true);
+    $ultimas = [];
+    if ($conv) {
+        $ids = array_map(function ($c) { return (int)$c['ult']; }, $conv);
+        foreach (q_global('SELECT id, tarefa_id, usuario_id, autor, texto, arquivo_nome, criado_em FROM tarefas_msgs WHERE id IN (' . implode(',', $ids) . ')')->fetchAll() as $m) {
+            $ultimas[(int)$m['tarefa_id']] = $m;
+        }
+    }
+    $lista = [];
+    $total = 0;
+    foreach ($conv as $tid => $c) {
+        $m = $ultimas[$tid] ?? null;
+        if (!$m) { continue; }
+        $t = $tarefas[$tid] ?? null;
+        $envolvido = $tid === 0 || ($t && ((int)$t['criado_por'] === $eu || (int)$t['responsavel_id'] === $eu));
+        $n = $envolvido ? ($nao[$tid] ?? 0) : 0;
+        $total += $n;
+        $texto = trim((string)$m['texto']);
+        $lista[] = ['tarefa_id' => $tid, 'codigo' => $t['codigo'] ?? null, 'titulo' => $tid === 0 ? 'Mural da equipe' : ($t['titulo'] ?? ''),
+            'de' => $t ? ($t['criado_por_nome'] ?? '—') : null, 'para' => $t ? ($t['responsavel_nome'] ?? '—') : null,
+            'ultimo_id' => (int)$m['id'], 'ultimo_autor' => $m['autor'], 'ultimo_minha' => (int)$m['usuario_id'] === $eu,
+            'ultimo_texto' => $texto !== '' ? mb_substr($texto, 0, 140) . (mb_strlen($texto) > 140 ? '…' : '') : ($m['arquivo_nome'] ? '📎 ' . $m['arquivo_nome'] : ''),
+            'ultimo_em' => $m['criado_em'], 'n_msgs' => $c['n'], 'nao_lidas' => $n, 'envolvido' => $envolvido];
+    }
+    // o total do ícone conta só o que é meu (o administrador não "recebe" as conversas dos outros)
+    return ['conversas' => $lista, 'nao_lidas' => $total, 'todas' => $todas, 'admin' => $admin, 'usuario_id' => $eu];
+}
+
+function acao_tarefas_chat(array $corpo, array $usuario)
+{
+    garantir_tarefas();
+    $eu = (int)$usuario['id'];
+    if ((string)($corpo['acao'] ?? '') === 'lidas_tudo') {   // marca como lidas todas as conversas em que estou envolvido
+        $sql = 'SELECT m.tarefa_id, MAX(m.id) AS ult FROM tarefas_msgs m LEFT JOIN tarefas t ON t.id = m.tarefa_id
+            WHERE m.tarefa_id = 0 OR t.criado_por = ? OR t.responsavel_id = ? GROUP BY m.tarefa_id';
+        foreach (q_global($sql, [$eu, $eu])->fetchAll() as $g) {
+            tarefa_marcar_lida($eu, (int)$g['tarefa_id'], (int)$g['ult']);
+        }
+        return tarefas_chat_resumo($usuario, false);
+    }
+    throw new ErroValidacao('Ação inválida.');
 }
 
 // ---- conversa entre os usuários (mural da equipe e conversa de cada tarefa), só para comunicação e envio de arquivos
@@ -294,9 +393,12 @@ function tarefas_msgs_listar(array $usuario, $tarefaId)
         }
         $m['tem_arquivo'] = (bool)$m['tem_arquivo'];
         $m['minha'] = $m['usuario_id'] === (int)$usuario['id'];
-        $m['pode_excluir'] = $m['minha'] || $admin;
+        $m['pode_excluir'] = $admin;   // as mensagens ficam gravadas: só o administrador apaga
     }
     unset($m);
+    if ($l) {   // quem abre a conversa leu até a última mensagem
+        tarefa_marcar_lida((int)$usuario['id'], $tarefaId, max(array_map(function ($x) { return (int)$x['id']; }, $l)));
+    }
     return ['tarefa' => $tarefaId, 'mensagens' => array_reverse($l), 'usuario_id' => (int)$usuario['id']];
 }
 
@@ -325,8 +427,8 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
         if (!$m) {
             throw new ErroValidacao('Mensagem não encontrada.');
         }
-        if ((int)$m['usuario_id'] !== (int)$usuario['id'] && ($usuario['perfil'] ?? '') !== 'admin') {
-            throw new ErroValidacao('Só quem escreveu (ou o administrador) apaga a mensagem.');
+        if (($usuario['perfil'] ?? '') !== 'admin') {
+            throw new ErroValidacao('As mensagens ficam gravadas: só o administrador pode apagar.');
         }
         q_global('DELETE FROM tarefas_msgs WHERE id = ?', [(int)$m['id']]);
         if (!empty($m['arquivo'])) {
@@ -357,7 +459,86 @@ function configuracoes_ler(array $usuario)
         'obras' => $obras ?: [], 'modulos' => $mods,
         'senha_alterada_em' => $ult ?: null,
         'idiomas' => IDIOMAS_VALIDOS, 'temas' => TEMAS_VALIDOS,
+        'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)],
     ];
+}
+
+// ---- Identidade visual dos relatórios por empresa (2026-10-26): logo + cor; o cliente continua sendo a Rótula.
+// Fica em config_global.identidade_empresas = { "EJ": { logo: "data:image/png;base64,…", cor: "#rrggbb", por, em } }.
+function identidade_todas()
+{
+    $d = json_decode((string)global_ler('identidade_empresas', '{}'), true);
+    return is_array($d) ? $d : [];
+}
+function identidade_chave($e)
+{
+    return mb_strtoupper(trim((string)$e));
+}
+// Empresas cuja identidade o usuário pode editar: o administrador, todas; o editor de uma empresa, só a dele; leitura e Rótula sem empresa, nenhuma.
+function identidade_empresas_editaveis(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin') {
+        return array_values(array_unique(array_map('identidade_chave', q_global("SELECT DISTINCT nome FROM empresas WHERE nome <> ''")->fetchAll(PDO::FETCH_COLUMN))));
+    }
+    $e = identidade_chave($u['empresa'] ?? '');
+    return ($e !== '' && ($u['perfil'] ?? '') !== 'leitura' && !tarefa_usuario_rotula($u)) ? [$e] : [];
+}
+// O que o usuário precisa para montar relatórios: a Rótula (e o administrador) vê todas as empresas; usuário de empresa, só a dele.
+function identidade_mapa(array $u)
+{
+    $todas = identidade_todas();
+    $out = [];
+    $meu = identidade_chave($u['empresa'] ?? '');
+    foreach ($todas as $emp => $d) {
+        if (tarefa_usuario_rotula($u) || identidade_chave($emp) === $meu) {
+            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
+        }
+    }
+    return (object)$out;
+}
+function acao_identidade(array $corpo, array $usuario)
+{
+    $emp = identidade_chave($corpo['empresa'] ?? '');
+    if ($emp === '' || !in_array($emp, identidade_empresas_editaveis($usuario), true)) {
+        throw new ErroValidacao('Você não pode alterar a identidade visual desta empresa.');
+    }
+    $todas = identidade_todas();
+    $atual = $todas[$emp] ?? [];
+    if (($corpo['acao'] ?? '') === 'identidade_remover') {
+        unset($todas[$emp]);
+        registrar_global('identidade_removida', ['empresa' => $emp, 'por' => $usuario['login'] ?? '']);
+    } else {
+        $cor = trim((string)($corpo['cor'] ?? ''));
+        if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) {
+            throw new ErroValidacao('Cor inválida (use o formato #rrggbb).');
+        }
+        $logo = (string)($atual['logo'] ?? '');
+        if (!empty($corpo['remover_logo'])) {
+            $logo = '';
+        }
+        if (isset($corpo['logo']) && $corpo['logo'] !== '' && $corpo['logo'] !== null) {
+            if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', (string)$corpo['logo'], $m)) {
+                throw new ErroValidacao('Envie o logo em PNG, JPG ou WEBP.');
+            }
+            $bin = base64_decode($m[2], true);
+            if ($bin === false || strlen($bin) > 400 * 1024) {
+                throw new ErroValidacao('O logo passa de 400 KB. Use uma imagem menor.');
+            }
+            $info = @getimagesizefromstring($bin);
+            if (!$info || $info[0] < 20 || $info[1] < 10 || $info[0] > 2500 || $info[1] > 2500 || !in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true)) {
+                throw new ErroValidacao('Imagem inválida: envie um PNG, JPG ou WEBP de até 2.500 px.');
+            }
+            $logo = (string)$corpo['logo'];
+        }
+        if ($logo === '' && $cor === '') {
+            unset($todas[$emp]);
+        } else {
+            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
+        }
+        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+    }
+    global_gravar('identidade_empresas', json_encode($todas, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true, 'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)]];
 }
 
 function acao_configuracoes(array $corpo, array $usuario)
@@ -369,6 +550,9 @@ function acao_configuracoes(array $corpo, array $usuario)
         throw new ErroValidacao('Usuário não encontrado. Entre de novo.');
     }
     garantir_preferencias_usuario();
+    if ($acao === 'identidade' || $acao === 'identidade_remover') {
+        return acao_identidade($corpo, $usuario);
+    }
     if ($acao === 'perfil') {
         $nome = trim(strip_tags((string)($corpo['nome'] ?? '')));
         $nome = preg_replace('/\s+/u', ' ', $nome);
@@ -501,14 +685,19 @@ function acao_tarefas(array $corpo, array $usuario)
         if (!in_array($prio, tarefa_prioridades(), true)) {
             throw new ErroValidacao('Prioridade inválida.');
         }
-        $resp = $eu;   // quem não é administrador só cria lembrete para si
-        if ($admin && !empty($corpo['responsavel_id'])) {
-            $resp = (int)$corpo['responsavel_id'];
-            if (!q_global('SELECT id FROM usuarios WHERE id = ? AND ativo = 1', [$resp])->fetch()) {
-                throw new ErroValidacao('Responsável inválido.');
+        // Para quem enviar: usuário da Rótula envia a todos; usuário de empresa só para a própria empresa e para a Rótula (nunca para outra empresa terceira)
+        $resp = $t ? (int)$t['responsavel_id'] : $eu;
+        if (!empty($corpo['responsavel_id'])) {
+            $novo = (int)$corpo['responsavel_id'];
+            if ($novo !== $eu && !($t && $novo === (int)$t['responsavel_id'])) {
+                if (!q_global('SELECT id FROM usuarios WHERE id = ? AND ativo = 1', [$novo])->fetch()) {
+                    throw new ErroValidacao('Responsável inválido.');
+                }
+                if (!in_array($novo, array_column(tarefa_destinos($usuario), 'id'), true)) {
+                    throw new ErroValidacao('Você não pode enviar tarefa para este usuário: usuários de empresa só enviam para a própria empresa e para a Rótula.');
+                }
             }
-        } elseif ($t && !$admin) {
-            $resp = (int)$t["responsavel_id"];
+            $resp = $novo;
         }
         $desc = trim((string)($corpo['descricao'] ?? ''));
         if ($t) {
@@ -2273,7 +2462,34 @@ function frentes_montagem()
             $d['frentes']['telha_fechamento'] = $tf;
         }
     }
+    if (!empty($d['frentes']['fechamento'])) {   // regra do sistema: o mapa da estrutura do fechamento lateral NÃO leva telha (a telha é da Globo Aços, apontada em "Telhas de fechamento")
+        $d['frentes']['fechamento'] = frente_fechamento_sem_telha($d['frentes']['fechamento']);
+    }
     return $d;
+}
+
+// Estrutura do fechamento lateral = só terças e espaçadores (os suportes de terça baixam junto com as terças, ver regras_baixa.json › estrutura_por_peca).
+// A família TELHA FECHAMENTO do IFC sai das células, do total e da lista de famílias: telha é apontada à parte pela Globo Aços (frente telha_fechamento),
+// e contá-la aqui lançaria a mesma produção duas vezes. Idempotente.
+function frente_fechamento_sem_telha(array $fech)
+{
+    $familia = 'TELHA FECHAMENTO';
+    $total = 0;
+    foreach (($fech['partes'] ?? []) as $i => $p) {
+        foreach (($p['celulas'] ?? []) as $j => $c) {
+            if (isset($c['pecas'][$familia])) {
+                $c['total'] = max(0, (int)($c['total'] ?? 0) - (int)$c['pecas'][$familia]);
+                unset($c['pecas'][$familia]);
+                $fech['partes'][$i]['celulas'][$j] = $c;
+            }
+            $total += (int)($c['total'] ?? 0);
+        }
+    }
+    if (isset($fech['partes'])) {
+        $fech['total'] = $total;
+    }
+    $fech['familias'] = array_values(array_filter($fech['familias'] ?? [], function ($f) use ($familia) { return $f !== $familia; }));
+    return $fech;
 }
 
 // Medição (BM) da Globo Aços: a atividade "Instalação de telhas" do catálogo é medida em m² pelos apontamentos do BM (bm_apontamentos, uma linha por

@@ -147,7 +147,7 @@ function imp_regras_atividade()
         ['/CONTRAVENT|TIRANTE|MAO FRANCESA/', ['CONTRAVENT']],
         ['/RUFO|TESTEIRA|ARREMATE|PLATIBANDA/', ['RUFO']],
         ['/CALHA/', ['CALHA', 'INSTALACAO']],
-        ['/TELHA/', ['INSTALACAO']],
+        ['/TELHA/', ['TELHA']],
         ['/ESCADA|DEGRAU|PATAMAR|GUARDA CORPO|^ARO\b|CANTONEIRA_BASE|SP ESCADA/', ['ESCADA', 'INSTALACAO']],
     ];
 }
@@ -162,6 +162,16 @@ function imp_escolher_atividade($produto, array $ativs)
         return [null, ''];
     }
     $p = imp_sem_acento($produto);
+    // Regra do sistema: telha nunca cai numa atividade de estrutura (terça, espaçador, suporte...). A estrutura do fechamento lateral só
+    // tem terças e espaçadores; a telha é da empresa de cobertura/fechamento e se aponta na atividade de telhas dela. Sem atividade de telha no item, fica "sem par".
+    if (preg_match('/TELHA/', $p)) {
+        foreach ($ativs as $a) {
+            if (preg_match('/TELHA/', imp_sem_acento($a['descricao']))) {
+                return [$a, 'regra'];
+            }
+        }
+        return [null, ''];
+    }
     foreach (imp_regras_atividade() as list($re, $buscas)) {
         if (!preg_match($re, $p)) {
             continue;

@@ -888,6 +888,33 @@
     },
     "FECH. LATERAL – ESTRUTURA": {
       "descricao": "Fechamento lateral: pilaretes, terças e espaçadores. A baixa é por peça do trecho apontado no mapa do IFC.",
+      "regra_sistema": "O mapa da estrutura do fechamento lateral só tem TERÇA FECHAMENTO e ESPAÇADOR FECHAMENTO. A telha (TELHA FECHAMENTO) é da Globo Aços e se aponta em 'Telhas de fechamento'; contá-la aqui duplicaria a produção. Ao apontar um trecho baixam: a própria peça (TAG de terça ou de espaçador), o suporte de terça (ST) que recebe a terça e os fixadores de por_peca (parafuso, porca e arruela da terça e 2 parabolts FG001 por suporte de terça).",
+      "estrutura_por_peca": {
+        "TERÇA FECHAMENTO": [
+          {
+            "produto": "TERÇA FECHAMENTO",
+            "local": "Galpão",
+            "quantidade": 1,
+            "fonte": "a própria terça do trecho apontado"
+          },
+          {
+            "produto": "SUPORTE DE TERÇA",
+            "local": "Galpão",
+            "tags": ["ST01", "ST02"],
+            "quantidade": 1,
+            "fonte": "Estimativa pelos totais do IFC: 648 suportes de terça do galpão (ST01 312 + ST02 336) para 636 terças de fechamento, ou seja, cerca de 1 suporte por terça. O IFC do galpão não está no repositório, então a posição exata de cada suporte não é conhecida; conferir em obra e ajustar a quantidade aqui.",
+            "conferir": true
+          }
+        ],
+        "ESPAÇADOR FECHAMENTO": [
+          {
+            "produto": "ESPAÇADOR FECHAMENTO",
+            "local": "Galpão",
+            "quantidade": 1,
+            "fonte": "o próprio espaçador do trecho apontado"
+          }
+        ]
+      },
       "fonte": "OF.198-MET-DM-001-LOCAÇÃO PLANTA BAIXA-R01: DETALHE 1 a 5 e CORTE A-A a E-E (base do pilarete), CORTE B-B / C-C / K-K (terça no pilarete)",
       "por_peca": {
         "TERÇA FECHAMENTO": [
@@ -908,6 +935,13 @@
             "descricao": "ARRUELA Ø1/2\"",
             "quantidade": 4,
             "fonte": "arruela do parafuso da terça"
+          },
+          {
+            "codigo": "FG001",
+            "descricao": "PARABOLT Ø1/2\" X 4\"",
+            "quantidade": 2,
+            "fonte": "2 parabolts por suporte de terça montado (regra informada pelo responsável da obra em 2026-10-27; antes estava 1); o suporte baixa junto com a terça (1 ST por terça, ver estrutura_por_peca). O IFC (Bolts:Off, ST = chapa CH8X170 sem furos) e os desenhos disponíveis não detalham essa fixação; FG001 é o único parabolt do galpão no cadastro de Materiais.",
+            "conferir": true
           }
         ],
         "ESPAÇADOR FECHAMENTO": [

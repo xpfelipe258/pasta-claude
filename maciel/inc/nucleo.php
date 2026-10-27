@@ -236,6 +236,11 @@ function tarefas_msgs_sql($pk, $longo, $fim)
     return "CREATE TABLE IF NOT EXISTS tarefas_msgs (id $pk, tarefa_id INT NOT NULL DEFAULT 0, usuario_id INT NOT NULL, autor VARCHAR(100) NOT NULL,
         texto $longo NULL, arquivo VARCHAR(60) NULL, arquivo_nome VARCHAR(200) NULL, arquivo_tipo VARCHAR(100) NULL, arquivo_tam BIGINT NULL, criado_em VARCHAR(19) NOT NULL)$fim";
 }
+// Até qual mensagem cada usuário já leu em cada conversa (tarefa_id 0 = mural): é o que acende o ícone de chat no topo.
+function tarefas_lidas_sql($pk, $longo, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS tarefas_lidas (usuario_id INT NOT NULL, tarefa_id INT NOT NULL, ultimo_id INT NOT NULL DEFAULT 0, PRIMARY KEY (usuario_id, tarefa_id))$fim";
+}
 // Documentos enviados para a importação automática de uma obra nova (IFC, fixadores, cronograma, orçamento, projetos).
 function importacao_sql($pk, $longo, $fim)
 {
@@ -255,6 +260,40 @@ function tarefa_conversa_acesso(array $u, $tarefaId)
         return false;
     }
     return ($u['perfil'] ?? '') === 'admin' || (int)$t['criado_por'] === (int)$u['id'] || (int)$t['responsavel_id'] === (int)$u['id'];
+}
+// ---- Quem pode enviar tarefa para quem (2026-10-26): usuário da Rótula (perfil admin ou sem empresa) envia para todos;
+// usuário de empresa só envia para a própria empresa e para a Rótula, nunca para outra empresa terceira.
+function tarefa_usuario_rotula(array $u)
+{
+    $e = trim((string)($u['empresa'] ?? ''));
+    return ($u['perfil'] ?? '') === 'admin' || $e === '' || preg_match('/^R[OÓ]TULA$/u', mb_strtoupper($e)) === 1;
+}
+function tarefa_destinos(array $u)
+{
+    $eu = (int)$u['id'];
+    $minha = mb_strtoupper(trim((string)($u['empresa'] ?? '')));
+    $rotula = tarefa_usuario_rotula($u);
+    $out = [];
+    foreach (q_global('SELECT id, nome, empresa, perfil FROM usuarios WHERE ativo = 1 ORDER BY nome')->fetchAll() as $d) {
+        $id = (int)$d['id'];
+        if ($id !== $eu && !$rotula && !tarefa_usuario_rotula($d) && mb_strtoupper(trim((string)$d['empresa'])) !== $minha) {
+            continue;
+        }
+        $out[] = ['id' => $id, 'nome' => $d['nome'], 'empresa' => $d['empresa'] ?: null, 'grupo' => tarefa_usuario_rotula($d) ? 'RÓTULA' : trim((string)$d['empresa'])];
+    }
+    return $out;
+}
+// Marca a conversa como lida (até a última mensagem dela) para o usuário; nunca volta para trás.
+function tarefa_marcar_lida($uid, $tarefaId, $ultimoId)
+{
+    $uid = (int)$uid; $tarefaId = (int)$tarefaId; $ultimoId = (int)$ultimoId;
+    if ($ultimoId <= 0) { return; }
+    $at = q_global('SELECT ultimo_id FROM tarefas_lidas WHERE usuario_id = ? AND tarefa_id = ?', [$uid, $tarefaId])->fetch();
+    if (!$at) {
+        q_global('INSERT INTO tarefas_lidas (usuario_id, tarefa_id, ultimo_id) VALUES (?, ?, ?)', [$uid, $tarefaId, $ultimoId]);
+    } elseif ((int)$at['ultimo_id'] < $ultimoId) {
+        q_global('UPDATE tarefas_lidas SET ultimo_id = ? WHERE usuario_id = ? AND tarefa_id = ?', [$ultimoId, $uid, $tarefaId]);
+    }
 }
 // ---- Validação do RDO (2026-10-26): só o administrador valida / retira a validação; dia validado trava clima, observações e fotos ----
 // sistema.rdo_validados (por obra) = { "2026-10-14": { "por": "Felipe", "login": "admin", "em": "2026-10-15 08:10:00" } }
@@ -374,6 +413,8 @@ function garantir_tarefas()
         }
     }
     tarefas_codigos_pendentes();
+    bd()->exec(tarefas_lidas_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
+        $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
     bd()->exec(tarefas_msgs_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
     $ok = true;
@@ -419,6 +460,7 @@ function criar_esquema(PDO $pdo, $driver)
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         tarefas_sql($pk, $longo, $fim),
         tarefas_msgs_sql($pk, $longo, $fim),
+        tarefas_lidas_sql($pk, $longo, $fim),
         importacao_sql($pk, $longo, $fim),
         "CREATE TABLE IF NOT EXISTS auditoria_global (id $pk, quando VARCHAR(19) NOT NULL, usuario VARCHAR(50) NULL,
             acao VARCHAR(50) NOT NULL, detalhe TEXT NULL)$fim",
@@ -1029,10 +1071,11 @@ function criar_token_redefinicao(array $u)
 function enviar_link_redefinicao(array $u)
 {
     if (empty($u['email']) || !filter_var($u['email'], FILTER_VALIDATE_EMAIL)) { return false; }
+    if (empty($u['login'])) { $u['login'] = (string)q_global('SELECT login FROM usuarios WHERE id = ?', [(int)$u['id']])->fetchColumn(); }
     $token = criar_token_redefinicao($u);
     $link = url_base_sistema() . '/redefinir_senha.php?token=' . urlencode($token);
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
-    $msg = "Olá, {$u['nome']}.\n\nRecebemos uma solicitação para redefinir sua senha no {$nome}.\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 2 horas:\n{$link}\n\nSe você não solicitou essa redefinição, ignore esta mensagem.";
+    $msg = "Olá, {$u['nome']}.\n\nRecebemos uma solicitação para redefinir sua senha no {$nome}.\n\nSeu login de acesso: {$u['login']}\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 2 horas:\n{$link}\n\nSe você não solicitou essa redefinição, ignore esta mensagem.";
     return enviar_email_sistema($u['email'], 'Redefinição de senha - ' . $nome, $msg);
 }
 

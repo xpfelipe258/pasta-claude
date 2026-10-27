@@ -93,6 +93,8 @@ function cfgHtml(c) {
       </form>
     </section>
 
+    ${cfgIdentidadeHtml(c)}
+
     <section class="bloco cfg-bloco cfg-largo">
       <div class="bloco-cab"><h2>${esc(tx('Tutorial e ajuda'))}</h2></div>
       <div class="cfg-acoes">
@@ -105,6 +107,95 @@ function cfgHtml(c) {
       <div class="cfg-acoes"><a class="btn" href="sair.php">${esc(tx('Sair do sistema'))}</a></div>
     </section>
   </div>`;
+}
+
+// ---- Identidade visual dos relatórios (logo e cor da empresa; o cliente continua sendo a Rótula)
+function cfgIdentidadeHtml(c) {
+  const idt = c.identidade || {}, emps = idt.empresas || [];
+  if (!emps.length) return '';
+  const emp = emps.includes(CFG.identEmp) ? CFG.identEmp : (emps.includes(String(c.empresa || '').toUpperCase()) ? String(c.empresa).toUpperCase() : emps[0]);
+  CFG.identEmp = emp;
+  const d = (idt.dados || {})[emp] || {};
+  CFG.ident = { logo: d.logo || '', logoNovo: '', remover: false };
+  return `<section class="bloco cfg-bloco cfg-largo" id="cfgIdent">
+    <div class="bloco-cab"><h2>${esc(tx('Identidade visual dos relatórios'))}</h2></div>
+    <form id="cfgFormIdent" class="cfg-form" autocomplete="off">
+      <p class="nota">${esc(tx('O logo e a cor da empresa aparecem na capa dos relatórios, no lado da gestão. O cliente continua sendo a RÓTULA.'))}</p>
+      ${emps.length > 1 ? `<label>${esc(tx('Empresa'))}<select name="empresa" id="cfgIdentEmp">${emps.map(e => `<option${e === emp ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : `<b>${esc(emp)}</b><input type="hidden" name="empresa" value="${esc(emp)}">`}
+      <div class="cfg-ident-linha">
+        <label>${esc(tx('Logo da empresa'))}<input type="file" id="cfgIdentArq" accept="image/png,image/jpeg,image/webp"><small>${esc(tx('PNG, JPG ou WEBP. A imagem é reduzida automaticamente (até 480 × 160 px). Fundo transparente fica melhor.'))}</small></label>
+        <div class="cfg-campo-id"><label for="cfgIdentCor">${esc(tx('Cor de destaque da capa'))}</label><input type="color" name="cor" id="cfgIdentCor" value="${esc(d.cor || '#d2301f')}"><label class="cfg-check"><input type="checkbox" id="cfgIdentSemCor"${d.cor ? '' : ' checked'}> ${esc(tx('Usar a cor padrão da Rótula'))}</label></div>
+      </div>
+      <div class="cfg-ident-previa" id="cfgIdentPrevia"></div>
+      <div class="cfg-acoes">
+        <button type="submit" class="btn primario">${esc(tx('Salvar identidade'))}</button>
+        <button type="button" class="btn" id="cfgIdentSemLogo">${esc(tx('Remover o logo'))}</button>
+        <button type="button" class="btn" id="cfgIdentPadrao">${esc(tx('Voltar ao padrão'))}</button>
+        <span class="nota" id="cfgMsgIdent" role="status"></span>
+      </div>
+    </form>
+  </section>`;
+}
+function cfgIdentPrevia() {
+  const box = document.getElementById('cfgIdentPrevia');
+  if (!box) return;
+  const sem = document.getElementById('cfgIdentSemCor').checked, cor = sem ? '#d2301f' : document.getElementById('cfgIdentCor').value;
+  const logo = CFG.ident.remover ? '' : (CFG.ident.logoNovo || CFG.ident.logo);
+  const emp = CFG.identEmp || '';
+  box.style.setProperty('--prev', cor);
+  box.innerHTML = `<div class="cfg-ident-capa" style="background:linear-gradient(115deg,${tplEscurecer(cor)} 0%,${cor} 40%,#7b2d6e 68%,#0b4f9c 100%)">
+      <div><small>${esc(tx('Gestão'))}</small><span class="cfg-ident-chip">${logo ? `<img src="${logo}" alt="">` : `<b>${esc(emp)}</b>`}</span></div>
+      <div style="text-align:right"><small>${esc(tx('Cliente'))}</small><span class="cfg-ident-chip"><b style="color:#0b4f9c">RÓTULA</b></span></div></div>`;
+}
+// reduz o logo no navegador (máx. 480 × 160) e devolve um data URI PNG/JPG pequeno
+function cfgReduzLogo(arq) {
+  return new Promise((ok, erro) => {
+    if (!/^image\/(png|jpeg|webp)$/.test(arq.type)) return erro(new Error(tx('Envie o logo em PNG, JPG ou WEBP.')));
+    const url = URL.createObjectURL(arq), img = new Image();
+    img.onload = () => {
+      const f = Math.min(1, 480 / img.width, 160 / img.height), w = Math.max(1, Math.round(img.width * f)), h = Math.max(1, Math.round(img.height * f));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+      ok(arq.type === 'image/jpeg' ? cv.toDataURL('image/jpeg', 0.9) : cv.toDataURL('image/png'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); erro(new Error(tx('Não foi possível ler a imagem.'))); };
+    img.src = url;
+  });
+}
+function cfgIdentLigar(c) {
+  const f = document.getElementById('cfgFormIdent');
+  if (!f) return;
+  cfgIdentPrevia();
+  const troca = () => cfgIdentPrevia();
+  document.getElementById('cfgIdentCor').addEventListener('input', () => { document.getElementById('cfgIdentSemCor').checked = false; troca(); });
+  document.getElementById('cfgIdentSemCor').addEventListener('change', troca);
+  document.getElementById('cfgIdentArq').addEventListener('change', async ev => {
+    const arq = ev.target.files && ev.target.files[0];
+    if (!arq) return;
+    try { CFG.ident.logoNovo = await cfgReduzLogo(arq); CFG.ident.remover = false; cfgMsg('cfgMsgIdent', ''); troca(); }
+    catch (e) { cfgMsg('cfgMsgIdent', e.message, true); }
+  });
+  document.getElementById('cfgIdentSemLogo').addEventListener('click', () => { CFG.ident.remover = true; CFG.ident.logoNovo = ''; troca(); });
+  const sel = document.getElementById('cfgIdentEmp');
+  if (sel) sel.addEventListener('change', () => { CFG.identEmp = sel.value; document.getElementById('cfgIdent').outerHTML = cfgIdentidadeHtml(CFG.dados); cfgIdentLigar(CFG.dados); });
+  const aplica = j => {
+    CFG.dados.identidade = j.identidade;
+    if (typeof TPL_IDENT !== 'undefined') TPL_IDENT.dados = j.identidade.dados || {};
+    document.getElementById('cfgIdent').outerHTML = cfgIdentidadeHtml(CFG.dados); cfgIdentLigar(CFG.dados);
+  };
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const sem = document.getElementById('cfgIdentSemCor').checked;
+    const j = await cfgEnviar({ acao: 'identidade', empresa: CFG.identEmp, cor: sem ? '' : document.getElementById('cfgIdentCor').value, logo: CFG.ident.logoNovo || null, remover_logo: CFG.ident.remover }, 'cfgMsgIdent', f.querySelector('button[type=submit]'));
+    if (!j) return;
+    aplica(j); cfgMsg('cfgMsgIdent', tx('Identidade salva. Os próximos relatórios já saem com ela.'));
+  });
+  document.getElementById('cfgIdentPadrao').addEventListener('click', async () => {
+    if (!confirm(tx('Voltar ao padrão (sem logo e sem cor da empresa)?'))) return;
+    const j = await cfgEnviar({ acao: 'identidade_remover', empresa: CFG.identEmp }, 'cfgMsgIdent');
+    if (!j) return;
+    aplica(j); cfgMsg('cfgMsgIdent', tx('Identidade removida: os relatórios voltam ao padrão.'));
+  });
 }
 
 function cfgMsg(id, texto, erro) {
@@ -193,6 +284,8 @@ function cfgLigar(c) {
     cfgMsg('cfgMsgPref', tx('Preferências salvas.'));
     if (mudouIdioma) location.href = 'index.php?aba=config';   // recarrega no novo idioma e volta para esta aba
   });
+
+  cfgIdentLigar(c);
 
   // tutorial
   corpo.querySelector('#cfgAbrirTut').addEventListener('click', () => mudarAba('tutorial'));

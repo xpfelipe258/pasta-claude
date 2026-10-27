@@ -1353,6 +1353,17 @@ body.pintando-toque { overflow: hidden; touch-action: none; }
   :root[data-menu="topo"] .sidebar { position: fixed; top: 0; bottom: 0; height: auto; display: block; padding: 12px 0; }
 }
 
+/* Celular — mapa de apontamento (joists/vigas): o mapa ocupa a largura toda e o painel de seleção vai para cima, com altura fixa
+   (altura fixa = o mapa não "pula" enquanto se marca peças); o mapa rola dentro do quadro e as peças ficam grandes para o dedo */
+@media (max-width: 900px) {
+  .ap-mapa-grid { flex-direction: column; align-items: stretch; gap: 8px; }
+  .ap-mapa-grid .ap-mapa-col { flex: none; width: 100%; }
+  .ap-mapa-grid .ap-sel-log { order: -1; width: 100%; height: 124px; max-height: none; box-sizing: border-box; }
+  .ap-mapa-barra { flex-wrap: wrap; gap: 8px; }
+  .ap-mapa-barra .seg { max-width: 100%; overflow-x: auto; }
+  #apMapaInfo { display: none; }
+}
+
 /* Obra própria de empresa: aviso na faixa do topo */
 .obra-contexto .obra-empresa-aviso { font-style: normal; font-size: .72rem; font-weight: 700; background: var(--marca, #d97706); color: #fff; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }
 
@@ -1465,3 +1476,32 @@ html[data-texto="maior"] { font-size: 125%; }
 .rdo-valid-txt { display: flex; flex-direction: column; gap: 2px; font-size: .88rem; min-width: 240px; flex: 1 1 320px; }
 .rdo-valid.validado .rdo-valid-txt b { color: #1a7f37; }
 /* botão primário de validar só aparece para o administrador, que nunca é somente leitura */
+
+/* Ícone de chat no topo: mensagens novas das tarefas e do mural; clicar abre a lista e leva direto à conversa */
+.tf-chat-btn { display: inline-flex; align-items: center; gap: 5px; position: relative; padding: 3px 10px; border: 1px solid var(--linha-forte); border-radius: 99px; background: var(--card); color: var(--fg); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.tf-chat-btn.tem-novas { border-color: var(--vermelho); }
+.tf-chat-badge { min-width: 18px; padding: 0 5px; border-radius: 10px; background: var(--vermelho); color: #fff; font-size: .68rem; font-weight: 700; text-align: center; line-height: 18px; }
+.tf-chat-painel { position: fixed; top: 52px; right: 12px; z-index: 10000; width: min(400px, calc(100vw - 24px)); max-height: 76vh; display: flex; flex-direction: column; background: var(--card); color: var(--fg); border: 1px solid var(--linha-forte); border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.28); }
+.tf-chat-painel[hidden] { display: none; }
+.tf-chat-cab { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--linha); }
+.tf-chat-todas { margin-left: auto; font-size: .72rem; font-weight: 500; display: flex; gap: 4px; align-items: center; color: var(--fg2); }
+.tf-chat-lista { overflow-y: auto; flex: 1; min-height: 80px; }
+.tf-chat-item { display: grid; gap: 1px; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--linha); background: transparent; color: inherit; font: inherit; font-size: .8rem; cursor: pointer; }
+.tf-chat-item:hover { background: var(--bg); }
+.tf-chat-item.nova { background: color-mix(in srgb, var(--vermelho) 7%, transparent); border-left: 3px solid var(--vermelho); }
+.tf-chat-item.de-outros { opacity: .8; }
+.tf-chat-linha1 { display: flex; gap: 8px; align-items: center; }
+.tf-chat-linha1 .tf-novo { margin-left: auto; }
+.tf-chat-txt-ult { color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-chat-vazio { padding: 16px 12px; margin: 0; }
+.tf-chat-rodape { display: flex; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--linha); }
+@media (max-width: 900px) { .tf-chat-painel { top: 8px; right: 8px; left: 8px; width: auto; max-height: 82dvh; } .tf-chat-btn { min-height: 36px; } }
+
+/* Configurações › identidade visual dos relatórios */
+.cfg-ident-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; align-items: start; }
+.cfg-ident-previa { max-width: 520px; }
+.cfg-ident-capa { display: flex; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 4px 18px 4px 18px; color: #fff; }
+.cfg-ident-capa small { display: block; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+.cfg-ident-chip { display: inline-flex; align-items: center; min-height: 40px; padding: 4px 12px; background: #fff; border-radius: 6px 14px 6px 14px; box-shadow: 0 3px 10px rgba(0,0,0,.25); color: #0a2c57; font-weight: 800; }
+.cfg-ident-chip img { height: 36px; max-width: 220px; display: block; }
+.somente-leitura #cfgIdent .btn.primario { display: inline-block !important; }

@@ -69,7 +69,8 @@ const TUT_TOPICOS = [
     resumo: 'A grade onde se lança a produção por dia, serviço e empresa. É o número oficial da produção.',
     passos: [
       { t: 'Escolha a empresa na barra de abas (EJ, CMM, Globo Aços…). Cada empresa tem seus serviços.', alvo: '#segEmpresas' },
-      { t: 'Digite as quantidades nas células do dia. O contador mostra quantos lançamentos estão pendentes.', alvo: '#pendTxt' },
+      { t: 'Digite as quantidades nas células de cada dia (colunas SEG, TER, QUA…), na linha da atividade.', alvo: '#tabLanc' },
+      { t: 'O aviso ao lado de Salvar mostra "Tudo salvo no sistema" ou quantos lançamentos ainda estão pendentes.', alvo: '#pendTxt' },
       { t: 'Clique em Salvar para gravar ou em Descartar para desfazer o que ainda não foi salvo.', alvo: '#btnSalvar' },
       { t: 'O que é apontado em "Apontar montagem" soma sozinho na coluna principal do serviço: em Lançamentos o total é sempre um só.' },
       { t: '"Relatório de produção" gera o PDF da empresa escolhida, só com as atividades que tiveram avanço no período.', alvo: '#btnRelLanc' },

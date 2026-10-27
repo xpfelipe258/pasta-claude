@@ -620,7 +620,7 @@ async function pjRelatorio() {
       ${secEquip}
       <p class="sub-cab">É uma simulação a partir do planejamento 5W2H e do que foi lançado; não substitui a medição (BM).</p>
     </div></section>`;
-    const html = tplDocumento({ titulo: 'Projeção físico-financeira', subtitulo: `${d.emp || 'Todas as empresas'} — plano ${fdA(r.inicioPlano || r.eixo[0])} a ${fdA(r.fimPlano)} · posição em ${fdA(c.baseRef)}`, meta: 'Planejado = divisão do plano 5W2H · executado = lançamentos e apontamentos do BM · projeção = saldo no ritmo atual · valor = catálogo do BM', corpo, css });
+    const html = tplDocumento({ titulo: 'Projeção físico-financeira', subtitulo: `${d.emp || 'Todas as empresas'} — plano ${fdA(r.inicioPlano || r.eixo[0])} a ${fdA(r.fimPlano)} · posição em ${fdA(c.baseRef)}`, meta: 'Planejado = divisão do plano 5W2H · executado = lançamentos e apontamentos do BM · projeção = saldo no ritmo atual · valor = catálogo do BM', corpo, css, empresa: d.emp || '' });
     reAbrirPrevia(html, `projecao-fisico-financeira-${(d.emp || 'geral').replace(/\s+/g, '-')}-${c.baseRef}`, `Projeção físico-financeira · ${d.emp || 'Todas as empresas'}`);
   } catch (e) { console.error(e); toast('Não foi possível montar o relatório: ' + (e.message || e), true); }
   finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
