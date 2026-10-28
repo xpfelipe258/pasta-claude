@@ -1580,6 +1580,45 @@ function acao_estoque_remessa(array $corpo)
     if ($tipoRem !== '' && $tipoAtual !== '' && $tipoAtual !== $tipoRem) {
         throw new ErroValidacao('A remessa "' . ($substituir && $original !== '' ? $original : $nome) . '" é de ' . ($tipoAtual === 'FIXADOR' ? 'fixador' : 'carga') . '. Use outro nº para a remessa de ' . ($tipoRem === 'FIXADOR' ? 'fixador' : 'carga') . '.');
     }
+    if (!empty($corpo['excluir'])) {   // Excluir remessa (botão da edição): tira as quantidades dela, a coluna, as datas e o tipo
+        $alvo = $original !== '' ? $original : $nome;
+        if (!in_array($alvo, $dados['remessas']['colunas'] ?? [], true)) {
+            throw new ErroValidacao('Remessa não encontrada. Recarregue a tela.');
+        }
+        foreach ($dados['remessas']['itens'] as &$itEx) {
+            // com tipo informado só limpa os itens do mesmo tipo (remessa antiga mista não perde o outro tipo)
+            if ($tipoRem === '' || remessa_tag_eh_fixador($dados, $itEx['tag'] ?? '') === ($tipoRem === 'FIXADOR')) {
+                unset($itEx['qtd_por_remessa'][$alvo]);
+            }
+        }
+        unset($itEx);
+        $sobrou = false;
+        foreach ($dados['remessas']['itens'] as $itEx2) {
+            if (!empty($itEx2['qtd_por_remessa'][$alvo])) { $sobrou = true; break; }
+        }
+        if (!$sobrou) {
+            $dados['remessas']['colunas'] = array_values(array_filter($dados['remessas']['colunas'], function ($c) use ($alvo) { return $c !== $alvo; }));
+            unset($dados['remessas']['datas'][$alvo], $tiposRem[$alvo]);
+            $dados['remessas']['tipos'] = $tiposRem;
+        }
+        foreach ($dados['remessas']['itens'] as &$itRec) {
+            $itRec['total_recebido'] = array_sum($itRec['qtd_por_remessa'] ?? []);
+            $iMat = estoque_material($dados, $itRec['tag'] ?? '');
+            if ($iMat !== null) {
+                $mat = &$dados['materiais'][$iMat];
+                $mat['chegou'] = $itRec['total_recebido'];
+                $mat['estoque_pos_baixa'] = $mat['chegou'] - ($mat['consumido'] ?? 0);
+                $mat['atendimento'] = !empty($mat['planejado']) ? $mat['chegou'] / $mat['planejado'] : null;
+                if ($mat['atendimento'] !== null && $mat['atendimento'] >= 1) $mat['status_logistico'] = 'Atendido';
+                elseif ($mat['chegou'] > 0) $mat['status_logistico'] = 'Recebimento Parcial';
+                elseif (!empty($mat['planejado'])) $mat['status_logistico'] = 'Crítico';
+                unset($mat);
+            }
+        }
+        unset($itRec);
+        estoque_planilha_gravar($dados);
+        return ['celulas' => 0, 'salvos' => 0, 'excluida' => $alvo, 'coluna_removida' => !$sobrou];
+    }
     if ($tipoRem !== '' && $tipoAtual === '' && !$substituir && in_array($nome, $dados['remessas']['colunas'] ?? [], true)) {
         $existeOutro = false;
         foreach ($dados['remessas']['itens'] as $it0) {

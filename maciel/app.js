@@ -3140,6 +3140,7 @@ function edBarra(k) {
       + datasHtml
       + (k === 'cons' ? `<span class="ed-datas"><label>Período do consumo — de<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoIni" value="${esc(ed.periodoIni || '')}"></label><label>até<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoFim" value="${esc(ed.periodoFim || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
+      + (k === 'rem' && ed.substituir ? `<button type="button" class="btn perigo" data-ed-excluir="rem" title="Apaga esta remessa: as quantidades, as datas e a coluna">Excluir remessa</button>` : '')
       + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
       + `<button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
   }
@@ -3205,6 +3206,23 @@ async function edSalvar(k) {
     renderEstoquePlanilha();
     toast(`${r.salvos ?? itens.length} lançamento(s) salvos ${ONDE}`);
   } catch (err) { toast(err.message, true); b.disabled = false; }
+}
+// Excluir a remessa que está em edição (dois cliques); recalcula o que chegou de cada item
+async function edExcluirRemessa(b) {
+  const ed = estEdit.rem;
+  if (!ed || !ed.substituir) return;
+  if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar: excluir a remessa ' + (ed.original || ed.nome); return; }
+  b.disabled = true;
+  try {
+    await postar(API + 'estoque-planilha/remessa', { remessa: ed.original || ed.nome, original_remessa: ed.original || ed.nome, tipo: ed.tipo || remTipoSel, excluir: true });
+    const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+    if (j) EP = j;
+    const nome = ed.original || ed.nome;
+    estEdit.rem = null; $('#estRemEd').dataset.pronto = '';
+    renderEstoquePlanilha();
+    if (abaAtual === 'impactos') renderImpactos();
+    toast(`Remessa ${nome} excluída ${ONDE}`);
+  } catch (err) { toast(err.message || 'Não foi possível excluir a remessa.', true); b.disabled = false; b.dataset.confirmar = ''; b.textContent = 'Excluir remessa'; }
 }
 async function salvarDataRemessa(inp) {
   const remessa = inp.dataset.remessaData, campo = inp.dataset.remessaCampo;
@@ -3280,6 +3298,8 @@ function ligarEdicaoEstoque() {
     if (cc) { ev.preventDefault(); return editarConsumoInline(cc); }
     const er = ev.target.closest('[data-rem-editar]');
     if (er) { ev.preventDefault(); return edAbrirRemessaExistente(er.dataset.remEditar); }
+    const x = ev.target.closest('[data-ed-excluir]');
+    if (x) return edExcluirRemessa(x);
     const c = ev.target.closest('[data-ed-cancelar]'), s = ev.target.closest('[data-ed-salvar]');
     if (s) return edSalvar(s.dataset.edSalvar);
     if (c) {
