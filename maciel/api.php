@@ -2,6 +2,9 @@
 // API JSON consumida pela interface (mesmos contratos do programa local).
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
+require_once __DIR__ . '/inc/leitura_util.php';
+require_once __DIR__ . '/inc/fixadores_conciliacao.php';
+require_once __DIR__ . '/inc/estrutura_conciliacao.php';
 
 class ErroValidacao extends Exception
 {
@@ -197,7 +200,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -215,7 +218,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade', 'cadastro-faltantes' => 'acao_cadastro_faltantes',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1118,6 +1121,59 @@ function estoque_remover_fixador_cadastrado($codigo)
     if (count($dados['consumo_fisico']['itens']) + count($dados['inventario']) + count($dados['remessas']['itens']) + count($dados['materiais']) !== $n0) {
         estoque_planilha_gravar($dados);
     }
+}
+
+// Materiais atuais (cadastro + planilha de estoque) no formato que os conciliadores esperam: tag, produto, material, tipo_material.
+function cadastro_materiais_lista()
+{
+    $lista = [];
+    foreach (q('SELECT codigo, material, tipo_material FROM materiais')->fetchAll() as $m) {
+        $lista[] = ['tag' => (string)$m['codigo'], 'produto' => (string)$m['material'], 'material' => (string)$m['material'], 'tipo_material' => (string)$m['tipo_material']];
+    }
+    $dados = estoque_planilha_ler();
+    foreach (($dados['materiais'] ?? []) as $m) {
+        $lista[] = ['tag' => (string)($m['tag'] ?? ''), 'produto' => (string)($m['produto'] ?? ''), 'material' => (string)($m['material'] ?? ''), 'tipo_material' => (string)($m['tipo_material'] ?? '')];
+    }
+    return $lista;
+}
+
+// Cadastra de uma vez, no cadastro de Materiais, o que o projeto (lista × IFC) tem e o cadastro não: as TAGs de estrutura (código = marca da
+// lista de partes, quantidade = o maior de lista e IFC) e os tipos de fixador sem TAG (FG### gerada pelo servidor). Mesmas regras dos botões
+// "Criar N TAG(s)…" de Suprimentos › Vínculos › Regras e fixadores; idempotente: o que já existe não é criado de novo.
+function acao_cadastro_faltantes(array $corpo)
+{
+    $tipo = (string)($corpo['tipo'] ?? 'todos');
+    if (!in_array($tipo, ['todos', 'estrutura', 'fixador'], true)) {
+        throw new ErroValidacao('Tipo inválido.');
+    }
+    $nf = function ($v) { return number_format((float)$v, 0, ',', '.'); };
+    $nf2 = function ($v) { return number_format((float)$v, 2, ',', '.'); };
+    $criadas = ['estrutura' => [], 'fixador' => []];
+    if ($tipo !== 'fixador') {
+        foreach (est_sem_tag(cadastro_materiais_lista(), carregar_estrutura_projeto()) as $p) {
+            $peso = (float)($p['peso_unit'] ?? 0);
+            $nome = ($p['produto'] ?? '') !== '' ? $p['produto'] : 'CONJUNTO';
+            if (material_eh_fixador(['codigo' => $p['tag'], 'material' => $nome])) {
+                $nome = 'ANCORAGEM ' . $p['tag'];   // chumbador de ancoragem é estrutura do projeto: o nome não pode cair na regra de TAG FG### de fixador
+            }
+            acao_registro(['tabela' => 'materiais', 'campos' => [
+                'codigo' => $p['tag'], 'material' => $nome, 'unidade' => 'un', 'tipo_material' => 'ESTRUTURAL', 'tipo_editado' => true,
+                'local' => ($p['local'] ?? '') !== '' ? $p['local'] : ($p['fonte'] ?? ''), 'etapa' => '', 'saldo_inicial' => $p['planejado'],
+                'obs' => 'Importado da lista de partes por conjunto (' . (($p['fonte'] ?? '') !== '' ? $p['fonte'] : 'projeto') . '): lista ' . $nf($p['lista'] ?? 0) . ' × IFC ' . $nf($p['ifc'] ?? 0)
+                    . ', vale o maior. Perfil: ' . (($p['peca'] ?? '') !== '' ? $p['peca'] : '—') . '.' . ($peso > 0 ? ' Peso unitário ' . $nf2($peso) . ' kg.' : ''),
+            ]]);
+            $criadas['estrutura'][] = $p['tag'];
+        }
+    }
+    if ($tipo !== 'estrutura') {
+        foreach (fxc_sem_tag(cadastro_materiais_lista(), carregar_fixadores_projeto()) as $it) {
+            acao_registro(['tabela' => 'materiais', 'campos' => [
+                'material' => $it['nome'], 'unidade' => 'un', 'tipo_material' => 'FIXADOR', 'local' => 'Todos os locais', 'etapa' => 'Fixação', 'saldo_inicial' => 0,
+            ]]);
+            $criadas['fixador'][] = $it['nome'];
+        }
+    }
+    return ['criadas_estrutura' => count($criadas['estrutura']), 'criadas_fixador' => count($criadas['fixador']), 'tags_estrutura' => $criadas['estrutura'], 'fixadores' => $criadas['fixador']];
 }
 
 function acao_registro(array $corpo)

@@ -588,15 +588,11 @@ async function vcCriarTagsEstrutura() {
   const por = vcEstruturaPorBase(estMateriaisComCadastros());
   const faltam = vcEstruturaItens().filter(p => !por.has(String(p.tag).toUpperCase()));
   if (!faltam.length) return toast('Todas as TAGs de estrutura do projeto já estão no cadastro.');
-  let n = 0;
   try {
-    for (const p of faltam) {
-      await postar(API + 'registro', { tabela: 'materiais', campos: { codigo: p.tag, material: p.produto || 'CONJUNTO', unidade: 'un', tipo_material: 'ESTRUTURAL', local: p.local || p.fonte || '', etapa: '', saldo_inicial: p.planejado, obs: `Importado da lista de partes por conjunto (${p.fonte || 'projeto'}): lista ${nf(p.lista, 0)} × IFC ${nf(p.ifc, 0)}, vale o maior. Perfil: ${p.peca || '—'}.${p.peso_unit > 0 ? ` Peso unitário ${nf(p.peso_unit, 2)} kg.` : ''}` } });
-      n++;
-    }
+    const r = await postar(API + 'cadastro-faltantes', { tipo: 'estrutura' });   // o servidor cadastra todas de uma vez
     await carregar();
-    toast(`${n} TAG(s) de estrutura criadas no cadastro de Materiais.`);
-  } catch (err) { toast(`${n} criadas; parou em: ${err.message || err}`, true); await carregar(); }
+    toast(`${r.criadas_estrutura} TAG(s) de estrutura criadas no cadastro de Materiais.`);
+  } catch (err) { toast(`Não foi possível cadastrar: ${err.message || err}`, true); await carregar(); }
 }
 // quantidade do projeto somada ao planejado, por TAG (para o Inventário e outras telas)
 function vcPlanejadoTrbPorTag() {
@@ -641,15 +637,23 @@ function vcParafusosHtml(podeEditar) {
 async function vcCriarTagsFaltantes() {
   const faltam = (vcProjetoItens().length ? vcCasarProjeto() : vcCasarTrb()).filter(x => !x.c).map(x => x.it);
   if (!faltam.length) return toast('Todos os fixadores do projeto já têm TAG.');
-  let n = 0;
+  if (!vcProjetoItens().length) {   // sem a conciliação lista × IFC (obra antiga com TRB): uma TAG por vez, como antes
+    let n = 0;
+    try {
+      for (const it of faltam) {
+        await postar(API + 'registro', { tabela: 'materiais', campos: { material: vcNomeCadastro(it), unidade: 'un', tipo_material: 'FIXADOR', local: 'Todos os locais', etapa: 'Fixação', saldo_inicial: 0 } });
+        n++;
+      }
+      await carregar();
+      toast(`${n} TAG(s) criadas no cadastro de Materiais.`);
+    } catch (err) { toast(`${n} criadas; parou em: ${err.message || err}`, true); await carregar(); }
+    return;
+  }
   try {
-    for (const it of faltam) {
-      await postar(API + 'registro', { tabela: 'materiais', campos: { material: vcNomeCadastro(it), unidade: 'un', tipo_material: 'FIXADOR', local: 'Todos os locais', etapa: 'Fixação', saldo_inicial: 0 } });
-      n++;
-    }
+    const r = await postar(API + 'cadastro-faltantes', { tipo: 'fixador' });   // o servidor cadastra todas de uma vez
     await carregar();
-    toast(`${n} TAG(s) criadas no cadastro de Materiais.`);
-  } catch (err) { toast(`${n} criadas; parou em: ${err.message || err}`, true); await carregar(); }
+    toast(`${r.criadas_fixador} TAG(s) de fixador criadas no cadastro de Materiais.`);
+  } catch (err) { toast(`Não foi possível cadastrar: ${err.message || err}`, true); await carregar(); }
 }
 // CSV com um conjunto por linha: local, tipo, parafuso, quantidade, arruelas, porcas, montagem, coordenadas e peça vizinha
 async function vcBaixarParafusosCsv() {

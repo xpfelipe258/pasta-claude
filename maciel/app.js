@@ -43,7 +43,7 @@ function setMenuCont(id, n) {
 }
 function atualizarIndicadoresMenu() {
   if (!EP) return;
-  const invCrit = (EP.inventario || []).filter(x => {
+  const invCrit = (typeof inventarioSoFixadores === 'function' ? inventarioSoFixadores(EP.inventario || [], i => i.tag, i => i.produto || i.material) : (EP.inventario || [])).filter(x => {
     const st = String(x.status || '').toUpperCase(), ac = Number(x.acuracidade ?? 1), acao = String(x.acao || 'OK').trim().toUpperCase();
     return (st && st !== 'CONFORME') || ac < .8 || (acao && acao !== 'OK');
   }).length;
@@ -2805,6 +2805,16 @@ function estConsumoComCadastros() {
   });
   return { ...cf, itens };
 }
+// O Inventário acompanha só os fixadores (parafusos, porcas, arruelas, chumbadores…): vale o tipo do cadastro de Materiais e,
+// para a TAG que não está lá, o nome (FG/FJ###, parafuso, porca…). Estrutura sai da lista.
+function inventarioSoFixadores(lista, tagDe, nomeDe) {
+  const tipoPorTag = new Map(estMateriaisComCadastros().map(m => [matChaveTag(m.tag), ehFixador(m)]));
+  return lista.filter(i => {
+    const k = matChaveTag(tagDe(i));
+    if (tipoPorTag.has(k)) return tipoPorTag.get(k);
+    return /^F[GJ]\d/i.test(String(tagDe(i)).trim()) || ehFixadorCadastro({ codigo: tagDe(i), material: nomeDe(i) });
+  });
+}
 function estInventarioComCadastros() {
   const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
   const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
@@ -2817,7 +2827,7 @@ function estInventarioComCadastros() {
       perda_real: 0, taxa_perda: 0, acuracidade: 1, status: 'CONFORME', acao: 'OK', obs: '', origem_cadastro: 'manual' });
     vistos.add(matChaveTag(tag));
   });
-  return inv;
+  return inventarioSoFixadores(inv, i => i.tag, i => i.produto || i.material);   // Inventário = só fixadores
 }
 
 function renderEstMateriais() {

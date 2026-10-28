@@ -219,6 +219,40 @@ function fxc_chave_cad($produto, $material)
     return ['', ''];
 }
 
+/** TAGs do cadastro que recebem o planejado do projeto: fixadores (tipo_material FIXADOR) e olhais, cadastrados como estrutural. */
+function fxc_cadastro_chaves(array $materiais)
+{
+    $cad = [];
+    foreach ($materiais as $i => $m) {
+        if (!is_array($m)) { continue; }
+        list($k, $n) = fxc_chave_cad($m['produto'] ?? '', $m['material'] ?? '');
+        $fix = strtoupper(trim((string)($m['tipo_material'] ?? ''))) === 'FIXADOR' || strpos($k, 'OL|') === 0;   // olhal é cadastrado como estrutural
+        if ($k !== '' && $fix) { $cad[] = ['i' => $i, 'k' => $k, 'n' => $n]; }
+    }
+    return $cad;
+}
+
+/** Mesma escolha de vcAcharProjeto (vinculos.js): um só TAG para a bitola recebe todas as normas; com mais de um vale a norma igual ou o TAG sem norma. */
+function fxc_achar_tag(array $it, array $cad)
+{
+    $iguais = array_values(array_filter($cad, function ($c) use ($it) { return $c['k'] === $it['k']; }));
+    if (!$iguais) { return null; }
+    if (count($iguais) === 1) { return $iguais[0]; }
+    foreach ($iguais as $c) { if ($c['n'] === $it['norma']) { return $c; } }
+    foreach ($iguais as $c) { if ($c['n'] === '') { return $c; } }
+    return null;
+}
+
+/** Itens de fixador do projeto que ainda não têm TAG no cadastro (os que o botão "Criar TAG(s) que faltam" cadastra). */
+function fxc_sem_tag(array $materiais, $projeto)
+{
+    if (!is_array($projeto) || empty($projeto['itens'])) {
+        return [];
+    }
+    $cad = fxc_cadastro_chaves($materiais);
+    return array_values(array_filter($projeto['itens'], function ($it) use ($cad) { return fxc_achar_tag($it, $cad) === null; }));
+}
+
 /**
  * Aplica a conciliação (lista × IFC) às linhas de material da planilha: planejado = MAIOR entre o que está no cadastro e o projeto,
  * peso unitário = o da lista. Só mexe nos fixadores (tipo_material FIXADOR) que casam com um tipo do projeto.
@@ -228,26 +262,10 @@ function fxc_aplicar_materiais(array $materiais, $projeto)
     if (!is_array($projeto) || empty($projeto['itens'])) {
         return $materiais;
     }
-    $cad = [];
-    foreach ($materiais as $i => $m) {
-        if (!is_array($m)) { continue; }
-        list($k, $n) = fxc_chave_cad($m['produto'] ?? '', $m['material'] ?? '');
-        $fix = strtoupper(trim((string)($m['tipo_material'] ?? ''))) === 'FIXADOR' || strpos($k, 'OL|') === 0;   // olhal é cadastrado como estrutural
-        if ($k !== '' && $fix) { $cad[] = ['i' => $i, 'k' => $k, 'n' => $n]; }
-    }
+    $cad = fxc_cadastro_chaves($materiais);
     $acum = [];
     foreach ($projeto['itens'] as $it) {
-        // mesma escolha de vcAcharProjeto (vinculos.js): um só TAG para a bitola recebe todas as normas; com mais de um vale a norma igual ou o TAG sem norma
-        $iguais = array_values(array_filter($cad, function ($c) use ($it) { return $c['k'] === $it['k']; }));
-        $achado = null;
-        if ($iguais) {
-            if (count($iguais) === 1) {
-                $achado = $iguais[0];   // um só TAG para a bitola recebe todas as normas
-            } else {
-                foreach ($iguais as $c) { if ($c['n'] === $it['norma']) { $achado = $c; break; } }
-                if (!$achado) { foreach ($iguais as $c) { if ($c['n'] === '') { $achado = $c; break; } } }
-            }
-        }
+        $achado = fxc_achar_tag($it, $cad);
         if (!$achado) { continue; }
         $a = &$acum[$achado['i']];
         $a = $a ?? ['plan' => 0.0, 'pT' => 0.0, 'pQ' => 0.0];

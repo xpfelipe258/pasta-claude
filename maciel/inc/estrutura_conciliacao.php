@@ -182,3 +182,19 @@ function est_aplicar_materiais(array $materiais, $projeto)
     }
     return $materiais;
 }
+
+/** TAGs de estrutura do projeto (marca) que o cadastro de Materiais ainda não tem — as que o botão "Criar TAG(s) de estrutura" cadastra. */
+function est_sem_tag(array $materiais, $projeto)
+{
+    if (!is_array($projeto) || empty($projeto['itens'])) {
+        return [];
+    }
+    $bases = [];
+    foreach ($materiais as $m) {
+        $t = trim((string)($m['tag'] ?? ''));
+        if ($t !== '' && !preg_match('/^F[GJX]\d/i', $t)) {
+            $bases[strtoupper(est_base($t))] = true;
+        }
+    }
+    return array_values(array_filter($projeto['itens'], function ($p) use ($bases) { return !isset($bases[strtoupper($p['tag'])]); }));
+}
