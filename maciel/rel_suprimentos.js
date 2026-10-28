@@ -290,7 +290,9 @@ function rsSecPlanejado(D, opc) {
   const rotAgr = { etapa: 'Etapa', local: 'Local', produto: 'Produto', tipo: 'Tipo', nenhum: '' }[opc.agrupar] || 'Etapa';
   const porEtapa = new Map(); itens.forEach(i => { const k = (chaveAgr(i) && chaveAgr(i) !== '—') ? chaveAgr(i) : '(sem informação)'; if (!porEtapa.has(k)) porEtapa.set(k, []); porEtapa.get(k).push(i); });
   const farolSt = { COMPLETO: 'vd', PARCIAL: 'am', 'NÃO CHEGOU': 'vm', 'SEM PLANEJADO': 'nd' };
-  const det = [...porEtapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).map(([et, l]) => `<tr class="grupo"><td colspan="11"><b>${esc(et)}</b> — ${nf(l.length)} item(ns) · planejado ${nf(soma0(l, i => i.plan))} · chegou ${nf(soma0(l, i => Math.min(i.chegou, i.plan || i.chegou)))} · falta ${nf(soma0(l, i => i.falta))}</td></tr>` + l.sort((a, b) => (b.kgFalta || 0) - (a.kgFalta || 0) || b.falta - a.falta || a.tag.localeCompare(b.tag)).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}<div class="nota">${esc(i.material)}</div></td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td>
+  // o título das colunas acompanha cada grupo: repete logo abaixo da linha do grupo (etapa, local, tipo…)
+  const cabItem = `<tr class="rs-cab"><th>TAG</th><th>Produto / material</th><th>Local</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Falta chegar</th><th class="n">%</th><th class="n">Falta (t)</th><th>Avanço</th><th>Situação</th><th>Status logístico</th></tr>`;
+  const det = [...porEtapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).map(([et, l]) => `<tr class="grupo"><td colspan="11"><b>${esc(et)}</b> — ${nf(l.length)} item(ns) · planejado ${nf(soma0(l, i => i.plan))} · chegou ${nf(soma0(l, i => Math.min(i.chegou, i.plan || i.chegou)))} · falta ${nf(soma0(l, i => i.falta))}</td></tr>` + cabItem + l.sort((a, b) => (b.kgFalta || 0) - (a.kgFalta || 0) || b.falta - a.falta || a.tag.localeCompare(b.tag)).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}<div class="nota">${esc(i.material)}</div></td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td>
       <td class="n ${i.falta ? 'neg' : ''}">${i.falta ? nf(i.falta) : i.exc ? '+' + nf(i.exc) : '0'}</td><td class="n">${rsPct(i.pct, 0)}</td><td class="n">${i.kgFalta ? nf(i.kgFalta / 1000, 2) : '—'}</td><td>${rsBarraPct(i.pct, rsClsPct(i.pct))}</td><td>${rsFr(farolSt[i.st] || 'nd', i.st)}</td><td class="sub">${esc(i.statusLog)}</td></tr>`).join('')).join('');
   const nota = `<p>“Chegou” soma as quantidades recebidas em todas as remessas; “falta chegar” = planejado − chegou (sem negativo). Quantidade excedente aparece com +. Peso = quantidade × peso unitário do cadastro (itens sem peso cadastrado não entram nas colunas de toneladas).</p>`;
   const cabTxt = tit => `<thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, '').replace('Grupo', tit))}</th>`).join('')}</tr></thead>`;
@@ -303,7 +305,7 @@ function rsSecPlanejado(D, opc) {
     vis.local ? `<h3>Por local</h3>${tabGrupo('Local', rsGrupo(itens, i => i.local).map(linhaGrupo))}` : '',
   ].join('');
   const itemAItem = vis.item ? `<h3>Item a item — planejado × chegou × falta chegar${rotAgr ? ` <span class="nota">(agrupado por ${rotAgr.toLowerCase()})</span>` : ''}</h3>
-    <table><thead><tr><th>TAG</th><th>Produto / material</th><th>Local</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Falta chegar</th><th class="n">%</th><th class="n">Falta (t)</th><th>Avanço</th><th>Situação</th><th>Status logístico</th></tr></thead><tbody>${det || '<tr><td colspan="11" class="vazio">Sem itens.</td></tr>'}</tbody></table>` : '';
+    <table>${det ? '' : `<thead>${cabItem}</thead>`}<tbody>${det || '<tr><td colspan="11" class="vazio">Sem itens.</td></tr>'}</tbody></table>` : '';
   return nota + resumos + itemAItem;
 }
 
