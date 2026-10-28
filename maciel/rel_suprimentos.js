@@ -278,25 +278,31 @@ function rsGrupo(itens, chave) {
   return [...m.values()].sort((a, b) => b.kgFalta - a.kgFalta || b.falta - a.falta || a.nome.localeCompare(b.nome, 'pt'));
 }
 function rsSecPlanejado(D, opc) {
-  opc = opc || { resumos: true, item: true, agrupar: 'etapa' };
+  opc = opc || { visoes: { total: true, tipo: true, etapa: true, produto: true, local: true, item: true }, agrupar: 'etapa' };
+  const vis = opc.visoes || {};
   const itens = D.itens.filter(i => i.plan > 0 || i.chegou > 0);
   const linhaGrupo = o => { const p = o.plan ? o.chegou / o.plan : null, pp = o.kgPlan ? o.kgChegou / o.kgPlan : null; return `<tr><td><b>${esc(o.nome)}</b></td><td class="n">${nf(o.n)}</td><td class="n">${nf(o.plan)}</td><td class="n">${nf(o.chegou)}</td><td class="n ${o.falta ? 'neg' : ''}">${nf(o.falta)}</td><td>${rsBarraPct(p, rsClsPct(p))}</td><td class="n">${rsPct(p, 0)}</td><td class="n">${o.kgPlan ? nf(o.kgPlan / 1000, 1) : '—'}</td><td class="n">${o.kgChegou ? nf(o.kgChegou / 1000, 1) : '—'}</td><td class="n ${o.kgFalta ? 'neg' : ''}">${o.kgFalta ? nf(o.kgFalta / 1000, 1) : '—'}</td><td class="n">${nf(o.completos)} / ${nf(o.n)}</td></tr>`; };
   const cab = ['Grupo', 'n:Itens', 'n:Planejado (un)', 'n:Chegou (un)', 'n:Falta chegar (un)', 'Avanço', 'n:% un', 'n:Peso plan. (t)', 'n:Peso chegou (t)', 'n:Falta chegar (t)', 'n:Itens completos'];
   const porTipo = rsGrupo(itens, i => i.tipo === 'FIXADOR' ? 'Fixadores' : 'Estrutura');
   const tot = itens.length ? linhaGrupo({ nome: 'TOTAL', n: itens.length, plan: soma0(itens, i => i.plan), chegou: soma0(itens, i => Math.min(i.chegou, i.plan || i.chegou)), falta: soma0(itens, i => i.falta), kgPlan: soma0(itens, i => i.kgPlan), kgChegou: soma0(itens, i => i.kgChegou ? Math.min(i.kgChegou, i.kgPlan || i.kgChegou) : 0), kgFalta: soma0(itens, i => i.kgFalta), completos: itens.filter(i => i.st === 'COMPLETO').length }) : '';
   // detalhe item a item: agrupado por etapa, local ou tipo (opção do filtro), o que mais falta primeiro
-  const chaveAgr = { etapa: i => i.etapa, local: i => i.local, tipo: i => (i.tipo === 'FIXADOR' ? 'Fixadores' : 'Estrutura') }[opc.agrupar] || (i => i.etapa);
-  const rotAgr = { etapa: 'Etapa', local: 'Local', tipo: 'Tipo' }[opc.agrupar] || 'Etapa';
+  const chaveAgr = { etapa: i => i.etapa, local: i => i.local, produto: i => i.produto, tipo: i => (i.tipo === 'FIXADOR' ? 'Fixadores' : 'Estrutura'), nenhum: () => 'Todos os itens' }[opc.agrupar] || (i => i.etapa);
+  const rotAgr = { etapa: 'Etapa', local: 'Local', produto: 'Produto', tipo: 'Tipo', nenhum: '' }[opc.agrupar] || 'Etapa';
   const porEtapa = new Map(); itens.forEach(i => { const k = (chaveAgr(i) && chaveAgr(i) !== '—') ? chaveAgr(i) : '(sem informação)'; if (!porEtapa.has(k)) porEtapa.set(k, []); porEtapa.get(k).push(i); });
   const farolSt = { COMPLETO: 'vd', PARCIAL: 'am', 'NÃO CHEGOU': 'vm', 'SEM PLANEJADO': 'nd' };
   const det = [...porEtapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).map(([et, l]) => `<tr class="grupo"><td colspan="11"><b>${esc(et)}</b> — ${nf(l.length)} item(ns) · planejado ${nf(soma0(l, i => i.plan))} · chegou ${nf(soma0(l, i => Math.min(i.chegou, i.plan || i.chegou)))} · falta ${nf(soma0(l, i => i.falta))}</td></tr>` + l.sort((a, b) => (b.kgFalta || 0) - (a.kgFalta || 0) || b.falta - a.falta || a.tag.localeCompare(b.tag)).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}<div class="nota">${esc(i.material)}</div></td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td>
       <td class="n ${i.falta ? 'neg' : ''}">${i.falta ? nf(i.falta) : i.exc ? '+' + nf(i.exc) : '0'}</td><td class="n">${rsPct(i.pct, 0)}</td><td class="n">${i.kgFalta ? nf(i.kgFalta / 1000, 2) : '—'}</td><td>${rsBarraPct(i.pct, rsClsPct(i.pct))}</td><td>${rsFr(farolSt[i.st] || 'nd', i.st)}</td><td class="sub">${esc(i.statusLog)}</td></tr>`).join('')).join('');
   const nota = `<p>“Chegou” soma as quantidades recebidas em todas as remessas; “falta chegar” = planejado − chegou (sem negativo). Quantidade excedente aparece com +. Peso = quantidade × peso unitário do cadastro (itens sem peso cadastrado não entram nas colunas de toneladas).</p>`;
-  const resumos = opc.resumos ? `<h3>Total e por tipo</h3><table><thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, ''))}</th>`).join('')}</tr></thead><tbody>${porTipo.map(linhaGrupo).join('')}${tot}</tbody></table>
-    <h3>Por etapa</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Etapa')), rsGrupo(itens, i => i.etapa).map(linhaGrupo))}
-    <h3>Por produto (famílias com maior falta de peso primeiro)</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Produto')), rsGrupo(itens, i => i.produto).map(linhaGrupo))}
-    <h3>Por local</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Local')), rsGrupo(itens, i => i.local).map(linhaGrupo))}` : (opc.item ? `<h3>Total do que está no relatório</h3><table><thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, '').replace('Grupo', 'Filtro'))}</th>`).join('')}</tr></thead><tbody>${tot || `<tr><td colspan="${cab.length}" class="vazio">Sem itens.</td></tr>`}</tbody></table>` : '');
-  const itemAItem = opc.item ? `<h3>Item a item — planejado × chegou × falta chegar <span class="nota">(agrupado por ${rotAgr.toLowerCase()})</span></h3>
+  const cabTxt = tit => `<thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, '').replace('Grupo', tit))}</th>`).join('')}</tr></thead>`;
+  const tabGrupo = (tit, linhas) => `<table>${cabTxt(tit)}<tbody>${linhas.join('') || `<tr><td colspan="${cab.length}" class="vazio">Sem itens.</td></tr>`}</tbody></table>`;
+  const resumos = [
+    vis.total ? `<h3>Total</h3>${tabGrupo('Total', tot ? [tot] : [])}` : '',
+    vis.tipo ? `<h3>Por tipo (estrutura × fixadores)</h3>${tabGrupo('Tipo', porTipo.map(linhaGrupo))}` : '',
+    vis.etapa ? `<h3>Por etapa</h3>${tabGrupo('Etapa', rsGrupo(itens, i => i.etapa).map(linhaGrupo))}` : '',
+    vis.produto ? `<h3>Por produto (famílias com maior falta de peso primeiro)</h3>${tabGrupo('Produto', rsGrupo(itens, i => i.produto).map(linhaGrupo))}` : '',
+    vis.local ? `<h3>Por local</h3>${tabGrupo('Local', rsGrupo(itens, i => i.local).map(linhaGrupo))}` : '',
+  ].join('');
+  const itemAItem = vis.item ? `<h3>Item a item — planejado × chegou × falta chegar${rotAgr ? ` <span class="nota">(agrupado por ${rotAgr.toLowerCase()})</span>` : ''}</h3>
     <table><thead><tr><th>TAG</th><th>Produto / material</th><th>Local</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Falta chegar</th><th class="n">%</th><th class="n">Falta (t)</th><th>Avanço</th><th>Situação</th><th>Status logístico</th></tr></thead><tbody>${det || '<tr><td colspan="11" class="vazio">Sem itens.</td></tr>'}</tbody></table>` : '';
   return nota + resumos + itemAItem;
 }
@@ -430,7 +436,7 @@ async function rsHtml(f) {
   await tplLogosCarregar();
   const sec = (t, h) => `<h2>${t}</h2>${h}`;
   const quer = k => f.secoes[k] !== false;
-  const opc = { resumos: f.resumos !== false, item: f.item !== false, agrupar: f.agrupar || 'etapa' };
+  const opc = { visoes: f.visoes, agrupar: f.agrupar || 'etapa' };
   const filtrado = !!(filtro.locais || filtro.tipo !== 'todos');
   const textoFiltro = [filtro.locais ? `Local: ${[...f.locais].sort((a, b) => a.localeCompare(b, 'pt')).join(', ')}` : 'Todos os locais', filtro.tipo === 'estrutura' ? 'Só estrutura' : filtro.tipo === 'fixador' ? 'Só fixadores' : 'Estrutura e fixadores'].join(' · ');
   const avisoFiltro = filtrado ? `<p class="nota"><b>Filtros aplicados:</b> ${esc(textoFiltro)}. Valem para os itens (resumo, planejado × chegou, acuracidade, maior uso e cobertura). ${quer('remessas') || quer('logistica') ? 'As remessas e a logística mostram todas as remessas da obra; a capacidade por serviço usa todos os itens (um serviço depende de itens de vários locais).' : 'A capacidade por serviço usa todos os itens (um serviço depende de itens de vários locais).'}</p>` : '';
@@ -452,9 +458,16 @@ async function rsHtml(f) {
 
 // ---------------------------------------------------------------- filtro do relatório geral (o que entra, local e tipo)
 const RS_SECOES = [['resumo', 'Resumo executivo'], ['remessas', '1. Remessas — datas e faróis'], ['logistica', '2. Logística'], ['planejado', '3. Planejado × chegou × falta chegar'], ['acuracidade', '4. Acuracidade'], ['uso', '5. Maior uso de itens'], ['capacidade', '6. Capacidade e cobertura'], ['impactos', '7. Impactos de Suprimentos'], ['notas', 'Notas e critérios']];
+const RS_VISOES = [['total', 'Total'], ['tipo', 'Por tipo'], ['etapa', 'Por etapa'], ['produto', 'Por produto'], ['local', 'Por local'], ['item', 'Item a item']];
 function rsFiltroPadrao() {
-  const base = { secoes: {}, resumos: true, item: true, agrupar: 'etapa', locais: null, tipo: 'todos' };
-  try { const salvo = JSON.parse(localStorage.getItem('rsFiltro') || 'null'); if (salvo && typeof salvo === 'object') return { ...base, ...salvo, secoes: { ...(salvo.secoes || {}) } }; } catch (e) { /* sem filtro salvo */ }
+  const base = { secoes: {}, visoes: { total: true, tipo: true, etapa: true, produto: true, local: true, item: true }, agrupar: 'etapa', locais: null, tipo: 'todos' };
+  try {
+    const salvo = JSON.parse(localStorage.getItem('rsFiltro') || 'null');
+    if (salvo && typeof salvo === 'object') {
+      const vi = salvo.visoes || (salvo.resumos !== undefined ? { total: salvo.resumos, tipo: salvo.resumos, etapa: salvo.resumos, produto: salvo.resumos, local: salvo.resumos, item: salvo.item !== false } : base.visoes);   // escolha salva na versão anterior
+      return { ...base, ...salvo, visoes: { ...base.visoes, ...vi }, secoes: { ...(salvo.secoes || {}) } };
+    }
+  } catch (e) { /* sem filtro salvo */ }
   return base;
 }
 // locais agrupados sem diferenciar maiúsculas/acentos ("galpão" e "Galpão" são o mesmo local); o rótulo é a grafia mais usada
@@ -476,10 +489,14 @@ function rsFiltroAbrir() {
       <fieldset><legend>Atalhos</legend>
         <button type="button" class="btn" data-rs-atalho="item-galpao">Só item a item do galpão</button>
         <button type="button" class="btn" data-rs-atalho="item">Só item a item (todos os locais)</button>
+        <button type="button" class="btn" data-rs-atalho="produto">Só por produto</button>
+        <button type="button" class="btn" data-rs-atalho="etapa">Só por etapa</button>
+        <button type="button" class="btn" data-rs-atalho="local">Só por local</button>
         <button type="button" class="btn" data-rs-atalho="tudo">Relatório completo</button></fieldset>
       <fieldset><legend>Seções do relatório</legend><div class="rs-grade">${RS_SECOES.map(([k, t]) => `<label><input type="checkbox" data-rs-sec="${k}" ${f.secoes[k] === false ? '' : 'checked'}> ${esc(t)}</label>`).join('')}</div>
-        <div class="rs-sub"><b>Seção 3:</b> <label><input type="checkbox" id="rsResumos" ${f.resumos ? 'checked' : ''}> resumos (total, tipo, etapa, produto, local)</label> <label><input type="checkbox" id="rsItem" ${f.item ? 'checked' : ''}> item a item</label>
-        <label>agrupar o item a item por <select id="rsAgrupar">${[['etapa', 'etapa'], ['local', 'local'], ['tipo', 'tipo']].map(([v, t]) => `<option value="${v}" ${f.agrupar === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div></fieldset>
+        <div class="rs-sub"><b>Seção 3 — como mostrar:</b>
+          ${RS_VISOES.map(([k, t]) => `<label><input type="checkbox" data-rs-vis="${k}" ${f.visoes[k] === false ? '' : 'checked'}> ${t}</label>`).join('')}</div>
+        <div class="rs-sub"><label>Item a item agrupado por <select id="rsAgrupar">${[['etapa', 'etapa'], ['produto', 'produto'], ['local', 'local'], ['tipo', 'tipo (estrutura/fixador)'], ['nenhum', 'não agrupar']].map(([v, t]) => `<option value="${v}" ${f.agrupar === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div></fieldset>
       <fieldset><legend>Tipo de item</legend><label><input type="radio" name="rsTipo" value="todos" ${f.tipo === 'todos' ? 'checked' : ''}> Estrutura e fixadores</label> <label><input type="radio" name="rsTipo" value="estrutura" ${f.tipo === 'estrutura' ? 'checked' : ''}> Só estrutura</label> <label><input type="radio" name="rsTipo" value="fixador" ${f.tipo === 'fixador' ? 'checked' : ''}> Só fixadores</label></fieldset>
       <fieldset><legend>Local <span class="nota">(marque os que quer ver)</span></legend>
         <div class="rs-locais-barra"><button type="button" class="btn" data-rs-loc="todos">Todos</button> <button type="button" class="btn" data-rs-loc="nenhum">Nenhum</button> <button type="button" class="btn" data-rs-loc="galpao">Só galpão</button></div>
@@ -491,7 +508,7 @@ function rsFiltroAbrir() {
 function rsFiltroLer(dlg) {
   const secoes = {}; dlg.querySelectorAll('[data-rs-sec]').forEach(c => { secoes[c.dataset.rsSec] = c.checked; });
   const caixas = [...dlg.querySelectorAll('[data-rs-local]')], marcadas = caixas.filter(c => c.checked).map(c => c.value);
-  return { secoes, resumos: dlg.querySelector('#rsResumos').checked, item: dlg.querySelector('#rsItem').checked, agrupar: dlg.querySelector('#rsAgrupar').value,
+  return { secoes, visoes: Object.fromEntries([...dlg.querySelectorAll('[data-rs-vis]')].map(c => [c.dataset.rsVis, c.checked])), agrupar: dlg.querySelector('#rsAgrupar').value,
     tipo: (dlg.querySelector('input[name=rsTipo]:checked') || {}).value || 'todos', locais: marcadas.length === caixas.length ? null : marcadas, _nenhumLocal: !marcadas.length };
 }
 document.addEventListener('click', e => {
@@ -500,11 +517,11 @@ document.addEventListener('click', e => {
   if (e.target.closest('#rsCancelar')) return dlg.close();
   const at = e.target.closest('[data-rs-atalho]');
   if (at) {
-    const itemSo = at.dataset.rsAtalho !== 'tudo';
-    dlg.querySelectorAll('[data-rs-sec]').forEach(c => { c.checked = !itemSo || c.dataset.rsSec === 'planejado'; });
-    dlg.querySelector('#rsResumos').checked = !itemSo; dlg.querySelector('#rsItem').checked = true;
-    if (itemSo) dlg.querySelector('#rsAgrupar').value = at.dataset.rsAtalho === 'item-galpao' ? 'etapa' : dlg.querySelector('#rsAgrupar').value;
-    dlg.querySelectorAll('[data-rs-local]').forEach(c => { c.checked = at.dataset.rsAtalho === 'item-galpao' ? /galp/i.test(c.value) : true; });
+    const k = at.dataset.rsAtalho, soSec3 = k !== 'tudo';
+    dlg.querySelectorAll('[data-rs-sec]').forEach(c => { c.checked = !soSec3 || c.dataset.rsSec === 'planejado'; });
+    const vis = { 'item-galpao': ['item'], item: ['item'], produto: ['produto'], etapa: ['etapa'], local: ['local'] }[k];   // 'tudo' = todas as formas
+    dlg.querySelectorAll('[data-rs-vis]').forEach(c => { c.checked = !vis || vis.includes(c.dataset.rsVis); });
+    dlg.querySelectorAll('[data-rs-local]').forEach(c => { c.checked = k === 'item-galpao' ? /galp/i.test(c.value) : (k === 'tudo' || k === 'item' || c.checked); });
     return;
   }
   const lo = e.target.closest('[data-rs-loc]');
@@ -516,7 +533,7 @@ document.addEventListener('submit', e => {
   const dlg = document.getElementById('dlgRelSup'), f = rsFiltroLer(dlg);
   if (f._nenhumLocal) return toast('Marque pelo menos um local.', true);
   if (!Object.values(f.secoes).some(Boolean)) return toast('Marque pelo menos uma seção.', true);
-  if (f.secoes.planejado && !f.resumos && !f.item) return toast('Na seção 3, marque os resumos e/ou o item a item.', true);
+  if (f.secoes.planejado && !Object.values(f.visoes).some(Boolean)) return toast('Na seção 3, marque pelo menos uma forma de mostrar (total, por produto, item a item…).', true);
   delete f._nenhumLocal;
   try { localStorage.setItem('rsFiltro', JSON.stringify(f)); } catch (err) { /* sem armazenamento */ }
   dlg.close();
