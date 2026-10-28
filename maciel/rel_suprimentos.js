@@ -1,6 +1,6 @@
 'use strict';
 // ------------------------------------------------------------------------------------------------
-// RELATÓRIO GERAL DE SUPRIMENTOS — botão "Relatório geral de Suprimentos" (abas Materiais, Remessas, Consumo físico e Inventário).
+// RELATÓRIOS DE SUPRIMENTOS — botões "Relatório executivo" (1 página, gargalos) e "Relatório geral" (completo), abas Materiais, Remessas, Consumo físico e Inventário.
 // Uma visão logística completa, até a data de referência:
 //  1. Resumo executivo e pontos de atenção
 //  2. Remessas: datas prevista × NF × chegada na obra, com FARÓIS de prazo (no prazo / atraso leve / atrasada / a chegar / vencida)
@@ -435,15 +435,119 @@ async function rsHtml() {
   ].join('');
   return tplDocumento({ titulo: 'Relatório geral de Suprimentos', subtitulo: `Posição em ${fdA(D.ref)} (data de referência)`, meta: 'Remessas e faróis de prazo · logística · planejado × chegou × falta · acuracidade · maior uso · capacidade · impactos de Suprimentos', corpo, css: RS_CSS });
 }
+
+// ---------------------------------------------------------------- RELATÓRIO EXECUTIVO (1 página, para a diretoria): saúde do suprimento + gargalos ordenados por prioridade
+const RS_CSS_EXEC = `<style>
+.ex-sel{display:inline-block;padding:4px 14px;border-radius:5px;color:#fff;font-weight:800;letter-spacing:.5px}
+.ex-sel.vm{background:#dc2626}.ex-sel.am{background:#c98a00}.ex-sel.vd{background:#16a34a}
+.ex-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+.ex-box{border:1px solid #dfe4ea;border-radius:6px;padding:8px 10px}
+.ex-box h3{margin:0 0 6px}
+.ex-pilha{display:flex;height:20px;border-radius:3px;overflow:hidden;margin:4px 0 6px}
+.ex-pilha div{color:#fff;font-size:10px;font-weight:700;text-align:center;line-height:20px}
+table.ex-g td,table.ex-g th{font-size:10.5px}
+</style>`;
+// gargalos: cada candidato traz nível, pontuação (ordem de prioridade), título, evidência, efeito e ação
+function rsGargalos(D) {
+  const g = [], { rems, itens } = D;
+  const comPlan = itens.filter(i => i.plan > 0);
+  // 1) serviços sem capacidade: o material trava a produção
+  D.cap.filter(s => s.gargalo && s.gargalo.nivel !== 'verde' && s.gargalo.nivel !== 'vd' && s.gargalo.nivel !== 'nd').forEach(s => {
+    const l = s.gargalo, crit = l.nivel === 'vm';
+    g.push({ nivel: crit ? 'vm' : 'am', score: (crit ? 100 : 55) + (crit && s.possivel === 0 ? 5 : 0), titulo: `${s.nome}: ${crit ? 'material não sustenta a produção' : 'capacidade baixa'}`,
+      evidencia: `Limitante <b>${esc(l.codigo)}</b> ${esc(l.descricao)}: saldo ${nf(Math.min(l.saldoV, l.saldoR))} para ${nf(l.pu, l.pu % 1 ? 2 : 0)} por unidade`,
+      efeito: `Pode produzir ${nf(s.possivel)} unidade(s) com o saldo atual${s.criticos > 1 ? ` · ${nf(s.criticos)} itens críticos no serviço` : ''}`, acao: `Antecipar a reposição de ${esc(l.codigo)} (compra local ou remessa extra)` });
+  });
+  // 2) remessas vencidas (prevista já passou e não chegou): as piores
+  rems.filter(r => !r.chegou && r.status === 'vm').sort((a, b) => b.atraso - a.atraso).slice(0, 3).forEach(r => {
+    g.push({ nivel: 'vm', score: 90 + Math.min(9, r.atraso / 10), titulo: `${r.nome} vencida há ${nf(r.atraso)} dias`, evidencia: `Prevista ${fdA(r.prev)} · ${nf(r.nItens)} TAG(s)${r.kg ? ` · ${nf(r.kg / 1000, 1)} t` : ''}`,
+      efeito: r.principais.length ? `Material pendente: ${esc(r.principais.join(', '))}` : 'Material pendente de chegada', acao: 'Confirmar a chegada ou cobrar o fornecedor; lançar a data real em Remessas' });
+  });
+  // 3) falta chegar
+  const kgPlan = soma0(comPlan, i => i.kgPlan), kgFalta = soma0(comPlan, i => i.kgFalta), semCheg = comPlan.filter(i => i.st === 'NÃO CHEGOU');
+  if (comPlan.length && (kgFalta > 0 || semCheg.length)) {
+    const pct = kgPlan ? kgFalta / kgPlan : null, topEt = rsGrupo(comPlan, i => i.etapa)[0];
+    g.push({ nivel: pct != null && pct > .4 ? 'vm' : 'am', score: pct != null && pct > .4 ? 85 : 50, titulo: `${rsT(kgFalta)} ainda a chegar${pct != null ? ` (${nf(pct * 100, 0)}% do planejado)` : ''}`,
+      evidencia: `${nf(semCheg.length)} item(ns) sem nenhuma chegada${topEt ? ` · maior falta em <b>${esc(topEt.nome)}</b> (${rsT(topEt.kgFalta)})` : ''}`, efeito: 'Material de obra ainda não disponível para as próximas frentes', acao: 'Reprogramar com o fornecedor; priorizar pela data de início das atividades' });
+  }
+  // 4) remessas sem data prevista (risco invisível)
+  const semData = rems.filter(r => r.status === 'nd' && !r.chegou);
+  if (semData.length) g.push({ nivel: 'am', score: 45, titulo: `${nf(semData.length)} de ${nf(rems.length)} remessas sem data prevista`, evidencia: 'O farol de prazo não consegue ser calculado para elas', efeito: 'Atraso invisível: nada aparece como vencido', acao: 'Preencher a data prevista de chegada em Suprimentos › Remessas' });
+  // 5) acuracidade
+  if (D.acu.avaliados.length) {
+    const med = soma0(D.acu.avaliados, i => i.inv.acuracidade || 0) / D.acu.avaliados.length;
+    if (med < .98) { const pior = D.acu.criticos[0] || D.acu.atencao[0]; g.push({ nivel: med < .95 ? 'vm' : 'am', score: med < .95 ? 70 : 40, titulo: `Acuracidade do inventário em ${nf(med * 100, 1)}% (meta 98%)`,
+      evidencia: `${nf(D.acu.criticos.length)} crítico(s) · ${nf(D.acu.atencao.length)} em atenção${pior ? ` · pior ${esc(pior.tag)} (${nf(pior.inv.acuracidade * 100, 1)}%)` : ''}`, efeito: 'Saldo virtual pouco confiável para decidir reposição', acao: 'Inventário físico nos itens críticos e conferência das regras de baixa' }); }
+  }
+  // 6) cobertura de estoque
+  const baixaCob = D.cob.filter(i => i.cob != null && i.cob < 1);
+  if (baixaCob.length) g.push({ nivel: 'am', score: 60, titulo: `${nf(baixaCob.length)} item(ns) com cobertura menor que 1 semana`, evidencia: baixaCob.slice(0, 4).map(i => `${esc(i.tag)} (${nf(i.cobDias, 0)} d)`).join(' · '), efeito: 'Ruptura prevista em até 7 dias no ritmo de consumo atual', acao: 'Pedido de reposição imediato' });
+  // 7) impactos de Suprimentos
+  const dias = D.rank ? D.rank.dias : 0;
+  if (dias > 0) g.push({ nivel: dias > 5 ? 'vm' : 'am', score: dias > 5 ? 65 : 35, titulo: `Suprimentos já gerou ${nf(dias, dias % 1 ? 1 : 0)} dia(s) útil(eis) de impacto`, evidencia: `${nf(D.impSup.length)} registro(s) no período, incluindo remessas em atraso`, efeito: 'Perda de produção atribuída ao setor', acao: 'Tratar as causas (prazo de pedido, remessas em atraso, material crítico)' });
+  return g.sort((a, b) => b.score - a.score);
+}
+function rsHtmlExecCorpo(D) {
+  const { rems, itens } = D;
+  const chegadas = rems.filter(r => r.chegou), comPrev = chegadas.filter(r => r.atraso != null), noPrazo = comPrev.filter(r => r.status === 'vd').length;
+  const vencidas = rems.filter(r => !r.chegou && r.status === 'vm'), aChegar = rems.filter(r => !r.chegou && r.status === 'az'), semData = rems.filter(r => r.status === 'nd' && !r.chegou);
+  const pont = comPrev.length ? noPrazo / comPrev.length : null;
+  const comPlan = itens.filter(i => i.plan > 0), pesoPlan = soma0(comPlan, i => i.kgPlan), pesoCh = soma0(comPlan, i => Math.min(i.kgChegou || 0, i.kgPlan || 0));
+  const servs = D.cap.filter(s => s.gargalo), travados = servs.filter(s => s.gargalo.nivel === 'vm');
+  const med = D.acu.avaliados.length ? soma0(D.acu.avaliados, i => i.inv.acuracidade || 0) / D.acu.avaliados.length : null;
+  const dias = D.rank ? D.rank.dias : 0;
+  const gar = rsGargalos(D), nCrit = gar.filter(x => x.nivel === 'vm').length;
+  const geral = nCrit >= 2 || travados.length ? 'vm' : gar.length ? 'am' : 'vd';
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const cards = [
+    card('Pontualidade das remessas', rsPct(pont, 0), `${nf(noPrazo)} de ${nf(comPrev.length)} no prazo`, pont == null ? 'nd' : pont >= .9 ? 'vd' : pont >= .7 ? 'am' : 'vm'),
+    card('Material recebido (peso)', pesoPlan ? rsPct(pesoCh / pesoPlan, 0) : '—', `${rsT(pesoCh)} de ${rsT(pesoPlan)}`, pesoPlan ? (pesoCh / pesoPlan >= .9 ? 'vd' : pesoCh / pesoPlan >= .6 ? 'am' : 'vm') : 'nd'),
+    card('Remessas vencidas', nf(vencidas.length), vencidas.length ? `maior: ${nf(Math.max(...vencidas.map(r => r.atraso)))} dias` : 'nenhuma', vencidas.length ? 'vm' : 'vd'),
+    card('Serviços travados por material', servs.length ? `${nf(travados.length)} de ${nf(servs.length)}` : '—', travados.length ? 'capacidade crítica' : 'nenhum sem capacidade', travados.length ? 'vm' : servs.length ? 'vd' : 'nd'),
+    card('Acuracidade do inventário', med == null ? '—' : nf(med * 100, 1) + '%', med == null ? 'sem inventário lançado' : `${nf(D.acu.criticos.length)} crítico(s)`, med == null ? 'nd' : med >= .98 ? 'vd' : med >= .95 ? 'am' : 'vm'),
+    card('Impacto de Suprimentos', `${nf(dias, dias % 1 ? 1 : 0)} d.u.`, 'dias úteis na obra', dias > 5 ? 'vm' : dias > 0 ? 'am' : 'vd'),
+  ].join('');
+  const nivelPill = n => rsFr(n === 'vm' ? 'vm' : n === 'am' ? 'am' : 'vd', n === 'vm' ? 'CRÍTICO' : n === 'am' ? 'ATENÇÃO' : 'OK');
+  const linhasG = gar.slice(0, 6).map((x, k) => `<tr><td class="c">${k + 1}</td><td>${nivelPill(x.nivel)}</td><td><b>${esc(x.titulo)}</b></td><td>${x.evidencia}</td><td>${x.efeito}</td><td>${x.acao}</td></tr>`);
+  const tabG = `<table class="ex-g"><thead><tr><th>#</th><th>Nível</th><th>Gargalo</th><th>Evidência</th><th>Efeito na obra</th><th>Ação sugerida</th></tr></thead><tbody>${linhasG.join('') || '<tr><td colspan="6" class="vazio">Nenhum gargalo identificado na data de referência.</td></tr>'}</tbody></table>${gar.length > 6 ? `<p class="nota">+ ${nf(gar.length - 6)} ponto(s) menos prioritário(s) no relatório geral.</p>` : ''}`;
+  // remessas: barra de faróis + as 4 que pedem atenção
+  const cont = { vd: 0, am: 0, vm: 0, az: 0, nd: 0 }; rems.forEach(r => { cont[r.status] = (cont[r.status] || 0) + 1; });
+  const tot = Math.max(1, rems.length), seg = (k, cor, rot) => cont[k] ? `<div style="width:${(cont[k] / tot * 100).toFixed(1)}%;background:${cor}" title="${rot}">${cont[k]}</div>` : '';
+  const foco = [...vencidas.sort((a, b) => b.atraso - a.atraso), ...aChegar.sort((a, b) => a.prev.localeCompare(b.prev))].slice(0, 4);
+  const linhasR = foco.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td>${fdA(r.prev)}</td><td>${rsFr(r.status, r.rotulo)}</td><td class="n">${r.kg != null ? nf(r.kg / 1000, 1) + ' t' : '—'}</td></tr>`);
+  const boxRem = `<div class="ex-box"><h3>Remessas — farol (${nf(rems.length)})</h3><div class="ex-pilha">${seg('vd', '#16a34a', 'no prazo')}${seg('am', '#c98a00', 'atraso leve')}${seg('vm', '#dc2626', 'atrasadas / vencidas')}${seg('az', '#2563eb', 'a chegar')}${seg('nd', '#7b8794', 'sem data')}</div>
+    <div class="rs-leg"><span>${rsFr('vd', 'NO PRAZO')} ${cont.vd}</span><span>${rsFr('am', 'LEVE')} ${cont.am}</span><span>${rsFr('vm', 'ATRASO/VENCIDA')} ${cont.vm}</span><span>${rsFr('az', 'A CHEGAR')} ${cont.az}</span><span>${rsFr('nd', 'SEM DATA')} ${cont.nd}</span></div>
+    ${rsTabela(['Remessa', 'Prevista', 'Situação', 'n:Peso'], linhasR, 'Nenhuma remessa vencida nem a chegar.')}</div>`;
+  const linhasC = servs.slice(0, 8).map(s => `<tr><td><b>${esc(s.nome)}</b></td><td class="n"><b>${s.possivel == null ? '—' : nf(s.possivel)}</b></td><td>${esc(s.gargalo.codigo)}</td><td>${rsFr(s.gargalo.nivel === 'verde' ? 'vd' : s.gargalo.nivel, s.gargalo.status)}</td></tr>`);
+  const boxCap = `<div class="ex-box"><h3>Capacidade por serviço — o que o saldo sustenta</h3>${rsTabela(['Serviço', 'n:Pode produzir', 'Limitante', 'Situação'], linhasC, 'As regras de baixa desta obra não ligam materiais a serviços.')}</div>`;
+  const etapas = rsGrupo(comPlan, i => i.etapa).filter(o => o.kgFalta > 0 || o.falta > 0).slice(0, 5);
+  const linhasE = etapas.map(o => { const p = o.kgPlan ? o.kgChegou / o.kgPlan : (o.plan ? o.chegou / o.plan : null); return `<tr><td>${esc(o.nome)}</td><td>${rsBarraPct(p, rsClsPct(p))}</td><td class="n">${rsPct(p, 0)}</td><td class="n">${o.kgFalta ? rsT(o.kgFalta) : '—'}</td></tr>`; });
+  const boxFalta = `<div class="ex-box"><h3>Falta chegar × planejado — por etapa</h3>${rsTabela(['Etapa', 'Chegou', 'n:%', 'n:Falta'], linhasE, 'Tudo o que foi planejado já chegou.')}</div>`;
+  const crit = [...D.acu.criticos, ...D.acu.atencao].slice(0, 5).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}</td><td class="n"><b>${nf(i.inv.acuracidade * 100, 0)}%</b></td><td class="n">${nf(Math.max(0, i.inv.perda_real || 0))}</td></tr>`);
+  const boxAcu = `<div class="ex-box"><h3>Itens críticos de inventário — top 5</h3>${rsTabela(['TAG', 'Item', 'n:Acur.', 'n:Perda'], crit, D.acu.avaliados.length ? 'Nenhum item crítico ou em atenção.' : 'Sem inventário físico lançado.')}</div>`;
+  return `<p>Situação geral: <span class="ex-sel ${geral}">${geral === 'vm' ? 'CRÍTICA' : geral === 'am' ? 'ATENÇÃO' : 'CONTROLADA'}</span> &nbsp; <span class="nota">${nf(nCrit)} gargalo(s) crítico(s) · ${nf(gar.length - nCrit)} de atenção · posição em ${fdA(D.ref)}</span></p>
+    <div class="cards">${cards}</div>
+    <h2>Principais gargalos — ordenados pelo efeito na obra</h2>${tabG}
+    <div class="ex-grid">${boxRem}${boxCap}${boxFalta}${boxAcu}</div>
+    <p class="nota">Versão executiva (1 página). Detalhe completo de remessas, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos: use o <b>Relatório geral</b>. As ações são sugestões automáticas; prazos e responsáveis ficam com a equipe.</p>`;
+}
+async function rsHtmlExec() {
+  const D = await rsDados();
+  if (typeof D.cap === 'string') D.cap = [];
+  if (typeof D.cob === 'string') D.cob = [];
+  await tplLogosCarregar();
+  return tplDocumento({ titulo: 'Suprimentos — Painel de gargalos', subtitulo: `Relatório executivo · posição em ${fdA(D.ref)}`, meta: 'Saúde do suprimento · gargalos por prioridade · remessas · capacidade · falta chegar · acuracidade', corpo: rsTry('executivo', () => rsHtmlExecCorpo(D)), css: RS_CSS + RS_CSS_EXEC });
+}
 let RS_GERANDO = false;
 async function rsAbrir(btn) {
   if (RS_GERANDO) return;
   RS_GERANDO = true;
+  const exec = btn && btn.dataset.relSuprim === 'exec';
   const rot = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando relatório…'; }
   try {
-    const html = await rsHtml();
-    reAbrirPrevia(html, `Relatorio-Suprimentos-${ref}.html`, 'Relatório geral de Suprimentos');
+    const html = exec ? await rsHtmlExec() : await rsHtml();
+    reAbrirPrevia(html, `Relatorio-Suprimentos-${exec ? 'executivo' : 'geral'}-${ref}.html`, exec ? 'Relatório executivo de Suprimentos' : 'Relatório geral de Suprimentos');
   } catch (e) {
     console.error('Relatório de Suprimentos', e);
     toast('Não foi possível gerar o relatório de Suprimentos: ' + (e && e.message || e), true, 6000);

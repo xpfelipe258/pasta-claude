@@ -1540,3 +1540,14 @@ tr.tf-limite { display: none !important; }
 .tf-mais .btn[disabled] { opacity: .45; cursor: default; }
 .tf-mais .tf-pt { padding: 0 4px; }
 @media print { tr.tf-limite { display: table-row !important; } .tf-mais { display: none !important; } }
+
+/* Painel — visão EXECUTIVA (gestão à vista): faixa de números e só o essencial; a visão Detalhada mostra tudo */
+.exec-faixa { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.exec-num { flex: 1 1 160px; display: flex; align-items: baseline; gap: 10px; padding: 10px 16px; border: 1px solid var(--borda, #dfe4ea); border-left: 6px solid var(--c); border-radius: 8px; background: var(--card, #fff); }
+.exec-num b { font-size: 34px; line-height: 1; color: var(--c); }
+.exec-num span { font-size: 13px; color: var(--fg2, #51606f); text-transform: uppercase; letter-spacing: .4px; }
+#aba-painel:not(.painel-exec) .exec-faixa { display: none; }
+#aba-painel.painel-exec #painelPlanos, #aba-painel.painel-exec #painelPlanoAcao { display: none; }
+#aba-painel.painel-exec .tiles .tile .val { font-size: 40px; }
+#aba-painel.painel-exec .grafico.alto { height: 280px; }
+#aba-painel.painel-exec .tab-ferr { display: none; }

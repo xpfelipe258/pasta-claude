@@ -7,6 +7,7 @@ let T = null;            // tabelas do sistema (estoque, equipamentos)
 let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
+let painelModo = (() => { try { return localStorage.getItem('painelModo') === 'det' ? 'det' : 'exec'; } catch (e) { return 'exec'; } })();   // exec = gestão à vista (padrão); det = tudo
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
 // Abas e sub-abas que o administrador ocultou para este usuário (index.php injeta window.UI_OCULTOS; administrador nunca tem ocultações)
 const UI_OCULTOS = Object.assign({ abas: [], subs: [] }, window.UI_OCULTOS || {});
@@ -613,6 +614,9 @@ function renderPainel() {
     `<button data-painel-emp="" class="${!painelEmpFiltro ? 'ativa' : ''}">Geral</button>` +
     emps.map(n => `<button data-painel-emp="${esc(n)}" class="${n === painelEmpFiltro ? 'ativa' : ''}" style="--c:${corEmp(n)}">${esc(n)}</button>`).join('');
 
+  const exec = painelModo === 'exec';
+  $('#aba-painel').classList.toggle('painel-exec', exec);
+  document.querySelectorAll('#segPainelModo button').forEach(b => b.classList.toggle('ativa', b.dataset.painelModo === painelModo));
   const ks = painelEmpFiltro ? ksAll.filter(k => k.emp === painelEmpFiltro) : ksAll;
   const du = c >= per.ini ? contarDiasUteis(add(per.ini, -1), c) : 0;
   $('#notaFarol').textContent = `Previsto distribuído pelos dias úteis das metas · corte em ${fdA(c)}`;
@@ -641,7 +645,7 @@ function renderPainel() {
       : '';
     return `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.total === 0)}</div>
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
-      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}</div></div>`;
+      <div class="sub">${exec ? `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)}` : `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}`}</div></div>`;
   };
   // No modo filtrado por empresa: só o tile da empresa. No modo geral: geral + por empresa.
   const tileGeral = painelEmpFiltro
@@ -651,6 +655,21 @@ function renderPainel() {
     ? tileGeral
     : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
+  if (exec) {
+    // gestão à vista: serviço, realizado / previsto, % e farol; os piores primeiro dentro de cada empresa
+    let hx = '<thead><tr><th>Serviço</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% da meta do período</th></tr></thead><tbody>';
+    let ult = null;
+    [...ks].sort((a, b) => a.emp.localeCompare(b.emp) || (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct)).forEach(k => {
+      if (k.emp !== ult) { ult = k.emp; hx += `<tr class="grupo"><td colspan="5"><span class="emp-tag" style="--c:${corEmp(ult)}">${esc(ult)}</span></td></tr>`; }
+      const semMeta = k.prevTotal === 0, pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
+      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
+        <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+    });
+    $('#tabFarol').innerHTML = hx + '</tbody>';
+    renderAlertas(ks, c, true);
+    graficoPainel(ks);
+    return;
+  }
   let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th><th class="n" title="Atividades dos planos 5W2H ativos: % do plano já executado">Plano 5W2H</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
@@ -666,13 +685,13 @@ function renderPainel() {
       <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td>${celPlano}</tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
-  renderAlertas(ks, c);
+  renderAlertas(ks, c, false);
   graficoPainel(ks);
   renderPlanoAcao(c);
   renderPainelPlanos();
 }
 
-function renderAlertas(ks, c) {
+function renderAlertas(ks, c, exec) {
   const al = [];
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
     al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para a meta do período.`]));
@@ -709,8 +728,20 @@ function renderAlertas(ks, c) {
   });
 
   plAlertasPainel().forEach(x => al.push(x));   // atividades dos planos 5W2H atrasadas ou no limite
-  $('#alertas').innerHTML = al.length
-    ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
+  // faixa de gestão à vista: quantos pontos críticos, de atenção e impactos em aberto
+  const nCrit = al.filter(a => a[0] === 'vermelho').length, nAten = al.length - nCrit, nImp = abertos.length;
+  const faixa = (rot, v, cc) => `<div class="exec-num" style="--c:${cc}"><b>${v}</b><span>${rot}</span></div>`;
+  const faixaEl = $('#painelFaixa');
+  if (faixaEl) faixaEl.innerHTML = faixa('pontos críticos', nCrit, nCrit ? 'var(--vermelho)' : 'var(--verde)') + faixa('pontos de atenção', nAten, nAten ? 'var(--amarelo)' : 'var(--verde)') + faixa('impactos em aberto', nImp, nImp ? 'var(--vermelho)' : 'var(--verde)');
+  let lista = al, resto = 0;
+  if (exec) {
+    lista = [...al].sort((a, b) => (a[0] === 'vermelho' ? 0 : 1) - (b[0] === 'vermelho' ? 0 : 1));
+    resto = Math.max(0, lista.length - 6);
+    lista = lista.slice(0, 6);
+  }
+  $('#alertas').innerHTML = lista.length
+    ? lista.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('') +
+      (resto ? `<li class="vazio">+ ${resto} ponto(s) a mais · <button class="link" data-painel-modo-ir="det">ver na visão detalhada</button></li>` : '')
     : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
 }
 
@@ -7182,6 +7213,9 @@ function ligarEventos() {
   });
   aplicarRemCols();
 
+  const trocarModoPainel = m => { painelModo = m; try { localStorage.setItem('painelModo', m); } catch (e) { /* sem armazenamento */ } renderPainel(); };
+  $('#segPainelModo').addEventListener('click', ev => { const b = ev.target.closest('button[data-painel-modo]'); if (b) trocarModoPainel(b.dataset.painelModo); });
+  $('#alertas').addEventListener('click', ev => { const b = ev.target.closest('[data-painel-modo-ir]'); if (b) trocarModoPainel(b.dataset.painelModoIr); });
   $('#segPainelEmp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-painel-emp]');
     if (!b) return;

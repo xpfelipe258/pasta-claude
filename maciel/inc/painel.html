@@ -205,16 +205,18 @@
   <!-- PAINEL -->
   <section id="aba-painel" hidden>
     <div class="barra-acoes" id="painelFiltroBar">
+      <div class="seg" id="segPainelModo" title="Executivo = gestão à vista (o essencial); Detalhado = todas as tabelas e planos"><button data-painel-modo="exec">Executivo</button><button data-painel-modo="det">Detalhado</button></div>
       <div class="seg" id="segPainelEmp"></div>
       <div class="re-barra" title="Relatório do painel escolhido (Geral = todas as empresas) no período ao lado">
         <label>De <input type="date" id="reBarIni"></label><label>até <input type="date" id="reBarFim"></label>
         <button class="btn" id="btnRelEmpresas">Relatório geral</button>
       </div>
     </div>
+    <div class="exec-faixa" id="painelFaixa"></div>
     <div class="tiles" id="tiles"></div>
     <div class="bloco" id="painelPlanos"></div>
     <div class="grade-2">
-      <div class="bloco">
+      <div class="bloco" id="painelBlocoFarol">
         <div class="bloco-cab"><h2>Farol do período</h2><span class="nota" id="notaFarol"></span></div>
         <div class="tabela-rolagem"><table id="tabFarol"></table></div>
       </div>
@@ -229,7 +231,7 @@
       </div>
       <div class="grafico alto"><canvas id="gPainel"></canvas></div>
     </div>
-    <div class="bloco">
+    <div class="bloco" id="painelPlanoAcao">
       <div class="bloco-cab">
         <h2>Plano de ação semanal</h2>
         <span class="nota">Saldo = escopo por empresa − realizado · Meta necessária/dia = saldo ÷ dias úteis até o prazo · Gap acum. = soma de (real − meta) em todas as semanas encerradas</span>
@@ -367,7 +369,7 @@
       <select id="estMatEtapa" class="input-filtro"><option value="">Todas as etapas</option></select>
       <select id="estMatStatus" class="input-filtro"><option value="">Todos os status</option></select>
       <div class="acoes">
-        <button class="btn" data-rel-suprim title="Relatório geral do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral de Suprimentos</button>
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn" data-novo="movimentos">+ Movimentação</button>
         <button class="btn primario" data-novo="materiais">+ Cadastrar material</button>
       </div>
@@ -384,7 +386,7 @@
     <div class="barra-acoes">
       <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
       <div class="acoes">
-        <button class="btn" data-rel-suprim title="Relatório geral do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral de Suprimentos</button>
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn primario" id="btnNovaRemessaCarga" title="Carga de estrutura (joists, vigas, terças, telhas…)">+ Remessa de carga</button>
         <button class="btn primario" id="btnNovaRemessaFixador" title="Fixadores: parafusos, porcas, arruelas, chumbadores…">+ Remessa de fixador</button>
       </div>
@@ -409,7 +411,7 @@
       <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
       <div class="acoes">
         <button class="btn" id="btnConsDatas" title="Informar o período (de/até) de cada semana do consumo (liga o consumo ao calendário nos relatórios)">Períodos das semanas</button>
-        <button class="btn" data-rel-suprim title="Relatório geral do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral de Suprimentos</button>
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn" id="btnRelConsumo">Relatório de consumo</button>
         <button class="btn primario" id="btnNovoConsumo">+ Registrar consumo</button>
       </div>
@@ -493,7 +495,7 @@
       <input type="text" id="estInvFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
       <select id="estInvStatus" class="input-filtro"><option value="">Todos</option><option value="CRITICO">Critico</option><option value="ATENCAO">Atencao</option><option value="CONFORME">Conforme</option></select>
     
-      <div class="acoes"><button class="btn" data-rel-suprim title="Relatório geral do setor de Suprimentos">Relatório geral de Suprimentos</button></div>
+      <div class="acoes"><button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button></div>
 </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Inventario fisico × virtual</h2>
