@@ -1564,3 +1564,12 @@ tr.tf-limite { display: none !important; }
 .rs-filtro .rs-sub { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
 .rs-filtro fieldset > .btn, .rs-locais-barra .btn { margin: 2px 4px 2px 0; }
 @media (max-width: 700px) { .rs-filtro .rs-grade { grid-template-columns: 1fr; } }
+
+/* Painel › Pontos de atenção em formato reduzido (visão detalhada): uma linha por ponto, rolagem própria */
+.alertas.al-comp { gap: 3px; max-height: 300px; overflow-y: auto; padding-right: 4px; }
+.alertas.al-comp li { padding: 3px 8px; font-size: .78rem; gap: 8px; align-items: center; cursor: pointer; }
+.alertas.al-comp li.vazio { cursor: default; }
+.alertas.al-comp li .farol { font-size: .62rem; padding: 1px 6px; margin-top: 0; }
+.alertas.al-comp .al-txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alertas.al-comp li.aberto { align-items: start; padding: 6px 8px; }
+.alertas.al-comp li.aberto .al-txt { white-space: normal; overflow: visible; }

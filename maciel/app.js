@@ -739,8 +739,14 @@ function renderAlertas(ks, c, exec) {
     resto = Math.max(0, lista.length - 6);
     lista = lista.slice(0, 6);
   }
-  $('#alertas').innerHTML = lista.length
-    ? lista.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('') +
+  // visão detalhada: formato reduzido (uma linha por ponto, críticos primeiro; clicar na linha abre o texto inteiro)
+  const ul = $('#alertas'), comp = !exec;
+  ul.classList.toggle('al-comp', comp);
+  if (comp) lista = [...al].sort((a, b) => (a[0] === 'vermelho' ? 0 : 1) - (b[0] === 'vermelho' ? 0 : 1));
+  const resumoEl = $('#alertasResumo');
+  if (resumoEl) resumoEl.textContent = comp && al.length ? `${nCrit} crítico(s) · ${nAten} em atenção — clique na linha para ver o texto inteiro` : '';
+  ul.innerHTML = lista.length
+    ? lista.map(([n, t]) => `<li${comp ? ' class="al-l"' : ''}><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span class="al-txt">${t}</span></li>`).join('') +
       (resto ? `<li class="vazio">+ ${resto} ponto(s) a mais · <button class="link" data-painel-modo-ir="det">ver na visão detalhada</button></li>` : '')
     : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
 }
@@ -7256,7 +7262,11 @@ function ligarEventos() {
 
   const trocarModoPainel = m => { painelModo = m; try { localStorage.setItem('painelModo', m); } catch (e) { /* sem armazenamento */ } renderPainel(); };
   $('#segPainelModo').addEventListener('click', ev => { const b = ev.target.closest('button[data-painel-modo]'); if (b) trocarModoPainel(b.dataset.painelModo); });
-  $('#alertas').addEventListener('click', ev => { const b = ev.target.closest('[data-painel-modo-ir]'); if (b) trocarModoPainel(b.dataset.painelModoIr); });
+  $('#alertas').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-painel-modo-ir]'); if (b) return trocarModoPainel(b.dataset.painelModoIr);
+    const li = ev.target.closest('li.al-l');   // formato reduzido: abre/fecha o texto inteiro (botões e links da linha continuam funcionando)
+    if (li && !ev.target.closest('button, a')) li.classList.toggle('aberto');
+  });
   $('#segPainelEmp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-painel-emp]');
     if (!b) return;
