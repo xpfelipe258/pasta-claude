@@ -1551,3 +1551,16 @@ tr.tf-limite { display: none !important; }
 #aba-painel.painel-exec .tiles .tile .val { font-size: 40px; }
 #aba-painel.painel-exec .grafico.alto { height: 280px; }
 #aba-painel.painel-exec .tab-ferr { display: none; }
+
+/* Relatório geral de Suprimentos — janela do filtro */
+.rs-dialog { width: min(760px, 94vw); max-height: 92vh; overflow: auto; }
+.rs-filtro fieldset { border: 1px solid var(--borda, #d5d9e0); border-radius: 8px; margin: 0 0 10px; padding: 8px 12px 10px; }
+.rs-filtro legend { font-weight: 600; padding: 0 6px; }
+.rs-filtro .rs-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
+.rs-filtro .rs-locais { max-height: 220px; overflow: auto; margin-top: 6px; }
+.rs-filtro label { display: flex; flex-direction: row; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; margin: 0; }
+.rs-filtro input[type=checkbox], .rs-filtro input[type=radio] { width: auto; margin: 0; flex: none; }
+.rs-filtro select { width: auto; }
+.rs-filtro .rs-sub { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
+.rs-filtro fieldset > .btn, .rs-locais-barra .btn { margin: 2px 4px 2px 0; }
+@media (max-width: 700px) { .rs-filtro .rs-grade { grid-template-columns: 1fr; } }

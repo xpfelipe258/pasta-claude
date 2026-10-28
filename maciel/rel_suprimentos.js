@@ -277,24 +277,28 @@ function rsGrupo(itens, chave) {
   itens.forEach(i => { const k = chave(i) || '—'; const o = m.get(k) || { nome: k, n: 0, plan: 0, chegou: 0, falta: 0, kgPlan: 0, kgChegou: 0, kgFalta: 0, completos: 0, semChegada: 0 }; o.n++; o.plan += i.plan; o.chegou += Math.min(i.chegou, i.plan || i.chegou); o.falta += i.falta; o.kgPlan += i.kgPlan || 0; o.kgChegou += i.kgChegou ? Math.min(i.kgChegou, i.kgPlan || i.kgChegou) : 0; o.kgFalta += i.kgFalta || 0; if (i.st === 'COMPLETO') o.completos++; if (i.st === 'NÃO CHEGOU') o.semChegada++; m.set(k, o); });
   return [...m.values()].sort((a, b) => b.kgFalta - a.kgFalta || b.falta - a.falta || a.nome.localeCompare(b.nome, 'pt'));
 }
-function rsSecPlanejado(D) {
+function rsSecPlanejado(D, opc) {
+  opc = opc || { resumos: true, item: true, agrupar: 'etapa' };
   const itens = D.itens.filter(i => i.plan > 0 || i.chegou > 0);
   const linhaGrupo = o => { const p = o.plan ? o.chegou / o.plan : null, pp = o.kgPlan ? o.kgChegou / o.kgPlan : null; return `<tr><td><b>${esc(o.nome)}</b></td><td class="n">${nf(o.n)}</td><td class="n">${nf(o.plan)}</td><td class="n">${nf(o.chegou)}</td><td class="n ${o.falta ? 'neg' : ''}">${nf(o.falta)}</td><td>${rsBarraPct(p, rsClsPct(p))}</td><td class="n">${rsPct(p, 0)}</td><td class="n">${o.kgPlan ? nf(o.kgPlan / 1000, 1) : '—'}</td><td class="n">${o.kgChegou ? nf(o.kgChegou / 1000, 1) : '—'}</td><td class="n ${o.kgFalta ? 'neg' : ''}">${o.kgFalta ? nf(o.kgFalta / 1000, 1) : '—'}</td><td class="n">${nf(o.completos)} / ${nf(o.n)}</td></tr>`; };
   const cab = ['Grupo', 'n:Itens', 'n:Planejado (un)', 'n:Chegou (un)', 'n:Falta chegar (un)', 'Avanço', 'n:% un', 'n:Peso plan. (t)', 'n:Peso chegou (t)', 'n:Falta chegar (t)', 'n:Itens completos'];
   const porTipo = rsGrupo(itens, i => i.tipo === 'FIXADOR' ? 'Fixadores' : 'Estrutura');
   const tot = itens.length ? linhaGrupo({ nome: 'TOTAL', n: itens.length, plan: soma0(itens, i => i.plan), chegou: soma0(itens, i => Math.min(i.chegou, i.plan || i.chegou)), falta: soma0(itens, i => i.falta), kgPlan: soma0(itens, i => i.kgPlan), kgChegou: soma0(itens, i => i.kgChegou ? Math.min(i.kgChegou, i.kgPlan || i.kgChegou) : 0), kgFalta: soma0(itens, i => i.kgFalta), completos: itens.filter(i => i.st === 'COMPLETO').length }) : '';
-  // detalhe item a item: agrupado por etapa, o que mais falta primeiro
-  const porEtapa = new Map(); itens.forEach(i => { const k = i.etapa; if (!porEtapa.has(k)) porEtapa.set(k, []); porEtapa.get(k).push(i); });
+  // detalhe item a item: agrupado por etapa, local ou tipo (opção do filtro), o que mais falta primeiro
+  const chaveAgr = { etapa: i => i.etapa, local: i => i.local, tipo: i => (i.tipo === 'FIXADOR' ? 'Fixadores' : 'Estrutura') }[opc.agrupar] || (i => i.etapa);
+  const rotAgr = { etapa: 'Etapa', local: 'Local', tipo: 'Tipo' }[opc.agrupar] || 'Etapa';
+  const porEtapa = new Map(); itens.forEach(i => { const k = (chaveAgr(i) && chaveAgr(i) !== '—') ? chaveAgr(i) : '(sem informação)'; if (!porEtapa.has(k)) porEtapa.set(k, []); porEtapa.get(k).push(i); });
   const farolSt = { COMPLETO: 'vd', PARCIAL: 'am', 'NÃO CHEGOU': 'vm', 'SEM PLANEJADO': 'nd' };
-  const det = [...porEtapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).map(([et, l]) => `<tr class="grupo"><td colspan="11"><b>${esc(et)}</b> — ${nf(l.length)} item(ns)</td></tr>` + l.sort((a, b) => (b.kgFalta || 0) - (a.kgFalta || 0) || b.falta - a.falta || a.tag.localeCompare(b.tag)).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}<div class="nota">${esc(i.material)}</div></td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td>
+  const det = [...porEtapa.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt')).map(([et, l]) => `<tr class="grupo"><td colspan="11"><b>${esc(et)}</b> — ${nf(l.length)} item(ns) · planejado ${nf(soma0(l, i => i.plan))} · chegou ${nf(soma0(l, i => Math.min(i.chegou, i.plan || i.chegou)))} · falta ${nf(soma0(l, i => i.falta))}</td></tr>` + l.sort((a, b) => (b.kgFalta || 0) - (a.kgFalta || 0) || b.falta - a.falta || a.tag.localeCompare(b.tag)).map(i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto)}<div class="nota">${esc(i.material)}</div></td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td>
       <td class="n ${i.falta ? 'neg' : ''}">${i.falta ? nf(i.falta) : i.exc ? '+' + nf(i.exc) : '0'}</td><td class="n">${rsPct(i.pct, 0)}</td><td class="n">${i.kgFalta ? nf(i.kgFalta / 1000, 2) : '—'}</td><td>${rsBarraPct(i.pct, rsClsPct(i.pct))}</td><td>${rsFr(farolSt[i.st] || 'nd', i.st)}</td><td class="sub">${esc(i.statusLog)}</td></tr>`).join('')).join('');
-  return `<p>“Chegou” soma as quantidades recebidas em todas as remessas; “falta chegar” = planejado − chegou (sem negativo). Quantidade excedente aparece com +. Peso = quantidade × peso unitário do cadastro (itens sem peso cadastrado não entram nas colunas de toneladas).</p>
-    <h3>Total e por tipo</h3><table><thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, ''))}</th>`).join('')}</tr></thead><tbody>${porTipo.map(linhaGrupo).join('')}${tot}</tbody></table>
+  const nota = `<p>“Chegou” soma as quantidades recebidas em todas as remessas; “falta chegar” = planejado − chegou (sem negativo). Quantidade excedente aparece com +. Peso = quantidade × peso unitário do cadastro (itens sem peso cadastrado não entram nas colunas de toneladas).</p>`;
+  const resumos = opc.resumos ? `<h3>Total e por tipo</h3><table><thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, ''))}</th>`).join('')}</tr></thead><tbody>${porTipo.map(linhaGrupo).join('')}${tot}</tbody></table>
     <h3>Por etapa</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Etapa')), rsGrupo(itens, i => i.etapa).map(linhaGrupo))}
     <h3>Por produto (famílias com maior falta de peso primeiro)</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Produto')), rsGrupo(itens, i => i.produto).map(linhaGrupo))}
-    <h3>Por local</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Local')), rsGrupo(itens, i => i.local).map(linhaGrupo))}
-    <h3>Item a item — planejado × chegou × falta chegar</h3>
-    <table><thead><tr><th>TAG</th><th>Produto / material</th><th>Local</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Falta chegar</th><th class="n">%</th><th class="n">Falta (t)</th><th>Avanço</th><th>Situação</th><th>Status logístico</th></tr></thead><tbody>${det || '<tr><td colspan="11" class="vazio">Sem itens.</td></tr>'}</tbody></table>`;
+    <h3>Por local</h3>${rsTabela(cab.map(c => c.replace('Grupo', 'Local')), rsGrupo(itens, i => i.local).map(linhaGrupo))}` : (opc.item ? `<h3>Total do que está no relatório</h3><table><thead><tr>${cab.map(c => `<th${c.startsWith('n:') ? ' class="n"' : ''}>${esc(c.replace(/^n:/, '').replace('Grupo', 'Filtro'))}</th>`).join('')}</tr></thead><tbody>${tot || `<tr><td colspan="${cab.length}" class="vazio">Sem itens.</td></tr>`}</tbody></table>` : '');
+  const itemAItem = opc.item ? `<h3>Item a item — planejado × chegou × falta chegar <span class="nota">(agrupado por ${rotAgr.toLowerCase()})</span></h3>
+    <table><thead><tr><th>TAG</th><th>Produto / material</th><th>Local</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Falta chegar</th><th class="n">%</th><th class="n">Falta (t)</th><th>Avanço</th><th>Situação</th><th>Status logístico</th></tr></thead><tbody>${det || '<tr><td colspan="11" class="vazio">Sem itens.</td></tr>'}</tbody></table>` : '';
+  return nota + resumos + itemAItem;
 }
 
 function rsSecAcuracidade(D) {
@@ -398,14 +402,15 @@ function rsNotas(D) {
 }
 
 // ---------------------------------------------------------------- montagem
-async function rsDados() {
+async function rsDados(filtro) {
   // dados sempre atuais: remessas, estoque e consumo vêm do servidor no momento de gerar
   try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* segue com o que está na tela */ }
   if (!EP) throw new Error('Os dados de Suprimentos ainda não foram carregados. Abra uma aba de Suprimentos e tente de novo.');
   if (!window._regras_baixa) { regrasBaixa(() => {}); await window._regras_pend; }
   if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
   const regras = window._regras_baixa || {}, dia = ref;
-  const itens = rsItens(regras);
+  const itensTodos = rsItens(regras);
+  const itens = filtro ? itensTodos.filter(i => (!filtro.locais || filtro.locais.has(rsNorm(i.local))) && (!filtro.tipo || filtro.tipo === 'todos' || (filtro.tipo === 'fixador') === (i.tipo === 'FIXADOR'))) : itensTodos;
   const rems = rsRemessas(dia);
   const avaliados = itens.filter(i => i.inv && i.inv.status);
   const ordenaAcu = l => l.sort((a, b) => (a.inv.acuracidade || 0) - (b.inv.acuracidade || 0));
@@ -413,28 +418,110 @@ async function rsDados() {
   const lim = { ini: (M.datas && M.datas[0]) || add(dia, -90), fim: dia };
   let impSup = [], rank = null;
   try { impSup = impactosComAutomaticos().filter(i => normSetor(impactoSetor(i)) === 'suprimentos'); rank = rankingImpactos(impSup, [], lim); } catch (e) { console.error('RS impactos', e); }
-  return { ref: dia, regras, itens, rems, acu, cap: rsTry('capacidade', () => rsCapacidade(regras, itens)) , cob: rsTry('cobertura', () => rsCobertura(itens, dia)), impSup, rank, lim,
+  return { ref: dia, regras, itens, rems, acu, cap: rsTry('capacidade', () => rsCapacidade(regras, itensTodos)) , cob: rsTry('cobertura', () => rsCobertura(itens, dia)), itensTodos, filtro: filtro || null, impSup, rank, lim,
     kgPlanEstr: soma0(itens.filter(i => i.tipo !== 'FIXADOR'), i => i.kgPlan) };
 }
-async function rsHtml() {
-  const D = await rsDados();
+async function rsHtml(f) {
+  f = f || rsFiltroPadrao();
+  const filtro = { locais: f.locais && f.locais.length ? new Set(f.locais.map(rsNorm)) : null, tipo: f.tipo || 'todos' };
+  const D = await rsDados(filtro);
   if (typeof D.cap === 'string') D.cap = [];   // rsTry devolveu aviso em HTML
   if (typeof D.cob === 'string') D.cob = [];
   await tplLogosCarregar();
   const sec = (t, h) => `<h2>${t}</h2>${h}`;
-  const corpo = [
-    sec('Resumo executivo', rsTry('resumo', () => rsSecResumo(D))),
-    sec('1. Remessas — datas e faróis de prazo', rsTry('remessas', () => rsSecRemessas(D))),
-    sec('2. Logística — trânsito, pontualidade, recebimento e programação', rsTry('logística', () => rsSecLogistica(D))),
-    sec('3. Planejado × chegou × falta chegar', rsTry('planejado', () => rsSecPlanejado(D))),
-    sec('4. Acuracidade dos itens', rsTry('acuracidade', () => rsSecAcuracidade(D))),
-    sec('5. Maior uso de itens', rsTry('uso', () => rsSecUso(D))),
-    sec('6. Capacidade de produção e cobertura de cada item', rsTry('capacidade', () => rsSecCapacidade(D))),
-    sec('7. Impactos causados pelo setor de Suprimentos', rsTry('impactos', () => rsSecImpactos(D))),
-    sec('Notas e critérios', rsNotas(D)),
-  ].join('');
-  return tplDocumento({ titulo: 'Relatório geral de Suprimentos', subtitulo: `Posição em ${fdA(D.ref)} (data de referência)`, meta: 'Remessas e faróis de prazo · logística · planejado × chegou × falta · acuracidade · maior uso · capacidade · impactos de Suprimentos', corpo, css: RS_CSS });
+  const quer = k => f.secoes[k] !== false;
+  const opc = { resumos: f.resumos !== false, item: f.item !== false, agrupar: f.agrupar || 'etapa' };
+  const filtrado = !!(filtro.locais || filtro.tipo !== 'todos');
+  const textoFiltro = [filtro.locais ? `Local: ${[...f.locais].sort((a, b) => a.localeCompare(b, 'pt')).join(', ')}` : 'Todos os locais', filtro.tipo === 'estrutura' ? 'Só estrutura' : filtro.tipo === 'fixador' ? 'Só fixadores' : 'Estrutura e fixadores'].join(' · ');
+  const avisoFiltro = filtrado ? `<p class="nota"><b>Filtros aplicados:</b> ${esc(textoFiltro)}. Valem para os itens (resumo, planejado × chegou, acuracidade, maior uso e cobertura). ${quer('remessas') || quer('logistica') ? 'As remessas e a logística mostram todas as remessas da obra; a capacidade por serviço usa todos os itens (um serviço depende de itens de vários locais).' : 'A capacidade por serviço usa todos os itens (um serviço depende de itens de vários locais).'}</p>` : '';
+  const partes = [
+    ['resumo', () => sec('Resumo executivo', rsTry('resumo', () => rsSecResumo(D)))],
+    ['remessas', () => sec('1. Remessas — datas e faróis de prazo', rsTry('remessas', () => rsSecRemessas(D)))],
+    ['logistica', () => sec('2. Logística — trânsito, pontualidade, recebimento e programação', rsTry('logística', () => rsSecLogistica(D)))],
+    ['planejado', () => sec('3. Planejado × chegou × falta chegar', rsTry('planejado', () => rsSecPlanejado(D, opc)))],
+    ['acuracidade', () => sec('4. Acuracidade dos itens', rsTry('acuracidade', () => rsSecAcuracidade(D)))],
+    ['uso', () => sec('5. Maior uso de itens', rsTry('uso', () => rsSecUso(D)))],
+    ['capacidade', () => sec('6. Capacidade de produção e cobertura de cada item', rsTry('capacidade', () => rsSecCapacidade(D)))],
+    ['impactos', () => sec('7. Impactos causados pelo setor de Suprimentos', rsTry('impactos', () => rsSecImpactos(D)))],
+    ['notas', () => sec('Notas e critérios', rsNotas(D))],
+  ].filter(([k]) => quer(k)).map(([, fn]) => fn());
+  const soItem = quer('planejado') && partes.length === 1;
+  const corpo = avisoFiltro + partes.join('');
+  return tplDocumento({ titulo: 'Relatório geral de Suprimentos', subtitulo: `${soItem ? 'Item a item · ' : ''}${filtrado ? textoFiltro + ' · ' : ''}posição em ${fdA(D.ref)} (data de referência)`, meta: soItem ? 'Planejado × chegou × falta chegar, item a item' : 'Remessas e faróis de prazo · logística · planejado × chegou × falta · acuracidade · maior uso · capacidade · impactos de Suprimentos', corpo, css: RS_CSS });
 }
+
+// ---------------------------------------------------------------- filtro do relatório geral (o que entra, local e tipo)
+const RS_SECOES = [['resumo', 'Resumo executivo'], ['remessas', '1. Remessas — datas e faróis'], ['logistica', '2. Logística'], ['planejado', '3. Planejado × chegou × falta chegar'], ['acuracidade', '4. Acuracidade'], ['uso', '5. Maior uso de itens'], ['capacidade', '6. Capacidade e cobertura'], ['impactos', '7. Impactos de Suprimentos'], ['notas', 'Notas e critérios']];
+function rsFiltroPadrao() {
+  const base = { secoes: {}, resumos: true, item: true, agrupar: 'etapa', locais: null, tipo: 'todos' };
+  try { const salvo = JSON.parse(localStorage.getItem('rsFiltro') || 'null'); if (salvo && typeof salvo === 'object') return { ...base, ...salvo, secoes: { ...(salvo.secoes || {}) } }; } catch (e) { /* sem filtro salvo */ }
+  return base;
+}
+// locais agrupados sem diferenciar maiúsculas/acentos ("galpão" e "Galpão" são o mesmo local); o rótulo é a grafia mais usada
+function rsFiltroLocais() {
+  const g = new Map();
+  estMateriaisComCadastros().forEach(m => {
+    const l = m.local || '—', k = rsNorm(l), o = g.get(k) || { n: 0, graf: new Map() };
+    o.n++; o.graf.set(l, (o.graf.get(l) || 0) + 1); g.set(k, o);
+  });
+  return [...g.values()].map(o => [[...o.graf.entries()].sort((a, b) => b[1] - a[1])[0][0], o.n]).sort((a, b) => a[0].localeCompare(b[0], 'pt'));
+}
+function rsFiltroAbrir() {
+  const dlg = document.getElementById('dlgRelSup');
+  if (!dlg) return rsGerar(null, rsFiltroPadrao());
+  const f = rsFiltroPadrao(), locais = rsFiltroLocais();
+  const salvos = f.locais ? new Set(f.locais.map(rsNorm)) : null, marcado = l => !salvos || salvos.has(rsNorm(l));
+  dlg.querySelector('form').innerHTML = `<div class="bloco-cab"><h2>Relatório geral de Suprimentos — o que entra</h2></div>
+    <div class="rs-filtro">
+      <fieldset><legend>Atalhos</legend>
+        <button type="button" class="btn" data-rs-atalho="item-galpao">Só item a item do galpão</button>
+        <button type="button" class="btn" data-rs-atalho="item">Só item a item (todos os locais)</button>
+        <button type="button" class="btn" data-rs-atalho="tudo">Relatório completo</button></fieldset>
+      <fieldset><legend>Seções do relatório</legend><div class="rs-grade">${RS_SECOES.map(([k, t]) => `<label><input type="checkbox" data-rs-sec="${k}" ${f.secoes[k] === false ? '' : 'checked'}> ${esc(t)}</label>`).join('')}</div>
+        <div class="rs-sub"><b>Seção 3:</b> <label><input type="checkbox" id="rsResumos" ${f.resumos ? 'checked' : ''}> resumos (total, tipo, etapa, produto, local)</label> <label><input type="checkbox" id="rsItem" ${f.item ? 'checked' : ''}> item a item</label>
+        <label>agrupar o item a item por <select id="rsAgrupar">${[['etapa', 'etapa'], ['local', 'local'], ['tipo', 'tipo']].map(([v, t]) => `<option value="${v}" ${f.agrupar === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div></fieldset>
+      <fieldset><legend>Tipo de item</legend><label><input type="radio" name="rsTipo" value="todos" ${f.tipo === 'todos' ? 'checked' : ''}> Estrutura e fixadores</label> <label><input type="radio" name="rsTipo" value="estrutura" ${f.tipo === 'estrutura' ? 'checked' : ''}> Só estrutura</label> <label><input type="radio" name="rsTipo" value="fixador" ${f.tipo === 'fixador' ? 'checked' : ''}> Só fixadores</label></fieldset>
+      <fieldset><legend>Local <span class="nota">(marque os que quer ver)</span></legend>
+        <div class="rs-locais-barra"><button type="button" class="btn" data-rs-loc="todos">Todos</button> <button type="button" class="btn" data-rs-loc="nenhum">Nenhum</button> <button type="button" class="btn" data-rs-loc="galpao">Só galpão</button></div>
+        <div class="rs-grade rs-locais">${locais.map(([l, n]) => `<label><input type="checkbox" data-rs-local value="${esc(l)}" ${marcado(l) ? 'checked' : ''}> ${esc(l)} <span class="nota">${nf(n)} item(ns)</span></label>`).join('')}</div></fieldset>
+    </div>
+    <div class="acoes"><span class="espaco"></span><button type="button" class="btn" id="rsCancelar">Cancelar</button><button type="submit" class="btn primario">Visualizar relatório</button></div>`;
+  dlg.showModal();
+}
+function rsFiltroLer(dlg) {
+  const secoes = {}; dlg.querySelectorAll('[data-rs-sec]').forEach(c => { secoes[c.dataset.rsSec] = c.checked; });
+  const caixas = [...dlg.querySelectorAll('[data-rs-local]')], marcadas = caixas.filter(c => c.checked).map(c => c.value);
+  return { secoes, resumos: dlg.querySelector('#rsResumos').checked, item: dlg.querySelector('#rsItem').checked, agrupar: dlg.querySelector('#rsAgrupar').value,
+    tipo: (dlg.querySelector('input[name=rsTipo]:checked') || {}).value || 'todos', locais: marcadas.length === caixas.length ? null : marcadas, _nenhumLocal: !marcadas.length };
+}
+document.addEventListener('click', e => {
+  const dlg = document.getElementById('dlgRelSup');
+  if (!dlg || !dlg.open) return;
+  if (e.target.closest('#rsCancelar')) return dlg.close();
+  const at = e.target.closest('[data-rs-atalho]');
+  if (at) {
+    const itemSo = at.dataset.rsAtalho !== 'tudo';
+    dlg.querySelectorAll('[data-rs-sec]').forEach(c => { c.checked = !itemSo || c.dataset.rsSec === 'planejado'; });
+    dlg.querySelector('#rsResumos').checked = !itemSo; dlg.querySelector('#rsItem').checked = true;
+    if (itemSo) dlg.querySelector('#rsAgrupar').value = at.dataset.rsAtalho === 'item-galpao' ? 'etapa' : dlg.querySelector('#rsAgrupar').value;
+    dlg.querySelectorAll('[data-rs-local]').forEach(c => { c.checked = at.dataset.rsAtalho === 'item-galpao' ? /galp/i.test(c.value) : true; });
+    return;
+  }
+  const lo = e.target.closest('[data-rs-loc]');
+  if (lo) dlg.querySelectorAll('[data-rs-local]').forEach(c => { c.checked = lo.dataset.rsLoc === 'todos' ? true : lo.dataset.rsLoc === 'nenhum' ? false : /galp/i.test(c.value); });
+});
+document.addEventListener('submit', e => {
+  if (!e.target.closest || !e.target.closest('#dlgRelSup')) return;
+  e.preventDefault();
+  const dlg = document.getElementById('dlgRelSup'), f = rsFiltroLer(dlg);
+  if (f._nenhumLocal) return toast('Marque pelo menos um local.', true);
+  if (!Object.values(f.secoes).some(Boolean)) return toast('Marque pelo menos uma seção.', true);
+  if (f.secoes.planejado && !f.resumos && !f.item) return toast('Na seção 3, marque os resumos e/ou o item a item.', true);
+  delete f._nenhumLocal;
+  try { localStorage.setItem('rsFiltro', JSON.stringify(f)); } catch (err) { /* sem armazenamento */ }
+  dlg.close();
+  rsGerar(document.querySelector('[data-rel-suprim="geral"]'), f);
+});
 
 // ---------------------------------------------------------------- RELATÓRIO EXECUTIVO (1 página, para a diretoria): saúde do suprimento + gargalos ordenados por prioridade
 const RS_CSS_EXEC = `<style>
@@ -539,18 +626,26 @@ async function rsHtmlExec() {
   return tplDocumento({ titulo: 'Suprimentos — Painel de gargalos', subtitulo: `Relatório executivo · posição em ${fdA(D.ref)}`, meta: 'Saúde do suprimento · gargalos por prioridade · remessas · capacidade · falta chegar · acuracidade', corpo: rsTry('executivo', () => rsHtmlExecCorpo(D)), css: RS_CSS + RS_CSS_EXEC });
 }
 let RS_GERANDO = false;
-async function rsAbrir(btn) {
+async function rsGerar(btn, filtro) {
   if (RS_GERANDO) return;
   RS_GERANDO = true;
-  const exec = btn && btn.dataset.relSuprim === 'exec';
+  const exec = !filtro;
   const rot = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando relatório…'; }
   try {
-    const html = exec ? await rsHtmlExec() : await rsHtml();
+    const html = exec ? await rsHtmlExec() : await rsHtml(filtro);
     reAbrirPrevia(html, `Relatorio-Suprimentos-${exec ? 'executivo' : 'geral'}-${ref}.html`, exec ? 'Relatório executivo de Suprimentos' : 'Relatório geral de Suprimentos');
   } catch (e) {
     console.error('Relatório de Suprimentos', e);
     toast('Não foi possível gerar o relatório de Suprimentos: ' + (e && e.message || e), true, 6000);
   } finally { RS_GERANDO = false; if (btn) { btn.disabled = false; btn.textContent = rot; } }
+}
+// executivo gera direto; o geral abre antes a janela para escolher o que entra (seções, local e tipo)
+async function rsAbrir(btn) {
+  if (RS_GERANDO) return;
+  if (btn && btn.dataset.relSuprim === 'exec') return rsGerar(btn, null);
+  if (!EP) { try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* abaixo */ } }
+  if (!EP) return toast('Os dados de Suprimentos ainda não foram carregados. Abra uma aba de Suprimentos e tente de novo.', true);
+  rsFiltroAbrir();
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rel-suprim]'); if (b) rsAbrir(b); });
