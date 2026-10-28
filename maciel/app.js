@@ -2917,6 +2917,7 @@ function matBarraLote(itens) {
   el.innerHTML = `<b>${nf(n, 0)} item(ns) selecionado(s)</b>${fora ? ` <span class="nota">(${nf(fora, 0)} fora do filtro atual)</span>` : ''}
     <span class="mat-lote-acoes">
       <button type="button" class="btn" data-mat-lote="local">Mudar local</button>
+      <button type="button" class="btn" data-mat-lote="etapa">Mudar etapa</button>
       <button type="button" class="btn" data-mat-lote="tipo">Mudar tipo</button>
       <button type="button" class="btn perigo" data-mat-lote="excluir">Excluir</button>
       <button type="button" class="btn" data-mat-lote="limpar">Limpar seleção</button>
@@ -2954,6 +2955,12 @@ function matLoteAbrir(acao) {
       <label>Local / grupo<input type="text" id="matLoteLocal" list="matLoteLocais" maxlength="120" placeholder="Digite ou escolha um local já existente" autocomplete="off"></label>
       <datalist id="matLoteLocais">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
     rotBtn = 'Mudar local';
+  } else if (acao === 'etapa') {
+    const etapas = [...new Set(itens.map(m => m.etapa).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+    corpo = `<p>Nova etapa para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Etapa<input type="text" id="matLoteEtapa" list="matLoteEtapas" maxlength="120" placeholder="Digite ou escolha uma etapa já existente" autocomplete="off"></label>
+      <datalist id="matLoteEtapas">${etapas.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
+    rotBtn = 'Mudar etapa';
   } else if (acao === 'tipo') {
     const tipos = [...new Set(['ESTRUTURA', 'FIXADOR', 'CONSUMO', 'OUTROS', ...itens.map(m => String(m.tipo_material || '').toUpperCase()).filter(Boolean)])];
     corpo = `<p>Novo tipo para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
@@ -2968,12 +2975,12 @@ function matLoteAbrir(acao) {
       <label class="mat-lote-forcar"><input type="checkbox" id="matLoteForcar"> Excluir também os itens que já têm recebimento ou consumo lançado</label>` : ''}`;
     rotBtn = `Excluir ${nf(sel.length, 0)} item(ns)`; perigo = true;
   }
-  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
+  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'etapa' ? 'Mudar etapa' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
     <div class="mat-lote-corpo">${corpo}</div><p class="nota" id="matLoteProg" hidden></p>
     <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-mat-lote-fechar>Cancelar</button>
     <button type="button" class="btn ${perigo ? 'perigo' : 'primario'}" id="matLoteAplicar">${rotBtn}</button></div></form>`;
   dlg.showModal();
-  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
+  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteEtapa') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
 }
 
 async function matLoteAplicar() {
@@ -2986,6 +2993,10 @@ async function matLoteAplicar() {
     const v = ($('#matLoteLocal')?.value || '').trim();
     if (!v) { toast('Informe o novo local.', true); return; }
     campos = { local: v };
+  } else if (acao === 'etapa') {
+    const v = ($('#matLoteEtapa')?.value || '').trim();
+    if (!v) { toast('Informe a nova etapa.', true); return; }
+    campos = { etapa: v };
   } else if (acao === 'tipo') {
     campos = { tipo_material: $('#matLoteTipo').value };
   } else if (acao === 'excluir') {
@@ -3013,7 +3024,7 @@ async function matLoteAplicar() {
   feitos.forEach(t => MAT_SEL.delete(t));
   dlg.close();
   try { await carregar(); } catch (e) { /* a tela é atualizada na próxima leitura */ }
-  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
+  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'etapa' ? 'com a etapa alterada' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
   toast(`${nf(feitos.length, 0)} item(ns) ${verbo}.${falhas.length ? ` ${falhas.length} não foi(ram) alterado(s): ${falhas.slice(0, 3).join(' · ')}${falhas.length > 3 ? '…' : ''}` : ''}`, !!falhas.length && !feitos.length, falhas.length ? 9000 : undefined);
   if (falhas.length) console.warn('Ação em lote nos materiais — falhas:', falhas);
 }
