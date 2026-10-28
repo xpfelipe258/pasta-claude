@@ -8,11 +8,17 @@
 // As telas redesenham as tabelas o tempo todo: um MutationObserver reaplica filtro e ordem depois de cada redesenho (estado por tabela).
 // Ficam de fora: tabelas dentro de janelas (modais), grades de lançamento/semana/pessoal e tabelas com células mescladas (rowspan).
 // Linhas de grupo (class "grupo" ou uma célula só com colspan) não se misturam: a ordem vale dentro de cada grupo.
+// LIMITE DE LINHAS (pedido do usuário, 2026-10-28): nenhuma lista mostra mais de 50 linhas de uma vez, para a tela não virar uma rolagem sem fim;
+// abaixo da tabela aparece "Mostrando 50 de N · Mostrar mais 50 · Mostrar todas". Vale também para as tabelas marcadas data-sem-ferramentas
+// (sem a barra de filtro) e se refaz sozinho a cada filtro, ordem ou redesenho. Ficam sempre completas as grades de lançamento/semana/pessoal,
+// tabelas com células mescladas e as que levam o atributo data-sem-limite.
 // ------------------------------------------------------------------------------------------------
 (function () {
   const SECOES = 'main section[id^="aba-"]';
   const EXCLUI = '.tab-semana, .dp-matriz, #tabLanc, #tabSemana, #tabDP, [data-sem-ferramentas]';
-  const estado = new Map();                       // chave da tabela → { col, dir, filtro }
+  const LIMITE = 50;                              // linhas visíveis por tabela (cada "Mostrar mais" soma outras 50)
+  const GRADES = '.tab-semana, .dp-matriz, #tabLanc, #tabSemana, #tabDP, [data-sem-limite]';
+  const estado = new Map();                       // chave da tabela → { col, dir, filtro, lim }
   const colator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
   const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const limpo = s => String(s == null ? '' : s).replace(/[✎✓✗▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
@@ -25,6 +31,11 @@
     if (!t.isConnected || t.matches(EXCLUI) || t.closest('.modal-admin, dialog, .modal-fundo, [id^="ganDatasPopup"]')) return false;
     if (t.querySelector('tbody [rowspan]')) { const r = [...t.querySelectorAll('tbody [rowspan]')].some(c => c.rowSpan > 1); if (r) return false; }
     return true;
+  }
+  // pode receber o limite de linhas? (as grades de digitação e as tabelas com células mescladas ficam completas)
+  function limitavel(t) {
+    if (!t.isConnected || t.matches(GRADES) || t.closest('.modal-admin, dialog, .modal-fundo, [id^="ganDatasPopup"]')) return false;
+    return ![...t.querySelectorAll('tbody [rowspan]')].some(c => c.rowSpan > 1);
   }
   function chaveDe(t) {
     if (t.id) return t.id;
@@ -115,16 +126,16 @@
     [...ancora.parentNode.children].forEach(x => { if (x.classList && x.classList.contains('tab-ferr') && x.dataset.tfChave === t._tfChave) x.remove(); });   // barra órfã de um redesenho anterior
     ancora.parentNode.insertBefore(b, ancora);
     const st = () => estado.get(t._tfChave);
-    b.querySelector('.tf-busca').addEventListener('input', ev => { st().filtro = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-col').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; if (s.col == null) s.dir = ''; aplicar(t); });
-    b.querySelector('.tf-ord').addEventListener('change', ev => { st().dir = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = ''; s.filtro = ''; aplicar(t); });
+    b.querySelector('.tf-busca').addEventListener('input', ev => { st().filtro = ev.target.value; st().lim = LIMITE; aplicar(t); });
+    b.querySelector('.tf-col').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; if (s.col == null) s.dir = ''; s.lim = LIMITE; aplicar(t); });
+    b.querySelector('.tf-ord').addEventListener('change', ev => { st().dir = ev.target.value; st().lim = LIMITE; aplicar(t); });
+    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = ''; s.filtro = ''; s.lim = LIMITE; aplicar(t); });
     return b;
   }
   function iniciar(t) {
     if (t._tfChave) return;
     t._tfChave = chaveDe(t);
-    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '' });
+    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '', lim: LIMITE });
     t.classList.add('tab-ord');
     t._tfBarra = criarBarra(t);
   }
@@ -202,6 +213,7 @@
       fechaGrupo();
     });
     barra.querySelector('.tf-cont').textContent = termos.length ? `${visiveis} de ${dados.length} linhas` : (dados.length ? `${dados.length} linhas` : '');
+    aplicarLimite(t);
 
     // 3) indicador no cabeçalho
     if (t.tHead) [...t.tHead.querySelectorAll('th')].forEach(th => {
@@ -213,6 +225,49 @@
     return mudou;
   }
 
+  // ---------------------------------------------------------------- limite de 50 linhas
+  // Esconde (classe tf-limite) as linhas visíveis além do limite e mantém a barra "Mostrando N de M · Mostrar mais · Mostrar todas" abaixo da tabela.
+  function aplicarLimite(t) {
+    if (!t._tfChave) { t._tfChave = chaveDe(t); }
+    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '', lim: LIMITE });
+    const s = estado.get(t._tfChave);
+    const ancora = t.closest('.tabela-rolagem') && t.closest('.tabela-rolagem').querySelectorAll('table').length === 1 ? t.closest('.tabela-rolagem') : t;
+    const rows = linhasDeDados(t);
+    rows.forEach(r => r.classList.remove('tf-limite'));
+    const visiveis = rows.filter(r => !ehSeparador(r) && !r.classList.contains('tf-oculta'));
+    let mais = ancora.nextElementSibling;
+    if (!(mais && mais.classList && mais.classList.contains('tf-mais') && mais.dataset.tfChave === t._tfChave)) mais = null;
+    if (!limitavel(t) || visiveis.length <= s.lim) { if (mais) mais.remove(); return; }
+    visiveis.slice(s.lim).forEach(r => r.classList.add('tf-limite'));
+    // separador de grupo sem nenhuma linha visível some junto
+    let sep = null, algum = false;
+    const fecha = () => { if (sep) sep.classList.toggle('tf-limite', !algum); };
+    rows.forEach(r => {
+      if (ehSeparador(r)) { fecha(); sep = r; algum = false; }
+      else if (!r.classList.contains('tf-oculta') && !r.classList.contains('tf-limite')) algum = true;
+    });
+    fecha();
+    if (!mais) {
+      mais = document.createElement('div');
+      mais.className = 'tf-mais';
+      mais.dataset.tfChave = t._tfChave;
+      ancora.parentNode.insertBefore(mais, ancora.nextSibling);
+    }
+    const resto = visiveis.length - s.lim, passo = Math.min(LIMITE, resto);
+    mais.innerHTML = `<span>Mostrando <b>${s.lim}</b> de <b>${visiveis.length}</b> linhas</span>` +
+      `<button type="button" class="btn" data-tf-mais="${passo}">Mostrar mais ${passo}</button>` +
+      `<button type="button" class="btn" data-tf-todas>Mostrar todas</button>`;
+  }
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('.tf-mais button');
+    if (!b) return;
+    const barra = b.closest('.tf-mais'), chave = barra.dataset.tfChave, s = estado.get(chave);
+    const t = [...document.querySelectorAll(SECOES + ' table')].find(x => x._tfChave === chave);
+    if (!s || !t) return;
+    if (b.hasAttribute('data-tf-todas')) s.lim = Infinity; else s.lim += +b.getAttribute('data-tf-mais') || LIMITE;
+    obs.disconnect(); aplicarLimite(t); observar();
+  });
+
   // clique no cabeçalho: A→Z, Z→A, ordem original
   document.addEventListener('click', ev => {
     const th = ev.target.closest && ev.target.closest('thead th.th-ord');
@@ -223,6 +278,7 @@
     if (s.col === col && s.dir === 'asc') s.dir = 'desc';
     else if (s.col === col && s.dir === 'desc') s.dir = '';
     else { s.col = col; s.dir = 'asc'; }
+    s.lim = LIMITE;
     obs.disconnect(); aplicar(t); observar();
   });
 
@@ -232,7 +288,7 @@
   function processar() {
     agendado = false;
     obs.disconnect();
-    try { sujas.forEach(t => { if (t.isConnected && elegivel(t)) { iniciar(t); aplicar(t); } else if (t._tfBarra) t._tfBarra.hidden = true; }); }
+    try { sujas.forEach(t => { if (t.isConnected && elegivel(t)) { iniciar(t); aplicar(t); } else { if (t._tfBarra) t._tfBarra.hidden = true; if (t.isConnected && t.closest(SECOES)) aplicarLimite(t); } }); }
     finally { sujas.clear(); observar(); }
   }
   const obs = new MutationObserver(ms => {
