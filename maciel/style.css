@@ -1531,8 +1531,12 @@ html[data-texto="maior"] { font-size: 125%; }
 .gan-datas-card table .data-br-txt { width: 130px; }
 @media (max-width: 900px) { .data-br-caixa .data-br-txt { font-size: 16px; } }
 
-/* Limite de 50 linhas por tabela (tabelas.js): o excedente fica escondido e a barra abaixo libera mais 50 ou todas */
+/* Páginas de 50 linhas por tabela (tabelas.js): o que está fora da página fica escondido e a barra abaixo troca de página */
 tr.tf-limite { display: none !important; }
-.tf-mais { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 14px; padding: 6px 10px; border: 1px dashed var(--borda, #cfd6df); border-radius: 6px; font-size: 13px; color: var(--fg2, #51606f); }
-.tf-mais .btn { padding: 4px 12px; min-height: 0; }
+.tf-mais { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 6px 0 14px; padding: 6px 10px; border: 1px solid var(--borda, #cfd6df); border-radius: 6px; font-size: 13px; color: var(--fg2, #51606f); }
+.tf-mais .tf-pags { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tf-mais .btn { padding: 4px 10px; min-height: 0; min-width: 32px; }
+.tf-mais .btn.tf-atual { background: var(--azul, #1e5aa8); color: #fff; border-color: transparent; font-weight: 700; }
+.tf-mais .btn[disabled] { opacity: .45; cursor: default; }
+.tf-mais .tf-pt { padding: 0 4px; }
 @media print { tr.tf-limite { display: table-row !important; } .tf-mais { display: none !important; } }
