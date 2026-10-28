@@ -182,7 +182,7 @@ function montar_modelo()
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),
-        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos(), 'parafusos' => carregar_ifc_parafusos()],
+        'estoque_ifc' => ['inventario' => $inv_ifc, 'regras' => $regras, 'resumo' => $resumo, 'anexos' => carregar_ifc_anexos(), 'parafusos' => carregar_ifc_parafusos(), 'fixadores_projeto' => carregar_fixadores_projeto()],
     ];
 }
 
@@ -209,6 +209,13 @@ function dado_json_da_obra($chave, $arquivoLegado)
 function carregar_ifc_parafusos()
 {
     return dado_json_da_obra('ifc_parafusos', 'ifc_parafusos.json');
+}
+
+// Fixadores do projeto (lista em planilha × IFC): planejado = MAIOR valor entre os dois, peso unitário da lista. Gerado por ferramentas/fixadores_projeto.php
+// (obra 198) ou pela importação de obra nova (fixadores_conciliacao.php).
+function carregar_fixadores_projeto()
+{
+    return dado_json_da_obra('fixadores_projeto', 'fixadores_projeto.json');
 }
 
 // Peças por local e família dos IFCs dos anexos (Eclusa, Portaria, Refeitório, Vestiário), gerado por ferramentas/ifc_anexos.py

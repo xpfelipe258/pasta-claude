@@ -1,0 +1,1314 @@
+{
+    "versao": 1,
+    "regra": "planejado = maior valor entre a lista em planilha e o IFC",
+    "fontes": {
+        "lista": [
+            {
+                "arquivo": "FIXADORES JOISTS 2026.04.25 1",
+                "linhas": 6
+            },
+            {
+                "arquivo": "FIXADORES POR ESCOPO - ANEXOS PRELIMINAR 2026.07.22",
+                "linhas": 135
+            },
+            {
+                "arquivo": "FIXADORES POR ESCOPO - GALP O PRINCIPAL 2026.07.28",
+                "linhas": 68
+            }
+        ],
+        "ifc": [
+            {
+                "arquivo": "LSF-MET-EX-200-200-BIM-R0D.ifc",
+                "linhas": 5829
+            },
+            {
+                "arquivo": "ifc_parafusos.json (modelos TRB dos anexos)",
+                "linhas": 39
+            }
+        ]
+    },
+    "itens": [
+        {
+            "chave": "arruela|1||",
+            "k": "ARRUELA|1",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø1\"",
+            "norma": "",
+            "diametro": "1",
+            "comp": "",
+            "lista": 870,
+            "ifc": 870,
+            "planejado": 870,
+            "origem": "igual",
+            "peso_unit": 0.0442,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.3 Estrutura Metálica para as Marquises": 438,
+                "1.1.1 Estrutura Cobertura Galpão": 432
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 870
+            }
+        },
+        {
+            "chave": "arruela|1\/2||",
+            "k": "ARRUELA|1\/2",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø1\/2\"",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "",
+            "lista": 20493,
+            "ifc": 3941,
+            "planejado": 20493,
+            "origem": "lista",
+            "peso_unit": 0.0132,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 8057,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 6664,
+                "1.1.3 Estrutura Metálica para as Marquises": 2280,
+                "1.3.8 E.M. COB VESTIÁRIO": 1328,
+                "1.3.7 E.M COB. REFEITÓRIO": 1152,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 392,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 328,
+                "1.3.1. E.M. COB. ECLUSA": 216,
+                "1.3.3. E.M. COB. PORTARIA": 76
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 817,
+                "modelos TRB (anexos)": 3124
+            }
+        },
+        {
+            "chave": "arruela|3\/4||",
+            "k": "ARRUELA|3\/4",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø3\/4\"",
+            "norma": "",
+            "diametro": "3\/4",
+            "comp": "",
+            "lista": 524,
+            "ifc": 488,
+            "planejado": 524,
+            "origem": "lista",
+            "peso_unit": 0.0229,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 248,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 224,
+                "1.3.8 E.M. COB VESTIÁRIO": 24,
+                "1.3.7 E.M COB. REFEITÓRIO": 16,
+                "1.3.1. E.M. COB. ECLUSA": 12
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 488
+            }
+        },
+        {
+            "chave": "arruela|3\/8||",
+            "k": "ARRUELA|3\/8",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø3\/8\"",
+            "norma": "",
+            "diametro": "3\/8",
+            "comp": "",
+            "lista": 332236,
+            "ifc": 6638,
+            "planejado": 332236,
+            "origem": "lista",
+            "peso_unit": 0.01,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "JOIST DUPLA ( 817X )": 320264,
+                "1.3.1. E.M. COB. ECLUSA": 4568,
+                "1.1.1 Estrutura Cobertura Galpão": 4464,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 674,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 672,
+                "1.1.3 Estrutura Metálica para as Marquises": 652,
+                "1.3.3. E.M. COB. PORTARIA": 276,
+                "1.3.13 E.M. COB PASSARELA": 268,
+                "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": 154,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 136,
+                "1.3.8 E.M. COB VESTIÁRIO": 56,
+                "1.3.7 E.M COB. REFEITÓRIO": 48,
+                "DESLIZAMENTO JOIST": 4
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 6638
+            }
+        },
+        {
+            "chave": "arruela|5\/8||",
+            "k": "ARRUELA|5\/8",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø5\/8\"",
+            "norma": "",
+            "diametro": "5\/8",
+            "comp": "",
+            "lista": 7550,
+            "ifc": 486,
+            "planejado": 7550,
+            "origem": "lista",
+            "peso_unit": 0.02,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 2592,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 2592,
+                "1.1.3 Estrutura Metálica para as Marquises": 1824,
+                "1.3.13 E.M. COB PASSARELA": 180,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 96,
+                "1.3.7 E.M COB. REFEITÓRIO": 80,
+                "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": 80,
+                "1.3.8 E.M. COB VESTIÁRIO": 72,
+                "1.3.3. E.M. COB. PORTARIA": 34
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 486
+            }
+        },
+        {
+            "chave": "arruela|7\/8||",
+            "k": "ARRUELA|7\/8",
+            "kind": "arruela",
+            "tipo": "arruela",
+            "nome": "ARRUELA Ø7\/8\"",
+            "norma": "",
+            "diametro": "7\/8",
+            "comp": "",
+            "lista": 1680,
+            "ifc": 500,
+            "planejado": 1680,
+            "origem": "lista",
+            "peso_unit": 0.0355,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1296,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 336,
+                "1.3.1. E.M. COB. ECLUSA": 48
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 500
+            }
+        },
+        {
+            "chave": "autobrocante|||",
+            "k": "AUT",
+            "kind": "parafuso",
+            "tipo": "autobrocante",
+            "nome": "AUTOBROCANTE",
+            "norma": "",
+            "diametro": "",
+            "comp": "",
+            "lista": 209152,
+            "ifc": 0,
+            "planejado": 209152,
+            "origem": "só lista",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": {
+                "JOIST DUPLA ( 817X )": 209152
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "parafuso|1\/2|1.25|A307",
+            "k": "P|1\/2|1 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 1\/4\" A307",
+            "norma": "A307",
+            "diametro": "1\/2",
+            "comp": "1.25",
+            "lista": 9740,
+            "ifc": 1052,
+            "planejado": 9740,
+            "origem": "lista",
+            "peso_unit": 0.0476,
+            "peso_fonte": "mesma bitola em outra norma",
+            "por_escopo": {
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 6616,
+                "1.1.3 Estrutura Metálica para as Marquises": 2064,
+                "1.3.8 E.M. COB VESTIÁRIO": 432,
+                "1.3.7 E.M COB. REFEITÓRIO": 384,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 244
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 1052
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|1.25|A325",
+            "k": "P|1\/2|1 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 1\/4\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "1.25",
+            "lista": 1472,
+            "ifc": 1424,
+            "planejado": 1472,
+            "origem": "lista",
+            "peso_unit": 0.0476,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.3.8 E.M. COB VESTIÁRIO": 720,
+                "1.3.7 E.M COB. REFEITÓRIO": 576,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 128,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 48
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 1424
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|1.5|A307",
+            "k": "P|1\/2|1 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 1\/2\" A307",
+            "norma": "A307",
+            "diametro": "1\/2",
+            "comp": "1.5",
+            "lista": 568,
+            "ifc": 376,
+            "planejado": 568,
+            "origem": "lista",
+            "peso_unit": 0.053,
+            "peso_fonte": "mesma bitola em outra norma",
+            "por_escopo": {
+                "1.1.3 Estrutura Metálica para as Marquises": 216,
+                "1.3.7 E.M COB. REFEITÓRIO": 128,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 104,
+                "1.3.8 E.M. COB VESTIÁRIO": 96,
+                "1.3.3. E.M. COB. PORTARIA": 16,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 8
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 376
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|1.5|A325",
+            "k": "P|1\/2|1 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 1\/2\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "1.5",
+            "lista": 2174,
+            "ifc": 0,
+            "planejado": 2174,
+            "origem": "só lista",
+            "peso_unit": 0.053,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 2174
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "parafuso|1\/2|1.75|A307",
+            "k": "P|1\/2|1 3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 3\/4\" A307",
+            "norma": "A307",
+            "diametro": "1\/2",
+            "comp": "1.75",
+            "lista": 260,
+            "ifc": 84,
+            "planejado": 260,
+            "origem": "lista",
+            "peso_unit": 0.0592,
+            "peso_fonte": "mesma bitola em outra norma",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 176,
+                "1.3.7 E.M COB. REFEITÓRIO": 32,
+                "1.3.8 E.M. COB VESTIÁRIO": 32,
+                "1.3.3. E.M. COB. PORTARIA": 16,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 4
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 84
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|1.75|A325",
+            "k": "P|1\/2|1 3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 1 3\/4\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "1.75",
+            "lista": 3282,
+            "ifc": 56,
+            "planejado": 3282,
+            "origem": "lista",
+            "peso_unit": 0.0592,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 3226,
+                "1.3.1. E.M. COB. ECLUSA": 48,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 8
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 56
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|2|A307",
+            "k": "P|1\/2|2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 2\" A307",
+            "norma": "A307",
+            "diametro": "1\/2",
+            "comp": "2",
+            "lista": 268,
+            "ifc": 28,
+            "planejado": 268,
+            "origem": "lista",
+            "peso_unit": 0.0655,
+            "peso_fonte": "mesma bitola em outra norma",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 240,
+                "1.3.3. E.M. COB. PORTARIA": 28
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 28
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|2|A325",
+            "k": "P|1\/2|2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 2\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "2",
+            "lista": 1136,
+            "ifc": 72,
+            "planejado": 1136,
+            "origem": "lista",
+            "peso_unit": 0.0655,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1064,
+                "1.3.1. E.M. COB. ECLUSA": 72
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 72
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|2.25|A307",
+            "k": "P|1\/2|2 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 2 1\/4\" A307",
+            "norma": "A307",
+            "diametro": "1\/2",
+            "comp": "2.25",
+            "lista": 2,
+            "ifc": 2,
+            "planejado": 2,
+            "origem": "igual",
+            "peso_unit": 0.0719,
+            "peso_fonte": "mesma bitola em outra norma",
+            "por_escopo": {
+                "1.3.1. E.M. COB. ECLUSA": 2
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 2
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|2.25|A325",
+            "k": "P|1\/2|2 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 2 1\/4\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "2.25",
+            "lista": 98,
+            "ifc": 26,
+            "planejado": 98,
+            "origem": "lista",
+            "peso_unit": 0.0719,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 72,
+                "1.3.1. E.M. COB. ECLUSA": 26
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 26
+            }
+        },
+        {
+            "chave": "parafuso|1\/2|2.5|A325",
+            "k": "P|1\/2|2 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø1\/2\" X 2 1\/2\" A325",
+            "norma": "A325",
+            "diametro": "1\/2",
+            "comp": "2.5",
+            "lista": 292,
+            "ifc": 4,
+            "planejado": 292,
+            "origem": "lista",
+            "peso_unit": 0.078,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 288,
+                "1.3.1. E.M. COB. ECLUSA": 4
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 4
+            }
+        },
+        {
+            "chave": "parabolt|1\/2|4|",
+            "k": "PB|1\/2|4",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø1\/2\" X 4\"",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "4",
+            "lista": 0,
+            "ifc": 8,
+            "planejado": 8,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 8
+            }
+        },
+        {
+            "chave": "parabolt|1\/2|4.25|",
+            "k": "PB|1\/2|4 1\/4",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø1\/2\" X 4 1\/4\"",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "4.25",
+            "lista": 0,
+            "ifc": 266,
+            "planejado": 266,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 266
+            }
+        },
+        {
+            "chave": "parabolt|1\/2|7|",
+            "k": "PB|1\/2|7",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø1\/2\" X 7\"",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "7",
+            "lista": 0,
+            "ifc": 16,
+            "planejado": 16,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 16
+            }
+        },
+        {
+            "chave": "cbq|1\/2|7.875|A36",
+            "k": "CBQ|1\/2|7 7\/8",
+            "kind": "parafuso",
+            "tipo": "cbq",
+            "nome": "CBQ Ø1\/2\" X 7 7\/8\"",
+            "norma": "A36",
+            "diametro": "1\/2",
+            "comp": "7.875",
+            "lista": 120,
+            "ifc": 0,
+            "planejado": 120,
+            "origem": "só lista",
+            "peso_unit": 0.1735,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.3.13 E.M. COB PASSARELA": 120
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "olhal|1\/2|13|",
+            "k": "OL|1\/2|13",
+            "kind": "parafuso",
+            "tipo": "olhal",
+            "nome": "PARAF. OLHAL Ø1\/2\" X 13F",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "13",
+            "lista": 0,
+            "ifc": 360,
+            "planejado": 360,
+            "origem": "só IFC",
+            "peso_unit": 0.131,
+            "peso_fonte": "IFC",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 360
+            }
+        },
+        {
+            "chave": "ab|1\/4|0.5|",
+            "k": "AB|1\/4|1\/2",
+            "kind": "parafuso",
+            "tipo": "ab",
+            "nome": "PARAF. AB Ø1\/4\" X 1\/2\"",
+            "norma": "",
+            "diametro": "1\/4",
+            "comp": "0.5",
+            "lista": 1632,
+            "ifc": 0,
+            "planejado": 1632,
+            "origem": "só lista",
+            "peso_unit": 0,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1632
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "ab|1\/4|0.75|",
+            "k": "AB|1\/4|3\/4",
+            "kind": "parafuso",
+            "tipo": "ab",
+            "nome": "PARAF. AB Ø1\/4\" X 3\/4\"",
+            "norma": "",
+            "diametro": "1\/4",
+            "comp": "0.75",
+            "lista": 5280,
+            "ifc": 516,
+            "planejado": 5280,
+            "origem": "lista",
+            "peso_unit": 0,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 5088,
+                "1.3.1. E.M. COB. ECLUSA": 192
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 516
+            }
+        },
+        {
+            "chave": "ab|1\/4|2|",
+            "k": "AB|1\/4|2",
+            "kind": "parafuso",
+            "tipo": "ab",
+            "nome": "PARAF. AB Ø1\/4\" X 2\"",
+            "norma": "",
+            "diametro": "1\/4",
+            "comp": "2",
+            "lista": 1800,
+            "ifc": 244,
+            "planejado": 1800,
+            "origem": "lista",
+            "peso_unit": 0,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.2.7 Calhas metálicas #0.65mm para o Galpão": 1800
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 244
+            }
+        },
+        {
+            "chave": "parabolt|3\/4|4.25|",
+            "k": "PB|3\/4|4 1\/4",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø3\/4\" X 4 1\/4\"",
+            "norma": "",
+            "diametro": "3\/4",
+            "comp": "4.25",
+            "lista": 0,
+            "ifc": 12,
+            "planejado": 12,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 12
+            }
+        },
+        {
+            "chave": "olhal|3\/4|10|",
+            "k": "OL|3\/4|10",
+            "kind": "parafuso",
+            "tipo": "olhal",
+            "nome": "PARAF. OLHAL Ø3\/4\" X 10F",
+            "norma": "",
+            "diametro": "3\/4",
+            "comp": "10",
+            "lista": 0,
+            "ifc": 360,
+            "planejado": 360,
+            "origem": "só IFC",
+            "peso_unit": 0.1133,
+            "peso_fonte": "IFC",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 360
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|0.75|A307",
+            "k": "P|3\/8|3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 3\/4\" A307",
+            "norma": "A307",
+            "diametro": "3\/8",
+            "comp": "0.75",
+            "lista": 312292,
+            "ifc": 5012,
+            "planejado": 312292,
+            "origem": "lista",
+            "peso_unit": 0.02,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "JOIST DUPLA ( 817X )": 307192,
+                "1.3.1. E.M. COB. ECLUSA": 4320,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 338,
+                "1.1.3 Estrutura Metálica para as Marquises": 326,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 64,
+                "1.3.8 E.M. COB VESTIÁRIO": 28,
+                "1.3.7 E.M COB. REFEITÓRIO": 24
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 5012
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|1|A307",
+            "k": "P|3\/8|1",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 1\" A307",
+            "norma": "A307",
+            "diametro": "3\/8",
+            "comp": "1",
+            "lista": 936,
+            "ifc": 48,
+            "planejado": 936,
+            "origem": "lista",
+            "peso_unit": 0.0203,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 888,
+                "1.3.13 E.M. COB PASSARELA": 28,
+                "1.3.3. E.M. COB. PORTARIA": 20
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 48
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|1|GR8",
+            "k": "P|3\/8|1",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 1\" GR.8",
+            "norma": "GR.8",
+            "diametro": "3\/8",
+            "comp": "1",
+            "lista": 13216,
+            "ifc": 144,
+            "planejado": 13216,
+            "origem": "lista",
+            "peso_unit": 0.02,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "JOIST DUPLA ( 817X )": 13072,
+                "1.3.1. E.M. COB. ECLUSA": 144
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 144
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|1.25|A307",
+            "k": "P|3\/8|1 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 1 1\/4\" A307",
+            "norma": "A307",
+            "diametro": "3\/8",
+            "comp": "1.25",
+            "lista": 2782,
+            "ifc": 498,
+            "planejado": 2782,
+            "origem": "lista",
+            "peso_unit": 0.0233,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 2280,
+                "1.3.13 E.M. COB PASSARELA": 240,
+                "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": 154,
+                "1.3.1. E.M. COB. ECLUSA": 64,
+                "1.3.3. E.M. COB. PORTARIA": 40,
+                "DESLIZAMENTO JOIST": 4
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 498
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|1.5|A307",
+            "k": "P|3\/8|1 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 1 1\/2\" A307",
+            "norma": "A307",
+            "diametro": "3\/8",
+            "comp": "1.5",
+            "lista": 2198,
+            "ifc": 908,
+            "planejado": 2198,
+            "origem": "lista",
+            "peso_unit": 0.0268,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1290,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 672,
+                "1.3.3. E.M. COB. PORTARIA": 216,
+                "1.3.1. E.M. COB. ECLUSA": 12,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 8
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 908
+            }
+        },
+        {
+            "chave": "parafuso|3\/8|1.75|A307",
+            "k": "P|3\/8|1 3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø3\/8\" X 1 3\/4\" A307",
+            "norma": "A307",
+            "diametro": "3\/8",
+            "comp": "1.75",
+            "lista": 34,
+            "ifc": 28,
+            "planejado": 34,
+            "origem": "lista",
+            "peso_unit": 0.0303,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.3.1. E.M. COB. ECLUSA": 28,
+                "1.1.1 Estrutura Cobertura Galpão": 6
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 28
+            }
+        },
+        {
+            "chave": "parabolt|3\/8|2.25|",
+            "k": "PB|3\/8|2 1\/4",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø3\/8\" X 2 1\/4\"",
+            "norma": "",
+            "diametro": "3\/8",
+            "comp": "2.25",
+            "lista": 0,
+            "ifc": 162,
+            "planejado": 162,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 162
+            }
+        },
+        {
+            "chave": "parabolt|3\/8|3.75|",
+            "k": "PB|3\/8|3 3\/4",
+            "kind": "parafuso",
+            "tipo": "parabolt",
+            "nome": "PARABOLT Ø3\/8\" X 3 3\/4\"",
+            "norma": "",
+            "diametro": "3\/8",
+            "comp": "3.75",
+            "lista": 0,
+            "ifc": 24,
+            "planejado": 24,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 24
+            }
+        },
+        {
+            "chave": "parafuso|5\/8|1.25|A325",
+            "k": "P|5\/8|1 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 1 1\/4\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "1.25",
+            "lista": 1832,
+            "ifc": 16,
+            "planejado": 1832,
+            "origem": "lista",
+            "peso_unit": 0.0845,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.3 Estrutura Metálica para as Marquises": 1816,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 16
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 16
+            }
+        },
+        {
+            "chave": "parafuso|5\/8|1.5|A325",
+            "k": "P|5\/8|1 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 1 1\/2\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "1.5",
+            "lista": 2678,
+            "ifc": 80,
+            "planejado": 2678,
+            "origem": "lista",
+            "peso_unit": 0.092,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 2592,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 80,
+                "1.1.3 Estrutura Metálica para as Marquises": 6
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 80
+            }
+        },
+        {
+            "chave": "parafuso|5\/8|1.75|A325",
+            "k": "P|5\/8|1 3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 1 3\/4\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "1.75",
+            "lista": 274,
+            "ifc": 310,
+            "planejado": 310,
+            "origem": "IFC",
+            "peso_unit": 0.1,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.3.13 E.M. COB PASSARELA": 180,
+                "1.3.7 E.M COB. REFEITÓRIO": 48,
+                "1.3.8 E.M. COB VESTIÁRIO": 24,
+                "1.3.3. E.M. COB. PORTARIA": 22
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 310
+            }
+        },
+        {
+            "chave": "parafuso|5\/8|2|A325",
+            "k": "P|5\/8|2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 2\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "2",
+            "lista": 1728,
+            "ifc": 0,
+            "planejado": 1728,
+            "origem": "só lista",
+            "peso_unit": 0.11,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1728
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "parafuso|5\/8|2.25|A325",
+            "k": "P|5\/8|2 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 2 1\/4\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "2.25",
+            "lista": 944,
+            "ifc": 80,
+            "planejado": 944,
+            "origem": "lista",
+            "peso_unit": 0.119,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 864,
+                "1.3.8 E.M. COB VESTIÁRIO": 48,
+                "1.3.7 E.M COB. REFEITÓRIO": 32
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 80
+            }
+        },
+        {
+            "chave": "parafuso|5\/8|3.875|A325",
+            "k": "P|5\/8|3 7\/8",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø5\/8\" X 3 7\/8\" A325",
+            "norma": "A325",
+            "diametro": "5\/8",
+            "comp": "3.875",
+            "lista": 2,
+            "ifc": 0,
+            "planejado": 2,
+            "origem": "só lista",
+            "peso_unit": 0.185,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.3 Estrutura Metálica para as Marquises": 2
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "parafuso|7\/8|2.25|A325",
+            "k": "P|7\/8|2 1\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø7\/8\" X 2 1\/4\" A325",
+            "norma": "A325",
+            "diametro": "7\/8",
+            "comp": "2.25",
+            "lista": 1560,
+            "ifc": 0,
+            "planejado": 1560,
+            "origem": "só lista",
+            "peso_unit": 0.256,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1224,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 336
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "parafuso|7\/8|2.5|A325",
+            "k": "P|7\/8|2 1\/2",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø7\/8\" X 2 1\/2\" A325",
+            "norma": "A325",
+            "diametro": "7\/8",
+            "comp": "2.5",
+            "lista": 0,
+            "ifc": 448,
+            "planejado": 448,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 448
+            }
+        },
+        {
+            "chave": "parafuso|7\/8|2.75|A325",
+            "k": "P|7\/8|2 3\/4",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø7\/8\" X 2 3\/4\" A325",
+            "norma": "A325",
+            "diametro": "7\/8",
+            "comp": "2.75",
+            "lista": 120,
+            "ifc": 32,
+            "planejado": 120,
+            "origem": "lista",
+            "peso_unit": 0.293,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 72,
+                "1.3.1. E.M. COB. ECLUSA": 48
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 32
+            }
+        },
+        {
+            "chave": "parafuso|7\/8|3|A325",
+            "k": "P|7\/8|3",
+            "kind": "parafuso",
+            "tipo": "parafuso",
+            "nome": "PARAF. Ø7\/8\" X 3\" A325",
+            "norma": "A325",
+            "diametro": "7\/8",
+            "comp": "3",
+            "lista": 0,
+            "ifc": 20,
+            "planejado": 20,
+            "origem": "só IFC",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": [],
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 20
+            }
+        },
+        {
+            "chave": "hardbolt|M10|100",
+            "k": "HB|M10|100",
+            "kind": "parafuso",
+            "tipo": "hardbolt",
+            "nome": "HARDBOLT M10 X 100",
+            "norma": "",
+            "diametro": "M10",
+            "comp": "100",
+            "lista": 1680,
+            "ifc": 0,
+            "planejado": 1680,
+            "origem": "só lista",
+            "peso_unit": 0,
+            "peso_fonte": "",
+            "por_escopo": {
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 1296,
+                "1.1.1 Estrutura Cobertura Galpão": 160,
+                "1.3.3. E.M. COB. PORTARIA": 92,
+                "1.3.7 E.M COB. REFEITÓRIO": 64,
+                "1.3.8 E.M. COB VESTIÁRIO": 64,
+                "1.3.13 E.M. COB PASSARELA": 4
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "porca|1||",
+            "k": "PORCA|1",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø1\"",
+            "norma": "",
+            "diametro": "1",
+            "comp": "",
+            "lista": 1302,
+            "ifc": 1302,
+            "planejado": 1302,
+            "origem": "igual",
+            "peso_unit": 0.1734,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 864,
+                "1.1.3 Estrutura Metálica para as Marquises": 438
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 1302
+            }
+        },
+        {
+            "chave": "porca|1\/2||",
+            "k": "PORCA|1\/2",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø1\/2\"",
+            "norma": "",
+            "diametro": "1\/2",
+            "comp": "",
+            "lista": 20692,
+            "ifc": 4020,
+            "planejado": 20692,
+            "origem": "lista",
+            "peso_unit": 0.0163,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 8056,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 6664,
+                "1.1.3 Estrutura Metálica para as Marquises": 2360,
+                "1.3.8 E.M. COB VESTIÁRIO": 1328,
+                "1.3.7 E.M COB. REFEITÓRIO": 1152,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 448,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 392,
+                "1.3.1. E.M. COB. ECLUSA": 216,
+                "1.3.3. E.M. COB. PORTARIA": 76
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 896,
+                "modelos TRB (anexos)": 3124
+            }
+        },
+        {
+            "chave": "porca|3\/4||",
+            "k": "PORCA|3\/4",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø3\/4\"",
+            "norma": "",
+            "diametro": "3\/4",
+            "comp": "",
+            "lista": 1048,
+            "ifc": 736,
+            "planejado": 1048,
+            "origem": "lista",
+            "peso_unit": 0.0804,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 496,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 448,
+                "1.3.8 E.M. COB VESTIÁRIO": 48,
+                "1.3.7 E.M COB. REFEITÓRIO": 32,
+                "1.3.1. E.M. COB. ECLUSA": 24
+            },
+            "por_fonte_ifc": {
+                "LSF-MET-EX-200-200-BIM-R0D.ifc": 736
+            }
+        },
+        {
+            "chave": "porca|3\/8||",
+            "k": "PORCA|3\/8",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø3\/8\"",
+            "norma": "",
+            "diametro": "3\/8",
+            "comp": "",
+            "lista": 332238,
+            "ifc": 6638,
+            "planejado": 332238,
+            "origem": "lista",
+            "peso_unit": 0.0099,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "JOIST DUPLA ( 817X )": 320264,
+                "1.3.1. E.M. COB. ECLUSA": 4568,
+                "1.1.1 Estrutura Cobertura Galpão": 4464,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 676,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 672,
+                "1.1.3 Estrutura Metálica para as Marquises": 652,
+                "1.3.3. E.M. COB. PORTARIA": 276,
+                "1.3.13 E.M. COB PASSARELA": 268,
+                "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": 154,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 136,
+                "1.3.8 E.M. COB VESTIÁRIO": 56,
+                "1.3.7 E.M COB. REFEITÓRIO": 48,
+                "DESLIZAMENTO JOIST": 4
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 6638
+            }
+        },
+        {
+            "chave": "porca|5\/16||",
+            "k": "PORCA|5\/16",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø5\/16\"",
+            "norma": "",
+            "diametro": "5\/16",
+            "comp": "",
+            "lista": 4,
+            "ifc": 0,
+            "planejado": 4,
+            "origem": "só lista",
+            "peso_unit": 0.0075,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.4.10 CALHAS ANEXOS": 3,
+                "1.3.7 E.M COB. REFEITÓRIO": 1
+            },
+            "por_fonte_ifc": []
+        },
+        {
+            "chave": "porca|5\/8||",
+            "k": "PORCA|5\/8",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø5\/8\"",
+            "norma": "",
+            "diametro": "5\/8",
+            "comp": "",
+            "lista": 7550,
+            "ifc": 486,
+            "planejado": 7550,
+            "origem": "lista",
+            "peso_unit": 0.0325,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 2592,
+                "1.1.2 Estrutura Fechamento Lateral do Galpão": 2592,
+                "1.1.3 Estrutura Metálica para as Marquises": 1824,
+                "1.3.13 E.M. COB PASSARELA": 180,
+                "1.3.2 E.M. PLATIBANDA ECLUSA": 96,
+                "1.3.7 E.M COB. REFEITÓRIO": 80,
+                "1.3.9 E.M. MQ REFEITÓRIO E VESTIÁRIO": 80,
+                "1.3.8 E.M. COB VESTIÁRIO": 72,
+                "1.3.3. E.M. COB. PORTARIA": 34
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 486
+            }
+        },
+        {
+            "chave": "porca|7\/8||",
+            "k": "PORCA|7\/8",
+            "kind": "porca",
+            "tipo": "porca",
+            "nome": "PORCA Ø7\/8\"",
+            "norma": "",
+            "diametro": "7\/8",
+            "comp": "",
+            "lista": 1680,
+            "ifc": 500,
+            "planejado": 1680,
+            "origem": "lista",
+            "peso_unit": 0.085,
+            "peso_fonte": "lista",
+            "por_escopo": {
+                "1.1.1 Estrutura Cobertura Galpão": 1296,
+                "1.3.15 E.M. COB. PONTO DE ÔNIBUS": 336,
+                "1.3.1. E.M. COB. ECLUSA": 48
+            },
+            "por_fonte_ifc": {
+                "modelos TRB (anexos)": 500
+            }
+        }
+    ],
+    "sem_identificar": [],
+    "gerado_em": "2026-10-28 13:01"
+}

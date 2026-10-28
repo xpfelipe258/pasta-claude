@@ -354,11 +354,16 @@ function lf_pol($txt)
 function leitura_chave_fixador($nome, $norma = '')
 {
     $d = mb_strtoupper(lt_texto($nome), 'UTF-8');
-    $d = str_replace(['Ø', '∅'], '', $d);
+    $d = str_replace(['Ø', '∅', 'HARDOBOLT'], ['', '', 'HARDBOLT'], $d);   // a lista escreve HARDOBOLT em parte das linhas
     $tipo = '';
+    if (strpos($d, 'AUTOBROC') !== false) { return 'autobrocante|||'; }
+    if (strpos($d, 'OLHAL') !== false) {
+        return preg_match('/(\d+\/\d+|\d+)\s*(?:"|\'\')?\s*X\s*(\d+)\s*F/', $d, $m) ? "olhal|{$m[1]}|{$m[2]}|" : '';
+    }
     if (strpos($d, 'PORCA') === 0) { $tipo = 'porca'; }
     elseif (strpos($d, 'ARRUELA') === 0) { $tipo = 'arruela'; }
     elseif (strpos($d, 'PARABOLT') !== false) { $tipo = 'parabolt'; }
+    elseif (strpos($d, 'CBQ') === 0) { $tipo = 'cbq'; }
     elseif (strpos($d, 'HARDBOLT') !== false) { $tipo = 'hardbolt'; }
     elseif (preg_match('/^(PARAF\.?\s+)?AB\b/', $d)) { $tipo = 'ab'; }
     elseif (strpos($d, 'PARAF') === 0) { $tipo = 'parafuso'; }
@@ -370,14 +375,16 @@ function leitura_chave_fixador($nome, $norma = '')
     }
     $diam = preg_match('/(\d+\/\d+|\d+)\s*"/', $d, $m, PREG_OFFSET_CAPTURE) ? $m[1][0] : '';
     $comp = '';
-    if (in_array($tipo, ['parafuso', 'parabolt', 'ab'], true) && $diam !== '') {
+    if (in_array($tipo, ['parafuso', 'parabolt', 'ab', 'cbq'], true) && $diam !== '') {
         $resto = substr($d, $m[0][1] + strlen($m[0][0]) - 1);
         if (preg_match('/"\s*X\s*([0-9"\.\/ ]+?)(?:_|\s*$|\s+[A-Z])/', $resto, $mx)) {
             $v = lf_pol($mx[1]);
             $comp = $v ? (string)round($v, 3) : '';
         }
     }
-    $n = preg_replace('/[\s._\-]/', '', mb_strtoupper(lt_texto($norma), 'UTF-8'));
+    // "Gr.8 (CLASSE 10.9)" e "GR.8" são a mesma norma; "A325N" vale A325
+    $n = preg_replace('/[\s._\-]/', '', preg_replace('/\(.*?\)/', '', mb_strtoupper(lt_texto($norma), 'UTF-8')));
+    $n = preg_replace('/^(A\d+)N$/', '$1', $n);
     if ($n === '' || $n === '-') {
         $n = strpos($d, '_') !== false ? preg_replace('/[\s._\-]/', '', substr($d, strrpos($d, '_') + 1)) : '';
     }
@@ -392,9 +399,9 @@ function leitura_tipo_fixador($desc)
     $d = mb_strtoupper(lt_texto($desc), 'UTF-8');
     if (strpos($d, 'PORCA') === 0) { return 'porca'; }
     if (strpos($d, 'ARRUELA') === 0) { return 'arruela'; }
-    if (strpos($d, 'HARDBOLT') !== false) { return 'hardbolt'; }
+    if (strpos($d, 'HARDBOLT') !== false || strpos($d, 'HARDOBOLT') !== false) { return 'hardbolt'; }
     if (strpos($d, 'AUTOBROC') !== false) { return 'autobrocante'; }
-    if (strpos($d, 'CHUMB') !== false || strpos($d, 'PARABOLT') !== false) { return 'chumbador'; }
+    if (strpos($d, 'CHUMB') !== false || strpos($d, 'PARABOLT') !== false || strpos($d, 'CBQ') === 0) { return 'chumbador'; }
     if (strpos($d, 'PARAF') === 0 || strpos($d, 'AB ') === 0) { return 'parafuso'; }
     return 'outro';
 }
@@ -416,6 +423,7 @@ function lf_colunas(array $l)
         elseif (strpos($c, 'PESO UNIT') === 0) { $col['pu'] = $j; }
         elseif (strpos($c, 'PESO TOTAL') === 0) { $col['pt'] = $j; }
         elseif (strpos($c, 'MATERIAL') === 0) { $col['mat'] = $j; }
+        elseif ($c === 'ESCOPO') { $col['esc'] = $j; }
     }
     if (isset($col['mat']) && ($cel[$col['mat'] + 1] ?? null) === '') {
         $col['apl'] = $col['mat'] + 1;
@@ -437,14 +445,16 @@ function lf_planilha(array $linhas)
         }
         $titulo = null;
         foreach ($l as $x) {
-            if (preg_match('/^JOIST\s*\d+/i', lt_texto($x))) {
-                $titulo = lt_texto($x);
+            $t = lt_texto($x);
+            // "JOIST 01 (12X)" ou "JOIST DUPLA ( 817X )": lista de fixadores de UMA joist, multiplicada pela quantidade entre parênteses
+            if (preg_match('/^JOIST\s*\d+/i', $t) || (preg_match('/^JOIST\b/i', $t) && preg_match('/\(\s*\d+\s*X\s*\)/i', $t))) {
+                $titulo = $t;
                 break;
             }
         }
         if ($titulo) {
             preg_match('/\(\s*(\d+)\s*X\s*\)/i', $titulo, $mult);
-            preg_match('/^(JOIST\s*\d+)/i', $titulo, $nm);
+            preg_match('/^(JOIST\s*\w+)/i', $titulo, $nm);
             $blocos[] = ['joist' => strtoupper(str_replace(' ', '', $nm[1])), 'titulo' => $titulo, 'quantidade_de_joists' => (int)($mult[1] ?? 1), 'itens' => []];
             $atual = count($blocos) - 1;
             continue;
@@ -460,7 +470,7 @@ function lf_planilha(array $linhas)
         $norma = isset($col['mat']) ? lt_texto($l[$col['mat']] ?? '') : '';
         $r = ['qtd' => $q, 'descricao' => $desc, 'comprimento_mm' => isset($col['comp']) ? lt_numero($l[$col['comp']] ?? null) : null,
             'peso_unit_kg' => isset($col['pu']) ? lt_numero($l[$col['pu']] ?? null) : null, 'peso_total_kg' => isset($col['pt']) ? lt_numero($l[$col['pt']] ?? null) : null,
-            'norma' => $norma, 'aplicacao' => isset($col['apl']) ? lt_texto($l[$col['apl']] ?? '') : '', 'tipo' => leitura_tipo_fixador($desc), 'chave' => leitura_chave_fixador($desc, $norma)];
+            'norma' => $norma, 'escopo' => isset($col['esc']) ? lt_texto($l[$col['esc']] ?? '') : '', 'aplicacao' => isset($col['apl']) ? lt_texto($l[$col['apl']] ?? '') : '', 'tipo' => leitura_tipo_fixador($desc), 'chave' => leitura_chave_fixador($desc, $norma)];
         if ($atual !== null) {
             $blocos[$atual]['itens'][] = $r;
         } else {

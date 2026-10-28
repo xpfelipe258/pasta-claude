@@ -328,7 +328,7 @@ function vcRegrasHtml(cat, regra) {
   return `<div class="bloco"><div class="bloco-cab"><h2>Serviços com lista por regra</h2><span class="nota">Já definidos no projeto (regras_baixa.json). Entram nas atividades sem precisar de confirmação.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Serviço</th><th>Atividade do catálogo</th><th class="n">Materiais</th><th class="n">Unidades do galpão</th></tr></thead><tbody>${sv}</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Fixadores e onde são usados</h2><span class="nota">${fix.length} fixadores no cadastro. "Sem uso" quer dizer que nenhuma regra ou kit consome o fixador.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcParafusosHtml(vcPerm());
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcFixadoresProjetoHtml(vcPerm()) + vcParafusosHtml(vcPerm());
 }
 
 // ---------------------------------------------------------------- Parafusos, arruelas e porcas do projeto (modelos TRB)
@@ -354,7 +354,14 @@ function vcChaveTrb(nome) {
 function vcChaveCad(m) {
   for (const txt of [m.produto, m.material]) {
     const t = vcUp(txt);
-    let r = /^PARAF\. AB Ø?(\d+\/\d+)" X ([\d\/ ]+)"/.exec(t);
+    let r = /^HARD[O]?BOLT\s*M(\d+)\s*X\s*(\d+)/.exec(t);
+    if (r) return { k: `HB|M${r[1]}|${r[2]}`, norma: '' };
+    if (/^AUTOBROC|^PF AB PONTA/.test(t)) return { k: 'AUT', norma: '' };
+    r = /OLHAL\s*Ø?\s*(\d+\/\d+)\W*[X×]?\s*(\d+)\s*F/.exec(t);
+    if (r) return { k: `OL|${r[1]}|${r[2]}`, norma: '' };
+    r = /^CBQ\s*Ø?(\d+\/\d+)"\s*X\s*([\d\/ ]+)"/.exec(t);
+    if (r) return { k: `CBQ|${r[1]}|${vcFrac(r[2])}`, norma: '' };
+    r = /^PARAF\. AB Ø?(\d+\/\d+)" X ([\d\/ ]+)"/.exec(t);
     if (r) return { k: `AB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
     r = /^PARABOLT Ø?(\d+\/\d+)" X ([\d\/ ]+)"/.exec(t);
     if (r) return { k: `PB|${r[1]}|${vcFrac(r[2])}`, norma: '' };
@@ -370,6 +377,7 @@ function vcChaveCad(m) {
 }
 // nome como o cadastro de Materiais escreve (usado ao criar a TAG que falta)
 function vcNomeCadastro(it) {
+  if (it.projeto) return it.nome;
   let m;
   if (it.kind === 'arruela' || it.kind === 'porca') { m = /^(ARRUELA|PORCA)_(\d+\/\d+|\d+)"/.exec(it.nome); return m ? `${m[1]} Ø${m[2]}"` : it.nome; }
   if ((m = /^PARAF_(\d+\/\d+)"X(.+?)_(A\d+N?|GR\.8)$/.exec(it.nome))) return `PARAF. Ø${m[1]}" X ${vcFrac(m[2])}" ${m[3]}`;
@@ -400,6 +408,7 @@ function vcAcharCad(it, cad) {
 }
 // soma a quantidade do projeto ao planejado de cada TAG de fixador (cópia: o cadastro gravado não muda)
 function vcAplicarTrb(base) {
+  if (vcAplicarProjeto(base)) return base;   // fixadores do projeto (lista × IFC, o MAIOR vale) substituem a soma do TRB
   if (M?.estoque_ifc?.regras?.versao_identidade === 1) return base; // já incluído pelo importador
   const itens = vcTrbItens();
   if (!itens.length) return base;
@@ -419,6 +428,83 @@ function vcAplicarTrb(base) {
   });
   return base;
 }
+// ---- Fixadores do projeto: LISTA em planilha × IFC. REGRA: o planejado é o MAIOR valor (cadastro, lista ou IFC); o peso unitário vem da lista.
+// Dados em M.estoque_ifc.fixadores_projeto (ferramentas/fixadores_projeto.php na obra 198; a importação de obra nova grava sozinha).
+function vcProjetoItens() {
+  const fp = M?.estoque_ifc?.fixadores_projeto;
+  return fp && Array.isArray(fp.itens) ? fp.itens.map(i => ({ ...i, projeto: true })) : [];
+}
+// TAGs do cadastro que recebem o planejado do projeto: fixadores (e os parafusos olhais, cadastrados como estrutural)
+const vcCadProjeto = base => base.map(m => ({ m, ...vcChaveCad(m) })).filter(x => x.k && (ehFixador(x.m) || x.k.startsWith('OL|')));
+// Um só TAG para a bitola recebe todas as normas (o cadastro nem sempre traz a norma certa); com mais de um TAG vale a norma igual.
+function vcAcharProjeto(it, cad) {
+  const c = cad.filter(x => x.k === it.k);
+  if (!c.length) return null;
+  if (c.length === 1) return c[0];
+  return c.find(x => x.norma === it.norma) || c.find(x => !x.norma) || null;
+}
+function vcAplicarProjeto(base) {
+  const itens = vcProjetoItens();
+  if (!itens.length) return false;
+  const cad = vcCadProjeto(base);
+  const acum = new Map();
+  itens.forEach(it => {
+    const c = vcAcharProjeto(it, cad);
+    if (!c) return;
+    const o = acum.get(c.m) || { lista: 0, ifc: 0, plan: 0, pT: 0, pQ: 0, nomes: [] };
+    o.lista += it.lista; o.ifc += it.ifc; o.plan += it.planejado;
+    if (it.peso_unit > 0) { o.pT += it.peso_unit * it.planejado; o.pQ += it.planejado; }
+    o.nomes.push(it.nome); acum.set(c.m, o);
+  });
+  acum.forEach((o, m) => {
+    const ch = Number(m.chegou) || 0, cadQ = Number(m.planejado) || 0;
+    m.planejado_cad = cadQ; m.planejado_lista = o.lista; m.planejado_ifc = o.ifc; m.planejado_proj = o.plan;
+    m.planejado = Math.max(cadQ, o.plan);
+    m.planejado_trb = Math.max(0, m.planejado - cadQ);   // quanto o projeto acrescenta ao cadastro (Inventário soma esse acréscimo)
+    m.trb_itens = o.nomes;
+    if (o.pQ > 0) {
+      m.peso_unitario_cad = Number(m.peso_unitario) || 0;
+      m.peso_unitario = Math.round(o.pT / o.pQ * 10000) / 10000;
+      m.peso_total = m.peso_unitario * m.planejado;
+    }
+    m.atendimento = m.planejado ? ch / m.planejado : null;
+    m.status_logistico = ch <= 0 ? 'Crítico' : ch < m.planejado ? 'Recebimento Parcial' : ch > m.planejado ? 'Excedente' : 'Atendido';
+  });
+  return true;
+}
+// TAG do cadastro de cada fixador do projeto (ou null)
+function vcCasarProjeto() {
+  const cad = vcCadProjeto(estMateriaisComCadastros());
+  return vcProjetoItens().map(it => ({ it, c: vcAcharProjeto(it, cad) }));
+}
+function vcFixadoresProjetoHtml(podeEditar) {
+  const fp = M?.estoque_ifc?.fixadores_projeto;
+  if (!fp || !Array.isArray(fp.itens) || !fp.itens.length) return '';
+  const casados = vcCasarProjeto(), faltam = casados.filter(x => !x.c);
+  const pesoT = soma0(casados, x => (x.it.peso_unit || 0) * x.it.planejado) / 1000;
+  const semPeso = casados.filter(x => !(x.it.peso_unit > 0)).length;
+  const ifcMaior = casados.filter(x => x.it.origem === 'IFC' || x.it.origem === 'só IFC').length;
+  const tile = (r, v, s, c) => `<div class="tile" style="--c:${c}"><div class="rot"><span>${r}</span></div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+  const orig = { lista: ['f-pendente', 'LISTA MAIOR'], IFC: ['f-amarelo', 'IFC MAIOR'], igual: ['f-verde', 'IGUAIS'], 'só lista': ['f-pendente', 'SÓ NA LISTA'], 'só IFC': ['f-amarelo', 'SÓ NO IFC'] };
+  const linhas = casados.map(({ it, c }) => {
+    const o = orig[it.origem] || ['f-pendente', it.origem];
+    const esc1 = Object.entries(it.por_escopo || {}).map(([k, v]) => `${k}: ${nf(v, 0)}`).join(' · ');
+    const ifc1 = Object.entries(it.por_fonte_ifc || {}).map(([k, v]) => `${k}: ${nf(v, 0)}`).join(' · ');
+    const m = c && c.m;
+    const tag = m ? `<b>${esc(m.tag)}</b><div class="nota">cadastro ${nf(m.planejado_cad ?? m.planejado, 0)} → <b>${nf(m.planejado, 0)}</b></div>` : '<span class="farol f-vermelho">SEM TAG</span>';
+    return `<tr><td><b>${esc(it.nome)}</b></td><td class="n" title="${esc(esc1)}">${it.lista ? nf(it.lista, 0) : '—'}</td><td class="n" title="${esc(ifc1)}">${it.ifc ? nf(it.ifc, 0) : '—'}</td><td class="n"><b>${nf(it.planejado, 0)}</b></td><td><span class="farol ${o[0]}">${o[1]}</span></td>
+      <td class="n">${it.peso_unit > 0 ? nf(it.peso_unit, 4) : '<span class="nota">sem peso</span>'}${it.peso_unit > 0 && it.peso_fonte !== 'lista' ? `<div class="nota">${esc(it.peso_fonte)}</div>` : ''}</td><td class="n">${it.peso_unit > 0 ? nf(it.peso_unit * it.planejado, 1) : '—'}</td><td>${tag}</td></tr>`;
+  }).join('');
+  const btn = faltam.length && podeEditar ? `<button class="btn primario" type="button" data-vc-criar-faltantes>Criar ${faltam.length} TAG(s) que faltam no cadastro</button>` : '';
+  const fontes = [...(fp.fontes?.lista || []).map(f => `${esc(f.arquivo)} (${nf(f.linhas, 0)} linhas)`), ...(fp.fontes?.ifc || []).map(f => `IFC: ${esc(f.arquivo)}`)].join(' · ');
+  return `<div class="bloco"><div class="bloco-cab"><h2>Fixadores do projeto — lista × IFC (planejado = o MAIOR dos dois)</h2><span class="nota">${fontes}${fp.gerado_em ? ` · conciliado em ${esc(fp.gerado_em)}` : ''}</span></div>
+    <div class="tiles">${tile('Tipos de fixador', nf(casados.length, 0), `${nf(casados.length - faltam.length, 0)} com TAG · ${faltam.length} sem TAG`, faltam.length ? 'var(--amarelo)' : 'var(--verde)')}
+      ${tile('IFC maior que a lista', nf(ifcMaior, 0), 'o IFC passa a valer nesses itens', ifcMaior ? 'var(--amarelo)' : 'var(--verde)')}
+      ${tile('Peso planejado', `${nf(pesoT, 1)} t`, semPeso ? `${semPeso} tipo(s) sem peso na lista` : 'todos com peso', semPeso ? 'var(--amarelo)' : 'var(--verde)')}</div>
+    <details class="vc-ativ" open><summary><b>Comparação item a item</b> <span class="nota">passe o mouse na quantidade para ver por escopo / modelo · peso unitário da lista (total ÷ quantidade)</span></summary>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Fixador</th><th class="n">Lista</th><th class="n">IFC</th><th class="n">Planejado</th><th>Maior</th><th class="n">Peso un. (kg)</th><th class="n">Peso total (kg)</th><th>TAG no cadastro</th></tr></thead><tbody>${linhas}</tbody></table></div></details>
+    <div class="barra-acoes">${btn}</div></div>`;
+}
 // quantidade do projeto somada ao planejado, por TAG (para o Inventário e outras telas)
 function vcPlanejadoTrbPorTag() {
   const mapa = new Map();
@@ -434,7 +520,7 @@ function vcCasarTrb() {
 function vcParafusosHtml(podeEditar) {
   const pf = M?.estoque_ifc?.parafusos;
   if (!pf) return '';
-  const casados = vcCasarTrb(), faltam = casados.filter(x => !x.c).map(x => x.it);
+  const casados = vcCasarTrb(), faltam = vcProjetoItens().length ? [] : casados.filter(x => !x.c).map(x => x.it);
   const locsHtml = loc => Object.entries(loc).sort((a, b) => b[1] - a[1]).map(([l, q]) => `${esc(l)} <b>${nf(q, 0)}</b>`).join(' · ');
   const kitHtml = it => it.kind === 'parafuso'
     ? [...Object.entries(it.arruelas), ...Object.entries(it.porcas)].map(([n, q]) => `${esc(n)} <b>${nf(q, 0)}</b>`).join('<br>') || '<span class="nota">sem arruela nem porca</span>'
@@ -453,14 +539,14 @@ function vcParafusosHtml(podeEditar) {
   const loc = Object.entries(pf.por_local).map(([l, v]) => `<tr><td><b>${esc(l)}</b></td><td class="n">${nf(v.BOLT_conjuntos || 0, 0)}</td><td class="n"><b>${nf(v.BOLT_qtd || 0, 0)}</b></td><td class="n">${nf(v.arruelas || 0, 0)}</td><td class="n">${nf(v.porcas || 0, 0)}</td><td class="n">${nf(v.HOLE_qtd || 0, 0)}</td></tr>`).join('');
   const tot = Object.values(pf.por_local).reduce((s, v) => s + (v.BOLT_qtd || 0), 0);
   const btn = `<button class="btn" type="button" data-vc-parafcsv>Baixar lista com localização (CSV)</button>${faltam.length && podeEditar ? ` <button class="btn primario" type="button" data-vc-criar-faltantes>Criar ${faltam.length} TAG(s) que faltam no cadastro</button>` : ''}`;
-  return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos, arruelas e porcas do projeto — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). A quantidade do projeto é SOMADA ao planejado do cadastro de Materiais. Furos sem parafuso e arruela/porca "falsa" do modelo ficam de fora.</span></div>
+  return `<div class="bloco"><div class="bloco-cab"><h2>Parafusos, arruelas e porcas do projeto — ${nf(tot, 0)} parafusos</h2><span class="nota">Lidos dos modelos TRB (os IFC de texto não trazem parafuso). ${vcProjetoItens().length ? 'Aqui fica a localização de cada parafuso; o planejado vem da conciliação lista × IFC (bloco acima).' : 'A quantidade do projeto é SOMADA ao planejado do cadastro de Materiais.'} Furos sem parafuso e arruela/porca "falsa" do modelo ficam de fora.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Local</th><th class="n">Conjuntos</th><th class="n">Parafusos</th><th class="n">Arruelas</th><th class="n">Porcas</th><th class="n">Furos sem parafuso</th></tr></thead><tbody>${loc}</tbody></table></div>
     <div class="barra-acoes">${btn}</div></div>
     <div class="bloco">${secao('parafuso', 'Parafusos', true)}${secao('arruela', 'Arruelas', false)}${secao('porca', 'Porcas', false)}</div>`;
 }
 // cria no cadastro de Materiais as TAGs de fixador que o projeto usa e ainda não existem (a TAG FG### é gerada pelo servidor)
 async function vcCriarTagsFaltantes() {
-  const faltam = vcCasarTrb().filter(x => !x.c).map(x => x.it);
+  const faltam = (vcProjetoItens().length ? vcCasarProjeto() : vcCasarTrb()).filter(x => !x.c).map(x => x.it);
   if (!faltam.length) return toast('Todos os fixadores do projeto já têm TAG.');
   let n = 0;
   try {

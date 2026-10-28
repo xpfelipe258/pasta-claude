@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/leitura_pacote.php';
+require_once __DIR__ . '/fixadores_conciliacao.php';
 // Importação automática de obra nova — fase 2: leitura completa (serviço Python) e publicação do pacote na obra.
 // O serviço devolve um "pacote" JSON (modelo do IFC, BM, cronograma, fixadores, pranchas). Aqui ele é guardado, revisado e publicado.
 
@@ -322,30 +323,35 @@ function importacao_publicar($obraId, array $op)
             unset($g);
         }
 
-        // ---- fixadores: a lista em planilha vale; o que só aparece no IFC entra com a quantidade do modelo
+        // ---- fixadores: lista em planilha × IFC. REGRA: o planejado de cada fixador é o MAIOR valor entre os dois (fixadores_conciliacao.php);
+        //      lista de joist ("JOIST DUPLA ( 817X )") entra multiplicada; o peso unitário vem da lista e fica em fixadores_projeto da obra.
         $tagFix = [];            // chave do fixador => tag
         $cadastroFix = [];
-        $somaIfc = [];
-        foreach ($modelo['fixadores'] as $f) {
-            if (!empty($f['chave'])) {
-                $somaIfc[$f['chave']] = ($somaIfc[$f['chave']] ?? 0) + $f['qtd'];
-            }
-        }
+        $listaFx = [];
         foreach ($p['fixadores']['geral'] as $f) {
-            $k = $f['chave'] ?: ('lista|' . imp_up($f['descricao'] . ' ' . $f['norma']));
-            $cadastroFix[$k] = ['nome' => trim($f['descricao'] . ' ' . (in_array($f['norma'], ['-', '', 'HARDBOLT'], true) ? '' : $f['norma'])), 'qtd' => ($cadastroFix[$k]['qtd'] ?? 0) + $f['qtd'], 'origem' => 'lista de fixadores'];
+            $f['fonte'] = 'lista';
+            $listaFx[] = $f;
         }
-        foreach ($somaIfc as $k => $q) {
-            if (!isset($cadastroFix[$k])) {
-                $nomeIfc = '';
-                foreach ($p['fixadores_confronto'] ?? [] as $c) {
-                    if ($c['chave'] === $k) {
-                        $nomeIfc = $c['nome'];
-                    }
-                }
-                $cadastroFix[$k] = ['nome' => $nomeIfc ?: $k, 'qtd' => $q, 'origem' => 'IFC'];
+        foreach ($p['fixadores']['por_joist'] ?? [] as $bloco) {
+            foreach ($bloco['itens'] as $f) {
+                $f['fonte'] = 'lista de joist';
+                $f['mult'] = max(1, (int)($bloco['quantidade_de_joists'] ?? 1));
+                $f['escopo'] = $f['escopo'] ?: ($bloco['titulo'] ?? '');
+                $listaFx[] = $f;
             }
         }
+        $conc = fxc_conciliar($listaFx, array_merge(fxc_ifc_de_modelo($modelo['fixadores']), fxc_ifc_de_conjuntos($modelo['conjuntos'])));
+        foreach ($conc['itens'] as $chave => $it) {
+            $cadastroFix[$chave] = ['nome' => $it['nome'], 'qtd' => $it['planejado'],
+                'origem' => 'lista ' . number_format($it['lista'], 0, ',', '.') . ' × IFC ' . number_format($it['ifc'], 0, ',', '.') . ': vale o maior'];
+        }
+        foreach ($conc['sem_identificar'] as $desc => $q) {
+            $cadastroFix['lista|' . imp_up($desc)] = ['nome' => $desc, 'qtd' => $q, 'origem' => 'lista de fixadores'];
+        }
+        $fontesFx = ['lista' => [['arquivo' => 'lista de fixadores da importação', 'linhas' => count($listaFx)]], 'ifc' => [['arquivo' => 'IFC da importação', 'linhas' => count($modelo['fixadores'])]]];
+        $pacoteFx = fxc_pacote($conc, $fontesFx);
+        $pacoteFx['gerado_em'] = $agora;
+        sistema_gravar('fixadores_projeto', json_encode($pacoteFx, JSON_UNESCAPED_UNICODE));
         $fg = 0;
         ksort($cadastroFix);
         foreach ($cadastroFix as $k => $f) {
