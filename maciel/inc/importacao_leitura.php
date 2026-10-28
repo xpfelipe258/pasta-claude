@@ -296,6 +296,20 @@ function importacao_publicar($obraId, array $op)
 
         // ---- cadastro: uma linha por TAG original; ocorrências e locais ficam na rastreabilidade.
         $catalogo = idf_catalogo($modelo['material']);
+        // Lista de partes por conjunto × IFC: a TAG nasce com o MAIOR valor (REGRA DO SISTEMA, igual aos fixadores); o resultado fica em estrutura_projeto
+        $estProj = est_conciliar($p['fixadores']['partes'] ?? [], $modelo['conjuntos']);
+        if ($p['fixadores']['partes'] ?? []) {
+            foreach ($catalogo as $tagC => &$mC) {
+                $e = $estProj[est_marca((string)$tagC)] ?? null;
+                if ($e && (float)$e['ifc'] === (float)$mC['qtd'] && $e['lista'] > $mC['qtd']) {
+                    $mC['qtd'] = $e['lista'];   // TAG com a marca inteira: sobe para a lista; marca repartida em fases mantém a contagem do IFC
+                }
+            }
+            unset($mC);
+            $pacoteEst = est_pacote($estProj, ['lista' => [['arquivo' => 'lista de partes por conjunto da importação', 'conjuntos' => count($p['fixadores']['partes'])]], 'ifc' => [['arquivo' => 'IFC da importação']]]);
+            $pacoteEst['gerado_em'] = $agora;
+            sistema_gravar('estrutura_projeto', json_encode($pacoteEst, JSON_UNESCAPED_UNICODE));
+        }
         $tagsConflitantes = array_map('strval', array_keys(array_filter($catalogo, function ($m) { return count($m['especificacoes']) > 1; })));
         $gruposPorChave = [];
         $nMat = 0;
@@ -599,11 +613,12 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
         if ($cronogramas) {
             $crono = leitura_cronograma($cronogramas[0][1], $cronogramas[0][0]);
         }
-        $fix = ['geral' => [], 'por_joist' => [], 'avisos' => []];
+        $fix = ['geral' => [], 'por_joist' => [], 'partes' => [], 'avisos' => []];
         foreach (importacao_expandir_documentos($docs['fixadores'] ?? [], ['trb', 'xlsx', 'xlsm', 'csv'], $tmp, 'fixadores', $limpar) as list($nome, $caminho)) {
             $r = leitura_fixadores($caminho, $nome);
             $fix['geral'] = array_merge($fix['geral'], $r['geral']);
             $fix['por_joist'] = array_merge($fix['por_joist'], $r['por_joist']);
+            $fix['partes'] = array_merge($fix['partes'] ?? [], $r['partes'] ?? []);
             $fix['avisos'] = array_merge($fix['avisos'], $r['avisos']);
         }
         // pranchas: índice pelo arquivo (o texto dos PDFs do Tekla não dá para ler sem biblioteca de PDF)

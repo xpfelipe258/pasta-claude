@@ -328,7 +328,7 @@ function vcRegrasHtml(cat, regra) {
   return `<div class="bloco"><div class="bloco-cab"><h2>Serviços com lista por regra</h2><span class="nota">Já definidos no projeto (regras_baixa.json). Entram nas atividades sem precisar de confirmação.</span></div>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Serviço</th><th>Atividade do catálogo</th><th class="n">Materiais</th><th class="n">Unidades do galpão</th></tr></thead><tbody>${sv}</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Fixadores e onde são usados</h2><span class="nota">${fix.length} fixadores no cadastro. "Sem uso" quer dizer que nenhuma regra ou kit consome o fixador.</span></div>
-    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcFixadoresProjetoHtml(vcPerm()) + vcParafusosHtml(vcPerm());
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>TAG</th><th>Fixador</th><th class="n">Planejado</th><th class="n">Chegou</th><th>Atividades que usam</th></tr></thead><tbody>${linhasFix}</tbody></table></div></div>` + vcFixadoresProjetoHtml(vcPerm()) + vcEstruturaProjetoHtml(vcPerm()) + vcParafusosHtml(vcPerm());
 }
 
 // ---------------------------------------------------------------- Parafusos, arruelas e porcas do projeto (modelos TRB)
@@ -504,6 +504,99 @@ function vcFixadoresProjetoHtml(podeEditar) {
     <details class="vc-ativ" open><summary><b>Comparação item a item</b> <span class="nota">passe o mouse na quantidade para ver por escopo / modelo · peso unitário da lista (total ÷ quantidade)</span></summary>
     <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Fixador</th><th class="n">Lista</th><th class="n">IFC</th><th class="n">Planejado</th><th>Maior</th><th class="n">Peso un. (kg)</th><th class="n">Peso total (kg)</th><th>TAG no cadastro</th></tr></thead><tbody>${linhas}</tbody></table></div></details>
     <div class="barra-acoes">${btn}</div></div>`;
+}
+// ---- Estrutura do projeto: LISTA DE PARTES POR CONJUNTO × IFC. Mesma regra: o planejado de cada TAG é o MAIOR valor (cadastro, lista ou IFC).
+// A marca pode estar repartida no cadastro em X, X_1, X_2 (um por local): compara-se o total e o acréscimo vai para a TAG principal.
+// Dados em M.estoque_ifc.estrutura_projeto (ferramentas/estrutura_projeto.php na obra 198; a importação de obra nova grava sozinha).
+const vcBaseTag = t => String(t || '').trim().toUpperCase().replace(/_\d+$/, '');
+function vcEstruturaItens() {
+  const e = M?.estoque_ifc?.estrutura_projeto;
+  return e && Array.isArray(e.itens) ? e.itens : [];
+}
+// por marca: linhas do cadastro que a compõem (exclui os fixadores FG/FJ/FX)
+function vcEstruturaPorBase(base) {
+  const por = new Map();
+  base.forEach(m => {
+    const t = String(m.tag || '').trim();
+    if (!t || /^F[GJX]\d/i.test(t)) return;
+    const b = vcBaseTag(t);
+    if (!por.has(b)) por.set(b, []);
+    por.get(b).push(m);
+  });
+  return por;
+}
+function vcAplicarEstrutura(base) {
+  const itens = vcEstruturaItens();
+  if (!itens.length) return base;
+  const por = vcEstruturaPorBase(base);
+  itens.forEach(p => {
+    const rows = por.get(String(p.tag).toUpperCase());
+    if (!rows) return;
+    const soma = soma0(rows, m => Number(m.planejado) || 0);
+    const main = rows.find(m => String(m.tag).toUpperCase() === String(p.tag).toUpperCase()) || rows[0];
+    main.planejado_estr = `lista ${nf(p.lista, 0)} · IFC ${nf(p.ifc, 0)}`;
+    main.planejado_lista = p.lista; main.planejado_ifc = p.ifc;
+    if (p.planejado > soma) {
+      const ch = Number(main.chegou) || 0, cadQ = Number(main.planejado) || 0;
+      main.planejado_cad = cadQ;
+      main.planejado = cadQ + (p.planejado - soma);
+      main.planejado_trb = p.planejado - soma;   // acréscimo do projeto (o Inventário soma o mesmo acréscimo)
+      main.trb_itens = [`lista ${nf(p.lista, 0)} × IFC ${nf(p.ifc, 0)}`];
+      main.atendimento = main.planejado ? ch / main.planejado : null;
+      main.status_logistico = ch <= 0 ? 'Crítico' : ch < main.planejado ? 'Recebimento Parcial' : ch > main.planejado ? 'Excedente' : 'Atendido';
+    }
+    if (p.peso_unit > 0) rows.forEach(m => { if (!(Number(m.peso_unitario) > 0)) { m.peso_unitario = p.peso_unit; m.peso_total = p.peso_unit * (Number(m.planejado) || 0); } });
+  });
+  return base;
+}
+function vcEstruturaProjetoHtml(podeEditar) {
+  const itens = vcEstruturaItens();
+  if (!itens.length) return '';
+  const base = estMateriaisComCadastros();
+  const por = vcEstruturaPorBase(base);
+  const bases = new Set(itens.map(p => String(p.tag).toUpperCase()));
+  const cadOrig = rows => soma0(rows, m => (m.planejado_cad != null ? Number(m.planejado_cad) : Number(m.planejado)) || 0);
+  const noCad = itens.filter(p => por.has(String(p.tag).toUpperCase()));
+  const faltam = itens.filter(p => !por.has(String(p.tag).toUpperCase()));
+  const ajust = noCad.filter(p => { const r = por.get(String(p.tag).toUpperCase()); return p.planejado > cadOrig(r) + 0.5; });
+  const cadMaior = noCad.filter(p => { const r = por.get(String(p.tag).toUpperCase()); return cadOrig(r) > p.planejado + 0.5; });
+  const soCad = [...por.entries()].filter(([b]) => !bases.has(b));
+  const dif = itens.filter(p => p.lista > 0 && p.ifc > 0 && Math.abs(p.lista - p.ifc) > 0.5);
+  const tile = (r, v, s2, c) => `<div class="tile" style="--c:${c}"><div class="rot"><span>${r}</span></div><div class="val">${v}</div><div class="sub">${s2}</div></div>`;
+  const orig = { lista: ['f-pendente', 'LISTA MAIOR'], IFC: ['f-amarelo', 'IFC MAIOR'], igual: ['f-verde', 'IGUAIS'], 'só lista': ['f-pendente', 'SÓ NA LISTA'], 'só IFC': ['f-amarelo', 'SÓ NO IFC'] };
+  const tabela = (cab, linhas) => `<div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr>${cab.map(c => `<th${c[0] === 'n' ? ' class="n"' : ''}>${c.replace(/^n:/, '')}</th>`.replace('>n:', '>')).join('')}</tr></thead><tbody>${linhas || '<tr><td colspan="9" class="vazio">Nenhum item.</td></tr>'}</tbody></table></div>`;
+  const ln = (p, extra) => { const o = orig[p.origem] || ['f-pendente', p.origem]; return `<tr><td><b>${esc(p.tag)}</b></td><td>${esc(p.produto)}<div class="nota">${esc(p.peca || '')}</div></td><td class="n">${p.lista ? nf(p.lista, 0) : '—'}</td><td class="n">${p.ifc ? nf(p.ifc, 0) : '—'}</td><td class="n"><b>${nf(p.planejado, 0)}</b></td><td><span class="farol ${o[0]}">${o[1]}</span></td><td class="n">${p.peso_unit > 0 ? nf(p.peso_unit, 2) : '—'}</td>${extra}</tr>`; };
+  const cabBase = ['TAG', 'Produto / perfil', 'n:Lista', 'n:IFC', 'n:Planejado', 'Maior', 'n:Peso un. (kg)'];
+  const linhasAj = ajust.map(p => { const r = por.get(String(p.tag).toUpperCase()); return ln(p, `<td class="n">${nf(cadOrig(r), 0)} → <b>${nf(p.planejado, 0)}</b></td>`); }).join('');
+  const linhasFalta = faltam.map(p => ln(p, `<td>${esc(p.fonte || '')}${p.local ? `<div class="nota">${esc(p.local)}</div>` : ''}</td>`)).join('');
+  const linhasSo = soCad.map(([b, rows]) => `<tr><td><b>${esc(b)}</b></td><td>${esc(rows[0].produto || rows[0].material || '')}</td><td class="n">${nf(cadOrig(rows), 0)}</td><td>${esc(rows[0].tipo_material || '')}</td></tr>`).join('');
+  const btn = faltam.length && podeEditar ? `<button class="btn primario" type="button" data-vc-criar-estrutura>Criar ${faltam.length} TAG(s) de estrutura que faltam no cadastro</button>` : '';
+  const fontes = [...(M.estoque_ifc.estrutura_projeto.fontes?.lista || []).map(f => `${esc(f.arquivo)} (${nf(f.conjuntos, 0)} conjuntos)`), ...(M.estoque_ifc.estrutura_projeto.fontes?.ifc || []).map(f => `IFC: ${esc(f.arquivo)}`)].join(' · ');
+  return `<div class="bloco"><div class="bloco-cab"><h2>Estrutura do projeto — lista de partes × IFC (planejado = o MAIOR dos dois)</h2><span class="nota">${fontes}${M.estoque_ifc.estrutura_projeto.gerado_em ? ` · conciliado em ${esc(M.estoque_ifc.estrutura_projeto.gerado_em)}` : ''}</span></div>
+    <div class="tiles">${tile('TAGs no projeto', nf(itens.length, 0), `${nf(noCad.length, 0)} no cadastro · ${nf(faltam.length, 0)} faltam`, faltam.length ? 'var(--amarelo)' : 'var(--verde)')}
+      ${tile('Quantidade ajustada', nf(ajust.length, 0), 'o projeto é maior que o cadastro', ajust.length ? 'var(--amarelo)' : 'var(--verde)')}
+      ${tile('Cadastro maior que o projeto', nf(cadMaior.length, 0), 'fica o valor do cadastro', 'var(--fg3)')}
+      ${tile('Só no cadastro', nf(soCad.length, 0), 'sem lista de partes nem IFC', soCad.length ? 'var(--amarelo)' : 'var(--verde)')}
+      ${tile('Lista ≠ IFC', nf(dif.length, 0), 'o maior dos dois vale', dif.length ? 'var(--amarelo)' : 'var(--verde)')}</div>
+    <details class="vc-ativ" open><summary><b>Quantidade ajustada</b> <span class="nota">${ajust.length} TAG(s) · cadastro → planejado novo</span></summary>${tabela([...cabBase, 'n:Cadastro → novo'], linhasAj)}</details>
+    <details class="vc-ativ"><summary><b>Faltando no cadastro</b> <span class="nota">${faltam.length} TAG(s) que o projeto tem e o cadastro de Materiais não</span></summary>${tabela([...cabBase, 'Escopo / local'], linhasFalta)}</details>
+    <details class="vc-ativ"><summary><b>Só no cadastro</b> <span class="nota">${soCad.length} TAG(s) sem lista de partes nem IFC (ex.: banzos e diagonais de joist, escada, telhas)</span></summary>${tabela(['TAG', 'Produto', 'n:Planejado', 'Tipo'], linhasSo)}</details>
+    <div class="barra-acoes">${btn}</div></div>`;
+}
+// cadastra em Materiais as TAGs de estrutura do projeto que ainda não existem (código = a marca da lista, quantidade = o maior entre lista e IFC)
+async function vcCriarTagsEstrutura() {
+  const por = vcEstruturaPorBase(estMateriaisComCadastros());
+  const faltam = vcEstruturaItens().filter(p => !por.has(String(p.tag).toUpperCase()));
+  if (!faltam.length) return toast('Todas as TAGs de estrutura do projeto já estão no cadastro.');
+  let n = 0;
+  try {
+    for (const p of faltam) {
+      await postar(API + 'registro', { tabela: 'materiais', campos: { codigo: p.tag, material: p.produto || 'CONJUNTO', unidade: 'un', tipo_material: 'ESTRUTURAL', local: p.local || p.fonte || '', etapa: '', saldo_inicial: p.planejado, obs: `Importado da lista de partes por conjunto (${p.fonte || 'projeto'}): lista ${nf(p.lista, 0)} × IFC ${nf(p.ifc, 0)}, vale o maior. Perfil: ${p.peca || '—'}.${p.peso_unit > 0 ? ` Peso unitário ${nf(p.peso_unit, 2)} kg.` : ''}` } });
+      n++;
+    }
+    await carregar();
+    toast(`${n} TAG(s) de estrutura criadas no cadastro de Materiais.`);
+  } catch (err) { toast(`${n} criadas; parou em: ${err.message || err}`, true); await carregar(); }
 }
 // quantidade do projeto somada ao planejado, por TAG (para o Inventário e outras telas)
 function vcPlanejadoTrbPorTag() {
@@ -782,6 +875,7 @@ document.addEventListener('click', ev => {
   if (!t) return;
   if (t.closest('[data-vc-parafcsv]')) return vcBaixarParafusosCsv();
   if (t.closest('[data-vc-criar-faltantes]')) return vcCriarTagsFaltantes();
+  if (t.closest('[data-vc-criar-estrutura]')) return vcCriarTagsEstrutura();
   const todas = t.closest('[data-vc-todas]');
   if (todas) {
     if (todas.dataset.vcTodas === 'abrir') document.querySelectorAll('#vcCorpo details[data-vc-ativ]').forEach(d => { d.open = true; VC.abertas.add(d.dataset.vcAtiv); });

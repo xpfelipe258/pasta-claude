@@ -2,6 +2,7 @@
 // Leitura dos documentos da obra dentro do sistema: orçamento/BM, cronograma e lista de fixadores.
 // Mesma lógica do serviço Python (servico_leitura/leitores), que continua opcional.
 require_once __DIR__ . '/leitura_util.php';
+require_once __DIR__ . '/estrutura_conciliacao.php';
 
 // ---------------------------------------------------------------- orçamento / memorial do BM
 
@@ -485,9 +486,16 @@ function leitura_fixadores($caminho, $nomeArq)
     $ext = strtolower(pathinfo($nomeArq, PATHINFO_EXTENSION));
     $geral = [];
     $joist = [];
+    $partes = [];
     $avisos = [];
     if (in_array($ext, ['xlsx', 'xlsm'], true)) {
-        foreach (xlsx_ler($caminho, 3000, 14) as $a) {
+        foreach (xlsx_ler($caminho, 6000, 14) as $a) {
+            // "Lista de partes por conjunto" (TAG-Conjunto, Qtd…): quantidade planejada de cada TAG de estrutura, não é lista de fixadores
+            $pc = est_ler_partes($a['linhas'], basename($nomeArq));
+            if ($pc) {
+                $partes = array_merge($partes, $pc);
+                continue;
+            }
             list($g, $b) = lf_planilha($a['linhas']);
             $geral = array_merge($geral, $g);
             $joist = array_merge($joist, $b);
@@ -506,8 +514,8 @@ function leitura_fixadores($caminho, $nomeArq)
     } else {
         $avisos[] = 'Lista de parafusos no formato .trb não é lida: os parafusos do IFC (Bolts:On) e a lista em planilha são usados.';
     }
-    if (!$geral && !$joist && $ext !== 'trb') {
+    if (!$geral && !$joist && !$partes && $ext !== 'trb') {
         $avisos[] = 'Não encontrei a tabela de fixadores (colunas Qtd e Descrição).';
     }
-    return ['geral' => $geral, 'por_joist' => $joist, 'avisos' => $avisos];
+    return ['geral' => $geral, 'por_joist' => $joist, 'partes' => $partes, 'avisos' => $avisos];
 }
