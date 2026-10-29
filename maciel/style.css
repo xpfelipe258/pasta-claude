@@ -1232,7 +1232,10 @@ tr.mat-editando td{background:var(--acento-bg,rgba(255,170,0,.08))}
 #aba-rdo .tiles { margin-bottom: 14px; }
 .rdo-botoes { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
 .rdo-botoes .btn { padding: 10px 18px; font-weight: 700; }
-.rdo-obs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rdo-obs { display: grid; grid-template-columns: minmax(230px, 280px) repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+.rdo-clima { display: flex; flex-direction: column; gap: 10px; }
+.rdo-clima .nota { margin: 0; }
+@media (max-width: 900px) { .rdo-obs { grid-template-columns: 1fr; } }
 .rdo-obs label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; color: var(--fg2); }
 .rdo-obs input, .rdo-obs textarea, .rdo-foto textarea { padding: 8px 10px; border: 1px solid var(--linha-forte); border-radius: 6px; background: var(--campo); color: var(--fg); font: inherit; font-weight: 400; resize: vertical; width: 100%; box-sizing: border-box; }
 .rdo-galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }

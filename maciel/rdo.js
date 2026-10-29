@@ -170,9 +170,11 @@ function renderRdo() {
     <div class="bloco">
       <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
+        <div class="rdo-clima">
         <label>Clima — manhã<input type="text" id="rdoClimaManha" list="rdoClimas" maxlength="120" value="${esc(info.clima_manha || '')}" placeholder="ex.: ensolarado" ${pode ? '' : 'disabled'}></label>
         <label>Clima — tarde<input type="text" id="rdoClimaTarde" list="rdoClimas" maxlength="120" value="${esc(info.clima_tarde || '')}" placeholder="ex.: chuva fraca" ${pode ? '' : 'disabled'}></label>
         ${info.clima && !info.clima_manha && !info.clima_tarde ? `<p class="nota">Clima registrado antes da divisão por período: “${esc(info.clima)}”. Informe manhã e tarde acima.</p>` : ''}
+        </div>
         <datalist id="rdoClimas"><option value="Ensolarado"><option value="Nublado"><option value="Chuva fraca"><option value="Chuva forte"><option value="Chuva — serviços paralisados"></datalist>
         <label>Observações para o RDO do cliente<textarea id="rdoObsCli" rows="4" placeholder="O que o cliente deve saber do dia (ocorrências, visitas, liberações…)" ${pode ? '' : 'disabled'}>${esc(info.obs_cliente || '')}</textarea></label>
         <label>Observações só para o RDO da gestão<textarea id="rdoObsGes" rows="4" placeholder="Anotações internas (aparecem apenas no RDO da gestão)" ${pode ? '' : 'disabled'}>${esc(info.obs_gestao || '')}</textarea></label>
