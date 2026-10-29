@@ -5323,19 +5323,20 @@ function graficoEquip(rt) {
   const emps = [...new Set(rt.map(r => r.empAjust))].sort((a, b) => (COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
   $('#legEq').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('') + `<span class="nota">por ${({ dia: 'dia', semana: 'semana', mes: 'mês', ano: 'ano' })[modo]}</span>`;
   const outras = emps.filter(n => !COR_EMP[n]);
+  const agrupado = modo === 'mes';   // por mês: uma barra por empresa lado a lado sobre o mês (nos demais, empilhado)
   trocarGrafico('gEquip', {
     type: 'bar',
     data: {
       labels: buckets.map(rotuloT),
       datasets: emps.map(n => ({
         label: n, data: buckets.map(b => +soma0(rt.filter(r => r.empAjust === n && chaveT(r.data) === b), r => r.custoR + r.combR).toFixed(2)),
-        backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, stack: 'custo',
+        backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, ...(agrupado ? {} : { stack: 'custo' }),
       })),
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}`, footer: its => 'Total: ' + rs(soma0(its, i => i.raw)) } } },
-      scales: { ...eixos({ stacked: true, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: true, ticks: { color: cor('--fg2') }, grid: { display: false } } },
+      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
     },
   });
 }
