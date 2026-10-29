@@ -644,16 +644,51 @@ async function rsHtmlExec() {
   await tplLogosCarregar();
   return tplDocumento({ titulo: 'Suprimentos — Painel de gargalos', subtitulo: `Relatório executivo · posição em ${fdA(D.ref)}`, meta: 'Saúde do suprimento · gargalos por prioridade · remessas · capacidade · falta chegar · acuracidade', corpo: rsTry('executivo', () => rsHtmlExecCorpo(D)), css: RS_CSS + RS_CSS_EXEC });
 }
+
+// ---------------------------------------------------------------- relatório de FIXADORES (itens do inventário): planejado × enviado × pendente
+async function rsHtmlFixadores() {
+  const D = await rsDados({ locais: null, tipo: 'fixador' });
+  await tplLogosCarregar();
+  const fx = D.itens.filter(i => i.tipo === 'FIXADOR');
+  const comPlan = fx.filter(i => i.plan > 0);
+  const totPlan = soma0(fx, i => i.plan), totEnv = soma0(fx, i => i.chegou), totPend = soma0(fx, i => i.falta), totEnvUtil = soma0(fx, i => Math.min(i.chegou, i.plan || i.chegou));
+  const kgPend = soma0(fx, i => i.kgFalta), kgPlan = soma0(fx, i => i.kgPlan);
+  const nCompl = comPlan.filter(i => i.st === 'COMPLETO').length, nParc = comPlan.filter(i => i.st === 'PARCIAL').length, nNao = comPlan.filter(i => i.st === 'NÃO CHEGOU').length;
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const pctGeral = totPlan ? totEnvUtil / totPlan : null;
+  const cards = [
+    card('Itens de fixador', nf(fx.length), `${nf(comPlan.length)} com quantidade planejada`, 'az'),
+    card('Planejado', nf(totPlan), 'soma das quantidades (unidades)', 'nd'),
+    card('Enviado (chegou na obra)', nf(totEnv), `${rsPct(pctGeral, 0)} do planejado`, pctGeral == null ? 'nd' : pctGeral >= .9 ? 'vd' : pctGeral >= .6 ? 'am' : 'vm'),
+    card('Pendente', nf(totPend), kgPend ? `${rsT(kgPend)} a chegar (itens com peso cadastrado)` : 'falta chegar', totPend ? 'vm' : 'vd'),
+    card('Itens completos', nf(nCompl), `${nf(nParc)} parciais · ${nf(nNao)} não chegaram`, nNao ? 'vm' : nParc ? 'am' : 'vd'),
+  ].join('');
+  const farolSt = { COMPLETO: 'vd', PARCIAL: 'am', 'NÃO CHEGOU': 'vm', 'SEM PLANEJADO': 'nd' };
+  const cab = `<tr class="rs-cab"><th>TAG</th><th>Fixador</th><th>Local</th><th class="n">Planejado</th><th class="n">Enviado</th><th class="n">Pendente</th><th class="n">%</th><th>Avanço</th><th>Situação</th></tr>`;
+  const linha = i => `<tr><td><b>${esc(i.tag)}</b></td><td>${esc(i.produto || i.material)}${i.material && i.material !== i.produto ? `<div class="nota">${esc(i.material)}</div>` : ''}</td><td>${esc(i.local)}</td><td class="n">${nf(i.plan)}</td><td class="n">${nf(i.chegou)}</td><td class="n ${i.falta ? 'neg' : ''}"><b>${i.falta ? nf(i.falta) : i.exc ? '+' + nf(i.exc) : '0'}</b></td><td class="n">${rsPct(i.pct, 0)}</td><td>${rsBarraPct(i.pct, rsClsPct(i.pct))}</td><td>${rsFr(farolSt[i.st] || 'nd', i.st)}</td></tr>`;
+  // agrupado pelo tipo de fixador (parafuso, porca, arruela…), o que mais falta primeiro
+  const categoria = i => { const n = rsNorm(`${i.material} ${i.produto}`); return /PARABOLT|HARDBOLT|CHUMBADOR|CBB|CBQ/.test(n) ? 'Chumbadores e parabolts' : /PORCA/.test(n) ? 'Porcas' : /ARRUELA/.test(n) ? 'Arruelas' : /PARAF|AUTOBROC|OLHAL|BARRA ROSC/.test(n) ? 'Parafusos' : 'Outros fixadores'; };
+  const grupos = new Map(); fx.forEach(i => { const k = categoria(i); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); });
+  const corpo = [...grupos.entries()].sort((a, b) => soma0(b[1], i => i.falta) - soma0(a[1], i => i.falta) || a[0].localeCompare(b[0], 'pt')).map(([k, l]) =>
+    `<tr class="grupo"><td colspan="9"><b>${esc(k)}</b> — ${nf(l.length)} item(ns) · planejado ${nf(soma0(l, i => i.plan))} · enviado ${nf(soma0(l, i => i.chegou))} · pendente ${nf(soma0(l, i => i.falta))}</td></tr>${cab}`
+    + l.sort((a, b) => b.falta - a.falta || a.tag.localeCompare(b.tag)).map(linha).join('')).join('');
+  const tot = `<tr class="grupo"><td colspan="3"><b>TOTAL</b></td><td class="n"><b>${nf(totPlan)}</b></td><td class="n"><b>${nf(totEnv)}</b></td><td class="n"><b>${nf(totPend)}</b></td><td class="n"><b>${rsPct(pctGeral, 0)}</b></td><td colspan="2"></td></tr>`;
+  const html = fx.length
+    ? `<div class="cards">${cards}</div><h2>Fixadores — planejado × enviado × pendente</h2><table><tbody>${corpo}${tot}</tbody></table>
+       <p class="nota">São os mesmos itens da aba Inventário (tipo fixador). <b>Enviado</b> = quantidade que já chegou na obra, somando todas as remessas de fixador do TAG; <b>pendente</b> = planejado − enviado; <b>planejado</b> = o maior valor entre o cadastro, a lista de fixadores e o IFC. Quantidade enviada acima do planejado aparece com +. Itens sem planejado ficam como “SEM PLANEJADO”.</p>`
+    : '<p class="nota">Não há itens de fixador cadastrados.</p>';
+  return tplDocumento({ titulo: 'Relatório de fixadores', subtitulo: `Inventário de fixadores · planejado × enviado × pendente · posição em ${fdA(D.ref)}`, meta: 'Fixadores da obra · planejado × enviado × pendente', corpo: html, css: RS_CSS });
+}
 let RS_GERANDO = false;
 async function rsGerar(btn, filtro) {
   if (RS_GERANDO) return;
   RS_GERANDO = true;
-  const exec = !filtro;
+  const fixa = filtro === 'fixadores', exec = !filtro;
   const rot = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando relatório…'; }
   try {
-    const html = exec ? await rsHtmlExec() : await rsHtml(filtro);
-    reAbrirPrevia(html, `Relatorio-Suprimentos-${exec ? 'executivo' : 'geral'}-${ref}.html`, exec ? 'Relatório executivo de Suprimentos' : 'Relatório geral de Suprimentos');
+    const html = fixa ? await rsHtmlFixadores() : exec ? await rsHtmlExec() : await rsHtml(filtro);
+    reAbrirPrevia(html, `Relatorio-Suprimentos-${fixa ? 'fixadores' : exec ? 'executivo' : 'geral'}-${ref}.html`, fixa ? 'Relatório de fixadores' : exec ? 'Relatório executivo de Suprimentos' : 'Relatório geral de Suprimentos');
   } catch (e) {
     console.error('Relatório de Suprimentos', e);
     toast('Não foi possível gerar o relatório de Suprimentos: ' + (e && e.message || e), true, 6000);
@@ -663,6 +698,7 @@ async function rsGerar(btn, filtro) {
 async function rsAbrir(btn) {
   if (RS_GERANDO) return;
   if (btn && btn.dataset.relSuprim === 'exec') return rsGerar(btn, null);
+  if (btn && btn.dataset.relSuprim === 'fixadores') return rsGerar(btn, 'fixadores');
   if (!EP) { try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* abaixo */ } }
   if (!EP) return toast('Os dados de Suprimentos ainda não foram carregados. Abra uma aba de Suprimentos e tente de novo.', true);
   rsFiltroAbrir();
