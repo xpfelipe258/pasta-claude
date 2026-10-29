@@ -6851,18 +6851,33 @@ function frenteDoServico(servico, nomesEmp = []) {
   for (const e of M.empresas) { const sv = (e.servicos || []).find(x => x.nome === servico); if (sv) return sv.frente || ''; }
   return '';
 }
+// serviço do impacto: um serviço do cadastro da empresa ou "Outros…" (digitado à mão)
+function servicoImpactoValor(f) {
+  const v = f.elements.servico.value;
+  return v === '__outro' ? (f.elements.servicoOutro?.value || '').trim() : v;
+}
+function atualizarServicoOutro(f) {
+  const o = f.elements.servicoOutro; if (!o) return;
+  const outro = f.elements.servico.value === '__outro';
+  o.hidden = !outro; o.required = outro;
+  if (!outro) o.value = '';
+}
 function preencherServicosImpacto(f, atual) {
   const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value), sel = f.elements.servico;
   const grupos = M.empresas.filter(e => emps.includes(e.nome));
+  const eraOutro = sel.value === '__outro';
   const opt = v => `<option value="${esc(v)}">${esc(v)}</option>`;
   let h = grupos.length ? '<option value="">Selecione o serviço</option>' : '<option value="">Marque a empresa primeiro</option>';
   if (grupos.length === 1) h += (grupos[0].servicos || []).map(sv => opt(sv.nome)).join('');
   else h += grupos.map(e => `<optgroup label="${esc(e.nome)}">${(e.servicos || []).map(sv => opt(sv.nome)).join('')}</optgroup>`).join('');
+  h += '<option value="__outro">Outros… (digitar o serviço)</option>';
   sel.innerHTML = h;
   if (atual) {
-    if (![...sel.options].some(o => o.value === atual)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(atual)}">${esc(atual)} (fora do cadastro da empresa)</option>`);
-    sel.value = atual;
+    if ([...sel.options].some(o => o.value === atual && o.value !== '__outro')) sel.value = atual;
+    else { sel.value = '__outro'; f.elements.servicoOutro.value = atual; }   // serviço fora do cadastro da empresa
   }
+  if (eraOutro && !atual) sel.value = '__outro';
+  atualizarServicoOutro(f);
   atualizarCascataImpacto(f);
 }
 function cascataTexto(c, max = 3) {
@@ -6871,7 +6886,7 @@ function cascataTexto(c, max = 3) {
   return `${c.posteriores.slice(0, max).map(x => x.rotulo || x.nome).join(' → ')}${c.posteriores.length > max ? ` … (+${c.posteriores.length - max})` : ''}`;
 }
 function atualizarCascataImpacto(f) {
-  const box = $('#impCascata'), servico = f.elements.servico.value;
+  const box = $('#impCascata'), servico = servicoImpactoValor(f);
   if (!box) return;
   if (!servico) { box.hidden = true; return; }
   const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value);
@@ -6898,6 +6913,7 @@ function abrirFormImp(linha) {
   if (selEmpImp) selEmpImp.innerHTML = M.empresas.map(e => `<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
   f.elements.fornecedorSel.innerHTML = '<option value="">Selecione o fornecedor</option>' + fornecedoresImpacto().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__outro">Outros…</option>';
   f.elements.fornecedorOutro.value = '';
+  f.elements.servicoOutro.value = '';
   if (linha) {
     const i = M.impactos.find(x => x.linha === linha);
     for (const k of ['data', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado', 'solucao', 'solucionado_por']) {
@@ -7393,12 +7409,12 @@ function ligarEventos() {
     renderImpactos();
   });
   $('#btnNovoImp').onclick = () => abrirFormImp(null);
-  $('#formImp').addEventListener('input', ev => { if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto($('#formImp')); });   // mostra "Qual fornecedor?" assim que o setor vira Fornecedor
+  $('#formImp').addEventListener('input', ev => { if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto($('#formImp')); else if (ev.target.name === 'servicoOutro') atualizarCascataImpacto($('#formImp')); });   // mostra "Qual fornecedor?" assim que o setor vira Fornecedor
   $('#formImp').addEventListener('change', ev => {
     const f = $('#formImp');
     if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto(f);
-    if (ev.target.name === 'empresasSel') preencherServicosImpacto(f, f.elements.servico.value);   // só os serviços das empresas marcadas
-    else if (ev.target.name === 'servico') atualizarCascataImpacto(f);
+    if (ev.target.name === 'empresasSel') preencherServicosImpacto(f, servicoImpactoValor(f));   // só os serviços das empresas marcadas
+    else if (ev.target.name === 'servico') { atualizarServicoOutro(f); if (f.elements.servico.value === '__outro') f.elements.servicoOutro.focus(); atualizarCascataImpacto(f); }
   });
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
   const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
@@ -7429,6 +7445,10 @@ function ligarEventos() {
     ev.preventDefault();
     const f = ev.target, corpo = {};
     for (const k of ['data', 'servico', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado', 'solucao', 'solucionado_por']) corpo[k] = f.elements[k].value.trim() || null;   // serviço: exatamente como no cadastro da empresa
+    if (f.elements.servico.value === '__outro') {   // "Outros": serviço digitado à mão
+      corpo.servico = servicoImpactoValor(f) || null;
+      if (!corpo.servico) { toast('Digite qual é o serviço.', true); f.elements.servicoOutro.focus(); return; }
+    }
     if (corpo.solucionado) {   // impacto solucionado: como e por quem
       if (!corpo.solucao) { toast('Informe como o impacto foi solucionado.', true); f.elements.solucao.focus(); return; }
       if (!corpo.solucionado_por) { toast('Informe quem solucionou o impacto.', true); f.elements.solucionado_por.focus(); return; }

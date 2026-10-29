@@ -681,7 +681,7 @@
       <div class="campos">
         <label>Data<input type="date" name="data" required></label>
         <label class="largo">Empresas impactadas<select name="empresasSel" multiple size="4"></select><span class="nota">Use Ctrl para marcar mais de uma empresa. O serviço abaixo mostra só o que pertence às empresas marcadas.</span></label>
-        <label>Serviço<select name="servico" required><option value="">Marque a empresa primeiro</option></select><span class="nota">Exatamente como está cadastrado na empresa.</span></label>
+        <label>Serviço<select name="servico" required><option value="">Marque a empresa primeiro</option></select><input name="servicoOutro" placeholder="digite qual é o serviço" hidden><span class="nota">Como está cadastrado na empresa, ou escolha “Outros” para digitar.</span></label>
         <label>Setor responsável<input name="setor" list="listaSetores" placeholder="quem causou o impacto"></label>
         <label id="impFornecedorBox" hidden>Qual fornecedor?<select name="fornecedorSel"></select><input name="fornecedorOutro" placeholder="nome do fornecedor" hidden><span class="nota">Setor “Fornecedor”: escolha CMM, EJ, GLOBO AÇOS ou Outros.</span></label>
         <div class="largo imp-cascata" id="impCascata" hidden></div>
