@@ -3796,23 +3796,19 @@ function renderEstInventario() {
     tile('Consumo virtual corrigido', corrigidos, 'diferem da planilha', corrigidos ? 'var(--amarelo)' : 'var(--verde)');
 
   const farolAcu = s => ({ CONFORME: 'verde', ATENCAO: 'amarelo', CRITICO: 'vermelho' })[norm(s)] || 'pendente';
-  const ROT_ORIGEM = { producao: ['verde', 'Produção'], apontamento: ['verde', 'Apontamento'], ajuste: ['amarelo', 'Ajuste'], planilha: ['pendente', 'Planilha'] };
-  const sinal = v => (v > 0 ? '+' : '') + nf(v);
-  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th>Origem</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
+  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
-      const [oc, ot] = ROT_ORIGEM[m.origem] || ['pendente', '—'];
       return `<tr>
       <td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
       <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.estoque_virtual_base)}</td><td class="n">${nf(m.estoque_fisico)}</td>
-      <td class="n"><b>${m.parcial ? '≥ ' : ''}${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}${Math.abs(m.delta) >= 1 ? `<br><span class="nota">planilha ${nf(m.consumo_planilha)} (${sinal(m.delta)})</span>` : ''}</td>
-      <td>${m.origem ? `<span class="farol f-${oc}" title="${esc(m.nota)}">${ot}</span>` : ''}</td>
+      <td class="n"${m.nota ? ` title="${esc(m.nota)}"` : ''}><b>${m.parcial ? '≥ ' : ''}${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}</td>
       <td class="n">${nf(m.consumo_fisico)}</td><td class="n">${nf(m.estoque_virtual_atual)}</td>
       <td class="n ${m.perda_real < 0 ? 'valor-neg' : ''}">${nf(m.perda_real)}</td>
       <td class="n">${m.status ? nf(m.acuracidade * 100, 1) + '%' : '—'}</td>
       <td>${m.status ? `<span class="farol f-${farolAcu(m.status)}">${esc(m.status)}</span>` : ''}</td>
       <td>${esc(m.acao || '')}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+    : '<tr><td colspan="12" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
   requestAnimationFrame(syncScrollTopo);
 }
 
