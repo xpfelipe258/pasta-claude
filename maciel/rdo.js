@@ -170,7 +170,9 @@ function renderRdo() {
     <div class="bloco">
       <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
-        <label>Clima / condição do tempo<input type="text" id="rdoClima" list="rdoClimas" maxlength="120" value="${esc(info.clima || '')}" placeholder="ex.: ensolarado, chuva fraca à tarde" ${pode ? '' : 'disabled'}></label>
+        <label>Clima — manhã<input type="text" id="rdoClimaManha" list="rdoClimas" maxlength="120" value="${esc(info.clima_manha || '')}" placeholder="ex.: ensolarado" ${pode ? '' : 'disabled'}></label>
+        <label>Clima — tarde<input type="text" id="rdoClimaTarde" list="rdoClimas" maxlength="120" value="${esc(info.clima_tarde || '')}" placeholder="ex.: chuva fraca" ${pode ? '' : 'disabled'}></label>
+        ${info.clima && !info.clima_manha && !info.clima_tarde ? `<p class="nota">Clima registrado antes da divisão por período: “${esc(info.clima)}”. Informe manhã e tarde acima.</p>` : ''}
         <datalist id="rdoClimas"><option value="Ensolarado"><option value="Nublado"><option value="Chuva fraca"><option value="Chuva forte"><option value="Chuva — serviços paralisados"></datalist>
         <label>Observações para o RDO do cliente<textarea id="rdoObsCli" rows="4" placeholder="O que o cliente deve saber do dia (ocorrências, visitas, liberações…)" ${pode ? '' : 'disabled'}>${esc(info.obs_cliente || '')}</textarea></label>
         <label>Observações só para o RDO da gestão<textarea id="rdoObsGes" rows="4" placeholder="Anotações internas (aparecem apenas no RDO da gestão)" ${pode ? '' : 'disabled'}>${esc(info.obs_gestao || '')}</textarea></label>
@@ -186,6 +188,14 @@ function renderRdo() {
             <textarea rows="2" data-rdo-leg="${f.linha}" placeholder="Comentário da foto" ${pode ? '' : 'disabled'}>${esc(f.legenda || '')}</textarea></figcaption></figure>`).join('') || '<p class="vazio">Sem fotos neste dia.</p>'}
       </div>
     </div>`;
+}
+
+// clima do dia: manhã e tarde (registro antigo só tinha um campo único, `clima`)
+function rdoClimaTxt(info) {
+  if (!info) return '';
+  const m = (info.clima_manha || '').trim(), t = (info.clima_tarde || '').trim();
+  if (m || t) return `Manhã: ${m || 'não informado'} · Tarde: ${t || 'não informado'}`;
+  return (info.clima || '').trim();
 }
 
 // ---------------------------------------------------------------- fotos e observações
@@ -225,11 +235,11 @@ function rdoSalvarObs() {
   const dia = rdoDia();
   if (rdoValidacao(dia)) return;
   rdoFila = rdoFila.then(async () => {
-    if (rdoDia() !== dia || !$('#rdoClima') || rdoValidacao(dia)) return;
-    const campos = { data: dia, clima: $('#rdoClima').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
+    if (rdoDia() !== dia || !$('#rdoClimaManha') || rdoValidacao(dia)) return;
+    const campos = { data: dia, clima_manha: $('#rdoClimaManha').value.trim(), clima_tarde: $('#rdoClimaTarde').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
     const info = rdoInfo(dia);   // relido a cada vez: a gravação anterior já recarregou o modelo
-    if (info && (info.clima || '') === campos.clima && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
-    if (!info && !campos.clima && !campos.obs_cliente && !campos.obs_gestao) return;
+    if (info && (info.clima_manha || '') === campos.clima_manha && (info.clima_tarde || '') === campos.clima_tarde && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
+    if (!info && !campos.clima_manha && !campos.clima_tarde && !campos.obs_cliente && !campos.obs_gestao) return;
     try { await postar(API + 'registro', { tabela: 'rdo_dias', linha: info ? info.linha : null, campos }); await carregar(); }
     catch (e) { toast(e.message, true); }
   });
@@ -444,7 +454,7 @@ async function rdoHtml(dia, modo) {
   const tImp = imp.map(i => `<tr><td>${esc(i.data ? fdA(i.data) : '—')}</td><td>${esc(i.servico || '—')}</td><td>${esc(i.empresas || '—')}</td><td>${esc(i.setor || '—')}</td><td>${esc(i.motivo || '—')}${i.paralisacao ? `<br><span class="nota">${esc(i.paralisacao)}</span>` : ''}</td><td>${esc(i.tempo || '—')}${i.quando ? ` · ${esc(i.quando)}` : ''}</td></tr>`).join('');
 
   const corpo = `${RDO_CSS}<section class="emp-sec"><div class="pag">
-    <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${info.clima ? ` · Clima: ${esc(info.clima)}` : ''}</p>
+    <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${rdoClimaTxt(info) ? ` · Clima: ${esc(rdoClimaTxt(info))}` : ''}</p>
     ${(() => { const v = rdoValidacao(dia); return v ? `<p class="rdo-selo ok">✔ RDO VALIDADO — ${esc(rdoTxtValidacao(v))}</p>` : '<p class="rdo-selo">RASCUNHO — este RDO ainda não foi validado pelo administrador.</p>'; })()}
     <div class="cards">
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
@@ -516,7 +526,7 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
   if (ev.target.id === 'rdoData' && ehISO(ev.target.value)) rdoIrParaDia(ev.target.value);
   else if (ev.target.id === 'rdoArq') { const l = [...ev.target.files]; ev.target.value = ''; if (l.length) rdoEnviar(l); }
-  else if (ev.target.id === 'rdoClima') rdoSalvarObs();
+  else if (['rdoClimaManha', 'rdoClimaTarde'].includes(ev.target.id)) rdoSalvarObs();
 });
 document.addEventListener('focusout', ev => {
   if (ev.target.id === 'rdoObsCli' || ev.target.id === 'rdoObsGes') rdoSalvarObs();
