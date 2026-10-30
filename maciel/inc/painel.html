@@ -6,13 +6,12 @@
 <meta name="theme-color" content="#1c1b18">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Gestão de Obras">
+<meta name="apple-mobile-web-app-title" content="MTEC Obras">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="assets/icone-180.png">
+<!--ICONES-->
 <title>Obra 198 · Gestão de Obras</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231c1b18%22/%3E%3Cpath d=%22M6 24h20M9 24V12l7-5 7 5v12%22 stroke=%22%23fff%22 stroke-width=%222.5%22 fill=%22none%22/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<script src="datas_br.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
@@ -206,21 +205,23 @@
   <!-- PAINEL -->
   <section id="aba-painel" hidden>
     <div class="barra-acoes" id="painelFiltroBar">
+      <div class="seg" id="segPainelModo" title="Executivo = gestão à vista (o essencial); Detalhado = todas as tabelas e planos"><button data-painel-modo="exec">Executivo</button><button data-painel-modo="det">Detalhado</button></div>
       <div class="seg" id="segPainelEmp"></div>
       <div class="re-barra" title="Relatório do painel escolhido (Geral = todas as empresas) no período ao lado">
         <label>De <input type="date" id="reBarIni"></label><label>até <input type="date" id="reBarFim"></label>
         <button class="btn" id="btnRelEmpresas">Relatório geral</button>
       </div>
     </div>
+    <div class="exec-faixa" id="painelFaixa"></div>
     <div class="tiles" id="tiles"></div>
     <div class="bloco" id="painelPlanos"></div>
     <div class="grade-2">
-      <div class="bloco">
+      <div class="bloco" id="painelBlocoFarol">
         <div class="bloco-cab"><h2>Farol do período</h2><span class="nota" id="notaFarol"></span></div>
         <div class="tabela-rolagem"><table id="tabFarol"></table></div>
       </div>
       <div class="bloco">
-        <div class="bloco-cab"><h2>Pontos de atenção</h2></div>
+        <div class="bloco-cab"><h2>Pontos de atenção</h2><span class="nota" id="alertasResumo"></span></div>
         <ul class="alertas" id="alertas"></ul>
       </div>
     </div>
@@ -230,7 +231,7 @@
       </div>
       <div class="grafico alto"><canvas id="gPainel"></canvas></div>
     </div>
-    <div class="bloco">
+    <div class="bloco" id="painelPlanoAcao">
       <div class="bloco-cab">
         <h2>Plano de ação semanal</h2>
         <span class="nota">Saldo = escopo por empresa − realizado · Meta necessária/dia = saldo ÷ dias úteis até o prazo · Gap acum. = soma de (real − meta) em todas as semanas encerradas</span>
@@ -368,6 +369,7 @@
       <select id="estMatEtapa" class="input-filtro"><option value="">Todas as etapas</option></select>
       <select id="estMatStatus" class="input-filtro"><option value="">Todos os status</option></select>
       <div class="acoes">
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="fixadores" title="Relatório de FIXADORES (itens do Inventário): planejado × enviado × pendente">Relatório de fixadores</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn" data-novo="movimentos">+ Movimentação</button>
         <button class="btn primario" data-novo="materiais">+ Cadastrar material</button>
       </div>
@@ -384,6 +386,7 @@
     <div class="barra-acoes">
       <input type="text" id="estRemFiltro" class="input-filtro" placeholder="Filtrar por TAG ou produto...">
       <div class="acoes">
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="fixadores" title="Relatório de FIXADORES (itens do Inventário): planejado × enviado × pendente">Relatório de fixadores</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn primario" id="btnNovaRemessaCarga" title="Carga de estrutura (joists, vigas, terças, telhas…)">+ Remessa de carga</button>
         <button class="btn primario" id="btnNovaRemessaFixador" title="Fixadores: parafusos, porcas, arruelas, chumbadores…">+ Remessa de fixador</button>
       </div>
@@ -408,6 +411,7 @@
       <input type="text" id="estConsFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
       <div class="acoes">
         <button class="btn" id="btnConsDatas" title="Informar o período (de/até) de cada semana do consumo (liga o consumo ao calendário nos relatórios)">Períodos das semanas</button>
+        <button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="fixadores" title="Relatório de FIXADORES (itens do Inventário): planejado × enviado × pendente">Relatório de fixadores</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button>
         <button class="btn" id="btnRelConsumo">Relatório de consumo</button>
         <button class="btn primario" id="btnNovoConsumo">+ Registrar consumo</button>
       </div>
@@ -490,7 +494,9 @@
     <div class="barra-acoes">
       <input type="text" id="estInvFiltro" class="input-filtro" placeholder="Filtrar por TAG...">
       <select id="estInvStatus" class="input-filtro"><option value="">Todos</option><option value="CRITICO">Critico</option><option value="ATENCAO">Atencao</option><option value="CONFORME">Conforme</option></select>
-    </div>
+    
+      <div class="acoes"><button class="btn" data-rel-suprim="exec" title="Relatório EXECUTIVO de Suprimentos: 1 página para a diretoria, com os gargalos já ordenados por prioridade">Relatório executivo</button> <button class="btn" data-rel-suprim="fixadores" title="Relatório de FIXADORES (itens do Inventário): planejado × enviado × pendente">Relatório de fixadores</button> <button class="btn" data-rel-suprim="geral" title="Relatório GERAL do setor de Suprimentos: remessas com faróis de prazo, logística, planejado × chegou, acuracidade, maior uso, capacidade e impactos">Relatório geral</button></div>
+</div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Inventario fisico × virtual</h2>
         <span class="nota" id="estInvNota"></span></div>
@@ -675,7 +681,7 @@
       <div class="campos">
         <label>Data<input type="date" name="data" required></label>
         <label class="largo">Empresas impactadas<select name="empresasSel" multiple size="4"></select><span class="nota">Use Ctrl para marcar mais de uma empresa. O serviço abaixo mostra só o que pertence às empresas marcadas.</span></label>
-        <label>Serviço<select name="servico" required><option value="">Marque a empresa primeiro</option></select><span class="nota">Exatamente como está cadastrado na empresa.</span></label>
+        <label>Serviço<select name="servico" required><option value="">Marque a empresa primeiro</option></select><input name="servicoOutro" placeholder="digite qual é o serviço" hidden><span class="nota">Como está cadastrado na empresa, ou escolha “Outros” para digitar.</span></label>
         <label>Setor responsável<input name="setor" list="listaSetores" placeholder="quem causou o impacto"></label>
         <label id="impFornecedorBox" hidden>Qual fornecedor?<select name="fornecedorSel"></select><input name="fornecedorOutro" placeholder="nome do fornecedor" hidden><span class="nota">Setor “Fornecedor”: escolha CMM, EJ, GLOBO AÇOS ou Outros.</span></label>
         <div class="largo imp-cascata" id="impCascata" hidden></div>
@@ -798,6 +804,8 @@
     <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-tut-cancelar>Cancelar</button><button type="submit" class="btn primario">Gerar PDF</button></div>
   </form>
 </dialog>
+<dialog id="dlgRelSup" class="rs-dialog"><form method="dialog"></form></dialog>
+
 <dialog id="dlgTfRel">
   <form id="tfRelForm" method="dialog">
     <div class="bloco-cab"><h2>Relatório de tarefas</h2></div>
@@ -881,6 +889,7 @@
 <script src="pdf_relatorio.js"></script>
 <script src="rel_empresa.js"></script>
 <script src="rel_lanc.js"></script>
+<script src="rel_suprimentos.js"></script>
 <script src="rdo.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>

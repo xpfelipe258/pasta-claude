@@ -69,6 +69,7 @@ function relPdfCortes(H, altPag, duras, titulos) {
 
 async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
   await relPdfLibs();
+  if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
   const progresso = typeof aoProgredir === 'function' ? aoProgredir : () => {};
   const paisagem = /@page\s*\{[^}]*size\s*:[^;}]*landscape/i.test(html);
   const gestaoTxt = ((html.match(/<meta name="tpl-gestao" content="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"') || '';   // "OBRA · EMPRESA" do rodapé (identidade visual da empresa)

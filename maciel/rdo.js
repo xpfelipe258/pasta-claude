@@ -77,9 +77,11 @@ function rdoEfetivo(dia) {
   });
   return [...por.entries()].map(([emp, l]) => ({ emp, linhas: l.sort((a, b) => a.funcao.localeCompare(b.funcao, 'pt')), total: soma0(l, x => x.qtd) })).sort((a, b) => a.emp.localeCompare(b.emp, 'pt'));
 }
+// Remessas que chegaram na obra no dia: a data "Obra" da aba Remessas é digitada como dd/mm/aaaa (ou aaaa-mm-dd), então
+// as duas formas são convertidas para ISO antes de comparar com o dia do RDO. Só o número da remessa (nunca os itens).
 function rdoRemessas(dia) {
-  const dt = (EP && EP.remessas && EP.remessas.datas) || {};
-  return Object.entries(dt).filter(([, v]) => v && v.chegada_obra === dia).map(([nome]) => nome).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
+  const dt = (typeof estRemessasComCadastros === 'function' ? estRemessasComCadastros()?.datas : (EP && EP.remessas && EP.remessas.datas)) || {};
+  return Object.entries(dt).filter(([, v]) => v && dataRemessaIso(v.chegada_obra) === dia).map(([nome]) => nome).sort((a, b) => a.localeCompare(b, 'pt', { numeric: true }));
 }
 function rdoMaquinas(dia) {
   try { return relEquipDados('geral', dia, dia, 'todos').linhas; } catch (e) { console.error('RDO máquinas', e); return []; }
@@ -89,7 +91,16 @@ function rdoMaquinas(dia) {
 function rdoMaquinasUsadasNomes(maq) {
   return new Set(maq.filter(m => !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0).map(m => ganNorm(m.equipamento)));
 }
-function rdoMaquinasControle(maq) {
+// Regra da perfiladeira (pedido do usuário, 2026-10-30): se a PERFILAGEM DE TELHAS teve avanço no dia (produção lançada na grade/BM
+// ou apontamento de perfilagem que lança produção), a perfiladeira conta automaticamente como USADA; sem avanço fica PARADA
+// (a regra de locação mensal não vale para ela: depende só do avanço).
+const rdoEhPerfiladeira = e => /PERFILAD/.test(ganNorm(`${e.equipamento || ''} ${e.tipo || ''}`));
+function rdoPerfilagemAvanco(dia) {
+  try { if (prodServico('PERFILAGEM DE TELHAS', '', dia, dia) > 0) return true; } catch (err) { console.error('RDO perfilagem', err); }
+  return (T.apontamentos || []).some(a => a.data === dia && (a.tipo || '').toUpperCase() === 'PERFILAGEM' && (a.lanca_producao || '').toUpperCase() !== 'NAO');
+}
+function rdoMaquinasControle(maq, dia) {
+  const perfAvanco = dia ? rdoPerfilagemAvanco(dia) : false;
   const usadas = rdoMaquinasUsadasNomes(maq);
   const soAbast = new Set(maq.map(m => ganNorm(m.equipamento)).filter(n => !usadas.has(n)));
   const cad = ((T && T.equipamentos) || []).filter(e => e.equipamento && ganNorm(e.situacao || '') !== 'DESMOBILIZADO');
@@ -97,9 +108,11 @@ function rdoMaquinasControle(maq) {
     const n = ganNorm(e.equipamento), manut = ganNorm(e.situacao || '').startsWith('MANUT');
     const usos = maq.filter(m => ganNorm(m.equipamento) === n);
     const emps = [...new Set(usos.map(m => m.empresa).filter(Boolean))];
-    const mensal = ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
-    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
-    return { mensal, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
+    const perf = rdoEhPerfiladeira(e);   // perfiladeira: em uso só quando a perfilagem de telhas teve avanço no dia
+    const mensal = !perf && ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
+    const auto = perf && perfAvanco && !usadas.has(n);
+    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal || auto ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
+    return { mensal, auto, perf, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
   const cadNomes = new Set(cad.map(e => ganNorm(e.equipamento)));
   return {
@@ -123,9 +136,14 @@ function rdoImpactosAbertos(dia) {
 }
 
 // ---------------------------------------------------------------- tela da aba
+let RDO_EP_PEDIDO = false;
 function renderRdo() {
+  if (!EP && !RDO_EP_PEDIDO) {   // remessas ainda não chegaram do servidor: busca uma vez e refaz a tela
+    RDO_EP_PEDIDO = true;
+    fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if (j) { EP = j; if (abaAtual === 'rdo') renderRdo(); } }).catch(() => {});
+  }
   const ae = document.activeElement;   // quem está digitando não é interrompido: o modelo já foi atualizado e a tela é refeita ao sair do campo
-  if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date') return;
+  if (ae && ae.closest && ae.closest('#rdoCorpo') && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== 'date' && !ae.classList.contains('data-br-txt')) return;
   const dia = rdoDia(), fotos = rdoFotos(dia), info = rdoInfo(dia) || {}, pode = rdoPodeEditar(dia), val = rdoValidacao(dia);
   const efet = rdoEfetivo(dia), prod = rdoProducao(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -148,8 +166,8 @@ function renderRdo() {
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
-      ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
-      ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'chegaram na obra no dia' : 'sem remessa no dia', 'var(--acento)')}
+      ${(() => { const mc = rdoMaquinasControle(maq, dia); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
+      ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'Remessa ' + rem.map(esc).join(', ') : 'sem remessa no dia', 'var(--acento)')}
     </div>
     <div class="bloco rdo-gerar">
       <div class="bloco-cab"><h2>Gerar o relatório do dia</h2><span class="nota">O sistema reúne tudo o que foi lançado em ${esc(fdA(dia))}. Confira antes de baixar.</span></div>
@@ -163,7 +181,11 @@ function renderRdo() {
     <div class="bloco">
       <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
-        <label>Clima / condição do tempo<input type="text" id="rdoClima" list="rdoClimas" maxlength="120" value="${esc(info.clima || '')}" placeholder="ex.: ensolarado, chuva fraca à tarde" ${pode ? '' : 'disabled'}></label>
+        <div class="rdo-clima">
+        <label>Clima — manhã<input type="text" id="rdoClimaManha" list="rdoClimas" maxlength="120" value="${esc(info.clima_manha || '')}" placeholder="ex.: ensolarado" ${pode ? '' : 'disabled'}></label>
+        <label>Clima — tarde<input type="text" id="rdoClimaTarde" list="rdoClimas" maxlength="120" value="${esc(info.clima_tarde || '')}" placeholder="ex.: chuva fraca" ${pode ? '' : 'disabled'}></label>
+        ${info.clima && !info.clima_manha && !info.clima_tarde ? `<p class="nota">Clima registrado antes da divisão por período: “${esc(info.clima)}”. Informe manhã e tarde acima.</p>` : ''}
+        </div>
         <datalist id="rdoClimas"><option value="Ensolarado"><option value="Nublado"><option value="Chuva fraca"><option value="Chuva forte"><option value="Chuva — serviços paralisados"></datalist>
         <label>Observações para o RDO do cliente<textarea id="rdoObsCli" rows="4" placeholder="O que o cliente deve saber do dia (ocorrências, visitas, liberações…)" ${pode ? '' : 'disabled'}>${esc(info.obs_cliente || '')}</textarea></label>
         <label>Observações só para o RDO da gestão<textarea id="rdoObsGes" rows="4" placeholder="Anotações internas (aparecem apenas no RDO da gestão)" ${pode ? '' : 'disabled'}>${esc(info.obs_gestao || '')}</textarea></label>
@@ -179,6 +201,14 @@ function renderRdo() {
             <textarea rows="2" data-rdo-leg="${f.linha}" placeholder="Comentário da foto" ${pode ? '' : 'disabled'}>${esc(f.legenda || '')}</textarea></figcaption></figure>`).join('') || '<p class="vazio">Sem fotos neste dia.</p>'}
       </div>
     </div>`;
+}
+
+// clima do dia: manhã e tarde (registro antigo só tinha um campo único, `clima`)
+function rdoClimaTxt(info) {
+  if (!info) return '';
+  const m = (info.clima_manha || '').trim(), t = (info.clima_tarde || '').trim();
+  if (m || t) return `Manhã: ${m || 'não informado'} · Tarde: ${t || 'não informado'}`;
+  return (info.clima || '').trim();
 }
 
 // ---------------------------------------------------------------- fotos e observações
@@ -218,11 +248,11 @@ function rdoSalvarObs() {
   const dia = rdoDia();
   if (rdoValidacao(dia)) return;
   rdoFila = rdoFila.then(async () => {
-    if (rdoDia() !== dia || !$('#rdoClima') || rdoValidacao(dia)) return;
-    const campos = { data: dia, clima: $('#rdoClima').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
+    if (rdoDia() !== dia || !$('#rdoClimaManha') || rdoValidacao(dia)) return;
+    const campos = { data: dia, clima_manha: $('#rdoClimaManha').value.trim(), clima_tarde: $('#rdoClimaTarde').value.trim(), obs_cliente: $('#rdoObsCli').value.trim(), obs_gestao: $('#rdoObsGes').value.trim(), por: (D.usuario && D.usuario.nome) || '' };
     const info = rdoInfo(dia);   // relido a cada vez: a gravação anterior já recarregou o modelo
-    if (info && (info.clima || '') === campos.clima && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
-    if (!info && !campos.clima && !campos.obs_cliente && !campos.obs_gestao) return;
+    if (info && (info.clima_manha || '') === campos.clima_manha && (info.clima_tarde || '') === campos.clima_tarde && (info.obs_cliente || '') === campos.obs_cliente && (info.obs_gestao || '') === campos.obs_gestao) return;
+    if (!info && !campos.clima_manha && !campos.clima_tarde && !campos.obs_cliente && !campos.obs_gestao) return;
     try { await postar(API + 'registro', { tabela: 'rdo_dias', linha: info ? info.linha : null, campos }); await carregar(); }
     catch (e) { toast(e.message, true); }
   });
@@ -375,6 +405,7 @@ async function rdoMapasHtml(dia) {
 
 async function rdoHtml(dia, modo) {
   await tplLogosCarregar();
+  try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* segue com o que já está na tela */ }   // remessa lançada agora há pouco entra no relatório
   const gestao = modo === 'gestao', info = rdoInfo(dia) || {};
   const prod = rdoProducao(dia), efet = rdoEfetivo(dia), rem = rdoRemessas(dia), maq = rdoMaquinas(dia), fotos = rdoFotos(dia), aps = rdoApontamentos(dia);
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -421,9 +452,9 @@ async function rdoHtml(dia, modo) {
   const linhasMaq = maq.filter(m => gestao || !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0);
   const tMaq = linhasMaq.map(m => `<tr><td><b>${esc(m.equipamento)}</b></td><td>${esc(m.empresa || '—')}</td><td>${esc(m.uso || '—')}</td><td class="n">${m.qtd ? nf(m.qtd, 2) : '—'}</td><td>${esc(m.operTxt || '—')}</td>${gestao ? `<td class="n">${m.litros ? nf(m.litros, 1) + ' L' : '—'}</td><td class="n">${rs2((m.custo || 0) + (m.comb || 0))}</td>` : ''}</tr>`).join('');
 
-  const mctl = rdoMaquinasControle(maq);
-  const mensaisSemLanc = mctl.linhas.filter(l => l.mensal && l.no === 'USADA' && !l.lancada);   // locação mensal em uso, sem lançamento no dia
-  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>LOCAÇÃO MENSAL (em uso)</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
+  const mctl = rdoMaquinasControle(maq, dia);
+  const mensaisSemLanc = mctl.linhas.filter(l => (l.mensal || l.auto) && l.no === 'USADA' && !l.lancada);   // locação mensal ou perfiladeira com avanço, em uso sem lançamento no dia
+  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>${l.auto ? 'USO AUTOMÁTICO (perfilagem de telhas com avanço)' : 'LOCAÇÃO MENSAL (em uso)'}</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
   const corNo = { 'USADA': 'vd', 'PARADA': 'vm', 'SÓ ABASTECIDA': 'am', 'MANUTENÇÃO': 'am' };
   const tAtivas = mctl.linhas.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.tipo || '—')}</td><td>${esc(l.resp || '—')}</td>${gestao ? `<td>${esc(l.cobranca || '—')}</td>` : ''}<td>${esc(l.situacao)}</td><td><span class="farol f-${corNo[l.no] === 'vd' ? 'verde' : corNo[l.no] === 'vm' ? 'vermelho' : 'amarelo'}">${esc(l.no)}</span></td></tr>`).join('');
 
@@ -436,7 +467,7 @@ async function rdoHtml(dia, modo) {
   const tImp = imp.map(i => `<tr><td>${esc(i.data ? fdA(i.data) : '—')}</td><td>${esc(i.servico || '—')}</td><td>${esc(i.empresas || '—')}</td><td>${esc(i.setor || '—')}</td><td>${esc(i.motivo || '—')}${i.paralisacao ? `<br><span class="nota">${esc(i.paralisacao)}</span>` : ''}</td><td>${esc(i.tempo || '—')}${i.quando ? ` · ${esc(i.quando)}` : ''}</td></tr>`).join('');
 
   const corpo = `${RDO_CSS}<section class="emp-sec"><div class="pag">
-    <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${info.clima ? ` · Clima: ${esc(info.clima)}` : ''}</p>
+    <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">${esc(rdoDiaTxt(dia))}${rdoClimaTxt(info) ? ` · Clima: ${esc(rdoClimaTxt(info))}` : ''}</p>
     ${(() => { const v = rdoValidacao(dia); return v ? `<p class="rdo-selo ok">✔ RDO VALIDADO — ${esc(rdoTxtValidacao(v))}</p>` : '<p class="rdo-selo">RASCUNHO — este RDO ainda não foi validado pelo administrador.</p>'; })()}
     <div class="cards">
       ${card('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
@@ -462,7 +493,7 @@ async function rdoHtml(dia, modo) {
     <h2>Máquinas usadas no dia</h2>
     <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq + tMensais || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
       ${gestao && linhasMaq.length ? `<tfoot><tr><th colspan="6">Gasto de equipamentos e combustível lançado no dia</th><th class="n">${rs2(gastoEq + gastoComb)}</th></tr></tfoot>` : ''}</table>
-    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
+    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados. A perfiladeira conta como em uso quando a perfilagem de telhas teve avanço no dia e como parada quando não teve.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
     <h2>Chegada de material</h2>
     ${rem.length ? `<p>Remessa(s) que chegaram na obra neste dia: <b>${rem.map(esc).join('</b>, <b>')}</b>.</p>` : '<p class="rdo-sem">Nenhuma remessa chegou na obra neste dia.</p>'}
     ${gestao ? `<h2>Impactos em aberto</h2>
@@ -508,7 +539,7 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
   if (ev.target.id === 'rdoData' && ehISO(ev.target.value)) rdoIrParaDia(ev.target.value);
   else if (ev.target.id === 'rdoArq') { const l = [...ev.target.files]; ev.target.value = ''; if (l.length) rdoEnviar(l); }
-  else if (ev.target.id === 'rdoClima') rdoSalvarObs();
+  else if (['rdoClimaManha', 'rdoClimaTarde'].includes(ev.target.id)) rdoSalvarObs();
 });
 document.addEventListener('focusout', ev => {
   if (ev.target.id === 'rdoObsCli' || ev.target.id === 'rdoObsGes') rdoSalvarObs();

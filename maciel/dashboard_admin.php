@@ -7,6 +7,10 @@ $eu=exigir_login_pagina(); $obra=exigir_obra_pagina();
 $pode=fn($m)=>usuario_pode_modulo($eu,$m);
 $EP=$pode('suprimentos')?(estoque_planilha_ler() ?: []):[];
 $materiais=array_values(array_filter($EP['materiais']??[],'is_array'));
+require_once __DIR__.'/inc/fixadores_conciliacao.php';
+require_once __DIR__.'/inc/estrutura_conciliacao.php';
+$materiais=fxc_aplicar_materiais($materiais,carregar_fixadores_projeto());   // fixadores: planejado = maior entre cadastro, lista e IFC; peso da lista
+$materiais=est_aplicar_materiais($materiais,carregar_estrutura_projeto());   // conjuntos: lista de partes × IFC, o maior vale
 
 // Soma planejado / chegou / consumido por quantidade e por peso (peso = peso unitário × quantidade, só para itens com peso cadastrado).
 function dash_agrega(array $itens): array {

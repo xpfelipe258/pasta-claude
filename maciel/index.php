@@ -34,6 +34,8 @@ foreach (ui_catalogo() as $areaCat) {
 }
 $prefs = preferencias_usuario((int)$u['id']);
 $html = str_replace('<html lang="pt-BR">', '<html lang="' . h($prefs['idioma']) . '"' . tema_attr() . menu_attr() . ($prefs['tam_texto'] !== 'normal' ? ' data-texto="' . h($prefs['tam_texto']) . '"' : '') . '>', $html);
+$html = str_replace('<!--ICONES-->', icones_html(), $html);
+$html = str_replace('src="datas_br.js"', 'src="datas_br.js?v=' . @filemtime(__DIR__ . '/datas_br.js') . '"', $html);
 $html = str_replace('href="style.css"', 'href="style.css?v=' . @filemtime(__DIR__ . '/style.css') . '"', $html);
 $html = str_replace('src="app.js"', 'src="app.js?v=' . @filemtime(__DIR__ . '/app.js') . '"', $html);
 $html = str_replace('<script src="app.js', '<script src="consumo_ifc.js?v=' . @filemtime(__DIR__ . '/consumo_ifc.js') . '"></script><script src="app.js', $html);
@@ -43,6 +45,7 @@ $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @file
 $html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
 $html = str_replace('src="rdo.js"', 'src="rdo.js?v=' . @filemtime(__DIR__ . '/rdo.js') . '"', $html);
+$html = str_replace('src="rel_suprimentos.js"', 'src="rel_suprimentos.js?v=' . @filemtime(__DIR__ . '/rel_suprimentos.js') . '"', $html);
 $html = str_replace('src="rel_lanc.js"', 'src="rel_lanc.js?v=' . @filemtime(__DIR__ . '/rel_lanc.js') . '"', $html);
 $html = str_replace('src="bm_resumo.js"', 'src="bm_resumo.js?v=' . @filemtime(__DIR__ . '/bm_resumo.js') . '"', $html);
 $html = str_replace('src="mapa_obra.js"', 'src="mapa_obra.js?v=' . @filemtime(__DIR__ . '/mapa_obra.js') . '"', $html);

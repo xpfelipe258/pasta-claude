@@ -8,11 +8,18 @@
 // As telas redesenham as tabelas o tempo todo: um MutationObserver reaplica filtro e ordem depois de cada redesenho (estado por tabela).
 // Ficam de fora: tabelas dentro de janelas (modais), grades de lançamento/semana/pessoal e tabelas com células mescladas (rowspan).
 // Linhas de grupo (class "grupo" ou uma célula só com colspan) não se misturam: a ordem vale dentro de cada grupo.
+// PÁGINAS DE 50 LINHAS (pedido do usuário, 2026-10-28: "coloque páginas, ao invés de mostrar mais"): nenhuma lista mostra mais de 50 linhas de uma vez;
+// abaixo da tabela ficam "‹ Anterior · 1 2 3 … N · Próxima ›" e "linhas a–b de N". A página volta à 1ª a cada filtro, ordem ou clique no
+// cabeçalho e é refeita sozinha a cada redesenho. Vale também para as tabelas marcadas data-sem-ferramentas (sem a barra de filtro). Ficam sempre
+// completas as grades de lançamento/semana/pessoal, tabelas com células mescladas, as da aba Remessas (regra da remessa: lista inteira) e as que
+// levam o atributo data-sem-limite.
 // ------------------------------------------------------------------------------------------------
 (function () {
   const SECOES = 'main section[id^="aba-"]';
   const EXCLUI = '.tab-semana, .dp-matriz, #tabLanc, #tabSemana, #tabDP, [data-sem-ferramentas]';
-  const estado = new Map();                       // chave da tabela → { col, dir, filtro }
+  const LIMITE = 50;                              // linhas por página
+  const GRADES = '.tab-semana, .dp-matriz, #tabLanc, #tabSemana, #tabDP, [data-sem-limite], #aba-estrem table';
+  const estado = new Map();                       // chave da tabela → { col, dir, filtro, pag }
   const colator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
   const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const limpo = s => String(s == null ? '' : s).replace(/[✎✓✗▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
@@ -25,6 +32,11 @@
     if (!t.isConnected || t.matches(EXCLUI) || t.closest('.modal-admin, dialog, .modal-fundo, [id^="ganDatasPopup"]')) return false;
     if (t.querySelector('tbody [rowspan]')) { const r = [...t.querySelectorAll('tbody [rowspan]')].some(c => c.rowSpan > 1); if (r) return false; }
     return true;
+  }
+  // pode receber o limite de linhas? (as grades de digitação e as tabelas com células mescladas ficam completas)
+  function limitavel(t) {
+    if (!t.isConnected || t.matches(GRADES) || t.closest('.modal-admin, dialog, .modal-fundo, [id^="ganDatasPopup"]')) return false;
+    return ![...t.querySelectorAll('tbody [rowspan]')].some(c => c.rowSpan > 1);
   }
   function chaveDe(t) {
     if (t.id) return t.id;
@@ -115,16 +127,16 @@
     [...ancora.parentNode.children].forEach(x => { if (x.classList && x.classList.contains('tab-ferr') && x.dataset.tfChave === t._tfChave) x.remove(); });   // barra órfã de um redesenho anterior
     ancora.parentNode.insertBefore(b, ancora);
     const st = () => estado.get(t._tfChave);
-    b.querySelector('.tf-busca').addEventListener('input', ev => { st().filtro = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-col').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; if (s.col == null) s.dir = ''; aplicar(t); });
-    b.querySelector('.tf-ord').addEventListener('change', ev => { st().dir = ev.target.value; aplicar(t); });
-    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = ''; s.filtro = ''; aplicar(t); });
+    b.querySelector('.tf-busca').addEventListener('input', ev => { st().filtro = ev.target.value; st().pag = 0; aplicar(t); });
+    b.querySelector('.tf-col').addEventListener('change', ev => { const s = st(); s.col = ev.target.value === '' ? null : +ev.target.value; if (s.col == null) s.dir = ''; s.pag = 0; aplicar(t); });
+    b.querySelector('.tf-ord').addEventListener('change', ev => { st().dir = ev.target.value; st().pag = 0; aplicar(t); });
+    b.querySelector('.tf-limpar').addEventListener('click', () => { const s = st(); s.col = null; s.dir = ''; s.filtro = ''; s.pag = 0; aplicar(t); });
     return b;
   }
   function iniciar(t) {
     if (t._tfChave) return;
     t._tfChave = chaveDe(t);
-    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '' });
+    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '', pag: 0 });
     t.classList.add('tab-ord');
     t._tfBarra = criarBarra(t);
   }
@@ -202,6 +214,7 @@
       fechaGrupo();
     });
     barra.querySelector('.tf-cont').textContent = termos.length ? `${visiveis} de ${dados.length} linhas` : (dados.length ? `${dados.length} linhas` : '');
+    aplicarLimite(t);
 
     // 3) indicador no cabeçalho
     if (t.tHead) [...t.tHead.querySelectorAll('th')].forEach(th => {
@@ -213,6 +226,65 @@
     return mudou;
   }
 
+  // ---------------------------------------------------------------- páginas de 50 linhas
+  // Esconde (classe tf-limite) as linhas visíveis fora da página atual e mantém a barra de páginas abaixo da tabela.
+  function botoesPaginas(atual, total) {
+    const n = new Set([0, total - 1, atual - 1, atual, atual + 1]);
+    const lista = [...n].filter(i => i >= 0 && i < total).sort((a, b) => a - b);
+    let h = '', ant = -1;
+    lista.forEach(i => {
+      if (ant >= 0 && i - ant > 1) h += '<span class="tf-pt">…</span>';
+      h += `<button type="button" class="btn${i === atual ? ' tf-atual' : ''}" data-tf-pag="${i}" ${i === atual ? 'aria-current="page"' : ''}>${i + 1}</button>`;
+      ant = i;
+    });
+    return h;
+  }
+  function aplicarLimite(t) {
+    if (!t._tfChave) { t._tfChave = chaveDe(t); }
+    if (!estado.has(t._tfChave)) estado.set(t._tfChave, { col: null, dir: '', filtro: '', pag: 0 });
+    const s = estado.get(t._tfChave);
+    const ancora = t.closest('.tabela-rolagem') && t.closest('.tabela-rolagem').querySelectorAll('table').length === 1 ? t.closest('.tabela-rolagem') : t;
+    const rows = linhasDeDados(t);
+    rows.forEach(r => r.classList.remove('tf-limite'));
+    const visiveis = rows.filter(r => !ehSeparador(r) && !r.classList.contains('tf-oculta'));
+    let barra = ancora.nextElementSibling;
+    if (!(barra && barra.classList && barra.classList.contains('tf-mais') && barra.dataset.tfChave === t._tfChave)) barra = null;
+    if (!limitavel(t) || visiveis.length <= LIMITE) { if (barra) barra.remove(); s.pag = 0; return; }
+    const total = Math.ceil(visiveis.length / LIMITE);
+    s.pag = Math.max(0, Math.min(s.pag || 0, total - 1));
+    const ini = s.pag * LIMITE, fim = Math.min(visiveis.length, ini + LIMITE);
+    visiveis.forEach((r, i) => { if (i < ini || i >= fim) r.classList.add('tf-limite'); });
+    // separador de grupo sem nenhuma linha visível na página some junto
+    let sep = null, algum = false;
+    const fecha = () => { if (sep) sep.classList.toggle('tf-limite', !algum); };
+    rows.forEach(r => {
+      if (ehSeparador(r)) { fecha(); sep = r; algum = false; }
+      else if (!r.classList.contains('tf-oculta') && !r.classList.contains('tf-limite')) algum = true;
+    });
+    fecha();
+    if (!barra) {
+      barra = document.createElement('div');
+      barra.className = 'tf-mais';
+      barra.dataset.tfChave = t._tfChave;
+      ancora.parentNode.insertBefore(barra, ancora.nextSibling);
+    }
+    barra.innerHTML = `<span class="tf-info">Linhas <b>${ini + 1}–${fim}</b> de <b>${visiveis.length}</b></span>` +
+      `<span class="tf-pags"><button type="button" class="btn" data-tf-pag="${s.pag - 1}" ${s.pag === 0 ? 'disabled' : ''}>‹ Anterior</button>${botoesPaginas(s.pag, total)}` +
+      `<button type="button" class="btn" data-tf-pag="${s.pag + 1}" ${s.pag >= total - 1 ? 'disabled' : ''}>Próxima ›</button></span>` +
+      `<span class="tf-info">Página <b>${s.pag + 1}</b> de <b>${total}</b></span>`;
+  }
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('.tf-mais button[data-tf-pag]');
+    if (!b || b.disabled) return;
+    const barra = b.closest('.tf-mais'), chave = barra.dataset.tfChave, s = estado.get(chave);
+    const t = [...document.querySelectorAll(SECOES + ' table')].find(x => x._tfChave === chave);
+    if (!s || !t) return;
+    s.pag = +b.getAttribute('data-tf-pag') || 0;
+    obs.disconnect(); aplicarLimite(t); observar();
+    const topo = (t.closest('.tabela-rolagem') || t).getBoundingClientRect().top;
+    if (topo < 0) (t.closest('.tabela-rolagem') || t).scrollIntoView({ block: 'start' });   // volta ao começo da lista ao trocar de página
+  });
+
   // clique no cabeçalho: A→Z, Z→A, ordem original
   document.addEventListener('click', ev => {
     const th = ev.target.closest && ev.target.closest('thead th.th-ord');
@@ -223,6 +295,7 @@
     if (s.col === col && s.dir === 'asc') s.dir = 'desc';
     else if (s.col === col && s.dir === 'desc') s.dir = '';
     else { s.col = col; s.dir = 'asc'; }
+    s.pag = 0;
     obs.disconnect(); aplicar(t); observar();
   });
 
@@ -232,7 +305,7 @@
   function processar() {
     agendado = false;
     obs.disconnect();
-    try { sujas.forEach(t => { if (t.isConnected && elegivel(t)) { iniciar(t); aplicar(t); } else if (t._tfBarra) t._tfBarra.hidden = true; }); }
+    try { sujas.forEach(t => { if (t.isConnected && elegivel(t)) { iniciar(t); aplicar(t); } else { if (t._tfBarra) t._tfBarra.hidden = true; if (t.isConnected && t.closest(SECOES)) aplicarLimite(t); } }); }
     finally { sujas.clear(); observar(); }
   }
   const obs = new MutationObserver(ms => {

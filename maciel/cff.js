@@ -375,7 +375,7 @@ function cffCsv() {
   linhas.push([], ['Empresa', 'Item', 'Código', 'Atividade', 'Início cronograma', 'Fim cronograma', 'Valor', 'Previsto no período', 'Realizado no período', 'R$ previsto até a referência', 'R$ realizado até a referência', 'Projeção no fim']);
   D.atividades.filter(x => (!CFF.mod || x.emp === CFF.mod) && (x.V > 0 || x.pctReal > 0)).forEach(x =>
     linhas.push([x.emp, x.item, x.a.codigo, x.a.atividade, x.iniCrono || 'SEM CRONOGRAMA', x.fimCrono || '', num(x.V), num(cffNaJanela(x.prev, J)), num(J.iI > ib ? 0 : x.real[Math.min(J.iF, ib)] - (J.iI > 0 ? x.real[J.iI - 1] : 0)), num(x.prev[ib]), num(x.real[ib]), num(x.proj[x.proj.length - 1])]));
-  const csv = '﻿' + linhas.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const csv = '﻿' + dataBR(linhas.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n'));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `cronograma-fisico-financeiro-${(CFF.mod || 'geral').replace(/\s+/g, '-')}-${D.base}.csv`;

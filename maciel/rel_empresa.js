@@ -1008,6 +1008,7 @@ function reSincronizarBarra() {   // chamada a cada desenho do Painel: as datas 
 let reUltimo = null;
 function reAbrirPrevia(html, nomeArq, titulo, opcoes = {}) {   // opcoes: { rotuloBaixar, baixar: fn } — baixar personalizado (PDF no servidor, PNG do mapa…)
   document.getElementById('reDlgPrevia')?.remove();
+  if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
   if (!opcoes.semTemplate && typeof tplAdaptarRelatorio === 'function') html = tplAdaptarRelatorio(html, titulo);   // todo relatório sai no template Rótula × QPC
   const dlg = document.createElement('dialog');
   dlg.id = 'reDlgPrevia'; dlg.className = 're-previa';

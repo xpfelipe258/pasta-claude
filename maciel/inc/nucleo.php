@@ -129,7 +129,7 @@ function tabelas_spec()
             'eixo' => 'txt', 'letra' => 'txt', 'viga_id' => 'txt', 'qtd' => 'num', 'lanca_producao' => 'txt',
             'obs' => 'txt', 'slot' => 'num'],
         // Relatório diário de obra (RDO): observações do dia e fotos com legenda (o arquivo fica em dados_obras/{obra}/rdo, servido por rdo_foto.php)
-        'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
+        'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'clima_manha' => 'txt', 'clima_tarde' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
         'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
@@ -139,7 +139,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 23;   // 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 24;   // 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -1107,16 +1107,26 @@ function preferencias_usuario($id = null)
 }
 
 // $app = tela do sistema (Dashboard geral): usa o tema E a posição do menu do usuário e não carrega o visual do portal.
+function icones_html()
+{
+    $v = '?v=' . (@filemtime(dirname(__DIR__) . '/assets/icone-512.png') ?: 1);
+    return '<link rel="icon" href="assets/favicon.ico' . $v . '" sizes="any">'
+        . '<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png' . $v . '">'
+        . '<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png' . $v . '">'
+        . '<link rel="apple-touch-icon" href="assets/icone-180.png' . $v . '">'
+        . '<link rel="manifest" href="manifest.webmanifest">';
+}
+
 function pagina_inicio($titulo, $app = false)
 {
     $nome = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
-    $logo = config() ? global_ler('logo', '') : '';
     echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
-    if (is_string($logo) && strpos($logo, 'data:image/') === 0) { echo '<link rel="icon" href="' . h($logo) . '">'; }
+    echo icones_html();
+    echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
     echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261003v7">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 

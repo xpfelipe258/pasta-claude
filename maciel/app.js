@@ -7,6 +7,7 @@ let T = null;            // tabelas do sistema (estoque, equipamentos)
 let ref = null;          // data de referência / corte
 let per = null;          // período do painel {ini, fim}
 let painelEmpFiltro = null; // null = Geral (todas), string = nome da empresa
+let painelModo = (() => { try { return localStorage.getItem('painelModo') === 'det' ? 'det' : 'exec'; } catch (e) { return 'exec'; } })();   // exec = gestão à vista (padrão); det = tudo
 let faseFiltro = '';        // '' = Total, '1' = Fase 1 (Galpão F1), '2' = Fase 2 (Anexos)
 // Abas e sub-abas que o administrador ocultou para este usuário (index.php injeta window.UI_OCULTOS; administrador nunca tem ocultações)
 const UI_OCULTOS = Object.assign({ abas: [], subs: [] }, window.UI_OCULTOS || {});
@@ -42,7 +43,7 @@ function setMenuCont(id, n) {
 }
 function atualizarIndicadoresMenu() {
   if (!EP) return;
-  const invCrit = (EP.inventario || []).filter(x => {
+  const invCrit = (typeof inventarioSoFixadores === 'function' ? inventarioSoFixadores(EP.inventario || [], i => i.tag, i => i.produto || i.material) : (EP.inventario || [])).filter(x => {
     const st = String(x.status || '').toUpperCase(), ac = Number(x.acuracidade ?? 1), acao = String(x.acao || 'OK').trim().toUpperCase();
     return (st && st !== 'CONFORME') || ac < .8 || (acao && acao !== 'OK');
   }).length;
@@ -70,23 +71,8 @@ const maxD = (a, b) => (a > b ? a : b);
 function fd(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [, m, d] = s.split('-'); return `${d}/${m}`; }
 function fdA(s) { if (!s) return '—'; if (!ehISO(s)) return esc(s); const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; }
 function isoDeTexto(t) { const m = t.match(/^(\d{1,2})\/?(\d{1,2})\/?(\d{4})$/); return m ? `${m[3]}-${p2(m[2])}-${p2(m[1])}` : null; }
-function patchDatas() {
-  document.querySelectorAll('input[type="date"]:not([data-patched])').forEach(inp => {
-    inp.setAttribute('data-patched', '1');
-    const txt = document.createElement('input');
-    txt.type = 'text'; txt.className = inp.className; txt.placeholder = 'dd/mm/aaaa';
-    txt.style.cssText = inp.style.cssText;
-    txt.value = inp.value ? fdA(inp.value) : '';
-    inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden';
-    inp.parentNode.insertBefore(txt, inp.nextSibling);
-    inp._txtPar = txt;
-    txt.addEventListener('change', () => { const iso = isoDeTexto(txt.value.trim()); if (iso && ehISO(iso)) { inp.value = iso; inp.dispatchEvent(new Event('change', {bubbles:true})); txt.value = fdA(iso); } });
-    txt.addEventListener('focus', () => { inp.style.position = ''; inp.style.opacity = ''; inp.style.pointerEvents = ''; inp.style.width = ''; inp.style.height = ''; inp.style.overflow = ''; txt.style.display = 'none'; inp.focus(); });
-    inp.addEventListener('blur', () => { inp.style.position = 'absolute'; inp.style.opacity = '0'; inp.style.pointerEvents = 'none'; inp.style.width = '0'; inp.style.height = '0'; inp.style.overflow = 'hidden'; txt.style.display = ''; txt.value = inp.value ? fdA(inp.value) : ''; });
-    inp.addEventListener('change', () => { txt.value = inp.value ? fdA(inp.value) : ''; });
-  });
-  document.querySelectorAll('input[type="date"][data-patched]').forEach(inp => { if (inp._txtPar) inp._txtPar.value = inp.value ? fdA(inp.value) : ''; });
-}
+// Os campos de data são tratados por datas_br.js (texto dd/mm/aaaa + calendário); mantida porque várias telas ainda a chamam depois de desenhar.
+function patchDatas() { if (typeof datasBrVarrer === 'function') datasBrVarrer(); }
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
 function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
@@ -628,6 +614,9 @@ function renderPainel() {
     `<button data-painel-emp="" class="${!painelEmpFiltro ? 'ativa' : ''}">Geral</button>` +
     emps.map(n => `<button data-painel-emp="${esc(n)}" class="${n === painelEmpFiltro ? 'ativa' : ''}" style="--c:${corEmp(n)}">${esc(n)}</button>`).join('');
 
+  const exec = painelModo === 'exec';
+  $('#aba-painel').classList.toggle('painel-exec', exec);
+  document.querySelectorAll('#segPainelModo button').forEach(b => b.classList.toggle('ativa', b.dataset.painelModo === painelModo));
   const ks = painelEmpFiltro ? ksAll.filter(k => k.emp === painelEmpFiltro) : ksAll;
   const du = c >= per.ini ? contarDiasUteis(add(per.ini, -1), c) : 0;
   $('#notaFarol').textContent = `Previsto distribuído pelos dias úteis das metas · corte em ${fdA(c)}`;
@@ -656,7 +645,7 @@ function renderPainel() {
       : '';
     return `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.total === 0)}</div>
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
-      <div class="sub">${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}</div></div>`;
+      <div class="sub">${exec ? `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)}` : `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}`}</div></div>`;
   };
   // No modo filtrado por empresa: só o tile da empresa. No modo geral: geral + por empresa.
   const tileGeral = painelEmpFiltro
@@ -666,6 +655,21 @@ function renderPainel() {
     ? tileGeral
     : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
 
+  if (exec) {
+    // gestão à vista: serviço, realizado / previsto, % e farol; os piores primeiro dentro de cada empresa
+    let hx = '<thead><tr><th>Serviço</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% da meta do período</th></tr></thead><tbody>';
+    let ult = null;
+    [...ks].sort((a, b) => a.emp.localeCompare(b.emp) || (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct)).forEach(k => {
+      if (k.emp !== ult) { ult = k.emp; hx += `<tr class="grupo"><td colspan="5"><span class="emp-tag" style="--c:${corEmp(ult)}">${esc(ult)}</span></td></tr>`; }
+      const semMeta = k.prevTotal === 0, pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
+      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
+        <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+    });
+    $('#tabFarol').innerHTML = hx + '</tbody>';
+    renderAlertas(ks, c, true);
+    graficoPainel(ks);
+    return;
+  }
   let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th><th class="n" title="Atividades dos planos 5W2H ativos: % do plano já executado">Plano 5W2H</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
@@ -681,13 +685,13 @@ function renderPainel() {
       <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td>${celPlano}</tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
-  renderAlertas(ks, c);
+  renderAlertas(ks, c, false);
   graficoPainel(ks);
   renderPlanoAcao(c);
   renderPainelPlanos();
 }
 
-function renderAlertas(ks, c) {
+function renderAlertas(ks, c, exec) {
   const al = [];
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
     al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para a meta do período.`]));
@@ -724,8 +728,26 @@ function renderAlertas(ks, c) {
   });
 
   plAlertasPainel().forEach(x => al.push(x));   // atividades dos planos 5W2H atrasadas ou no limite
-  $('#alertas').innerHTML = al.length
-    ? al.map(([n, t]) => `<li><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span>${t}</span></li>`).join('')
+  // faixa de gestão à vista: quantos pontos críticos, de atenção e impactos em aberto
+  const nCrit = al.filter(a => a[0] === 'vermelho').length, nAten = al.length - nCrit, nImp = abertos.length;
+  const faixa = (rot, v, cc) => `<div class="exec-num" style="--c:${cc}"><b>${v}</b><span>${rot}</span></div>`;
+  const faixaEl = $('#painelFaixa');
+  if (faixaEl) faixaEl.innerHTML = faixa('pontos críticos', nCrit, nCrit ? 'var(--vermelho)' : 'var(--verde)') + faixa('pontos de atenção', nAten, nAten ? 'var(--amarelo)' : 'var(--verde)') + faixa('impactos em aberto', nImp, nImp ? 'var(--vermelho)' : 'var(--verde)');
+  let lista = al, resto = 0;
+  if (exec) {
+    lista = [...al].sort((a, b) => (a[0] === 'vermelho' ? 0 : 1) - (b[0] === 'vermelho' ? 0 : 1));
+    resto = Math.max(0, lista.length - 6);
+    lista = lista.slice(0, 6);
+  }
+  // visão detalhada: formato reduzido (uma linha por ponto, críticos primeiro; clicar na linha abre o texto inteiro)
+  const ul = $('#alertas'), comp = !exec;
+  ul.classList.toggle('al-comp', comp);
+  if (comp) lista = [...al].sort((a, b) => (a[0] === 'vermelho' ? 0 : 1) - (b[0] === 'vermelho' ? 0 : 1));
+  const resumoEl = $('#alertasResumo');
+  if (resumoEl) resumoEl.textContent = comp && al.length ? `${nCrit} crítico(s) · ${nAten} em atenção — clique na linha para ver o texto inteiro` : '';
+  ul.innerHTML = lista.length
+    ? lista.map(([n, t]) => `<li${comp ? ' class="al-l"' : ''}><span class="farol f-${n}">${n === 'vermelho' ? 'CRÍTICO' : 'ATENÇÃO'}</span><span class="al-txt">${t}</span></li>`).join('') +
+      (resto ? `<li class="vazio">+ ${resto} ponto(s) a mais · <button class="link" data-painel-modo-ir="det">ver na visão detalhada</button></li>` : '')
     : '<li class="vazio">Nenhum ponto de atenção para o período.</li>';
 }
 
@@ -1066,8 +1088,9 @@ function pendentesEmPeriodoFechado() {
 function atualizarPendentes() {
   const n = pend.size + bmPend.size;
   const nf_ = n ? pendentesEmPeriodoFechado() : 0;
-  $('#pendCont').hidden = !n; $('#pendCont').textContent = n;
-  $('#pendTxt').textContent = n ? `${n} alteração(ões) não salva(s)${nf_ ? ` · ${nf_} em período de BM fechado (vira ajuste no BM em aberto)` : ''}` : `Tudo salvo ${ONDE}`;
+  const pc = $('#pendCont'), pt = $('#pendTxt');   // o botão Lançamentos some do menu quando o administrador oculta essa aba
+  if (pc) { pc.hidden = !n; pc.textContent = n; }
+  if (pt) pt.textContent = n ? `${n} alteração(ões) não salva(s)${nf_ ? ` · ${nf_} em período de BM fechado (vira ajuste no BM em aberto)` : ''}` : `Tudo salvo ${ONDE}`;
   $('#btnSalvar').disabled = !n || salvando;
   $('#btnDescartar').disabled = !n || salvando;
 }
@@ -2746,7 +2769,9 @@ function estMateriaisComCadastros() {
     vistos.add(matChaveTag(tag));
   });
   // quantidade de parafusos, arruelas e porcas do projeto (modelos TRB) somada ao planejado das TAGs de fixador (vinculos.js)
-  return typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
+  const comFix = typeof vcAplicarTrb === 'function' ? vcAplicarTrb(base) : base;
+  // conjuntos de estrutura: o MAIOR entre cadastro, lista de partes por conjunto e IFC (vinculos.js)
+  return typeof vcAplicarEstrutura === 'function' ? vcAplicarEstrutura(comFix) : comFix;
 }
 function estRemessasComCadastros() {
   const rem = EP?.remessas || { colunas: [], datas: {}, itens: [] };
@@ -2786,6 +2811,16 @@ function estConsumoComCadastros() {
   });
   return { ...cf, itens };
 }
+// O Inventário acompanha só os fixadores (parafusos, porcas, arruelas, chumbadores…): vale o tipo do cadastro de Materiais e,
+// para a TAG que não está lá, o nome (FG/FJ###, parafuso, porca…). Estrutura sai da lista.
+function inventarioSoFixadores(lista, tagDe, nomeDe) {
+  const tipoPorTag = new Map(estMateriaisComCadastros().map(m => [matChaveTag(m.tag), ehFixador(m)]));
+  return lista.filter(i => {
+    const k = matChaveTag(tagDe(i));
+    if (tipoPorTag.has(k)) return tipoPorTag.get(k);
+    return /^F[GJ]\d/i.test(String(tagDe(i)).trim()) || ehFixadorCadastro({ codigo: tagDe(i), material: nomeDe(i) });
+  });
+}
 function estInventarioComCadastros() {
   const trb = typeof vcPlanejadoTrbPorTag === 'function' ? vcPlanejadoTrbPorTag() : new Map();
   const inv = (EP?.inventario || []).map(i => (trb.has(i.tag) ? { ...i, planejado: (Number(i.planejado) || 0) + trb.get(i.tag), planejado_trb: trb.get(i.tag) } : i));
@@ -2798,7 +2833,7 @@ function estInventarioComCadastros() {
       perda_real: 0, taxa_perda: 0, acuracidade: 1, status: 'CONFORME', acao: 'OK', obs: '', origem_cadastro: 'manual' });
     vistos.add(matChaveTag(tag));
   });
-  return inv;
+  return inventarioSoFixadores(inv, i => i.tag, i => i.produto || i.material);   // Inventário = só fixadores
 }
 
 function renderEstMateriais() {
@@ -2859,7 +2894,7 @@ function renderEstMateriais() {
       return `<tr class="${MAT_SEL.has(m.tag) ? 'mat-sel' : ''}">
       ${podeLote ? `<td class="mat-ck"><input type="checkbox" data-mat-sel="${esc(m.tag)}" aria-label="Selecionar ${esc(m.tag)}" ${MAT_SEL.has(m.tag) ? 'checked' : ''}></td>` : ''}<td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
       <td>${esc(m.local || '—')}</td><td>${esc(m.etapa)}</td>
-      <td class="n">${nf(m.planejado)}${m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
+      <td class="n">${nf(m.planejado)}${m.planejado_estr ? `<br><span class="nota" title="Planejado = o MAIOR entre o cadastro (${nf(m.planejado_cad ?? m.planejado)}), a lista de partes por conjunto (${nf(m.planejado_lista)}) e o IFC (${nf(m.planejado_ifc)})">${esc(m.planejado_estr)}</span>` : m.planejado_proj != null ? `<br><span class="nota" title="Planejado = o MAIOR entre o cadastro (${nf(m.planejado_cad)}), a lista de fixadores (${nf(m.planejado_lista)}) e o IFC (${nf(m.planejado_ifc)})">lista ${nf(m.planejado_lista)} · IFC ${nf(m.planejado_ifc)}${m.planejado_cad > m.planejado_proj ? ' · cadastro maior' : ''}</span>` : m.planejado_trb ? `<br><span class="nota" title="Quantidade do projeto (modelos TRB: ${esc((m.trb_itens || []).join(', '))}) somada ao planejado do cadastro">cadastro ${nf(m.planejado_cad)} + projeto ${nf(m.planejado_trb)}</span>` : ''}</td><td class="n">${nf(m.chegou)}</td><td class="n">${nf(consumidoDe(m))}</td>
       <td class="n ${posBaixaDe(m) < 0 ? 'valor-neg' : ''}">${nf(posBaixaDe(m))}</td>
       <td class="n">${m.atendimento != null ? nf(m.atendimento * 100, 1) + '%' : '—'}</td>
       <td><span class="farol f-${farolSt(m.status_logistico)}">${esc(m.status_logistico || '—')}</span></td>
@@ -2888,6 +2923,7 @@ function matBarraLote(itens) {
   el.innerHTML = `<b>${nf(n, 0)} item(ns) selecionado(s)</b>${fora ? ` <span class="nota">(${nf(fora, 0)} fora do filtro atual)</span>` : ''}
     <span class="mat-lote-acoes">
       <button type="button" class="btn" data-mat-lote="local">Mudar local</button>
+      <button type="button" class="btn" data-mat-lote="etapa">Mudar etapa</button>
       <button type="button" class="btn" data-mat-lote="tipo">Mudar tipo</button>
       <button type="button" class="btn perigo" data-mat-lote="excluir">Excluir</button>
       <button type="button" class="btn" data-mat-lote="limpar">Limpar seleção</button>
@@ -2925,6 +2961,12 @@ function matLoteAbrir(acao) {
       <label>Local / grupo<input type="text" id="matLoteLocal" list="matLoteLocais" maxlength="120" placeholder="Digite ou escolha um local já existente" autocomplete="off"></label>
       <datalist id="matLoteLocais">${locais.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
     rotBtn = 'Mudar local';
+  } else if (acao === 'etapa') {
+    const etapas = [...new Set(itens.map(m => m.etapa).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+    corpo = `<p>Nova etapa para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
+      <label>Etapa<input type="text" id="matLoteEtapa" list="matLoteEtapas" maxlength="120" placeholder="Digite ou escolha uma etapa já existente" autocomplete="off"></label>
+      <datalist id="matLoteEtapas">${etapas.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`;
+    rotBtn = 'Mudar etapa';
   } else if (acao === 'tipo') {
     const tipos = [...new Set(['ESTRUTURA', 'FIXADOR', 'CONSUMO', 'OUTROS', ...itens.map(m => String(m.tipo_material || '').toUpperCase()).filter(Boolean)])];
     corpo = `<p>Novo tipo para <b>${nf(sel.length, 0)}</b> item(ns): <span class="nota">${lista}</span></p>
@@ -2939,12 +2981,12 @@ function matLoteAbrir(acao) {
       <label class="mat-lote-forcar"><input type="checkbox" id="matLoteForcar"> Excluir também os itens que já têm recebimento ou consumo lançado</label>` : ''}`;
     rotBtn = `Excluir ${nf(sel.length, 0)} item(ns)`; perigo = true;
   }
-  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
+  dlg.innerHTML = `<form method="dialog" id="matLoteForm"><div class="bloco-cab"><h2>${acao === 'local' ? 'Mudar local' : acao === 'etapa' ? 'Mudar etapa' : acao === 'tipo' ? 'Mudar tipo' : 'Excluir itens selecionados'}</h2><button type="button" class="btn-icone" data-mat-lote-fechar aria-label="Fechar">×</button></div>
     <div class="mat-lote-corpo">${corpo}</div><p class="nota" id="matLoteProg" hidden></p>
     <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-mat-lote-fechar>Cancelar</button>
     <button type="button" class="btn ${perigo ? 'perigo' : 'primario'}" id="matLoteAplicar">${rotBtn}</button></div></form>`;
   dlg.showModal();
-  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
+  (dlg.querySelector('#matLoteLocal') || dlg.querySelector('#matLoteEtapa') || dlg.querySelector('#matLoteTipo') || dlg.querySelector('#matLoteAplicar'))?.focus();
 }
 
 async function matLoteAplicar() {
@@ -2957,6 +2999,10 @@ async function matLoteAplicar() {
     const v = ($('#matLoteLocal')?.value || '').trim();
     if (!v) { toast('Informe o novo local.', true); return; }
     campos = { local: v };
+  } else if (acao === 'etapa') {
+    const v = ($('#matLoteEtapa')?.value || '').trim();
+    if (!v) { toast('Informe a nova etapa.', true); return; }
+    campos = { etapa: v };
   } else if (acao === 'tipo') {
     campos = { tipo_material: $('#matLoteTipo').value };
   } else if (acao === 'excluir') {
@@ -2984,7 +3030,7 @@ async function matLoteAplicar() {
   feitos.forEach(t => MAT_SEL.delete(t));
   dlg.close();
   try { await carregar(); } catch (e) { /* a tela é atualizada na próxima leitura */ }
-  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
+  const verbo = acao === 'local' ? 'com o local alterado' : acao === 'etapa' ? 'com a etapa alterada' : acao === 'tipo' ? 'com o tipo alterado' : 'excluído(s)';
   toast(`${nf(feitos.length, 0)} item(ns) ${verbo}.${falhas.length ? ` ${falhas.length} não foi(ram) alterado(s): ${falhas.slice(0, 3).join(' · ')}${falhas.length > 3 ? '…' : ''}` : ''}`, !!falhas.length && !feitos.length, falhas.length ? 9000 : undefined);
   if (falhas.length) console.warn('Ação em lote nos materiais — falhas:', falhas);
 }
@@ -3111,6 +3157,7 @@ function edBarra(k) {
       + datasHtml
       + (k === 'cons' ? `<span class="ed-datas"><label>Período do consumo — de<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoIni" value="${esc(ed.periodoIni || '')}"></label><label>até<input type="date" class="ed-dat" data-ed="cons" data-ed-dat="periodoFim" value="${esc(ed.periodoFim || '')}"></label></span>` : '')
       + `<span class="ed-resumo"></span><span class="espaco"></span>`
+      + (k === 'rem' && ed.substituir ? `<button type="button" class="btn perigo" data-ed-excluir="rem" title="Apaga esta remessa: as quantidades, as datas e a coluna">Excluir remessa</button>` : '')
       + `<button type="button" class="btn" data-ed-cancelar="${k}">Cancelar</button>`
       + `<button type="button" class="btn primario btn-salvar-destino" data-ed-salvar="${k}">Salvar</button>`;
   }
@@ -3176,6 +3223,23 @@ async function edSalvar(k) {
     renderEstoquePlanilha();
     toast(`${r.salvos ?? itens.length} lançamento(s) salvos ${ONDE}`);
   } catch (err) { toast(err.message, true); b.disabled = false; }
+}
+// Excluir a remessa que está em edição (dois cliques); recalcula o que chegou de cada item
+async function edExcluirRemessa(b) {
+  const ed = estEdit.rem;
+  if (!ed || !ed.substituir) return;
+  if (!b.dataset.confirmar) { b.dataset.confirmar = '1'; b.textContent = 'Confirmar: excluir a remessa ' + (ed.original || ed.nome); return; }
+  b.disabled = true;
+  try {
+    await postar(API + 'estoque-planilha/remessa', { remessa: ed.original || ed.nome, original_remessa: ed.original || ed.nome, tipo: ed.tipo || remTipoSel, excluir: true });
+    const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(x => x.ok ? x.json() : null);
+    if (j) EP = j;
+    const nome = ed.original || ed.nome;
+    estEdit.rem = null; $('#estRemEd').dataset.pronto = '';
+    renderEstoquePlanilha();
+    if (abaAtual === 'impactos') renderImpactos();
+    toast(`Remessa ${nome} excluída ${ONDE}`);
+  } catch (err) { toast(err.message || 'Não foi possível excluir a remessa.', true); b.disabled = false; b.dataset.confirmar = ''; b.textContent = 'Excluir remessa'; }
 }
 async function salvarDataRemessa(inp) {
   const remessa = inp.dataset.remessaData, campo = inp.dataset.remessaCampo;
@@ -3251,6 +3315,8 @@ function ligarEdicaoEstoque() {
     if (cc) { ev.preventDefault(); return editarConsumoInline(cc); }
     const er = ev.target.closest('[data-rem-editar]');
     if (er) { ev.preventDefault(); return edAbrirRemessaExistente(er.dataset.remEditar); }
+    const x = ev.target.closest('[data-ed-excluir]');
+    if (x) return edExcluirRemessa(x);
     const c = ev.target.closest('[data-ed-cancelar]'), s = ev.target.closest('[data-ed-salvar]');
     if (s) return edSalvar(s.dataset.edSalvar);
     if (c) {
@@ -3730,23 +3796,19 @@ function renderEstInventario() {
     tile('Consumo virtual corrigido', corrigidos, 'diferem da planilha', corrigidos ? 'var(--amarelo)' : 'var(--verde)');
 
   const farolAcu = s => ({ CONFORME: 'verde', ATENCAO: 'amarelo', CRITICO: 'vermelho' })[norm(s)] || 'pendente';
-  const ROT_ORIGEM = { producao: ['verde', 'Produção'], apontamento: ['verde', 'Apontamento'], ajuste: ['amarelo', 'Ajuste'], planilha: ['pendente', 'Planilha'] };
-  const sinal = v => (v > 0 ? '+' : '') + nf(v);
-  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th>Origem</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
+  $('#tabEstInv').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th><th class="n">Planejado</th><th class="n">Recebido</th><th class="n">Est. Físico</th><th class="n">Consumo Virtual</th><th class="n">Consumo Físico</th><th class="n">Est. Virtual Atual</th><th class="n">Perda Real</th><th class="n">Acuracidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
-      const [oc, ot] = ROT_ORIGEM[m.origem] || ['pendente', '—'];
       return `<tr>
       <td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>
       <td class="n">${nf(m.planejado)}</td><td class="n">${nf(m.estoque_virtual_base)}</td><td class="n">${nf(m.estoque_fisico)}</td>
-      <td class="n"><b>${m.parcial ? '≥ ' : ''}${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}${Math.abs(m.delta) >= 1 ? `<br><span class="nota">planilha ${nf(m.consumo_planilha)} (${sinal(m.delta)})</span>` : ''}</td>
-      <td>${m.origem ? `<span class="farol f-${oc}" title="${esc(m.nota)}">${ot}</span>` : ''}</td>
+      <td class="n"${m.nota ? ` title="${esc(m.nota)}"` : ''}><b>${m.parcial ? '≥ ' : ''}${nf(m.consumo_virtual)}</b>${m.estimado ? ' ≈' : ''}</td>
       <td class="n">${nf(m.consumo_fisico)}</td><td class="n">${nf(m.estoque_virtual_atual)}</td>
       <td class="n ${m.perda_real < 0 ? 'valor-neg' : ''}">${nf(m.perda_real)}</td>
       <td class="n">${m.status ? nf(m.acuracidade * 100, 1) + '%' : '—'}</td>
       <td>${m.status ? `<span class="farol f-${farolAcu(m.status)}">${esc(m.status)}</span>` : ''}</td>
       <td>${esc(m.acao || '')}</td></tr>`;
     }).join('')
-    : '<tr><td colspan="13" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
+    : '<tr><td colspan="12" class="vazio">Nenhum item encontrado.</td></tr>') + '</tbody>';
   requestAnimationFrame(syncScrollTopo);
 }
 
@@ -5059,6 +5121,7 @@ function ratear(lista) {
       ...u,
       empAjust: emp,
       rateioAuto: equipDivideAbast,
+      partesRateio: partes,   // empresas entre as quais o lançamento foi dividido (1 = sem rateio)
       custoR: (u.custo || 0) / partes.length,
       combR: (u.custo_combustivel || 0) / partes.length,
       litrosR: (u.litros || 0) / partes.length,
@@ -5082,7 +5145,8 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
   linhas.forEach(r => {
     const total = (r.custoR || 0) + (r.combR || 0);
     const kDia = `${r.data}|${r.empAjust}|${r.equipamento || 'NÃO INFORMADO'}|${r.uso || ''}`;
-    const d = porDia.get(kDia) || { data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set() };
+    const d = porDia.get(kDia) || { data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
+    (r.partesRateio || []).forEach(x => d.partes.add(x)); d.litrosTot += r.litros || 0; d.combTot += r.custo_combustivel || 0; d.custoTot += r.custo || 0;
     d.qtd += r.quantidade || 0; d.custo += r.custoR || 0; d.litros += r.litrosR || 0; d.comb += r.combR || 0; d.total += total;
     if (r.operador) d.oper.add(String(r.operador).trim());
     if (r.obs) d.obs.push(r.obs);
@@ -5093,9 +5157,11 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
     q.n++; q.emps.add(r.empAjust); if (r.operador) q.oper.add(String(r.operador).trim()); if (r.data) q.dias.add(r.data);
     q.qtd += r.quantidade || 0; q.custo += r.custoR || 0; q.litros += r.litrosR || 0; q.comb += r.combR || 0; q.total += total; porEq.set(q.equipamento, q);
   });
+  // lançamento dividido entre empresas (EJ/CMM…): cada empresa tem a sua linha; o texto do rateio mostra o total original
+  const rateioTxt = o => o.partes.size > 1 ? `rateio ${[...o.partes].join('/')} ÷ ${o.partes.size}` : '';
   const operTxt = o => [...o.oper].join(' / ') || '—';   // quem abasteceu/operou (campo operador do lançamento)
   const resp = o => respCad(o.equipamento) || [...o.oper].join(' / ') || '—';   // responsável: o cadastrado no equipamento; sem cadastro, quem lançou
-  const linhasF = [...porDia.values()].map(l => ({ ...l, resp: resp(l), operTxt: operTxt(l) }));
+  const linhasF = [...porDia.values()].map(l => ({ ...l, resp: resp(l), operTxt: operTxt(l), rateio: rateioTxt(l) }));
   const eqF = [...porEq.values()].map(q => ({ ...q, resp: resp(q), operTxt: operTxt(q) }));
   return { linhas: linhasF, empresas: [...porEmp.values()], equipamentos: eqF };
 }
@@ -5116,17 +5182,17 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
     const eqs = dados.equipamentos.filter(q => q.litros > 0 || q.comb > 0).sort((a, b) => b.comb - a.comb);
     const rowsEqA = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.n}</td><td class="n">${nf(q.litros, 1)}</td><td class="n">${q.litros > 0 ? rs2(q.comb / q.litros) : '—'}</td><td class="n"><b>${rs2(q.comb)}</b></td></tr>`).join('') || vazio(8);
     const rowsEmpA = dados.empresas.filter(e => e.litros > 0 || e.comb > 0).sort((a, b) => b.comb - a.comb).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.n}</td><td class="n">${nf(e.litros, 1)}</td><td class="n"><b>${rs2(e.comb)}</b></td></tr>`).join('') || vazio(4);
-    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.litros > 0 ? rs2(l.comb / l.litros) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
+    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso || '—')}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${nf(l.litrosTot, 1)} L · ${rs2(l.combTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.litros > 0 ? rs2(l.comb / l.litros) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(10);
     corpo = `${cardsH([['Combustível no período', rs2(comb)], ['Litros', nf(litros, 1) + ' L'], ['Abastecimentos', nf(soma0(eqs, q => q.n), 0)], ['Máquinas abastecidas', nf(eqs.length, 0)]])}
       <h2>Máquinas abastecidas no período</h2><table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Abastecido por</th><th>Empresa(s)</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">R$/litro médio</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEqA}</tbody>
         <tfoot><tr><th colspan="4">Total</th><th class="n">${nf(soma0(eqs, q => q.n), 0)}</th><th class="n">${nf(litros, 1)}</th><th class="n">${litros > 0 ? rs2(comb / litros) : '—'}</th><th class="n">${rs2(comb)}</th></tr></tfoot></table>
       <h2>Abastecimento por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEmpA}</tbody></table>
-      <h2 class="quebra">Detalhe dos abastecimentos</h2><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
+      <h2 class="quebra">Detalhe dos abastecimentos</h2><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
   } else if (soEq) {   // SOMENTE equipamento: uso e custo do equipamento — sem litros nem combustível
     const eqs = dados.equipamentos.filter(q => q.custo > 0 || q.qtd > 0 || q.n > 0).sort((a, b) => b.custo - a.custo);
     const rowsEqE = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.dias.size}</td><td class="n">${nf(q.qtd, 1)}</td><td class="n"><b>${rs2(q.custo)}</b></td></tr>`).join('') || vazio(7);
     const rowsEmpE = dados.empresas.sort((a, b) => b.custo - a.custo).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.dias.size}</td><td class="n"><b>${rs2(e.custo)}</b></td></tr>`).join('') || vazio(3);
-    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
+    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${rs2(l.custoTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
     corpo = `${cardsH([['Custo de equipamentos', rs2(custo)], ['Equipamentos usados', nf(eqs.length, 0)], ['Dias com uso', nf(new Set(dados.linhas.map(l => l.data)).size, 0)]])}
       <h2>Equipamentos usados no período</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th>Operador</th><th>Empresa(s)</th><th class="n">Dias de uso</th><th class="n">Qtd/usos</th><th class="n">Custo</th></tr></thead><tbody>${rowsEqE}</tbody>
         <tfoot><tr><th colspan="6">Total</th><th class="n">${rs2(custo)}</th></tr></tfoot></table>
@@ -5135,7 +5201,7 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   } else {   // equipamento + abastecimento (relatório completo)
     const rowsEmp = dados.empresas.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td><td class="n">${e.dias.size}</td></tr>`).join('') || vazio(6);
     const rowsEq = dados.equipamentos.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.equipamento)}</td><td>${esc(e.resp)}</td><td class="n">${nf(e.qtd,1)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td></tr>`).join('') || vazio(7);
-    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(10);
+    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(10);
     corpo = `${cardsH([['Custo total', rs(total)], ['Equipamentos', rs(custo)], ['Combustível', rs(comb)], ['Litros', nf(litros, 1) + ' L']])}
       <h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th><th class="n">Dias com uso</th></tr></thead><tbody>${rowsEmp}</tbody></table>
       <h2>Resumo por equipamento</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Qtd/usos</th><th class="n">Custo equipamento</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>${rowsEq}</tbody></table>
@@ -5261,19 +5327,20 @@ function graficoEquip(rt) {
   const emps = [...new Set(rt.map(r => r.empAjust))].sort((a, b) => (COR_EMP[a] ? 0 : 1) - (COR_EMP[b] ? 0 : 1) || a.localeCompare(b));
   $('#legEq').innerHTML = emps.map(n => `<span><i style="--c:${corEmp(n)}"></i>${esc(n)}</span>`).join('') + `<span class="nota">por ${({ dia: 'dia', semana: 'semana', mes: 'mês', ano: 'ano' })[modo]}</span>`;
   const outras = emps.filter(n => !COR_EMP[n]);
+  const agrupado = modo === 'mes';   // por mês: uma barra por empresa lado a lado sobre o mês (nos demais, empilhado)
   trocarGrafico('gEquip', {
     type: 'bar',
     data: {
       labels: buckets.map(rotuloT),
       datasets: emps.map(n => ({
         label: n, data: buckets.map(b => +soma0(rt.filter(r => r.empAjust === n && chaveT(r.data) === b), r => r.custoR + r.combR).toFixed(2)),
-        backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, stack: 'custo',
+        backgroundColor: COR_EMP[n] ? corEmpHex(n) : (outras.indexOf(n) % 2 ? cor('--fg3') : cor('--prev')), borderColor: cor('--card'), borderWidth: 1, borderRadius: 2, ...(agrupado ? {} : { stack: 'custo' }),
       })),
     },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}`, footer: its => 'Total: ' + rs(soma0(its, i => i.raw)) } } },
-      scales: { ...eixos({ stacked: true, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: true, ticks: { color: cor('--fg2') }, grid: { display: false } } },
+      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
     },
   });
 }
@@ -6380,6 +6447,7 @@ function efetivoImpactoTexto(i) {
   }).join(' / ');
 }
 function baixarHtml(nome, html) {
+  if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
   if (typeof tplProtegerImpressao === 'function') html = tplProtegerImpressao(html);   // sem URL/data/título impressos pelo navegador
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
@@ -6784,18 +6852,33 @@ function frenteDoServico(servico, nomesEmp = []) {
   for (const e of M.empresas) { const sv = (e.servicos || []).find(x => x.nome === servico); if (sv) return sv.frente || ''; }
   return '';
 }
+// serviço do impacto: um serviço do cadastro da empresa ou "Outros…" (digitado à mão)
+function servicoImpactoValor(f) {
+  const v = f.elements.servico.value;
+  return v === '__outro' ? (f.elements.servicoOutro?.value || '').trim() : v;
+}
+function atualizarServicoOutro(f) {
+  const o = f.elements.servicoOutro; if (!o) return;
+  const outro = f.elements.servico.value === '__outro';
+  o.hidden = !outro; o.required = outro;
+  if (!outro) o.value = '';
+}
 function preencherServicosImpacto(f, atual) {
   const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value), sel = f.elements.servico;
   const grupos = M.empresas.filter(e => emps.includes(e.nome));
+  const eraOutro = sel.value === '__outro';
   const opt = v => `<option value="${esc(v)}">${esc(v)}</option>`;
   let h = grupos.length ? '<option value="">Selecione o serviço</option>' : '<option value="">Marque a empresa primeiro</option>';
   if (grupos.length === 1) h += (grupos[0].servicos || []).map(sv => opt(sv.nome)).join('');
   else h += grupos.map(e => `<optgroup label="${esc(e.nome)}">${(e.servicos || []).map(sv => opt(sv.nome)).join('')}</optgroup>`).join('');
+  h += '<option value="__outro">Outros… (digitar o serviço)</option>';
   sel.innerHTML = h;
   if (atual) {
-    if (![...sel.options].some(o => o.value === atual)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(atual)}">${esc(atual)} (fora do cadastro da empresa)</option>`);
-    sel.value = atual;
+    if ([...sel.options].some(o => o.value === atual && o.value !== '__outro')) sel.value = atual;
+    else { sel.value = '__outro'; f.elements.servicoOutro.value = atual; }   // serviço fora do cadastro da empresa
   }
+  if (eraOutro && !atual) sel.value = '__outro';
+  atualizarServicoOutro(f);
   atualizarCascataImpacto(f);
 }
 function cascataTexto(c, max = 3) {
@@ -6804,7 +6887,7 @@ function cascataTexto(c, max = 3) {
   return `${c.posteriores.slice(0, max).map(x => x.rotulo || x.nome).join(' → ')}${c.posteriores.length > max ? ` … (+${c.posteriores.length - max})` : ''}`;
 }
 function atualizarCascataImpacto(f) {
-  const box = $('#impCascata'), servico = f.elements.servico.value;
+  const box = $('#impCascata'), servico = servicoImpactoValor(f);
   if (!box) return;
   if (!servico) { box.hidden = true; return; }
   const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value);
@@ -6831,6 +6914,7 @@ function abrirFormImp(linha) {
   if (selEmpImp) selEmpImp.innerHTML = M.empresas.map(e => `<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
   f.elements.fornecedorSel.innerHTML = '<option value="">Selecione o fornecedor</option>' + fornecedoresImpacto().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__outro">Outros…</option>';
   f.elements.fornecedorOutro.value = '';
+  f.elements.servicoOutro.value = '';
   if (linha) {
     const i = M.impactos.find(x => x.linha === linha);
     for (const k of ['data', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado', 'solucao', 'solucionado_por']) {
@@ -7193,6 +7277,13 @@ function ligarEventos() {
   });
   aplicarRemCols();
 
+  const trocarModoPainel = m => { painelModo = m; try { localStorage.setItem('painelModo', m); } catch (e) { /* sem armazenamento */ } renderPainel(); };
+  $('#segPainelModo').addEventListener('click', ev => { const b = ev.target.closest('button[data-painel-modo]'); if (b) trocarModoPainel(b.dataset.painelModo); });
+  $('#alertas').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-painel-modo-ir]'); if (b) return trocarModoPainel(b.dataset.painelModoIr);
+    const li = ev.target.closest('li.al-l');   // formato reduzido: abre/fecha o texto inteiro (botões e links da linha continuam funcionando)
+    if (li && !ev.target.closest('button, a')) li.classList.toggle('aberto');
+  });
   $('#segPainelEmp').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-painel-emp]');
     if (!b) return;
@@ -7319,12 +7410,12 @@ function ligarEventos() {
     renderImpactos();
   });
   $('#btnNovoImp').onclick = () => abrirFormImp(null);
-  $('#formImp').addEventListener('input', ev => { if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto($('#formImp')); });   // mostra "Qual fornecedor?" assim que o setor vira Fornecedor
+  $('#formImp').addEventListener('input', ev => { if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto($('#formImp')); else if (ev.target.name === 'servicoOutro') atualizarCascataImpacto($('#formImp')); });   // mostra "Qual fornecedor?" assim que o setor vira Fornecedor
   $('#formImp').addEventListener('change', ev => {
     const f = $('#formImp');
     if (['setor', 'fornecedorSel'].includes(ev.target.name)) atualizarFornecedorImpacto(f);
-    if (ev.target.name === 'empresasSel') preencherServicosImpacto(f, f.elements.servico.value);   // só os serviços das empresas marcadas
-    else if (ev.target.name === 'servico') atualizarCascataImpacto(f);
+    if (ev.target.name === 'empresasSel') preencherServicosImpacto(f, servicoImpactoValor(f));   // só os serviços das empresas marcadas
+    else if (ev.target.name === 'servico') { atualizarServicoOutro(f); if (f.elements.servico.value === '__outro') f.elements.servicoOutro.focus(); atualizarCascataImpacto(f); }
   });
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
   const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
@@ -7355,6 +7446,10 @@ function ligarEventos() {
     ev.preventDefault();
     const f = ev.target, corpo = {};
     for (const k of ['data', 'servico', 'setor', 'motivo', 'tempo', 'quando', 'paralisacao', 'solucionado', 'solucao', 'solucionado_por']) corpo[k] = f.elements[k].value.trim() || null;   // serviço: exatamente como no cadastro da empresa
+    if (f.elements.servico.value === '__outro') {   // "Outros": serviço digitado à mão
+      corpo.servico = servicoImpactoValor(f) || null;
+      if (!corpo.servico) { toast('Digite qual é o serviço.', true); f.elements.servicoOutro.focus(); return; }
+    }
     if (corpo.solucionado) {   // impacto solucionado: como e por quem
       if (!corpo.solucao) { toast('Informe como o impacto foi solucionado.', true); f.elements.solucao.focus(); return; }
       if (!corpo.solucionado_por) { toast('Informe quem solucionou o impacto.', true); f.elements.solucionado_por.focus(); return; }

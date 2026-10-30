@@ -1002,7 +1002,7 @@ function plCsv(pl) {
     linhas.push([x.it.atividade + ' (planejado)', ...c.diasPlano.map(d => nf(x.mapaPlan.get(d) || 0, 2))].map(q).join(';'));
     linhas.push([x.it.atividade + ' (realizado)', ...c.diasPlano.map(d => d <= c.base ? nf(x.real.get(d) || 0, 2) : '')].map(q).join(';'));
   });
-  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob(['﻿' + dataBR(linhas.join('\r\n'))], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `planejamento-${pl.nome.replace(/[^\w\-]+/g, '_')}.csv`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
