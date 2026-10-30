@@ -5121,6 +5121,7 @@ function ratear(lista) {
       ...u,
       empAjust: emp,
       rateioAuto: equipDivideAbast,
+      partesRateio: partes,   // empresas entre as quais o lançamento foi dividido (1 = sem rateio)
       custoR: (u.custo || 0) / partes.length,
       combR: (u.custo_combustivel || 0) / partes.length,
       litrosR: (u.litros || 0) / partes.length,
@@ -5144,7 +5145,8 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
   linhas.forEach(r => {
     const total = (r.custoR || 0) + (r.combR || 0);
     const kDia = `${r.data}|${r.empAjust}|${r.equipamento || 'NÃO INFORMADO'}|${r.uso || ''}`;
-    const d = porDia.get(kDia) || { data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set() };
+    const d = porDia.get(kDia) || { data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
+    (r.partesRateio || []).forEach(x => d.partes.add(x)); d.litrosTot += r.litros || 0; d.combTot += r.custo_combustivel || 0; d.custoTot += r.custo || 0;
     d.qtd += r.quantidade || 0; d.custo += r.custoR || 0; d.litros += r.litrosR || 0; d.comb += r.combR || 0; d.total += total;
     if (r.operador) d.oper.add(String(r.operador).trim());
     if (r.obs) d.obs.push(r.obs);
@@ -5155,9 +5157,11 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
     q.n++; q.emps.add(r.empAjust); if (r.operador) q.oper.add(String(r.operador).trim()); if (r.data) q.dias.add(r.data);
     q.qtd += r.quantidade || 0; q.custo += r.custoR || 0; q.litros += r.litrosR || 0; q.comb += r.combR || 0; q.total += total; porEq.set(q.equipamento, q);
   });
+  // lançamento dividido entre empresas (EJ/CMM…): cada empresa tem a sua linha; o texto do rateio mostra o total original
+  const rateioTxt = o => o.partes.size > 1 ? `rateio ${[...o.partes].join('/')} ÷ ${o.partes.size}` : '';
   const operTxt = o => [...o.oper].join(' / ') || '—';   // quem abasteceu/operou (campo operador do lançamento)
   const resp = o => respCad(o.equipamento) || [...o.oper].join(' / ') || '—';   // responsável: o cadastrado no equipamento; sem cadastro, quem lançou
-  const linhasF = [...porDia.values()].map(l => ({ ...l, resp: resp(l), operTxt: operTxt(l) }));
+  const linhasF = [...porDia.values()].map(l => ({ ...l, resp: resp(l), operTxt: operTxt(l), rateio: rateioTxt(l) }));
   const eqF = [...porEq.values()].map(q => ({ ...q, resp: resp(q), operTxt: operTxt(q) }));
   return { linhas: linhasF, empresas: [...porEmp.values()], equipamentos: eqF };
 }
@@ -5178,17 +5182,17 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
     const eqs = dados.equipamentos.filter(q => q.litros > 0 || q.comb > 0).sort((a, b) => b.comb - a.comb);
     const rowsEqA = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.n}</td><td class="n">${nf(q.litros, 1)}</td><td class="n">${q.litros > 0 ? rs2(q.comb / q.litros) : '—'}</td><td class="n"><b>${rs2(q.comb)}</b></td></tr>`).join('') || vazio(8);
     const rowsEmpA = dados.empresas.filter(e => e.litros > 0 || e.comb > 0).sort((a, b) => b.comb - a.comb).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.n}</td><td class="n">${nf(e.litros, 1)}</td><td class="n"><b>${rs2(e.comb)}</b></td></tr>`).join('') || vazio(4);
-    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.litros > 0 ? rs2(l.comb / l.litros) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
+    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso || '—')}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${nf(l.litrosTot, 1)} L · ${rs2(l.combTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.litros > 0 ? rs2(l.comb / l.litros) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(10);
     corpo = `${cardsH([['Combustível no período', rs2(comb)], ['Litros', nf(litros, 1) + ' L'], ['Abastecimentos', nf(soma0(eqs, q => q.n), 0)], ['Máquinas abastecidas', nf(eqs.length, 0)]])}
       <h2>Máquinas abastecidas no período</h2><table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Abastecido por</th><th>Empresa(s)</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">R$/litro médio</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEqA}</tbody>
         <tfoot><tr><th colspan="4">Total</th><th class="n">${nf(soma0(eqs, q => q.n), 0)}</th><th class="n">${nf(litros, 1)}</th><th class="n">${litros > 0 ? rs2(comb / litros) : '—'}</th><th class="n">${rs2(comb)}</th></tr></tfoot></table>
       <h2>Abastecimento por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEmpA}</tbody></table>
-      <h2 class="quebra">Detalhe dos abastecimentos</h2><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
+      <h2 class="quebra">Detalhe dos abastecimentos</h2><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
   } else if (soEq) {   // SOMENTE equipamento: uso e custo do equipamento — sem litros nem combustível
     const eqs = dados.equipamentos.filter(q => q.custo > 0 || q.qtd > 0 || q.n > 0).sort((a, b) => b.custo - a.custo);
     const rowsEqE = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.dias.size}</td><td class="n">${nf(q.qtd, 1)}</td><td class="n"><b>${rs2(q.custo)}</b></td></tr>`).join('') || vazio(7);
     const rowsEmpE = dados.empresas.sort((a, b) => b.custo - a.custo).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.dias.size}</td><td class="n"><b>${rs2(e.custo)}</b></td></tr>`).join('') || vazio(3);
-    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
+    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${rs2(l.custoTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
     corpo = `${cardsH([['Custo de equipamentos', rs2(custo)], ['Equipamentos usados', nf(eqs.length, 0)], ['Dias com uso', nf(new Set(dados.linhas.map(l => l.data)).size, 0)]])}
       <h2>Equipamentos usados no período</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th>Operador</th><th>Empresa(s)</th><th class="n">Dias de uso</th><th class="n">Qtd/usos</th><th class="n">Custo</th></tr></thead><tbody>${rowsEqE}</tbody>
         <tfoot><tr><th colspan="6">Total</th><th class="n">${rs2(custo)}</th></tr></tfoot></table>
@@ -5197,7 +5201,7 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   } else {   // equipamento + abastecimento (relatório completo)
     const rowsEmp = dados.empresas.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td><td class="n">${e.dias.size}</td></tr>`).join('') || vazio(6);
     const rowsEq = dados.equipamentos.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.equipamento)}</td><td>${esc(e.resp)}</td><td class="n">${nf(e.qtd,1)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td></tr>`).join('') || vazio(7);
-    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(10);
+    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(10);
     corpo = `${cardsH([['Custo total', rs(total)], ['Equipamentos', rs(custo)], ['Combustível', rs(comb)], ['Litros', nf(litros, 1) + ' L']])}
       <h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th><th class="n">Dias com uso</th></tr></thead><tbody>${rowsEmp}</tbody></table>
       <h2>Resumo por equipamento</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Qtd/usos</th><th class="n">Custo equipamento</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>${rowsEq}</tbody></table>
