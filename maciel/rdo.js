@@ -91,7 +91,16 @@ function rdoMaquinas(dia) {
 function rdoMaquinasUsadasNomes(maq) {
   return new Set(maq.filter(m => !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0).map(m => ganNorm(m.equipamento)));
 }
-function rdoMaquinasControle(maq) {
+// Regra da perfiladeira (pedido do usuário, 2026-10-30): se a PERFILAGEM DE TELHAS teve avanço no dia (produção lançada na grade/BM
+// ou apontamento de perfilagem que lança produção), a perfiladeira conta automaticamente como USADA; sem avanço fica PARADA
+// (a regra de locação mensal não vale para ela: depende só do avanço).
+const rdoEhPerfiladeira = e => /PERFILAD/.test(ganNorm(`${e.equipamento || ''} ${e.tipo || ''}`));
+function rdoPerfilagemAvanco(dia) {
+  try { if (prodServico('PERFILAGEM DE TELHAS', '', dia, dia) > 0) return true; } catch (err) { console.error('RDO perfilagem', err); }
+  return (T.apontamentos || []).some(a => a.data === dia && (a.tipo || '').toUpperCase() === 'PERFILAGEM' && (a.lanca_producao || '').toUpperCase() !== 'NAO');
+}
+function rdoMaquinasControle(maq, dia) {
+  const perfAvanco = dia ? rdoPerfilagemAvanco(dia) : false;
   const usadas = rdoMaquinasUsadasNomes(maq);
   const soAbast = new Set(maq.map(m => ganNorm(m.equipamento)).filter(n => !usadas.has(n)));
   const cad = ((T && T.equipamentos) || []).filter(e => e.equipamento && ganNorm(e.situacao || '') !== 'DESMOBILIZADO');
@@ -99,9 +108,11 @@ function rdoMaquinasControle(maq) {
     const n = ganNorm(e.equipamento), manut = ganNorm(e.situacao || '').startsWith('MANUT');
     const usos = maq.filter(m => ganNorm(m.equipamento) === n);
     const emps = [...new Set(usos.map(m => m.empresa).filter(Boolean))];
-    const mensal = ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
-    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
-    return { mensal, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
+    const perf = rdoEhPerfiladeira(e);   // perfiladeira: em uso só quando a perfilagem de telhas teve avanço no dia
+    const mensal = !perf && ganNorm(e.cobranca || '') === 'MENSAL';   // locação mensal: sempre em uso (só diária/hora/turno pode ficar parada)
+    const auto = perf && perfAvanco && !usadas.has(n);
+    const no = manut ? 'MANUTENÇÃO' : usadas.has(n) || mensal || auto ? 'USADA' : soAbast.has(n) ? 'SÓ ABASTECIDA' : 'PARADA';
+    return { mensal, auto, perf, lancada: usadas.has(n), nome: e.equipamento, tipo: e.tipo || '', resp: String(e.responsavel || '').trim() || emps.join(' / '), cobranca: e.cobranca || '', situacao: manut ? 'Em manutenção' : 'Ativa', no };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt', { numeric: true }));
   const cadNomes = new Set(cad.map(e => ganNorm(e.equipamento)));
   return {
@@ -155,7 +166,7 @@ function renderRdo() {
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
-      ${(() => { const mc = rdoMaquinasControle(maq); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
+      ${(() => { const mc = rdoMaquinasControle(maq, dia); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
       ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'Remessa ' + rem.map(esc).join(', ') : 'sem remessa no dia', 'var(--acento)')}
     </div>
     <div class="bloco rdo-gerar">
@@ -441,9 +452,9 @@ async function rdoHtml(dia, modo) {
   const linhasMaq = maq.filter(m => gestao || !ganNorm(m.uso).includes('ABASTECIMENTO') || (m.custo || 0) > 0);
   const tMaq = linhasMaq.map(m => `<tr><td><b>${esc(m.equipamento)}</b></td><td>${esc(m.empresa || '—')}</td><td>${esc(m.uso || '—')}</td><td class="n">${m.qtd ? nf(m.qtd, 2) : '—'}</td><td>${esc(m.operTxt || '—')}</td>${gestao ? `<td class="n">${m.litros ? nf(m.litros, 1) + ' L' : '—'}</td><td class="n">${rs2((m.custo || 0) + (m.comb || 0))}</td>` : ''}</tr>`).join('');
 
-  const mctl = rdoMaquinasControle(maq);
-  const mensaisSemLanc = mctl.linhas.filter(l => l.mensal && l.no === 'USADA' && !l.lancada);   // locação mensal em uso, sem lançamento no dia
-  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>LOCAÇÃO MENSAL (em uso)</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
+  const mctl = rdoMaquinasControle(maq, dia);
+  const mensaisSemLanc = mctl.linhas.filter(l => (l.mensal || l.auto) && l.no === 'USADA' && !l.lancada);   // locação mensal ou perfiladeira com avanço, em uso sem lançamento no dia
+  const tMensais = mensaisSemLanc.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.resp || '—')}</td><td>${l.auto ? 'USO AUTOMÁTICO (perfilagem de telhas com avanço)' : 'LOCAÇÃO MENSAL (em uso)'}</td><td class="n">—</td><td>—</td>${gestao ? '<td class="n">—</td><td class="n">—</td>' : ''}</tr>`).join('');
   const corNo = { 'USADA': 'vd', 'PARADA': 'vm', 'SÓ ABASTECIDA': 'am', 'MANUTENÇÃO': 'am' };
   const tAtivas = mctl.linhas.map(l => `<tr><td><b>${esc(l.nome)}</b></td><td>${esc(l.tipo || '—')}</td><td>${esc(l.resp || '—')}</td>${gestao ? `<td>${esc(l.cobranca || '—')}</td>` : ''}<td>${esc(l.situacao)}</td><td><span class="farol f-${corNo[l.no] === 'vd' ? 'verde' : corNo[l.no] === 'vm' ? 'vermelho' : 'amarelo'}">${esc(l.no)}</span></td></tr>`).join('');
 
@@ -482,7 +493,7 @@ async function rdoHtml(dia, modo) {
     <h2>Máquinas usadas no dia</h2>
     <table><thead><tr><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd.</th><th>Operador</th>${gestao ? '<th class="n">Litros</th><th class="n">Gasto (R$)</th>' : ''}</tr></thead><tbody>${tMaq + tMensais || vazio(gestao ? 7 : 5, 'Nenhum equipamento com uso lançado neste dia.')}</tbody>
       ${gestao && linhasMaq.length ? `<tfoot><tr><th colspan="6">Gasto de equipamentos e combustível lançado no dia</th><th class="n">${rs2(gastoEq + gastoComb)}</th></tr></tfoot>` : ''}</table>
-    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
+    <p class="nota">Equipamento de cobrança MENSAL conta sempre como em uso; só os de cobrança diária ou por hora aparecem como parados. A perfiladeira conta como em uso quando a perfilagem de telhas teve avanço no dia e como parada quando não teve.${gestao ? ' A locação mensal não é rateada por dia: só entram os usos e abastecimentos lançados no dia.' : ''}</p>
     <h2>Chegada de material</h2>
     ${rem.length ? `<p>Remessa(s) que chegaram na obra neste dia: <b>${rem.map(esc).join('</b>, <b>')}</b>.</p>` : '<p class="rdo-sem">Nenhuma remessa chegou na obra neste dia.</p>'}
     ${gestao ? `<h2>Impactos em aberto</h2>
