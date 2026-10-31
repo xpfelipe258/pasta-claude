@@ -6125,6 +6125,12 @@ function abrirDialogo(tabela, linha, preset = {}) {
     if (tipo === 'ro') inp = `<input name="${k}" type="text" value="${esc(v)}" readonly>`;
     else if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${[...new Set([...tipo.slice(7).split(','), ...(v ? [String(v)] : [])])].map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
     else if (tipo === 'material') inp = `<select name="${k}" ${req}>${T.materiais.map(m => `<option value="${esc(m.codigo)}" ${m.codigo === v ? 'selected' : ''}>${esc(m.codigo)} — ${esc(m.material)}</option>`).join('')}</select>`;
+    else if (tipo === 'empresa' || tipo === 'equipamento') {   // escolha numa lista, como o campo "Uso" (o valor já gravado entra na lista mesmo que não esteja mais cadastrado)
+      const base = tipo === 'empresa' ? [...document.querySelectorAll('#listaEmpresas option')].map(o => o.value) : T.equipamentos.map(e => e.equipamento);
+      const ops = [...new Set([...base, ...(v ? [String(v)] : [])])].filter(Boolean);
+      if (tipo === 'empresa') ops.sort((x, y) => x.localeCompare(y, 'pt-BR'));
+      inp = `<select name="${k}" ${req}><option value="">${obrig ? 'Selecione…' : '—'}</option>${ops.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    }
     else {
       const lista = { servico: 'listaServicos', empresa: 'listaEmpresas', equipamento: 'listaEquip' }[tipo];
       const t = tipo === 'date' ? 'date' : 'text';
