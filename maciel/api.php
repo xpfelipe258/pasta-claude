@@ -2886,6 +2886,89 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
 
+// ---- Fechamento lateral (estrutura): cada trecho (vão) apontado lança no BM, em Lançamentos, as atividades do item "Fechamento Lateral" da empresa:
+// Pré montagem de estrutura, Instalação de terças (ou "Instalação de estrutura") e Alinhamento das terças = 1 vão por trecho; Instalação do suporte
+// de terça = uma unidade por terça do trecho (1 suporte por terça). O Checklist não é lançado. Excluir o apontamento devolve.
+function norm_sem_acento($t)
+{
+    return mb_strtoupper(strtr(trim((string)$t), ['Á' => 'A', 'À' => 'A', 'Ã' => 'A', 'Â' => 'A', 'É' => 'E', 'Ê' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ú' => 'U', 'Ç' => 'C',
+        'á' => 'A', 'à' => 'A', 'ã' => 'A', 'â' => 'A', 'é' => 'E', 'ê' => 'E', 'í' => 'I', 'ó' => 'O', 'ô' => 'O', 'õ' => 'O', 'ú' => 'U', 'ç' => 'C']));
+}
+function fechamento_bm_atividades($empresa)
+{
+    static $cache = [];
+    $k = obra_atual_id() . '|' . $empresa;
+    if (isset($cache[$k])) {
+        return $cache[$k];
+    }
+    $r = ['vao' => [], 'suporte' => null];
+    foreach (q('SELECT codigo, atividade, item_desc, controle FROM bm_atividades WHERE empresa = ?', [$empresa])->fetchAll() as $a) {
+        if (norm_sem_acento($a['item_desc'] ?? '') !== 'FECHAMENTO LATERAL' || !empty($a['controle'])) {
+            continue;
+        }
+        $n = norm_sem_acento($a['atividade'] ?? '');
+        if (strpos($n, 'SUPORTE') !== false) {
+            $r['suporte'] = $a['codigo'];
+        } elseif (strpos($n, 'PRE MONTAGEM') !== false || strpos($n, 'INSTALACAO DE TERCAS') !== false || strpos($n, 'INSTALACAO DE ESTRUTURA') !== false || strpos($n, 'ALINHAMENTO') !== false) {
+            $r['vao'][] = $a['codigo'];
+        }
+    }
+    return $cache[$k] = $r;
+}
+function fechamento_tercas(array $frentes, $parte, $trecho)
+{
+    foreach (($frentes['frentes']['fechamento']['partes'] ?? []) as $p) {
+        if ((string)($p['id'] ?? '') !== (string)$parte) {
+            continue;
+        }
+        foreach (($p['celulas'] ?? []) as $c) {
+            if ((string)($c['trecho'] ?? '') === (string)$trecho) {
+                return (int)(($c['pecas'] ?? [])['TERÇA FECHAMENTO'] ?? 0);
+            }
+        }
+    }
+    return 0;
+}
+// soma (ou tira, com delta negativo) quantidade de uma atividade do catálogo em bm_apontamentos (empresa + código + dia)
+function bm_ajustar_codigo($empresa, $codigo, $data, $delta, $obs)
+{
+    if (!$codigo || abs($delta) < 1e-9) {
+        return null;
+    }
+    $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$empresa, $codigo, $data])->fetch();
+    $novo = round(max(0, (float)($ex['quantidade'] ?? 0) + $delta), 4);
+    if ($ex) {
+        if ($novo > 0) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+        } else {
+            q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+        }
+    } elseif ($novo > 0) {
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $codigo, $novo, $obs]);
+    }
+    return ['codigo' => $codigo, 'data' => $data, 'delta' => $delta, 'total' => $novo];
+}
+// $mov = ['empresa|data' => ['vaos' => n, 'suportes' => n]] (negativos ao excluir)
+function fechamento_bm_lancar(array $mov)
+{
+    $out = [];
+    foreach ($mov as $k => $m) {
+        list($emp, $dia) = explode('|', $k);
+        $at = fechamento_bm_atividades($emp);
+        foreach ($at['vao'] as $cod) {
+            $r = bm_ajustar_codigo($emp, $cod, $dia, $m['vaos'], 'trechos do fechamento lateral apontados no mapa de montagem');
+            if ($r) {
+                $out[] = $r + ['empresa' => $emp];
+            }
+        }
+        $r = bm_ajustar_codigo($emp, $at['suporte'], $dia, $m['suportes'], 'suportes de terça do fechamento lateral apontados no mapa de montagem');
+        if ($r) {
+            $out[] = $r + ['empresa' => $emp];
+        }
+    }
+    return $out;
+}
+
 // ---- Apontamento por peça (obras criadas pela importação automática): cada conjunto do IFC é apontado numa atividade do catálogo do BM.
 // A produção vai para o serviço do controle ligado à atividade (campo "controle") ou, sem ele, para os apontamentos do BM.
 function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
@@ -3162,6 +3245,7 @@ function acao_apontamento(array $corpo, array $usuario)
     $grupos = [];
     $telhasEmp = [];
     $telhasM2 = [];
+    $fechMov = [];
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
@@ -3257,6 +3341,13 @@ function acao_apontamento(array $corpo, array $usuario)
             throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA, PERFILAGEM ou TELHAFECH).');
         }
         $novas = array_merge($novas, $doItem);
+        if ($tipo === 'FECHAMENTO') {   // cada trecho = 1 vão; suportes = terças do trecho
+            $kf = $empNome . '|' . $data;
+            foreach ($doItem as $l) {
+                $fechMov[$kf]['vaos'] = ($fechMov[$kf]['vaos'] ?? 0) + 1;
+                $fechMov[$kf]['suportes'] = ($fechMov[$kf]['suportes'] ?? 0) + fechamento_tercas($frentes, $l['faixa'] ?? '', $l['rua'] ?? '');
+            }
+        }
         $fator = 1;
         $nQtd = count($doItem);
         if ($tipo === 'TELHA' || $tipo === 'PERFILAGEM') {   // lançamento em m²: telhas × (177,32 × 0,485)
@@ -3307,8 +3398,9 @@ function acao_apontamento(array $corpo, array $usuario)
             }
         }
     }
+    $bmFech = $lanca ? fechamento_bm_lancar($fechMov) : [];
     return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [],
-            'linhas' => $ids, 'lancamentos' => $lancamentos, 'bm_telhas' => $bmTelhas];
+            'linhas' => $ids, 'lancamentos' => $lancamentos, 'bm_telhas' => $bmTelhas, 'bm_fechamento' => $bmFech];
 }
 
 function rua_valida($rua, array $eixos)
@@ -3332,6 +3424,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     $lancamentos = [];
     $bmTelhas = [];
     $bmM2 = [];
+    $fechMov = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -3340,6 +3433,11 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         $r = $porLinha[$lin];
         $t = mb_strtoupper((string)($r['tipo'] ?? ''));
         if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
+            if ($t === 'FECHAMENTO') {   // devolve o vão e os suportes lançados no BM
+                $kf = $r['empresa'] . '|' . $r['data'];
+                $fechMov[$kf]['vaos'] = ($fechMov[$kf]['vaos'] ?? 0) - 1;
+                $fechMov[$kf]['suportes'] = ($fechMov[$kf]['suportes'] ?? 0) - fechamento_tercas(frentes_montagem(), $r['faixa'] ?? '', $r['rua'] ?? '');
+            }
             $frente = null;
             if (isset(tipos_frente()[$t])) {
                 $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
@@ -3384,6 +3482,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         list($tp, $emp, $dia) = explode('|', $kt);
         bm_telhas_ajustar($emp, $dia, $m2, $tp);
     }
+    fechamento_bm_lancar($fechMov);
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
     }

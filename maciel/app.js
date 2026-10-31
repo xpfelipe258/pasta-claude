@@ -4857,9 +4857,11 @@ async function salvarApontamento() {
     await carregar();
     const lanc = (r.lancamentos || []).map(l => `${l.empresa} · ${l.servico} +${nf(l.delta)} (dia fecha em ${nf(l.total)})`).join(' · ');
     const bmT = (r.bm_telhas || []).map(t => `${t.empresa} · ${nf(t.telhas)} telha(s) = ${nf(t.delta_m2, 1)} m² em ${t.codigo} (dia fecha em ${nf(t.total_m2, 1)} m²)`).join(' · ');
+    const bmF = (r.bm_fechamento || []).map(t => `${t.empresa} · ${t.codigo} ${t.delta > 0 ? '+' : ''}${nf(t.delta)}`).join(' · ');
     toast(`${r.salvos} apontamento(s) salvo(s)`
       + (lanc ? `. Lançado em produção: ${lanc}` : (s.regular ? '. Regularização: não somou em Lançamentos.' : ''))
       + (bmT ? `. Medição (BM): ${bmT}` : '')
+      + (bmF ? `. Lançamentos (fechamento lateral): ${bmF}` : '')
       + (r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''),
       !!r.avisos?.length, (r.avisos?.length || lanc) ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
