@@ -1612,6 +1612,21 @@ function acao_bm_apontar(array $corpo)
     return $n;
 }
 
+/** Cortes dos BMs da empresa numerados como a tela faz: o número gravado ou, se faltar, a posição na ordem das datas de corte (BM sem número não impede o fechamento). */
+function bm_periodos_numerados($emp)
+{
+    $lista = [];
+    foreach (q('SELECT bm, corte FROM bm_periodos WHERE empresa = ? AND corte IS NOT NULL ORDER BY corte, id', [$emp])->fetchAll() as $i => $p) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}/', (string)$p['corte'])) {
+            continue;
+        }
+        $n = $p['bm'] !== null && $p['bm'] !== '' && (int)$p['bm'] > 0 ? (int)$p['bm'] : count($lista) + 1;
+        $lista[$n] = $p['corte'];
+    }
+    ksort($lista);
+    return $lista;
+}
+
 function acao_bm_fechar(array $corpo)
 {
     $emp = (string)($corpo['empresa'] ?? '');
@@ -1620,10 +1635,7 @@ function acao_bm_fechar(array $corpo)
         throw new ErroValidacao('Empresa ou número do BM inválido.');
     }
     $n = (int)$n;
-    $periodos = [];
-    foreach (q('SELECT bm, corte FROM bm_periodos WHERE empresa = ? AND bm IS NOT NULL AND corte IS NOT NULL', [$emp])->fetchAll() as $p) {
-        $periodos[(int)$p['bm']] = $p['corte'];
-    }
+    $periodos = bm_periodos_numerados($emp);
     if (!isset($periodos[$n])) {
         throw new ErroValidacao("Cadastre a data de corte do BM$n em Períodos e deduções antes de fechar.");
     }
