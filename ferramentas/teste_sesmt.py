@@ -158,7 +158,7 @@ class T01_Acesso(unittest.TestCase):
         r = ADMIN.post(acao="acesso", usuario=AMB.sql("SELECT id FROM usuarios WHERE login='outro'")[0][0], liberar=1)
         self.assertEqual(r.status_code, 302)
         mods = {m for (m,) in AMB.sql("SELECT modulo FROM usuarios_modulos WHERE usuario_id=(SELECT id FROM usuarios WHERE login='outro')")}
-        self.assertEqual(mods, {"producao", "suprimentos", "consumo", "financeiro", "kpi", "gestao", "sesmt"})
+        self.assertEqual(mods, {"producao", "suprimentos", "consumo", "financeiro", "gestao", "qualidade", "sesmt"})
         self.assertEqual(OUTRO.pagina(acesso=1).json(), {"ok": True})
         ADMIN.post(acao="acesso", usuario=AMB.sql("SELECT id FROM usuarios WHERE login='outro'")[0][0], liberar=0)
         self.assertEqual(OUTRO.pagina(acesso=1).json(), {"ok": False})

@@ -3,6 +3,7 @@
 // Página própria. Não altera nenhuma tela ou tabela existente.
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/sesmt_modelo.php';
+require __DIR__ . '/inc/menu_paginas.php';
 
 $eu = exigir_login_pagina();
 if (isset($_GET['acesso'])) {
@@ -275,6 +276,21 @@ if ($formReg !== null) {
 if ($reg !== '' && !isset($REG[$reg])) {
     $reg = '';
 }
+// aba escolhida no menu (?g=pessoas): abre o primeiro cadastro dela; "configurar" abre as fontes de dados
+$slugAba = function ($nome) { return trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(strtr((string)$nome, ['á' => 'a', 'ã' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ç' => 'c', 'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u', 'Ç' => 'c']))), '-'); };
+$g = (string)($_GET['g'] ?? '');
+if ($g !== '' && $reg === '' && $formReg === null) {
+    if ($g === 'configurar') {
+        $v = 'listas';
+    } elseif ($g !== 'painel') {
+        foreach ($REG as $k => $d) {
+            if ($slugAba($d['grupo']) === $g) {
+                $reg = $k;
+                break;
+            }
+        }
+    }
+}
 if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
     $v = 'painel';
 }
@@ -309,16 +325,42 @@ if ($reg !== '' && $modo === 'lista' && ($_GET['export'] ?? '') === 'csv') {
 // ----------------------------------------------------------------- layout
 
 $titulo = $reg !== '' ? $REG[$reg]['titulo'] : ['painel' => 'Painel SESMT', 'listas' => 'Fontes de dados', 'config' => 'Configurações', 'acessos' => 'Acessos'][$v];
-pagina_inicio($titulo . ' · SESMT GERAL');
+pagina_inicio($titulo . ' · SESMT GERAL', true);
+// mesma aparência do sistema: cores da obra e faixa "← Todas as obras" no topo
+$corP = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
+$corS = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
+echo '<style>body{--marca:' . h($corP) . ';--marca2:' . h($corS) . '}</style><div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>'
+    . ($ehAdmin ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
 
+// Abas (menu) = grupos do SESMT; sub-abas (tela principal) = cadastros do grupo aberto.
 $grupos = [];
 foreach ($REG as $k => $d) {
     $grupos[$d['grupo']][$k] = $d['titulo'];
+}
+$ehConfig = $reg === '' && in_array($v, ['listas', 'config', 'acessos'], true);
+$abaAtual = $ehConfig ? 'configurar' : ($reg !== '' ? $slugAba($REG[$reg]['grupo']) : 'painel');
+$subAbas = [];   // [rótulo, url, ativa]
+if ($reg !== '') {
+    foreach ($grupos[$REG[$reg]['grupo']] as $k => $rot) {
+        $subAbas[] = [$rot, sv_url(['reg' => $k]), $reg === $k];
+    }
+} elseif ($ehConfig) {
+    $subAbas[] = ['Fontes de dados (listas)', sv_url(['v' => 'listas']), $v === 'listas'];
+    $subAbas[] = ['Configurações', sv_url(['v' => 'config']), $v === 'config'];
+    if ($ehAdmin) {
+        $subAbas[] = ['Acessos', sv_url(['v' => 'acessos']), $v === 'acessos'];
+    }
 }
 function sv_botao($rotulo, $url, $ativo)
 {
     return '<button type="button" class="' . ($ativo ? 'ativa' : '') . '" onclick="location.href=\'' . h($url) . '\'">' . h($rotulo) . '</button>';
 }
+$botoesSesmt = sv_botao('Painel SESMT', sv_url(['g' => 'painel']), $abaAtual === 'painel');
+foreach (array_keys($grupos) as $nomeGrupo) {
+    $botoesSesmt .= sv_botao($nomeGrupo, sv_url(['g' => $slugAba($nomeGrupo)]), $abaAtual === $slugAba($nomeGrupo));
+}
+$botoesSesmt .= sv_botao('Configurar', sv_url(['g' => 'configurar']), $abaAtual === 'configurar');
+$grupoSesmt = menu_pagina_grupo('sesmt', '✚', 'SESMT GERAL', $botoesSesmt);
 ?>
 <style>
 .sv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 16px}
@@ -346,23 +388,20 @@ a.btn.primario{color:#fff}
 .sv-presenca label{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:.88rem}
 .sv-presenca .emp{font-weight:700;margin-top:8px;color:var(--fg2);font-size:.78rem;letter-spacing:.03em}
 .sv-tabela-pequena td,.sv-tabela-pequena th{white-space:nowrap}
+.sv-subabas{margin:0 0 14px;display:flex;flex-wrap:wrap;gap:0;max-width:100%}
+.sv-subabas .seg{max-width:100%}
 </style>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">SST</span><div><h1>SESMT GERAL</h1>
     <div class="arquivo"><span class="ponto ok"></span><?= h($obra['nome']) ?> · segurança e saúde do trabalho</div>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h($eu['nome']) ?></span><?php if ($ehAdmin): ?><a href="admin.php">Administração</a><?php endif; ?><a href="sair.php">Sair</a></div></div></div>
 </header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
-  <div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><?= sv_botao('← Voltar para o início', 'index.php', false) ?><?= sv_botao('Painel SESMT', sv_url(), $v === 'painel' && $reg === '') ?></div></div>
-<?php foreach ($grupos as $nomeGrupo => $itens): ?>
-  <div class="sidebar-grupo"><div class="sidebar-titulo aberto"><?= h($nomeGrupo) ?><span class="seta-grupo">&#8249;</span></div>
-    <div class="sidebar-itens aberto"><?php foreach ($itens as $k => $rot) { echo sv_botao($rot, sv_url(['reg' => $k]), $reg === $k); } ?></div></div>
-<?php endforeach; ?>
-  <div class="sidebar-grupo"><div class="sidebar-titulo aberto">Configurar<span class="seta-grupo">&#8249;</span></div>
-    <div class="sidebar-itens aberto"><?= sv_botao('Fontes de dados (listas)', sv_url(['v' => 'listas']), $v === 'listas') ?><?= sv_botao('Configurações', sv_url(['v' => 'config']), $v === 'config') ?><?php if ($ehAdmin) { echo sv_botao('Acessos', sv_url(['v' => 'acessos']), $v === 'acessos'); } ?></div></div>
+<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt) ?>
 </nav></aside>
 <main class="admin">
+<?php if ($subAbas): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : $REG[$reg]['grupo']) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
 <?php if ($flash): ?><div class="faixa <?= $flash[0] === 'ok' ? 'ok-faixa' : '' ?>"><?= h($flash[1]) ?></div><?php endif; ?>
 <?php if ($erros && $modo !== 'form'): ?><div class="faixa"><?= h(implode(' ', $erros)) ?></div><?php endif; ?>
 
@@ -632,4 +671,9 @@ elseif ($reg !== ''):
 <?php endif; ?>
 </main>
 <script>document.getElementById('sidebarToggle').onclick=function(){document.getElementById('sidebar').classList.toggle('aberta')};document.querySelectorAll('.sidebar-titulo').forEach(function(x){x.onclick=function(){x.classList.toggle('aberto');x.nextElementSibling&&x.nextElementSibling.classList.toggle('aberto')}});</script>
+<?= menu_paginas_script() ?>
+<script>
+// aqui o foco é o SESMT: os demais grupos do menu começam recolhidos (um clique no título abre)
+if (!(document.documentElement.dataset.menu === 'topo' && innerWidth > 900)) { document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(function (t) { if (t.dataset.grupo !== 'sesmt') { t.classList.remove('aberto'); var g = document.getElementById('grp-' + t.dataset.grupo); if (g) g.classList.remove('aberto'); } }); }
+</script>
 </body></html>
