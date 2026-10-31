@@ -105,6 +105,7 @@
       <div class="sidebar-itens aberto" id="grp-gestao">
         <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
         <button data-aba="dp">Pessoal</button>
+        <button type="button" id="btnPessoasSesmt" style="display:none" onclick="window.location.href='sesmt.php?g=pessoas'" title="Colaboradores, ASO, treinamentos, presença, advertências e CIPA">Pessoas</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -120,15 +121,10 @@
         <span class="sidebar-icone">&#10010;</span>SESMT GERAL<span class="seta-grupo">&#8249;</span>
       </div>
       <div class="sidebar-itens aberto" id="grp-sesmt">
-        <button type="button" onclick="window.location.href='sesmt.php?g=painel'">Painel SESMT</button>
-        <button type="button" onclick="window.location.href='sesmt.php?g=pessoas'">Pessoas</button>
         <button type="button" onclick="window.location.href='sesmt.php?g=ocorrencias'">Ocorrências</button>
-        <button type="button" onclick="window.location.href='sesmt.php?g=epi-e-riscos'">EPI e riscos</button>
-        <button type="button" onclick="window.location.href='sesmt.php?g=patrimonio-e-documentos'">Patrimônio e documentos</button>
-        <button type="button" onclick="window.location.href='sesmt.php?g=configurar'">Configurar</button>
       </div>
     </div>
-    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
+    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){g.style.display='';var b=document.getElementById('btnPessoasSesmt');if(b)b.style.display=''}}).catch(function(){})})();</script>
     <div class="sidebar-grupo sidebar-geral">
       <div class="sidebar-titulo aberto" data-grupo="geral">
         <span class="sidebar-icone">&#9776;</span>Geral<span class="seta-grupo">&#8249;</span>

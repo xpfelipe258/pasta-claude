@@ -25,7 +25,9 @@ sesmt_garantir_esquema();
 $podeEditar = sesmt_pode_editar($eu);
 $ehAdmin = ($eu['perfil'] ?? '') === 'admin';
 $csrf = token_csrf();
-$REG = sesmt_registros();
+// SESMT enxuto: ficam só os cadastros de Pessoas (aba "Pessoas" dentro de Gestão) e de Ocorrências; os demais grupos ficam guardados (dados e código), sem tela
+$GRUPOS_ATIVOS = ['Pessoas', 'Ocorrências'];
+$REG = array_filter(sesmt_registros(), function ($d) use ($GRUPOS_ATIVOS) { return in_array($d['grupo'], $GRUPOS_ATIVOS, true); });
 
 // ----------------------------------------------------------------- utilidades de tela
 
@@ -280,14 +282,19 @@ if ($reg !== '' && !isset($REG[$reg])) {
 $slugAba = function ($nome) { return trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(strtr((string)$nome, ['á' => 'a', 'ã' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ç' => 'c', 'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u', 'Ç' => 'c']))), '-'); };
 $g = (string)($_GET['g'] ?? '');
 if ($g !== '' && $reg === '' && $formReg === null) {
-    if ($g === 'configurar') {
-        $v = 'listas';
-    } elseif ($g !== 'painel') {
-        foreach ($REG as $k => $d) {
-            if ($slugAba($d['grupo']) === $g) {
-                $reg = $k;
-                break;
-            }
+    foreach ($REG as $k => $d) {
+        if ($slugAba($d['grupo']) === $g) {
+            $reg = $k;
+            break;
+        }
+    }
+}
+// sem cadastro escolhido: abre Ocorrências (as telas de Painel/Configurar saíram do menu; listas e acessos só por endereço, para o administrador)
+if ($reg === '' && !($ehAdmin && in_array($v, ['listas', 'config', 'acessos'], true))) {
+    foreach ($REG as $k => $d) {
+        if ($d['grupo'] === 'Ocorrências') {
+            $reg = $k;
+            break;
         }
     }
 }
@@ -355,11 +362,7 @@ function sv_botao($rotulo, $url, $ativo)
 {
     return '<button type="button" class="' . ($ativo ? 'ativa' : '') . '" onclick="location.href=\'' . h($url) . '\'">' . h($rotulo) . '</button>';
 }
-$botoesSesmt = sv_botao('Painel SESMT', sv_url(['g' => 'painel']), $abaAtual === 'painel');
-foreach (array_keys($grupos) as $nomeGrupo) {
-    $botoesSesmt .= sv_botao($nomeGrupo, sv_url(['g' => $slugAba($nomeGrupo)]), $abaAtual === $slugAba($nomeGrupo));
-}
-$botoesSesmt .= sv_botao('Configurar', sv_url(['g' => 'configurar']), $abaAtual === 'configurar');
+$botoesSesmt = sv_botao('Ocorrências', sv_url(['g' => 'ocorrencias']), $abaAtual === 'ocorrencias');
 $grupoSesmt = menu_pagina_grupo('sesmt', '✚', 'SESMT GERAL', $botoesSesmt);
 ?>
 <style>
@@ -398,7 +401,7 @@ a.btn.primario{color:#fff}
 </header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
-<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt) ?>
+<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt, $abaAtual === 'pessoas') ?>
 </nav></aside>
 <main class="admin">
 <?php if ($subAbas): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : $REG[$reg]['grupo']) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
@@ -673,7 +676,7 @@ elseif ($reg !== ''):
 <script>document.getElementById('sidebarToggle').onclick=function(){document.getElementById('sidebar').classList.toggle('aberta')};document.querySelectorAll('.sidebar-titulo').forEach(function(x){x.onclick=function(){x.classList.toggle('aberto');x.nextElementSibling&&x.nextElementSibling.classList.toggle('aberto')}});</script>
 <?= menu_paginas_script() ?>
 <script>
-// aqui o foco é o SESMT: os demais grupos do menu começam recolhidos (um clique no título abre)
-if (!(document.documentElement.dataset.menu === 'topo' && innerWidth > 900)) { document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(function (t) { if (t.dataset.grupo !== 'sesmt') { t.classList.remove('aberto'); var g = document.getElementById('grp-' + t.dataset.grupo); if (g) g.classList.remove('aberto'); } }); }
+// aqui o foco é o SESMT (ou Gestão, na aba Pessoas): os demais grupos do menu começam recolhidos (um clique no título abre)
+if (!(document.documentElement.dataset.menu === 'topo' && innerWidth > 900)) { document.querySelectorAll('.sidebar-titulo[data-grupo]').forEach(function (t) { if (t.dataset.grupo !== '<?= $abaAtual === 'pessoas' ? 'gestao' : 'sesmt' ?>') { t.classList.remove('aberto'); var g = document.getElementById('grp-' + t.dataset.grupo); if (g) g.classList.remove('aberto'); } }); }
 </script>
 </body></html>
