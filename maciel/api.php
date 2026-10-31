@@ -3950,6 +3950,16 @@ function plano_portoes($novo, $antigo, $agora, $quem)
     return $saida;
 }
 
+// Plano da obra principal -> obra própria de cada empresa (só as atividades dela). Não faz nada dentro de uma obra própria.
+function plano_propagar_empresas()
+{
+    try {
+        if (obra_empresa_info() === null) { oe_sincronizar_planos(obra_atual_id()); }
+    } catch (Throwable $e) {
+        registrar_global('plano_propagar_falhou', ['obra_id' => obra_atual_id(), 'erro' => $e->getMessage()]);
+    }
+}
+
 function acao_planos(array $corpo, array $usuario)
 {
     $doc = planos_ler();
@@ -3963,6 +3973,7 @@ function acao_planos(array $corpo, array $usuario)
             throw new ErroValidacao('Plano não encontrado. Recarregue a tela.');
         }
         sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+        plano_propagar_empresas();
         registrar_alteracao('plano_excluido', ['id' => $id]);
         return ['salvos' => 1];
     }
@@ -4059,6 +4070,7 @@ function acao_planos(array $corpo, array $usuario)
         $doc['planos'][] = $novo;
     }
     sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+    plano_propagar_empresas();
     registrar_alteracao('plano_salvo', ['id' => $novo['id'], 'nome' => $nome, 'atividades' => count($itens)]);
     return ['salvos' => 1, 'id' => $novo['id']];
 }

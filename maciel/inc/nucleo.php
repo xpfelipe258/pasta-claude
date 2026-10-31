@@ -865,11 +865,30 @@ function definir_obra_atual($obraId)
     $_SESSION['obra_id'] = max(0, (int)$obraId);
 }
 
+// Usuário de empresa (campo Empresa preenchido, perfil não administrador) cuja empresa já tem obra própria: só enxerga a(s) obra(s)
+// própria(s) da empresa dele — nunca a obra principal, mesmo que o cadastro dele ainda esteja ligado a ela.
+// Sem obra própria criada, vale o que o administrador ligou ao usuário (não deixa ninguém sem acesso).
+function obras_proprias_do_usuario(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin' || trim((string)($u['empresa'] ?? '')) === '') { return null; }
+    $alvo = function_exists('oe_norm') ? oe_norm($u['empresa']) : mb_strtoupper(trim((string)$u['empresa']));
+    try {
+        $lista = q_global("SELECT * FROM obras WHERE status = 'ativa' AND empresa_vinculada IS NOT NULL AND empresa_vinculada <> '' ORDER BY nome")->fetchAll();
+    } catch (Throwable $e) {
+        return null;   // banco ainda sem as colunas da obra própria
+    }
+    $minhas = array_values(array_filter($lista, function ($o) use ($alvo) {
+        return (function_exists('oe_norm') ? oe_norm($o['empresa_vinculada']) : mb_strtoupper(trim((string)$o['empresa_vinculada']))) === $alvo;
+    }));
+    return $minhas ?: null;
+}
+
 function obras_do_usuario(array $u)
 {
     if ($u['perfil'] === 'admin') {
         return q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY status, nome")->fetchAll();
     }
+    if (($minhas = obras_proprias_do_usuario($u)) !== null) { return $minhas; }
     return q_global("SELECT o.* FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
         WHERE uo.usuario_id = ? AND o.status = 'ativa' ORDER BY o.nome", [(int)$u['id']])->fetchAll();
 }
@@ -877,6 +896,10 @@ function obras_do_usuario(array $u)
 function usuario_pode_obra(array $u, $obraId)
 {
     if ($u['perfil'] === 'admin') { return true; }
+    if (($minhas = obras_proprias_do_usuario($u)) !== null) {
+        foreach ($minhas as $o) { if ((int)$o['id'] === (int)$obraId) { return true; } }
+        return false;
+    }
     return (bool)q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], (int)$obraId])->fetchColumn();
 }
 

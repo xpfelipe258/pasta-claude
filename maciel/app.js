@@ -1743,7 +1743,12 @@ function ganItensCliente() {
     } else {
       const porBm = ganBmAtividadesEspecificas(cr).length > 0;
       if (M.obra_empresa && !porBm) {   // obra própria da empresa: só entra a linha do cronograma geral que for de um serviço dela (a Fase 2 acompanha a Fase 1)
-        const semFase = x => `${ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, ''))}|${ganNorm(x.servico)}`;
+        // "GALPÃO F2" (sem complemento) é a cobertura da Fase 2: acompanha "GALPÃO F1 – COBERTURA"; "GALPÃO F2 – MARQUISE" acompanha "GALPÃO F1 – MARQUISE"
+        const semFase = x => {
+          let f = ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, '')).replace(/[^A-Z0-9]+/g, ' ').trim();
+          if (f === 'GALPAO') f = 'GALPAO COBERTURA';
+          return `${f}|${ganNorm(x.servico)}`;
+        };
         if (!(M.cliente || []).some(c => ganChavePlanejada(c) === ganChavePlanejada(cr) || semFase(c) === semFase(cr))) return;
       }   // obra própria da empresa: linha do cronograma geral que não é dela não aparece
       const qtd = cr._eclusa ? eclusaQtd(cr._eclusa) : porBm ? 100 : ganQtdRef(cr);

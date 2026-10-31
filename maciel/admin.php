@@ -116,6 +116,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             obra_empresa_criar_usuario((int)($_POST['obra_id'] ?? 0), (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
                 (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
             $msg = 'Usuário criado nesta obra de empresa.';
+        } elseif ($acao === 'empresa_atualizar_obra') {
+            $oid = (int)($_POST['obra_id'] ?? 0);
+            $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
+            if (!$o || (int)$o['origem_obra_id'] !== obra_atual_id()) { throw new InvalidArgumentException('Esta obra de empresa não pertence à obra aberta.'); }
+            $c = obra_empresa_atualizar($oid) ?: [];
+            $msg = 'Obra “' . $o['nome'] . '” atualizada com o que é novo na obra principal (' . array_sum($c) . ' lançamento(s)) e com os planos 5W2H. Nada que a empresa lançou foi apagado.';
         } elseif ($acao === 'empresa_recarregar_obra') {
             $oid = (int)($_POST['obra_id'] ?? 0);
             $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
@@ -328,6 +334,7 @@ pagina_inicio('Administração');
               <button class="btn">Criar usuário</button>
             </form>
           </details>
+          <form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_atualizar_obra"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>"><button class="btn" title="Traz o que é novo da obra principal (lançamentos e planos) sem apagar o que a empresa lançou">Atualizar (sem apagar)</button></form>
           <details class="acesso-editar"><summary>Recarregar da obra principal</summary>
             <form method="post" class="access-checks access-checks-col">
               <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_recarregar_obra"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>">

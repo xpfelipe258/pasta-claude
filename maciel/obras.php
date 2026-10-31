@@ -231,6 +231,7 @@ if ($admin) {
 // Usuário de empresa (uma só obra, a obra própria dela): entra direto, sem passar pela lista
 if (!$admin && count($obras) === 1 && $_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['todas']) && obra_empresa_info((int)$obras[0]['id'])) {
     definir_obra_atual((int)$obras[0]['id']);
+    try { obra_empresa_atualizar((int)$obras[0]['id']); } catch (Throwable $e) { /* segue sem sincronizar */ }
     header('Location: index.php');
     exit;
 }
