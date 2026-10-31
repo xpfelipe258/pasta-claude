@@ -91,13 +91,13 @@ const TUT_TOPICOS = [
     dica: 'Uma peça já apontada não pode ser apontada de novo na mesma atividade; o sistema avisa.' },
 
   { id: 'qualidade', mod: 'qua', aba: 'qualidade', titulo: 'Não conformidades (Qualidade)',
-    resumo: 'Registro das não conformidades por empresa: o que foi encontrado, onde, quem responde, gravidade, prazo, ação corretiva e fotos. Gera relatório geral, por empresa e a ficha de cada uma.',
+    resumo: 'A gestão registra a não conformidade da empresa; a empresa responde com texto e foto no prazo; o administrador valida e ela fica concluída.',
     passos: [
-      { t: 'Clique em "+ Nova não conformidade", escolha a empresa e descreva o que foi encontrado.', alvo: '#qualNova' },
-      { t: 'Informe o local, o responsável, a gravidade e o prazo para corrigir. Anexe fotos (no celular abre a câmera); cada foto aceita uma legenda.' },
-      { t: 'Acompanhe pela situação: Aberta, Em tratamento ou Encerrada. Para encerrar é preciso descrever a ação corretiva.' },
-      { t: 'Use os botões de empresa e os filtros para ver só o que interessa. Vencida = prazo passou e ainda não foi encerrada.', alvo: '#qualCorpo' },
-      { t: '"Relatório de não conformidades" gera o geral ou o de uma empresa (com fotos); o botão "Relatório" de cada linha gera a ficha individual para assinatura. Ambos saem em PDF.', alvo: '#qualRel' },
+      { t: 'Gestão: clique em "+ Nova não conformidade", escolha a empresa responsável, descreva, informe o local, anexe as fotos do "antes" e defina o PRAZO PARA RESPONDER.', alvo: '#qualNova' },
+      { t: 'A empresa recebe a não conformidade como alerta: o sistema abre direto na aba Qualidade dela, com o contador vermelho no menu e um aviso por e-mail.', alvo: '#qualCorpo' },
+      { t: 'Empresa: abra a não conformidade, escreva a resposta (o que foi corrigido), anexe a(s) foto(s) do "depois" e clique em "Enviar resposta" antes do prazo.' },
+      { t: 'Administrador: abra a resposta e clique em "Validar e concluir" (a não conformidade fica Concluída) ou em "Devolver para correção", informando o motivo — ela volta para a empresa.' },
+      { t: '"Relatório de não conformidades" gera o geral ou o de uma empresa, com ANTES × DEPOIS lado a lado (descrição e fotos); o botão "Relatório" de cada linha gera a ficha individual para assinatura. Ambos saem em PDF.', alvo: '#qualRel' },
     ] },
 
   { id: 'rdo', mod: 'prod', aba: 'rdo', titulo: 'Relatório diário de obra (RDO)',

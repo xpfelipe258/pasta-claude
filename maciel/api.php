@@ -1178,23 +1178,77 @@ function acao_cadastro_faltantes(array $corpo)
 }
 
 // ----------------------------------------------------------------- Qualidade: não conformidades
+// Fluxo: a GESTÃO registra (empresa responsável, local, descrição, fotos "antes", prazo para responder) → a EMPRESA responde (texto + fotos "depois")
+// → o ADMINISTRADOR valida (concluída) ou devolve para correção. As não conformidades moram sempre na obra principal.
 function qualidade_gravidades()
 {
     return ['baixa' => 'Baixa', 'media' => 'Média', 'alta' => 'Alta', 'critica' => 'Crítica'];
 }
 function qualidade_situacoes()
 {
-    return ['aberta' => 'Aberta', 'tratamento' => 'Em tratamento', 'encerrada' => 'Encerrada'];
+    return ['aberta' => 'Aguardando resposta', 'respondida' => 'Respondida — aguardando validação', 'concluida' => 'Concluída'];
 }
 
-// Cria, edita e exclui não conformidades. Usuário de empresa só mexe nas da própria empresa; a empresa de uma NC nova vem do cadastro de empresas.
-// Código NC-001, NC-002… (sequência da obra, nunca reaproveitada). Encerrar exige a ação corretiva; a data de encerramento é carimbada (Brasília).
+// Avisa por e-mail (depois de a resposta voltar para a tela) quem precisa agir: a empresa (nova/devolvida/concluída) ou o administrador (respondida).
+function qualidade_notificar(array $nc, $evento, array $autor)
+{
+    garantir_preferencias_usuario();
+    if ($evento === 'respondida') {
+        $dest = q_global("SELECT id, nome, email, email_tarefas FROM usuarios WHERE ativo = 1 AND perfil = 'admin'")->fetchAll();
+    } else {
+        $dest = q_global('SELECT id, nome, email, email_tarefas FROM usuarios WHERE ativo = 1 AND empresa = ?', [(string)$nc['empresa']])->fetchAll();
+    }
+    $sistema = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
+    $link = url_base_sistema() . '/index.php?aba=qualidade';
+    $assuntos = ['nova' => 'Nova não conformidade para responder', 'devolvida' => 'Não conformidade devolvida para correção', 'respondida' => 'Resposta de não conformidade aguardando validação', 'concluida' => 'Não conformidade concluída'];
+    $intros = ['nova' => '%s registrou uma não conformidade da sua empresa. Responda no sistema, com texto e foto, até o prazo.', 'devolvida' => '%s devolveu a sua resposta para correção.', 'respondida' => '%s respondeu a não conformidade. Valide ou devolva no sistema.', 'concluida' => '%s validou a sua resposta: a não conformidade está concluída.'];
+    $n = 0;
+    foreach ($dest as $d) {
+        if ((int)$d['id'] === (int)$autor['id'] || ($d['email_tarefas'] ?? '') === '0' || !filter_var((string)$d['email'], FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+        $linhas = ['Olá, ' . $d['nome'] . '.', '', sprintf($intros[$evento], $autor['nome']), '', 'Código: ' . $nc['codigo'], 'Empresa: ' . $nc['empresa'], 'Não conformidade: ' . $nc['titulo'], 'Local: ' . $nc['local']];
+        if (!empty($nc['prazo'])) {
+            $linhas[] = 'Prazo para responder: ' . tarefa_data_br($nc['prazo']);
+        }
+        if ($evento === 'devolvida' && !empty($nc['devolucao'])) {
+            $linhas[] = 'Motivo: ' . $nc['devolucao'];
+        }
+        array_push($linhas, '', 'Abrir no sistema: ' . $link);
+        $para = (string)$d['email'];
+        $assunto = $assuntos[$evento] . ' ' . $nc['codigo'] . ' - ' . $sistema;
+        $msg = implode("\n", $linhas);
+        $nomeDest = $d['nome'];
+        register_shutdown_function(function () use ($para, $assunto, $msg, $nomeDest, $evento, $nc) {
+            if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+            try {
+                $ok = enviar_email_sistema($para, $assunto, $msg);
+                registrar_global('email_qualidade', ['evento' => $evento, 'nc' => $nc['codigo'], 'para' => $nomeDest, 'ok' => (bool)$ok]);
+            } catch (Throwable $e) { /* falha de e-mail nunca atrapalha a Qualidade */ }
+        });
+        $n++;
+    }
+    return $n;
+}
+
 function acao_qualidade(array $corpo, array $usuario)
+{
+    return qualidade_na_obra(function () use ($corpo, $usuario) {
+        $r = acao_qualidade_exec($corpo, $usuario);
+        qualidade_versao_subir();
+        return $r;
+    });
+}
+
+function acao_qualidade_exec(array $corpo, array $usuario)
 {
     $acao = (string)($corpo['acao'] ?? 'salvar');
     $id = isset($corpo['id']) && $corpo['id'] !== null && $corpo['id'] !== '' ? (int)$corpo['id'] : null;
     $minhaEmp = trim((string)($usuario['empresa'] ?? ''));
-    $agoraBrt = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')));
+    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $agoraBrt = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+    $hoje = $agoraBrt->format('Y-m-d');
+    $carimbo = $agoraBrt->format('Y-m-d H:i:s');
     $atual = null;
     if ($id !== null) {
         $atual = q('SELECT * FROM nao_conformidades WHERE id = ?', [$id])->fetch();
@@ -1204,12 +1258,15 @@ function acao_qualidade(array $corpo, array $usuario)
         if ($minhaEmp !== '' && $atual['empresa'] !== $minhaEmp) {
             throw new ErroValidacao('Seu usuário só acessa as não conformidades da empresa ' . $minhaEmp . '.');
         }
+    } elseif ($acao !== 'salvar') {
+        throw new ErroValidacao('Informe a não conformidade.');
     }
+    $nc = function ($v) use ($id) {   // linha atualizada, para o e-mail
+        return q('SELECT * FROM nao_conformidades WHERE id = ?', [$id])->fetch();
+    };
+
     if ($acao === 'excluir') {
-        if ($atual === null) {
-            throw new ErroValidacao('Informe a não conformidade.');
-        }
-        if (($usuario['perfil'] ?? '') !== 'admin' && (string)$atual['por'] !== (string)$usuario['nome']) {
+        if (!$admin && ($minhaEmp !== '' || (string)$atual['por'] !== (string)$usuario['nome'])) {
             throw new ErroValidacao('Só o administrador ou quem registrou a não conformidade pode excluí-la.');
         }
         require_once __DIR__ . '/inc/importacao.php';
@@ -1221,51 +1278,97 @@ function acao_qualidade(array $corpo, array $usuario)
         q('DELETE FROM nao_conformidades WHERE id = ?', [$id]);
         return ['codigo' => $atual['codigo']];
     }
+
+    if ($acao === 'responder') {   // a empresa (ou o administrador por ela) responde: texto + ao menos uma foto "depois"
+        if ($minhaEmp === '' && !$admin) {
+            throw new ErroValidacao('A resposta é dada pela empresa responsável.');
+        }
+        if ($atual['situacao'] !== 'aberta') {
+            throw new ErroValidacao('Esta não conformidade não está aguardando resposta.');
+        }
+        $resp = mb_substr(trim((string)($corpo['campos']['resposta'] ?? '')), 0, 4000);
+        if ($resp === '') {
+            throw new ErroValidacao('Escreva a resposta: o que foi feito para corrigir.');
+        }
+        if ((int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois'", [$id])->fetchColumn() < 1) {
+            throw new ErroValidacao('Anexe ao menos uma foto da correção ("depois") antes de enviar a resposta.');
+        }
+        gravar_linha('nao_conformidades', $id, ['acao' => $resp, 'situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
+        qualidade_notificar($nc(1), 'respondida', $usuario);
+        return ['id' => $id, 'codigo' => $atual['codigo']];
+    }
+
+    if (in_array($acao, ['validar', 'devolver', 'reabrir'], true)) {   // decisões do administrador
+        if (!$admin) {
+            throw new ErroValidacao('Só o administrador valida, devolve ou reabre uma não conformidade.');
+        }
+        if ($acao === 'reabrir') {
+            if ($atual['situacao'] !== 'concluida') {
+                throw new ErroValidacao('Só uma não conformidade concluída pode ser reaberta.');
+            }
+            gravar_linha('nao_conformidades', $id, ['situacao' => 'aberta', 'encerrada_em' => null, 'validada_por' => null, 'respondida_em' => null, 'respondida_por' => null,
+                'devolucao' => 'Reaberta em ' . $agoraBrt->format('d/m/Y') . ' por ' . $usuario['nome']]);
+            qualidade_notificar($nc(1), 'devolvida', $usuario);
+            return ['id' => $id, 'codigo' => $atual['codigo']];
+        }
+        if ($atual['situacao'] !== 'respondida') {
+            throw new ErroValidacao('Esta não conformidade ainda não tem resposta para validar.');
+        }
+        if ($acao === 'validar') {
+            gravar_linha('nao_conformidades', $id, ['situacao' => 'concluida', 'encerrada_em' => $hoje, 'validada_por' => (string)$usuario['nome']]);
+            qualidade_notificar($nc(1), 'concluida', $usuario);
+            return ['id' => $id, 'codigo' => $atual['codigo']];
+        }
+        $motivo = mb_substr(trim((string)($corpo['campos']['motivo'] ?? '')), 0, 2000);
+        if ($motivo === '') {
+            throw new ErroValidacao('Informe o motivo da devolução para a empresa corrigir.');
+        }
+        gravar_linha('nao_conformidades', $id, ['situacao' => 'aberta', 'respondida_em' => null, 'respondida_por' => null,
+            'devolucao' => 'Devolvida em ' . $agoraBrt->format('d/m/Y') . ' por ' . $usuario['nome'] . ': ' . $motivo]);
+        qualidade_notificar($nc(1), 'devolvida', $usuario);
+        return ['id' => $id, 'codigo' => $atual['codigo']];
+    }
+
     if ($acao !== 'salvar') {
         throw new ErroValidacao('Ação inválida.');
+    }
+    // registrar / editar: só a gestão (usuário sem empresa); a empresa responde
+    if ($minhaEmp !== '') {
+        throw new ErroValidacao('As não conformidades são registradas pela gestão. A empresa responde na própria não conformidade.');
+    }
+    if ($atual && $atual['situacao'] === 'concluida') {
+        throw new ErroValidacao('Não conformidade concluída: o administrador precisa reabri-la para editar.');
     }
     $c = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
     $txt = function ($k, $max = 255) use ($c) {
         return mb_substr(trim((string)($c[$k] ?? '')), 0, $max);
     };
-    $empresa = $minhaEmp !== '' ? $minhaEmp : mb_strtoupper($txt('empresa'));
+    $empresa = $atual && $atual['situacao'] !== 'aberta' ? $atual['empresa'] : mb_strtoupper($txt('empresa'));
     if ($empresa === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empresa])->fetch()) {
-        throw new ErroValidacao('Escolha a empresa da não conformidade.');
+        throw new ErroValidacao('Escolha a empresa responsável pela não conformidade.');
     }
     $titulo = $txt('titulo');
     $local = $txt('local');
-    $resp = $txt('responsavel');
     if ($titulo === '') {
-        throw new ErroValidacao('Descreva a não conformidade (título).');
+        throw new ErroValidacao('Descreva a não conformidade (resumo).');
     }
     if ($local === '') {
         throw new ErroValidacao('Informe o local da não conformidade.');
     }
-    if ($resp === '') {
-        throw new ErroValidacao('Informe o responsável.');
-    }
-    $data = $txt('data') !== '' ? $txt('data') : $agoraBrt->format('Y-m-d');
     $prazo = $txt('prazo');
-    foreach ([['data', $data], ['prazo', $prazo]] as $dd) {
-        if ($dd[1] !== '' && !data_valida($dd[1])) {
-            throw new ErroValidacao('Data inválida em ' . $dd[0] . '.');
-        }
+    if ($prazo === '' || !data_valida($prazo)) {
+        throw new ErroValidacao('Informe o prazo para a empresa responder.');
+    }
+    $data = $txt('data') !== '' ? $txt('data') : $hoje;
+    if (!data_valida($data)) {
+        throw new ErroValidacao('Data inválida.');
     }
     $grav = $txt('gravidade') !== '' ? $txt('gravidade') : 'media';
-    $sit = $txt('situacao') !== '' ? $txt('situacao') : 'aberta';
-    if (!isset(qualidade_gravidades()[$grav]) || !isset(qualidade_situacoes()[$sit])) {
-        throw new ErroValidacao('Gravidade ou situação inválida.');
+    if (!isset(qualidade_gravidades()[$grav])) {
+        throw new ErroValidacao('Gravidade inválida.');
     }
-    $acaoCorr = $txt('acao', 4000);
-    if ($sit === 'encerrada' && $acaoCorr === '') {
-        throw new ErroValidacao('Para encerrar, descreva a ação corretiva / tratativa realizada.');
-    }
-    $enc = null;
-    if ($sit === 'encerrada') {
-        $enc = ($atual && $atual['situacao'] === 'encerrada' && $atual['encerrada_em']) ? $atual['encerrada_em'] : ($txt('encerrada_em') !== '' && data_valida($txt('encerrada_em')) ? $txt('encerrada_em') : $agoraBrt->format('Y-m-d'));
-    }
-    $vals = ['data' => $data, 'empresa' => $empresa, 'titulo' => $titulo, 'descricao' => $txt('descricao', 4000) ?: null, 'local' => $local, 'responsavel' => $resp,
-        'gravidade' => $grav, 'situacao' => $sit, 'prazo' => $prazo !== '' ? $prazo : null, 'acao' => $acaoCorr !== '' ? $acaoCorr : null, 'encerrada_em' => $enc];
+    $vals = ['data' => $data, 'empresa' => $empresa, 'titulo' => $titulo, 'descricao' => $txt('descricao', 4000) ?: null, 'local' => $local,
+        'responsavel' => $txt('responsavel') ?: null, 'gravidade' => $grav, 'prazo' => $prazo];
     if ($atual === null) {
         $max = 0;
         foreach (q('SELECT codigo FROM nao_conformidades')->fetchAll(PDO::FETCH_COLUMN) as $cod) {
@@ -1274,11 +1377,13 @@ function acao_qualidade(array $corpo, array $usuario)
             }
         }
         $vals['codigo'] = sprintf('NC-%03d', $max + 1);
+        $vals['situacao'] = 'aberta';
         $vals['por'] = (string)$usuario['nome'];
-        $vals['em'] = $agoraBrt->format('Y-m-d H:i:s');
+        $vals['em'] = $carimbo;
         gravar_linha('nao_conformidades', null, $vals);
-        $novoId = (int)bd()->lastInsertId();
-        return ['id' => $novoId, 'codigo' => $vals['codigo']];
+        $id = (int)bd()->lastInsertId();
+        qualidade_notificar(array_merge($vals, ['id' => $id]), 'nova', $usuario);
+        return ['id' => $id, 'codigo' => $vals['codigo']];
     }
     gravar_linha('nao_conformidades', $id, $vals);
     return ['id' => $id, 'codigo' => $atual['codigo']];

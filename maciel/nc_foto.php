@@ -25,18 +25,31 @@ if (!$obra || !usuario_pode_obra($u, $obraId)) {
     nc_resp(409, ['erro' => 'Selecione uma obra na Central de Obras.']);
 }
 definir_obra_atual($obraId);
+obra_override(qualidade_obra_id());   // as não conformidades (e as fotos) moram na obra principal, mesmo para o usuário da obra própria de uma empresa
+$obraQ = obra_atual_id();
 $acao = $_GET['acao'] ?? '';
-$dir = importacao_diretorio($obraId) . '/qualidade';
+$dir = importacao_diretorio($obraQ) . '/qualidade';
 $minhaEmp = trim((string)($u['empresa'] ?? ''));
+$admin = ($u['perfil'] ?? '') === 'admin';
 
 // A não conformidade precisa existir e, para usuário de empresa, ser da empresa dele.
 function nc_da_foto($ncId, $minhaEmp)
 {
-    $nc = q('SELECT id, empresa FROM nao_conformidades WHERE id = ?', [(int)$ncId])->fetch();
+    $nc = q('SELECT id, empresa, situacao FROM nao_conformidades WHERE id = ?', [(int)$ncId])->fetch();
     if (!$nc || ($minhaEmp !== '' && $nc['empresa'] !== $minhaEmp)) {
         nc_resp(404, ['erro' => 'Não conformidade não encontrada.']);
     }
     return $nc;
+}
+
+// Foto "antes" (registro da gestão): só a gestão e enquanto a NC não estiver concluída. Foto "depois" (correção): a empresa (ou o administrador)
+// e só enquanto a NC aguarda a resposta. Vale para enviar, legendar e excluir.
+function nc_pode_foto(array $nc, $tipo, $minhaEmp, $admin)
+{
+    if ($tipo === 'depois') {
+        return ($minhaEmp !== '' || $admin) && $nc['situacao'] === 'aberta';
+    }
+    return $minhaEmp === '' && $nc['situacao'] !== 'concluida';
 }
 
 if ($acao === 'ver') {
@@ -68,6 +81,10 @@ $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->
 
 if ($acao === 'enviar') {
     $nc = nc_da_foto($_GET['nc'] ?? 0, $minhaEmp);
+    $tipo = ($_GET['tipo'] ?? 'antes') === 'depois' ? 'depois' : 'antes';
+    if (!nc_pode_foto($nc, $tipo, $minhaEmp, $admin)) {
+        nc_resp(403, ['erro' => $tipo === 'depois' ? 'A foto da correção só pode ser anexada enquanto a não conformidade aguarda a resposta da empresa.' : 'As fotos do registro só são anexadas pela gestão, antes de a não conformidade ser concluída.']);
+    }
     $bin = (string)file_get_contents('php://input');
     if ($bin === '' || strlen($bin) > 15 * 1048576) {
         nc_resp(400, ['erro' => 'Foto vazia ou maior que 15 MB.']);
@@ -103,36 +120,42 @@ if ($acao === 'enviar') {
     }
     $ordem = (float)q('SELECT COALESCE(MAX(ordem), 0) FROM nc_fotos WHERE nc_id = ?', [(int)$nc['id']])->fetchColumn() + 1;
     $nome = mb_substr(preg_replace('/[^\p{L}\p{N}._\- ]/u', '', (string)($_GET['nome'] ?? 'foto')), 0, 120);
-    q('INSERT INTO nc_fotos (nc_id, arquivo, nome, legenda, ordem, por, em) VALUES (?, ?, ?, ?, ?, ?, ?)', [(int)$nc['id'], $arq, $nome, null, $ordem, (string)$u['nome'], $agora]);
+    q('INSERT INTO nc_fotos (nc_id, tipo, arquivo, nome, legenda, ordem, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [(int)$nc['id'], $tipo, $arq, $nome, null, $ordem, (string)$u['nome'], $agora]);
     $id = (int)bd()->lastInsertId();
-    sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
+    qualidade_versao_subir();
     nc_resp(200, ['ok' => true, 'id' => $id]);
 }
 
 if ($acao === 'legenda') {
     $id = (int)($_GET['id'] ?? 0);
-    $f = q('SELECT nc_id FROM nc_fotos WHERE id = ?', [$id])->fetch();
+    $f = q('SELECT nc_id, tipo FROM nc_fotos WHERE id = ?', [$id])->fetch();
     if (!$f) {
         nc_resp(404, ['erro' => 'Foto não encontrada.']);
     }
-    nc_da_foto($f['nc_id'], $minhaEmp);
+    $nc = nc_da_foto($f['nc_id'], $minhaEmp);
+    if (!nc_pode_foto($nc, $f['tipo'] === 'depois' ? 'depois' : 'antes', $minhaEmp, $admin)) {
+        nc_resp(403, ['erro' => 'Esta foto não pode mais ser alterada.']);
+    }
     $corpo = json_decode((string)file_get_contents('php://input'), true);
     $leg = mb_substr(trim((string)($corpo['legenda'] ?? '')), 0, 1000);
     q('UPDATE nc_fotos SET legenda = ? WHERE id = ?', [$leg !== '' ? $leg : null, $id]);
-    sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
+    qualidade_versao_subir();
     nc_resp(200, ['ok' => true]);
 }
 
 if ($acao === 'excluir') {
     $id = (int)($_GET['id'] ?? 0);
-    $f = q('SELECT arquivo, nc_id FROM nc_fotos WHERE id = ?', [$id])->fetch();
+    $f = q('SELECT arquivo, nc_id, tipo FROM nc_fotos WHERE id = ?', [$id])->fetch();
     if (!$f) {
         nc_resp(404, ['erro' => 'Foto não encontrada.']);
     }
-    nc_da_foto($f['nc_id'], $minhaEmp);
+    $nc = nc_da_foto($f['nc_id'], $minhaEmp);
+    if (!nc_pode_foto($nc, $f['tipo'] === 'depois' ? 'depois' : 'antes', $minhaEmp, $admin)) {
+        nc_resp(403, ['erro' => 'Esta foto não pode mais ser excluída.']);
+    }
     q('DELETE FROM nc_fotos WHERE id = ?', [$id]);
     @unlink($dir . '/' . basename((string)$f['arquivo']));
-    sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
+    qualidade_versao_subir();
     nc_resp(200, ['ok' => true]);
 }
 nc_resp(400, ['erro' => 'Ação desconhecida.']);

@@ -133,8 +133,9 @@ function tabelas_spec()
         'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         // Qualidade: não conformidades por empresa, com local, responsável e fotos (arquivos em dados_obras/{obra}/qualidade, servidos por nc_foto.php)
         'nao_conformidades' => ['codigo' => 'txt', 'data' => 'data', 'empresa' => 'txt', 'titulo' => 'txt', 'descricao' => 'longo', 'local' => 'txt', 'responsavel' => 'txt',
-            'gravidade' => 'txt', 'situacao' => 'txt', 'prazo' => 'data', 'acao' => 'longo', 'encerrada_em' => 'data', 'por' => 'txt', 'em' => 'txt'],
-        'nc_fotos' => ['nc_id' => 'num', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
+            'gravidade' => 'txt', 'situacao' => 'txt', 'prazo' => 'data', 'acao' => 'longo', 'encerrada_em' => 'data', 'por' => 'txt', 'em' => 'txt',
+            'respondida_em' => 'txt', 'respondida_por' => 'txt', 'validada_por' => 'txt', 'devolucao' => 'longo'],
+        'nc_fotos' => ['nc_id' => 'num', 'tipo' => 'txt', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
             'peso' => 'num', 'frente' => 'txt'],
@@ -143,7 +144,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 25;   // 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 26;   // 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -164,6 +165,10 @@ function garantir_esquema(PDO $pdo, array $c)
     }
     if ((int)$v < 15) {
         renomear_telhar_v15($pdo);
+    }
+    if ((int)$v < 26) {   // Qualidade: as situações antigas (em tratamento/encerrada) viram aguardando resposta/concluída
+        $pdo->exec("UPDATE nao_conformidades SET situacao = 'aberta' WHERE situacao = 'tratamento'");
+        $pdo->exec("UPDATE nao_conformidades SET situacao = 'concluida' WHERE situacao = 'encerrada'");
     }
     $pdo->prepare("DELETE FROM sistema WHERE chave = 'esquema'")->execute();
     $pdo->prepare("INSERT INTO sistema (chave, valor) VALUES ('esquema', ?)")->execute([(string)ESQUEMA_VERSAO]);
@@ -799,10 +804,59 @@ function iniciar_sessao()
     }
 }
 
+// Troca temporária da obra dos dados (não mexe na sessão): a Qualidade grava sempre na obra principal, mesmo quando o usuário de
+// empresa está na obra própria dele. 0 = sem troca.
+function obra_override($definir = null)
+{
+    static $o = 0;
+    if ($definir !== null) {
+        $o = max(0, (int)$definir);
+    }
+    return $o;
+}
+
 function obra_atual_id()
 {
+    if (($o = obra_override()) > 0) {
+        return $o;
+    }
     iniciar_sessao();
     return max(0, (int)($_SESSION['obra_id'] ?? 0));
+}
+
+// Obra onde moram as não conformidades: a obra principal (a obra própria de uma empresa aponta para ela em origem_obra_id).
+function qualidade_obra_id()
+{
+    $atual = obra_atual_id();
+    $r = $atual > 0 ? q_global('SELECT origem_obra_id FROM obras WHERE id = ?', [$atual])->fetch() : null;
+    return $r && (int)$r['origem_obra_id'] > 0 ? (int)$r['origem_obra_id'] : $atual;
+}
+
+function qualidade_na_obra(callable $f)
+{
+    $alvo = qualidade_obra_id();
+    $antes = obra_override();
+    if ($alvo === obra_atual_id()) {
+        return $f();
+    }
+    obra_override($alvo);
+    try {
+        return $f();
+    } finally {
+        obra_override($antes);
+    }
+}
+
+// Quem acompanha a Qualidade (obra principal e as obras próprias das empresas) precisa ver a mudança na hora: sobe a versão de todas.
+function qualidade_versao_subir()
+{
+    $principal = qualidade_obra_id();
+    $ids = array_merge([$principal], array_map('intval', q_global('SELECT id FROM obras WHERE origem_obra_id = ?', [$principal])->fetchAll(PDO::FETCH_COLUMN)));
+    foreach (array_unique($ids) as $oid) {
+        $v = (int)(q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'versao'", [$oid])->fetchColumn() ?: 0) + 1;
+        q_global("DELETE FROM obra_config WHERE obra_id = ? AND chave = 'versao'", [$oid]);
+        q_global("INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, 'versao', ?)", [$oid, (string)$v]);
+    }
 }
 
 function definir_obra_atual($obraId)
@@ -868,6 +922,7 @@ function modulos_usuario(array $u)
     $todos = modulos_sistema();
     if (($u['perfil'] ?? '') === 'admin') { return $todos; }
     $rows = q_global('SELECT modulo FROM usuarios_modulos WHERE usuario_id=? AND permitido=1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN);
+    if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; }   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
     // Compatibilidade: usuário antigo sem configuração continua vendo tudo até o administrador salvar seus acessos.
     return $rows ? array_values(array_intersect($todos, $rows)) : $todos;
 }
@@ -928,8 +983,12 @@ function ui_ocultos_usuario(array $u)
             }
         }
     }
+    $abasOcultas = array_values(array_intersect((array)($meu['abas'] ?? []), $abasOk));
+    if (trim((string)($u['empresa'] ?? '')) !== '') {   // a aba Qualidade não pode ser ocultada de usuário de empresa
+        $abasOcultas = array_values(array_diff($abasOcultas, ['qualidade']));
+    }
     return [
-        'abas' => array_values(array_intersect((array)($meu['abas'] ?? []), $abasOk)),
+        'abas' => $abasOcultas,
         'subs' => array_values(array_intersect((array)($meu['subs'] ?? []), $subsOk)),
     ];
 }

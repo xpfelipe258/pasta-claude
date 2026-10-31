@@ -155,7 +155,13 @@ function montar_modelo()
     foreach (tabelas_spec() as $nome => $campos) {
         $tabelas[$nome] = linhas_tabela($nome, $campos);
     }
-    // Qualidade: usuário de empresa só recebe as não conformidades (e fotos) da própria empresa
+    // Qualidade: as não conformidades moram na obra principal (a obra própria de uma empresa lê de lá); usuário de empresa só recebe as da própria empresa
+    if (qualidade_obra_id() !== obra_atual_id()) {
+        $specQ = tabelas_spec();
+        foreach (['nao_conformidades', 'nc_fotos'] as $nomeQ) {
+            $tabelas[$nomeQ] = qualidade_na_obra(function () use ($nomeQ, $specQ) { return linhas_tabela($nomeQ, $specQ[$nomeQ]); });
+        }
+    }
     $uQual = function_exists('usuario_atual') ? usuario_atual() : null;
     $empQual = trim((string)($uQual['empresa'] ?? ''));
     if ($empQual !== '') {

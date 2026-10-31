@@ -1607,3 +1607,18 @@ tr.tf-limite { display: none !important; }
 @media (max-width: 900px) { .qual-grade { grid-template-columns: 1fr; } .qual-desc { max-width: 220px; } }
 .qual-ok { background: var(--acento, #1f4fd8); color: #fff; border-color: var(--acento, #1f4fd8); }
 #tabQual td:first-child { white-space: nowrap; }
+
+.qual-alerta { border: 2px solid #b42318; background: #fef3f2; color: #7a271a; border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; }
+.qual-alerta.ok { border-color: #067647; background: #ecfdf3; color: #05603a; }
+.qual-alerta.val { border-color: #b54708; background: #fffaeb; color: #7a2e0e; }
+.qual-alerta ul { margin: 8px 0 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.qual-alerta li { font-size: 13px; }
+.qual-resp { margin-right: 6px; }
+.qual-devol { color: #b42318; font-size: 12px; margin-top: 3px; }
+.qual-devol.grande { border: 1px solid #b42318; background: #fef3f2; border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 13px; }
+tr.qual-linha-atraso td:first-child { box-shadow: inset 4px 0 0 #b42318; }
+.qual-topo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qual-sec { border: 1px solid var(--linha-forte, #c9ced6); border-radius: 8px; margin: 10px 0; padding: 6px 12px 12px; }
+.qual-sec legend { font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 0 6px; }
+.qual-sec.antes legend { color: #b42318; } .qual-sec.depois legend { color: #067647; }
+.qual-sec.antes { border-color: #f1a9a0; } .qual-sec.depois { border-color: #8fd3ae; }
