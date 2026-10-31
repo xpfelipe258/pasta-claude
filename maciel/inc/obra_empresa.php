@@ -15,7 +15,7 @@ const OE_CONFIG_NAO_COPIA = ['obra_nome', 'data_inicio', 'data_fim', 'versao', '
 const OE_ARQUIVOS_LEGADOS = ['regras_baixa' => 'regras_baixa.json', 'ifc_parafusos' => 'ifc_parafusos.json', 'ifc_parafusos_locais' => 'ifc_parafusos_locais.json',
     'ifc_anexos' => 'ifc_anexos.json', 'fixadores_projeto' => 'fixadores_projeto.json', 'estrutura_projeto' => 'estrutura_projeto.json', 'frentes_montagem' => 'frentes_montagem.json', 'paginacao_telhas' => 'paginacao_telhas.json'];
 // Menus que a empresa recebe ao ser criada (o administrador pode mudar em Usuários › Ver / editar acessos)
-const OE_MODULOS_PADRAO = ['producao', 'gestao', 'consumo', 'financeiro'];
+const OE_MODULOS_PADRAO = ['producao', 'gestao', 'consumo', 'financeiro', 'qualidade'];
 
 function oe_norm($s)
 {

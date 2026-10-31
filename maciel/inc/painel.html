@@ -105,6 +105,15 @@
       <div class="sidebar-itens aberto" id="grp-gestao">
         <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
         <button data-aba="dp">Pessoal</button>
+        <button type="button" id="btnPessoasSesmt" style="display:none" onclick="window.location.href='sesmt.php?g=pessoas'" title="Colaboradores, ASO, treinamentos, presença, advertências e CIPA">Pessoas</button>
+      </div>
+    </div>
+    <div class="sidebar-grupo">
+      <div class="sidebar-titulo aberto" data-grupo="qualidade">
+        <span class="sidebar-icone">&#10003;</span>Qualidade<span class="seta-grupo">&#8249;</span>
+      </div>
+      <div class="sidebar-itens aberto" id="grp-qualidade">
+        <button data-aba="qualidade" title="Não conformidades por empresa, com local, responsável e fotos">Não conformidades <span class="contador alerta" id="ncCont" hidden></span></button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -112,16 +121,10 @@
         <span class="sidebar-icone">&#10010;</span>SESMT GERAL<span class="seta-grupo">&#8249;</span>
       </div>
       <div class="sidebar-itens aberto" id="grp-sesmt">
-        <button type="button" onclick="window.location.href='sesmt.php'">Painel SESMT</button>
-        <button type="button" onclick="window.location.href='sesmt.php?reg=colaboradores'">Colaboradores</button>
-        <button type="button" onclick="window.location.href='sesmt.php?reg=aso'">ASO</button>
-        <button type="button" onclick="window.location.href='sesmt.php?reg=treinamentos'">Treinamentos</button>
-        <button type="button" onclick="window.location.href='sesmt.php?reg=acidentes'">Acidentes</button>
-        <button type="button" onclick="window.location.href='sesmt.php?reg=epi'">EPI</button>
-        <button type="button" onclick="window.location.href='sesmt.php?v=listas'">Fontes de dados</button>
+        <button type="button" onclick="window.location.href='sesmt.php?g=ocorrencias'">Ocorrências</button>
       </div>
     </div>
-    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)g.style.display=''}).catch(function(){})})();</script>
+    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){g.style.display='';var b=document.getElementById('btnPessoasSesmt');if(b)b.style.display=''}}).catch(function(){})})();</script>
     <div class="sidebar-grupo sidebar-geral">
       <div class="sidebar-titulo aberto" data-grupo="geral">
         <span class="sidebar-icone">&#9776;</span>Geral<span class="seta-grupo">&#8249;</span>
@@ -283,6 +286,10 @@
   <!-- AVANÇO -->
   <section id="aba-rdo" hidden>
     <div id="rdoCorpo"></div>
+  </section>
+
+  <section id="aba-qualidade" hidden>
+    <div id="qualCorpo"></div>
   </section>
 
   <section id="aba-apont" hidden>
@@ -891,6 +898,7 @@
 <script src="rel_lanc.js"></script>
 <script src="rel_suprimentos.js"></script>
 <script src="rdo.js"></script>
+<script src="qualidade.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>

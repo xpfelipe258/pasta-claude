@@ -754,12 +754,37 @@ function reSecResumo(d) {
   </div>`;
 }
 
+// Produção realizada no período: TODA atividade do catálogo (BM) que teve avanço entre as datas, com a quantidade do período (mesma conta do Relatório de produção de Lançamentos).
+function reSecProdPeriodo(d) {
+  if (typeof lcDados !== 'function') return '<p class="aviso">Cálculo de produção do período indisponível (recarregue a página).</p>';
+  const emps = d.geral ? (d.emps || []) : [d.emp], pc = v => nf(v * 100, 1) + '%';
+  const blocos = emps.map(emp => {
+    let q;
+    try { q = lcDados(emp, d.ini, d.fim); } catch (e) { console.error('produção do período', emp, e); return `<h3>${esc(emp)}</h3><p class="aviso">Não foi possível calcular a produção desta empresa.</p>`; }
+    if (!q.itens.length) return `<h3>${esc(emp)}</h3><p class="nota">Nenhuma atividade teve avanço entre ${fdA(d.ini)} e ${fdA(d.fim)}.</p>`;
+    let linhas = '';
+    q.itens.forEach(x => {
+      linhas += `<tr class="grupo"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+      x.ats.forEach(t => {
+        const a = t.a, ds = t.dias.map(z => z[0]).sort(), nDias = new Set(ds).size;
+        linhas += `<tr><td>${esc(a.atividade)}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, a.controle ? bmQtdContratadaUnd(a) : null)}</td>
+          <td class="n"><b>${bmFmtQtdFinanceira(a, t.per, t.und)}</b></td><td class="n">${bmFmtQtdFinanceira(a, t.real, t.undAc)}</td>
+          <td class="n">+${pc(a.qtd ? t.per / a.qtd : 0)}</td><td class="n">${pc(t.pct)}</td>
+          <td class="nota">${nDias} dia(s)${ds.length ? ` · ${fdA(ds[0])}${ds[ds.length - 1] !== ds[0] ? ' a ' + fdA(ds[ds.length - 1]) : ''}` : ''}</td></tr>`;
+      });
+    });
+    return `<h3>${esc(emp)} <span class="nota">· ${nf(q.nAtiv)} atividade(s) com avanço em ${nf(q.itens.length)} item(ns)</span></h3>
+      <table><thead><tr><th>Atividade (catálogo do BM)</th><th>Un.</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">% da atividade no período</th><th class="n">% acumulado</th><th>Lançado em</th></tr></thead><tbody>${linhas}</tbody></table>`;
+  }).join('');
+  return `<p class="nota">Período de ${fdA(d.ini)} a ${fdA(d.fim)}. Só aparecem as atividades que tiveram avanço; a coluna "No período" é a quantidade produzida entre as duas datas.</p>${blocos}`;
+}
+
 function reSecProducao(d) {
   const p = d.producao;
   if (p.erro) return reErro(p);
   const linhas = p.linhas.map(k => { const f = reFarolPct(k.pct, !(k.prev > 0)); return `<tr><td>${esc(cap(k.serv))}${k.un ? ` <span class="nota">(${esc(k.un)})</span>` : ''}<div class="nota">${esc(k.fonte)}</div></td><td class="n">${k.meta == null ? '—' : nf(k.meta, 1)}</td><td class="n">${k.prev == null ? '—' : nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td><td class="n ${k.desvio != null && k.desvio < 0 ? 'neg' : 'pos'}">${k.desvio == null ? '—' : (k.desvio > 0 ? '+' : '') + nf(k.desvio, 1)}</td><td class="n">${rePct(k.pct)}</td><td>${reSm(f[0], f[1])}</td></tr>`; });
   return reTab(['Atividade', `#nMeta do período (${fd(d.ini)} a ${fd(d.fim)})`, `#nPrevisto de ${fd(d.ini)} a ${fd(d.corte)}`, '#nRealizado', '#nDesvio', '#n% do previsto', 'Situação'], linhas)
-    + `<p class="nota">Total das atividades com meta: ${nf(p.real, 1)} realizados de ${nf(p.prev, 1)} previstos até ${fdA(d.corte)} (${rePct(p.pct)}); ${p.atingidas} de ${p.comMeta} atividade(s) com a meta do período atingida. Base da meta: ${esc(p.base)}; atividades executadas fora do plano aparecem com a meta cadastrada (ou “sem meta”).</p>` + reMapaHtml(d);
+    + `<p class="nota">Total das atividades com meta: ${nf(p.real, 1)} realizados de ${nf(p.prev, 1)} previstos até ${fdA(d.corte)} (${rePct(p.pct)}); ${p.atingidas} de ${p.comMeta} atividade(s) com a meta do período atingida. Base da meta: ${esc(p.base)}; atividades executadas fora do plano aparecem com a meta cadastrada (ou “sem meta”).</p>` + (d.opc && d.opc.mapa === false ? '' : reMapaHtml(d));
 }
 function reMapaHtml(d) {
   const m = d.mapa;
@@ -965,32 +990,51 @@ th{background:#eef2f7}td.n,th.n{text-align:right;white-space:nowrap}tr.grupo td{
 </style>`;
 
 function reSecao(titulo, html) { return `<h2>${titulo}</h2>${html}`; }
+// Seções do relatório (a pessoa escolhe quais entram; a numeração acompanha as escolhidas)
+const RE_SECOES = [
+  ['resumo', 'Resumo executivo (cartões)', () => 'Resumo executivo', reSecResumo, false],
+  ['prodperiodo', 'Produção realizada no período — atividades com avanço e quantidade', () => 'Produção realizada no período — atividades com avanço', reSecProdPeriodo, true],
+  ['producao', 'Resumo de produção do período', () => 'Resumo de produção do período', reSecProducao, true],
+  ['semanas', 'Meta da semana — atingimento', () => 'Meta da semana — atingimento', reSecSemanas, true],
+  ['atividades', 'Atividades que precisavam ser iniciadas', d => d.geral ? 'Atividades que precisavam ser iniciadas' : 'Atividades que a empresa precisava iniciar', reSecAtividades, true],
+  ['planos', 'Plano 5W2H — atingimento', () => 'Plano 5W2H — atingimento', reSecPlanos, true],
+  ['bm', 'Avanço físico × catálogo de atividades (BM)', () => 'Avanço físico × catálogo de atividades (BM)', reSecBM, true],
+  ['previsto', 'Previsto × realizado nas atividades', d => d.geral ? 'Previsto × realizado nas atividades' : 'Previsto × realizado nas atividades da empresa', reSecPrevisto, true],
+  ['financeiro', 'Resumo financeiro e projeção', () => 'Resumo financeiro e projeção', reSecFinanceiro, true],
+  ['equip', 'Equipamentos e abastecimento — custos e projeção', () => 'Equipamentos e abastecimento — custos e projeção', reSecEquip, true],
+  ['impactos', 'Impactos gerados e sofridos', () => 'Impactos gerados e sofridos', reSecImpactos, true],
+  ['efetivo', 'Tendência de efetivo (pessoal)', () => 'Tendência de efetivo (pessoal)', reSecEfetivo, true],
+  ['suprimentos', 'Suprimentos — retirada da semana antecedente × joists realizados', () => 'Suprimentos — retirada da semana antecedente × joists realizados', reSecSuprimentos, true],
+];
 function reHtmlEmpresa(d) {
+  const sel = (d.opc && d.opc.secoes) || {};
+  let n = 0;
+  const corpo = RE_SECOES.filter(([k]) => sel[k] !== false).map(([k, , tit, fn, numera]) => reSecao(numera ? `${++n}. ${tit(d)}` : tit(d), fn(d))).join('\n    ');
   return `<section class="emp-sec"><div class="pag">
-    <h1>${esc(d.emp)}</h1><p class="sub-cab">${d.geral ? `Relatório geral da obra (${esc(d.emps.join(' · '))})` : 'Relatório da empresa'} · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (data de referência)</p>
-    ${reSecao('Resumo executivo', reSecResumo(d))}
-    ${reSecao('1. Resumo de produção do período', reSecProducao(d))}
-    ${reSecao('2. Meta da semana — atingimento', reSecSemanas(d))}
-    ${reSecao(d.geral ? '3. Atividades que precisavam ser iniciadas' : '3. Atividades que a empresa precisava iniciar', reSecAtividades(d))}
-    ${reSecao('4. Plano 5W2H — atingimento', reSecPlanos(d))}
-    ${reSecao('5. Avanço físico × catálogo de atividades (BM)', reSecBM(d))}
-    ${reSecao(d.geral ? '6. Previsto × realizado nas atividades' : '6. Previsto × realizado nas atividades da empresa', reSecPrevisto(d))}
-    ${reSecao('7. Resumo financeiro e projeção', reSecFinanceiro(d))}
-    ${reSecao('8. Equipamentos e abastecimento — custos e projeção', reSecEquip(d))}
-    ${reSecao('9. Impactos gerados e sofridos', reSecImpactos(d))}
-    ${reSecao('10. Tendência de efetivo (pessoal)', reSecEfetivo(d))}
-    ${reSecao('11. Suprimentos — retirada da semana antecedente × joists realizados', reSecSuprimentos(d))}
+    <h1>${esc(d.emp)}</h1><p class="sub-cab">${d.geral ? `Relatório geral da obra (${esc(d.emps.join(' · '))})` : 'Relatório da empresa'} · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (fim do período)</p>
+    ${corpo}
   </div></section>`;
 }
-async function reHtml(ini, fim, emps, geral = false) {
+async function reHtml(ini, fim, emps, geral = false, opc = null) {
   if (typeof PL !== 'undefined') PL._atv = null;
   await plCarregar(true).catch(() => {});
   if (!window._regras_baixa) { regrasBaixa(() => {}); await window._regras_pend; }   // regras e IFC do mapa de montagem
   if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
-  const c = minD(fim, ref), ls = reLinhas(c);
-  const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));   // geral = um documento só, sem seção por empresa
   await tplLogosCarregar();
-  return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join(''), empresa: !geral && emps.length === 1 ? emps[0] : '' });
+  // O relatório segue SÓ o período escolhido ao lado do botão: a data de referência do topo é só de visualização e não pode limitar nem mudar os números.
+  // Por isso, enquanto o documento é montado (tudo síncrono daqui em diante), a referência vale o fim do período e depois volta ao que era.
+  const refOriginal = ref;
+  ref = fim;
+  if (typeof PL !== 'undefined') PL._atv = null;
+  try {
+    const c = fim, ls = reLinhas(c);
+    const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));
+    if (opc) dados.forEach(d => { d.opc = opc; });   // geral = um documento só, sem seção por empresa
+    return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join(''), empresa: !geral && emps.length === 1 ? emps[0] : '' });
+  } finally {
+    ref = refOriginal;
+    if (typeof PL !== 'undefined') PL._atv = null;
+  }
 }
 
 // ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)
@@ -1031,13 +1075,71 @@ async function reBaixarPdf(btn) {
   } catch (e) { console.error(e); toast('Não foi possível gerar o PDF: ' + (e.message || e), true); }
   finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
-async function reGerar() {
-  const ini = document.getElementById('reBarIni').value, fim = document.getElementById('reBarFim').value, btn = document.getElementById('btnRelEmpresas');
+// Antes de montar, a pessoa escolhe o que entra no relatório (seções e mapa de montagem); a escolha fica lembrada no navegador.
+function reOpcPadrao() {
+  let salvo = {};
+  try { salvo = JSON.parse(localStorage.getItem('reSecoes') || '{}') || {}; } catch (e) { salvo = {}; }
+  return { secoes: Object.fromEntries(RE_SECOES.map(([k]) => [k, salvo.secoes ? salvo.secoes[k] !== false : true])), mapa: salvo.mapa !== false };
+}
+const RE_ATALHOS = {
+  tudo: null,
+  soprod: ['prodperiodo'],
+  producao: ['resumo', 'prodperiodo', 'producao', 'semanas', 'atividades', 'planos', 'previsto'],
+  financeiro: ['resumo', 'bm', 'financeiro', 'equip'],
+  pessoas: ['resumo', 'efetivo', 'suprimentos', 'impactos'],
+};
+function reFiltroAbrir(ini, fim) {
+  document.getElementById('dlgRelEmp')?.remove();
+  const f = reOpcPadrao(), dlg = document.createElement('dialog');
+  dlg.id = 'dlgRelEmp'; dlg.className = 'rs-dialog';
+  const geral = !painelEmpFiltro;
+  dlg.innerHTML = `<form method="dialog"><div class="bloco-cab"><h2>${geral ? 'Relatório geral' : 'Relatório · ' + esc(painelEmpFiltro)} — o que entra</h2></div>
+    <div class="rs-filtro">
+      <p class="nota" style="margin:0 0 8px">Período de ${fdA(ini)} a ${fdA(fim)}. Marque o que quer ver; a numeração acompanha as seções escolhidas.</p>
+      <fieldset><legend>Atalhos</legend>
+        <button type="button" class="btn" data-re-atalho="soprod">Só produção do período</button>
+        <button type="button" class="btn" data-re-atalho="tudo">Relatório completo</button>
+        <button type="button" class="btn" data-re-atalho="producao">Produção e metas</button>
+        <button type="button" class="btn" data-re-atalho="financeiro">Financeiro e custos</button>
+        <button type="button" class="btn" data-re-atalho="pessoas">Pessoal, suprimentos e impactos</button>
+        <button type="button" class="btn" data-re-atalho="nenhuma">Limpar</button></fieldset>
+      <fieldset><legend>Seções do relatório</legend><div class="rs-grade">${RE_SECOES.map(([k, t]) => `<label><input type="checkbox" data-re-sec="${k}" ${f.secoes[k] ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>
+        <div class="rs-sub"><label><input type="checkbox" data-re-mapa ${f.mapa ? 'checked' : ''}> Mapas de montagem pintados (dentro do resumo de produção)</label></div></fieldset>
+    </div>
+    <div class="acoes"><span class="espaco"></span><button type="button" class="btn" data-re-cancelar>Cancelar</button><button type="submit" class="btn primario">Visualizar relatório</button></div></form>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('click', e => {
+    if (e.target.closest('[data-re-cancelar]')) return dlg.close();
+    const at = e.target.closest('[data-re-atalho]');
+    if (at) {
+      const k = at.dataset.reAtalho, lista = RE_ATALHOS[k];
+      dlg.querySelectorAll('[data-re-sec]').forEach(c => { c.checked = k === 'nenhuma' ? false : !lista || lista.includes(c.dataset.reSec); });
+      dlg.querySelector('[data-re-mapa]').checked = k === 'tudo' || k === 'producao';
+    }
+  });
+  dlg.querySelector('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const opc = { secoes: {}, mapa: dlg.querySelector('[data-re-mapa]').checked };
+    dlg.querySelectorAll('[data-re-sec]').forEach(c => { opc.secoes[c.dataset.reSec] = c.checked; });
+    if (!Object.values(opc.secoes).some(Boolean)) { toast('Marque ao menos uma seção.', true); return; }
+    try { localStorage.setItem('reSecoes', JSON.stringify(opc)); } catch (err) { /* sem armazenamento */ }
+    dlg.close();
+    reGerarComOpc(ini, fim, opc);
+  });
+  dlg.showModal();
+}
+function reGerar() {
+  const ini = document.getElementById('reBarIni').value, fim = document.getElementById('reBarFim').value;
   if (!ehISO(ini) || !ehISO(fim) || fim < ini) { toast('Informe um período válido ao lado do botão.', true); return; }
+  reFiltroAbrir(ini, fim);
+}
+async function reGerarComOpc(ini, fim, opc) {
+  const btn = document.getElementById('btnRelEmpresas');
   const emps = painelEmpFiltro ? [painelEmpFiltro] : (M.empresas || []).map(e => e.nome).filter(Boolean);
   const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Montando…';
   try {
-    const html = await reHtml(ini, fim, emps, !painelEmpFiltro);
+    const html = await reHtml(ini, fim, emps, !painelEmpFiltro, opc);
     reAbrirPrevia(html, `relatorio-${painelEmpFiltro ? painelEmpFiltro.replace(/\s+/g, '-') : 'geral'}-${ini}_a_${fim}.html`,
       `${painelEmpFiltro || 'Geral — todas as empresas'} · ${fdA(ini)} a ${fdA(fim)}`);
   } catch (e) { console.error(e); toast('Não foi possível gerar: ' + (e.message || e), true); }

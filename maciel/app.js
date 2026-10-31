@@ -42,6 +42,7 @@ function setMenuCont(id, n) {
   el.textContent = n; el.hidden = !(n > 0);
 }
 function atualizarIndicadoresMenu() {
+  if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
   if (!EP) return;
   const invCrit = (typeof inventarioSoFixadores === 'function' ? inventarioSoFixadores(EP.inventario || [], i => i.tag, i => i.produto || i.material) : (EP.inventario || [])).filter(x => {
     const st = String(x.status || '').toUpperCase(), ac = Number(x.acuracidade ?? 1), acao = String(x.acao || 'OK').trim().toUpperCase();
@@ -356,7 +357,7 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
@@ -398,6 +399,7 @@ async function carregar() {
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
   preencherListas();
   renderTudo();
+  if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
   fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); if (abaAtual === 'estvinc' || abaAtual === 'estpronto') renderAba(); }).catch(() => {});
 }
 
@@ -570,11 +572,11 @@ function renderAba() {
   // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
-     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(),
      plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
-  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
   if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
     const chave = '_script_' + exigido[1];
     if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar
@@ -5654,13 +5656,13 @@ function bmImprimir(r, emp, p) {
   r.itens.forEach(it => {
     linhasItens += `<tr class="grupo"><td colspan="4"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
-      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td>
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td><td class="n"><b>${rs(it.valor[R] - it.pct * it.valor[R])}</b></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td></tr>`;
     it.ats.forEach(x => {
       const pr = bmPrecoAtividade(it, x.a, R);
       linhasItens += `<tr><td class="bm-ativ">${esc(x.a.atividade)}</td><td class="n">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
         <td class="n">${nf(x.real - x.realAnt, 2)}</td><td class="n">${nf(x.real, 2)}</td>
-        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td>
+        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>
         <td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td></tr>`;
     });
   });
@@ -5690,6 +5692,7 @@ function bmImprimir(r, emp, p) {
     <div class="cards">
       ${card('Contrato RÓTULA × ' + esc(emp), rs(tot.contrato), 'valor total contratado da empresa terceirizada', 'az')}
       ${card('Medição do BM' + p.n, rs(tot.per), pc(tot.pctPer) + ' do contrato neste período', 'nd')}
+      ${card('Saldo a medir', rs(tot.contrato - tot.acum), 'contrato − medido acumulado · ' + pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0) + ' do contrato', 'nd')}
       ${card('Descontos', rs(dd.total[R]), `sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}`, 'am')}
       ${card('Valor a faturar pela ' + esc(emp), rs(fat), 'medição − descontos', 'vd')}
     </div>
@@ -5697,12 +5700,12 @@ function bmImprimir(r, emp, p) {
     <div class="bm-tab"><table><thead><tr>
       <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
       <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
-      <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
+      <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th><th class="n">Saldo (R$)</th>
       <th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th>
     </tr></thead><tbody>${linhasItens}</tbody>
     <tfoot><tr><th colspan="4">Total do contrato da ${esc(emp)}</th>
       <th class="n">${pc(tot.ant / (tot.contrato || 1))}</th><th class="n">${pc(tot.pctPer)}</th><th class="n">${pc(tot.pctAcum)}</th>
-      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th>
+      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th><th class="n">${rs(tot.contrato - tot.acum)}</th>
       <th class="n">${rs2(tot.contrato)}</th><th></th>
     </tr></tfoot></table></div>
     <h2>Descontos e valor a faturar</h2>
@@ -5784,6 +5787,7 @@ function renderBMBoletim(box) {
     bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
     bmTile('Já medido (BMs anteriores)', rs(tot.ant), anteriores.length ? anteriores.map(x => 'BM' + x.n).join(' + ') + ' · já pago' : 'nenhum BM anterior', 'var(--fg3)') +
     bmTile(`Medição do BM${p.n}`, rs(tot.per), `acumulado − já medido · ${pc(tot.pctPer)} do contrato`, 'var(--acento)') +
+    bmTile('Saldo a medir', rs(tot.contrato - tot.acum), `contrato − medido acumulado · ${pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0)} do contrato`, 'var(--fg)') +
     bmTile('Descontos', rs(r.ded.total[R]), `sinal ${rs(r.ded.sinalAuto)}${r.ded.manuais.length ? ' + ' + r.ded.manuais.length + ' lançamento(s)' : ''}${r.ded.equip + r.ded.comb ? ' + equipamentos' : ''}`, 'var(--vermelho)') +
     bmTile('Valor a faturar', rs(r.faturar[R]), 'medição − descontos', 'var(--verde)') + '</div></details>';
 
@@ -5803,22 +5807,22 @@ function renderBMBoletim(box) {
   const colBms = bmsAteMeusInclusos.map(pm => `<th class="n">BM${pm.n}</th>`).join('');
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
     <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th><th class="n" title="Quanto já representa do valor total do contrato (igual à planilha de medição): % acumulado × valor ÷ contrato">% do contrato</th>
-    <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th>${colBms}</tr></thead><tbody>`;
+    <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th><th class="n" title="Saldo a medir = valor total do contrato − medido acumulado">Saldo (R$)</th>${colBms}</tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td><td class="n"><b>${pc(tot.contrato ? it.pct * it.valor[R] / tot.contrato : 0)}</b></td>
-      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td><td class="n"><b>${rs(it.valor[R] - it.pct * it.valor[R])}</b></td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>${colBmsAti}</tr>`;
     });
   });
   h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
-    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
+    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td><td class="n"><b>${rs(tot.contrato - tot.acum)}</b></td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
   const linhaDesc = d => {
@@ -7547,7 +7551,9 @@ function ligarEventos() {
   catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
+  if (!abaUrl && window.USUARIO_EMPRESA && typeof qualPendencias === 'function' && qualPendencias().length) aba = 'qualidade';   // empresa com não conformidade para responder: abre direto na Qualidade, como alerta
   mudarAba(document.getElementById('aba-' + aba) && !UI_OCULTOS.abas.includes(aba) ? aba : (document.querySelector('#abas .sidebar-grupo:not([hidden]) button[data-aba]')?.dataset.aba || 'tarefas'));   // aba ocultada pelo administrador não abre nem pelo endereço
+  if (typeof qualAvisoAoAbrir === 'function') qualAvisoAoAbrir();
   if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
