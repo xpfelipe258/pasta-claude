@@ -16,7 +16,7 @@ const RE_RELAC_EQUIP = /ICAMENTO|VIGA|MONTAGEM|TELHA|FECHAMENTO|MARQUISE|CALHA|P
 const reMediana = xs => { const v = xs.filter(Number.isFinite).sort((a, b) => a - b); if (!v.length) return 0; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 const reTry = (fn, rot) => { try { return fn(); } catch (e) { console.error('Relatório das empresas —', rot, e); return { erro: `${rot}: ${e.message || e}` }; } };
 const reSm = (cls, txt) => `<span class="sm ${cls}"><i></i>${txt}</span>`;
-const reMoeda = v => (v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
+const reMoeda = v => (v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const rePct = (v, d = 0) => (v == null || isNaN(v) ? '—' : nf(v, d) + '%');
 function reFarolPct(p, semMeta) {
   if (semMeta || p == null) return ['nd', 'sem meta'];

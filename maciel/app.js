@@ -76,7 +76,8 @@ function isoDeTexto(t) { const m = t.match(/^(\d{1,2})\/?(\d{1,2})\/?(\d{4})$/);
 function patchDatas() { if (typeof datasBrVarrer === 'function') datasBrVarrer(); }
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
-function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
+// Regra financeira do sistema: SEMPRE com centavos (R$ 1.234,56), em qualquer tela, relatório ou PDF. rs e rs2 são iguais.
+function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function rs2(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function cap(s) { s = String(s || ''); if (s !== s.toLowerCase() && s !== s.toUpperCase()) return s; return s.toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
 function cor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -5342,7 +5343,7 @@ function graficoEquip(rt) {
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}`, footer: its => 'Total: ' + rs(soma0(its, i => i.raw)) } } },
-      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
+      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => rs2(v) } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
     },
   });
 }
@@ -5868,7 +5869,7 @@ function renderBMBoletim(box) {
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
     (dd.sinalAuto || !p.fechado ? `<tr><td>(−) Sinal de contrato ${p.fechado ? `<b>${nf(dd.sinalPercentual, 1)}%</b>` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:72px;text-align:right" value="${esc(String(dd.sinalPercentual))}" data-edit-sinal-bm="${p.n}" title="% de sinal de contrato deste BM: digite e saia da célula para gravar (vazio volta a repetir o do BM anterior)"${document.body.classList.contains('somente-leitura') ? ' disabled' : ''}> %`} <span class="nota">do valor medido no BM${p.sinalPropria ? '' : ' · repetido do BM anterior (padrão 10%)'}${p.fechado ? '' : ' · edite aqui ou em Períodos e deduções'}</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
     (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
-    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× R$ ${nf(e.valor, 0)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
+    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× ${rs2(e.valor)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.usosIgnoradosLocacao ? `<tr><td class="nota">Uso de equipamento locado desconsiderado <span class="nota">${dd.usosIgnoradosLocacao} lançamento(s) de equipamento com locação mensal já descontada — só o uso diário dos demais equipamentos soma</span></td><td class="n">—</td></tr>` : '') +
     (dd.usosIgnoradosAbast ? `<tr><td class="nota">Abastecimento de SANY desconsiderado na medição <span class="nota">mantida apenas a diária/custo do equipamento</span></td><td class="n">—</td></tr>` : '') +
@@ -5884,7 +5885,7 @@ function renderBMBoletim(box) {
       { label: 'RÓTULA', data: ev.map(x => +x['RÓTULA'].toFixed(2)), borderColor: corEmpHex(emp), backgroundColor: corEmpHex(emp), tension: .25, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}` } } },
-      scales: eixos({ ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }) },
+      scales: eixos({ ticks: { color: cor('--fg2'), callback: v => rs2(v) } }) },
   });
 }
 

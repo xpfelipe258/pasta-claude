@@ -41,7 +41,7 @@ function pdf_brn(float $v, int $d = 1): string
 
 function pdf_brl(float $v): string
 {
-    return 'R$ ' . number_format($v, 0, ',', '.');
+    return 'R$ ' . number_format($v, 2, ',', '.');
 }
 
 function pdf_dataBr(string $s): string

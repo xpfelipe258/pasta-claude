@@ -77,7 +77,7 @@ function bmResumoPeriodoHtml(emp, p, r, tot, cc) {
       ${card('Ganho produtivo', rs(ganho), `medição do período · ${nf(tot.pctPer * 100, 1)}% do contrato · ${rs(ganho / du)} por dia útil`, 'var(--verde)')}
       ${card('Gasto no período', rs(gasto), `equipamentos ${rs(equip)} + combustível ${rs(comb)} (${nf(dd.litros, 0)} L)`, 'var(--vermelho)')}
       ${card('Resultado do período', rs(resultado), 'ganho produtivo − gasto com equipamentos e combustível', resultado < 0 ? 'var(--vermelho)' : 'var(--acento)')}
-      ${card('Gasto por R$ ganho', pctGasto == null ? '—' : nf(pctGasto, 1) + '%', pctGasto == null ? 'sem medição no período' : `a cada R$ 100 medidos, R$ ${nf(pctGasto, 0)} foram para equipamento e combustível`, 'var(--fg3)')}
+      ${card('Gasto por R$ ganho', pctGasto == null ? '—' : nf(pctGasto, 1) + '%', pctGasto == null ? 'sem medição no período' : `a cada R$ 100,00 medidos, ${rs2(pctGasto)} foram para equipamento e combustível`, 'var(--fg3)')}
       ${card('Valor a faturar', rs(r.faturar[BM_R]), `medição − descontos (${rs(dd.total[BM_R])})`, 'var(--fg)')}
       ${card('Saldo a medir', rs(tot.contrato - tot.acum), `contrato ${rs(tot.contrato)} − medido acumulado ${rs(tot.acum)} · ${nf(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato * 100 : 0, 1)}% do contrato`, 'var(--acento)')}
     </div>
