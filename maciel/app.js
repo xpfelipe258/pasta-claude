@@ -42,6 +42,7 @@ function setMenuCont(id, n) {
   el.textContent = n; el.hidden = !(n > 0);
 }
 function atualizarIndicadoresMenu() {
+  if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
   if (!EP) return;
   const invCrit = (typeof inventarioSoFixadores === 'function' ? inventarioSoFixadores(EP.inventario || [], i => i.tag, i => i.produto || i.material) : (EP.inventario || [])).filter(x => {
     const st = String(x.status || '').toUpperCase(), ac = Number(x.acuracidade ?? 1), acao = String(x.acao || 'OK').trim().toUpperCase();
@@ -356,7 +357,7 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
@@ -398,6 +399,7 @@ async function carregar() {
   if (rec.exportar) { $('#usuarioBox').hidden = false; $('#usuarioBox').innerHTML = '<a href="api/exportar">Exportar dados para o sistema online</a>'; }
   preencherListas();
   renderTudo();
+  if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
   fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); if (abaAtual === 'estvinc' || abaAtual === 'estpronto') renderAba(); }).catch(() => {});
 }
 
@@ -570,11 +572,11 @@ function renderAba() {
   // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
-     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(),
      plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
-  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
   if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
     const chave = '_script_' + exigido[1];
     if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar

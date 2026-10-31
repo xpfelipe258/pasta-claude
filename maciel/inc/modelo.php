@@ -155,6 +155,14 @@ function montar_modelo()
     foreach (tabelas_spec() as $nome => $campos) {
         $tabelas[$nome] = linhas_tabela($nome, $campos);
     }
+    // Qualidade: usuário de empresa só recebe as não conformidades (e fotos) da própria empresa
+    $uQual = function_exists('usuario_atual') ? usuario_atual() : null;
+    $empQual = trim((string)($uQual['empresa'] ?? ''));
+    if ($empQual !== '') {
+        $tabelas['nao_conformidades'] = array_values(array_filter($tabelas['nao_conformidades'] ?? [], function ($n) use ($empQual) { return ($n['empresa'] ?? '') === $empQual; }));
+        $idsQual = array_flip(array_map(function ($n) { return (int)$n['linha']; }, $tabelas['nao_conformidades']));
+        $tabelas['nc_fotos'] = array_values(array_filter($tabelas['nc_fotos'] ?? [], function ($f) use ($idsQual) { return isset($idsQual[(int)($f['nc_id'] ?? 0)]); }));
+    }
     $inv_ifc = carregar_inventario_ifc();
     $regras = carregar_regras_baixa();
     // O apontamento de montagem baixa o estoque: cada joist e cada viga apontada vira um evento de baixa,

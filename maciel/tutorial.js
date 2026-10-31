@@ -10,6 +10,7 @@ const TUT_MODULOS = [
   { id: 'sup', nome: 'Suprimentos' },
   { id: 'fin', nome: 'Financeiro' },
   { id: 'ges', nome: 'Gestão' },
+  { id: 'qua', nome: 'Qualidade' },
   { id: 'rel', nome: 'Relatórios' },
 ];
 
@@ -88,6 +89,16 @@ const TUT_TOPICOS = [
       { t: '"Baixar mapa" gera a imagem do mapa na visualização padrão.', alvo: '#btnBaixarMapa' },
     ],
     dica: 'Uma peça já apontada não pode ser apontada de novo na mesma atividade; o sistema avisa.' },
+
+  { id: 'qualidade', mod: 'qua', aba: 'qualidade', titulo: 'Não conformidades (Qualidade)',
+    resumo: 'Registro das não conformidades por empresa: o que foi encontrado, onde, quem responde, gravidade, prazo, ação corretiva e fotos. Gera relatório geral, por empresa e a ficha de cada uma.',
+    passos: [
+      { t: 'Clique em "+ Nova não conformidade", escolha a empresa e descreva o que foi encontrado.', alvo: '#qualNova' },
+      { t: 'Informe o local, o responsável, a gravidade e o prazo para corrigir. Anexe fotos (no celular abre a câmera); cada foto aceita uma legenda.' },
+      { t: 'Acompanhe pela situação: Aberta, Em tratamento ou Encerrada. Para encerrar é preciso descrever a ação corretiva.' },
+      { t: 'Use os botões de empresa e os filtros para ver só o que interessa. Vencida = prazo passou e ainda não foi encerrada.', alvo: '#qualCorpo' },
+      { t: '"Relatório de não conformidades" gera o geral ou o de uma empresa (com fotos); o botão "Relatório" de cada linha gera a ficha individual para assinatura. Ambos saem em PDF.', alvo: '#qualRel' },
+    ] },
 
   { id: 'rdo', mod: 'prod', aba: 'rdo', titulo: 'Relatório diário de obra (RDO)',
     resumo: 'Registro do dia: clima, observações e fotos com comentário. Gera um RDO para o cliente e outro, mais completo, para a gestão.',

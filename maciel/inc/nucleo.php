@@ -131,6 +131,10 @@ function tabelas_spec()
         // Relatório diário de obra (RDO): observações do dia e fotos com legenda (o arquivo fica em dados_obras/{obra}/rdo, servido por rdo_foto.php)
         'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'clima_manha' => 'txt', 'clima_tarde' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
         'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
+        // Qualidade: não conformidades por empresa, com local, responsável e fotos (arquivos em dados_obras/{obra}/qualidade, servidos por nc_foto.php)
+        'nao_conformidades' => ['codigo' => 'txt', 'data' => 'data', 'empresa' => 'txt', 'titulo' => 'txt', 'descricao' => 'longo', 'local' => 'txt', 'responsavel' => 'txt',
+            'gravidade' => 'txt', 'situacao' => 'txt', 'prazo' => 'data', 'acao' => 'longo', 'encerrada_em' => 'data', 'por' => 'txt', 'em' => 'txt'],
+        'nc_fotos' => ['nc_id' => 'num', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
             'peso' => 'num', 'frente' => 'txt'],
@@ -139,7 +143,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 24;   // 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 25;   // 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -856,7 +860,7 @@ function autenticar_machine_token()
 
 function modulos_sistema()
 {
-    return ['producao','suprimentos','consumo','financeiro','gestao','sesmt'];
+    return ['producao','suprimentos','consumo','financeiro','gestao','qualidade','sesmt'];
 }
 
 function modulos_usuario(array $u)
@@ -897,6 +901,7 @@ function ui_catalogo()
             ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []],
         ]],
         ['gestao', 'Gestão', [['impactos', 'Impactos', []], ['dp', 'Pessoal', []]]],
+        ['qualidade', 'Qualidade', [['qualidade', 'Não conformidades', []]]],
     ];
 }
 

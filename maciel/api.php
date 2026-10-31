@@ -204,7 +204,8 @@ try {
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
-        'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao'
+        'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao',
+        'qualidade'=>'qualidade'
     ];
     if (isset($moduloRota[$rota]) && !usuario_pode_modulo($usuario, $moduloRota[$rota])) {
         responder_json(403, ['erro' => 'Seu usuário não possui acesso ao módulo ' . strtoupper($moduloRota[$rota]) . '.']);
@@ -218,7 +219,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade', 'cadastro-faltantes' => 'acao_cadastro_faltantes',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'qualidade' => 'acao_qualidade', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade', 'cadastro-faltantes' => 'acao_cadastro_faltantes',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -1176,12 +1177,122 @@ function acao_cadastro_faltantes(array $corpo)
     return ['criadas_estrutura' => count($criadas['estrutura']), 'criadas_fixador' => count($criadas['fixador']), 'tags_estrutura' => $criadas['estrutura'], 'fixadores' => $criadas['fixador']];
 }
 
+// ----------------------------------------------------------------- Qualidade: não conformidades
+function qualidade_gravidades()
+{
+    return ['baixa' => 'Baixa', 'media' => 'Média', 'alta' => 'Alta', 'critica' => 'Crítica'];
+}
+function qualidade_situacoes()
+{
+    return ['aberta' => 'Aberta', 'tratamento' => 'Em tratamento', 'encerrada' => 'Encerrada'];
+}
+
+// Cria, edita e exclui não conformidades. Usuário de empresa só mexe nas da própria empresa; a empresa de uma NC nova vem do cadastro de empresas.
+// Código NC-001, NC-002… (sequência da obra, nunca reaproveitada). Encerrar exige a ação corretiva; a data de encerramento é carimbada (Brasília).
+function acao_qualidade(array $corpo, array $usuario)
+{
+    $acao = (string)($corpo['acao'] ?? 'salvar');
+    $id = isset($corpo['id']) && $corpo['id'] !== null && $corpo['id'] !== '' ? (int)$corpo['id'] : null;
+    $minhaEmp = trim((string)($usuario['empresa'] ?? ''));
+    $agoraBrt = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')));
+    $atual = null;
+    if ($id !== null) {
+        $atual = q('SELECT * FROM nao_conformidades WHERE id = ?', [$id])->fetch();
+        if (!$atual) {
+            throw new ErroValidacao('Não conformidade não encontrada. Recarregue a tela.');
+        }
+        if ($minhaEmp !== '' && $atual['empresa'] !== $minhaEmp) {
+            throw new ErroValidacao('Seu usuário só acessa as não conformidades da empresa ' . $minhaEmp . '.');
+        }
+    }
+    if ($acao === 'excluir') {
+        if ($atual === null) {
+            throw new ErroValidacao('Informe a não conformidade.');
+        }
+        if (($usuario['perfil'] ?? '') !== 'admin' && (string)$atual['por'] !== (string)$usuario['nome']) {
+            throw new ErroValidacao('Só o administrador ou quem registrou a não conformidade pode excluí-la.');
+        }
+        require_once __DIR__ . '/inc/importacao.php';
+        $dir = importacao_diretorio(obra_atual_id()) . '/qualidade';
+        foreach (q('SELECT arquivo FROM nc_fotos WHERE nc_id = ?', [$id])->fetchAll() as $f) {
+            @unlink($dir . '/' . basename((string)$f['arquivo']));
+        }
+        q('DELETE FROM nc_fotos WHERE nc_id = ?', [$id]);
+        q('DELETE FROM nao_conformidades WHERE id = ?', [$id]);
+        return ['codigo' => $atual['codigo']];
+    }
+    if ($acao !== 'salvar') {
+        throw new ErroValidacao('Ação inválida.');
+    }
+    $c = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
+    $txt = function ($k, $max = 255) use ($c) {
+        return mb_substr(trim((string)($c[$k] ?? '')), 0, $max);
+    };
+    $empresa = $minhaEmp !== '' ? $minhaEmp : mb_strtoupper($txt('empresa'));
+    if ($empresa === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empresa])->fetch()) {
+        throw new ErroValidacao('Escolha a empresa da não conformidade.');
+    }
+    $titulo = $txt('titulo');
+    $local = $txt('local');
+    $resp = $txt('responsavel');
+    if ($titulo === '') {
+        throw new ErroValidacao('Descreva a não conformidade (título).');
+    }
+    if ($local === '') {
+        throw new ErroValidacao('Informe o local da não conformidade.');
+    }
+    if ($resp === '') {
+        throw new ErroValidacao('Informe o responsável.');
+    }
+    $data = $txt('data') !== '' ? $txt('data') : $agoraBrt->format('Y-m-d');
+    $prazo = $txt('prazo');
+    foreach ([['data', $data], ['prazo', $prazo]] as $dd) {
+        if ($dd[1] !== '' && !data_valida($dd[1])) {
+            throw new ErroValidacao('Data inválida em ' . $dd[0] . '.');
+        }
+    }
+    $grav = $txt('gravidade') !== '' ? $txt('gravidade') : 'media';
+    $sit = $txt('situacao') !== '' ? $txt('situacao') : 'aberta';
+    if (!isset(qualidade_gravidades()[$grav]) || !isset(qualidade_situacoes()[$sit])) {
+        throw new ErroValidacao('Gravidade ou situação inválida.');
+    }
+    $acaoCorr = $txt('acao', 4000);
+    if ($sit === 'encerrada' && $acaoCorr === '') {
+        throw new ErroValidacao('Para encerrar, descreva a ação corretiva / tratativa realizada.');
+    }
+    $enc = null;
+    if ($sit === 'encerrada') {
+        $enc = ($atual && $atual['situacao'] === 'encerrada' && $atual['encerrada_em']) ? $atual['encerrada_em'] : ($txt('encerrada_em') !== '' && data_valida($txt('encerrada_em')) ? $txt('encerrada_em') : $agoraBrt->format('Y-m-d'));
+    }
+    $vals = ['data' => $data, 'empresa' => $empresa, 'titulo' => $titulo, 'descricao' => $txt('descricao', 4000) ?: null, 'local' => $local, 'responsavel' => $resp,
+        'gravidade' => $grav, 'situacao' => $sit, 'prazo' => $prazo !== '' ? $prazo : null, 'acao' => $acaoCorr !== '' ? $acaoCorr : null, 'encerrada_em' => $enc];
+    if ($atual === null) {
+        $max = 0;
+        foreach (q('SELECT codigo FROM nao_conformidades')->fetchAll(PDO::FETCH_COLUMN) as $cod) {
+            if (preg_match('/(\d+)$/', (string)$cod, $m)) {
+                $max = max($max, (int)$m[1]);
+            }
+        }
+        $vals['codigo'] = sprintf('NC-%03d', $max + 1);
+        $vals['por'] = (string)$usuario['nome'];
+        $vals['em'] = $agoraBrt->format('Y-m-d H:i:s');
+        gravar_linha('nao_conformidades', null, $vals);
+        $novoId = (int)bd()->lastInsertId();
+        return ['id' => $novoId, 'codigo' => $vals['codigo']];
+    }
+    gravar_linha('nao_conformidades', $id, $vals);
+    return ['id' => $id, 'codigo' => $atual['codigo']];
+}
+
 function acao_registro(array $corpo)
 {
     $specs = tabelas_spec();
     $tabela = $corpo['tabela'] ?? '';
     if (!isset($specs[$tabela])) {
         throw new ErroValidacao('Tabela inválida.');
+    }
+    if (in_array($tabela, ['nao_conformidades', 'nc_fotos'], true)) {
+        throw new ErroValidacao('As não conformidades são gravadas pela área Qualidade.');
     }
     if (in_array($tabela, ['bm_fechamentos', 'bm_fech_atividades'], true)) {
         throw new ErroValidacao('O fechamento do BM é gravado por Medição (BM) > Fechar BM / Reabrir.');
