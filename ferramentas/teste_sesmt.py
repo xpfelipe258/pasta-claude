@@ -134,7 +134,7 @@ class T01_Acesso(unittest.TestCase):
         r = ADMIN.pagina()
         self.assertEqual(r.status_code, 200)
         self.assertIn("SESMT GERAL", r.text)
-        self.assertIn("Nenhum colaborador cadastrado", r.text)
+        self.assertIn("Nada cadastrado ainda", r.text)   # abre em Ocorrências (Painel saiu do menu)
 
     def test_endpoint_de_acesso(self):
         self.assertEqual(ADMIN.pagina(acesso=1).json(), {"ok": True})
@@ -272,6 +272,7 @@ class T03_Regras(unittest.TestCase):
         self.assertNotIn("Beto ASO", so_crit)
         self.assertIn("<b>EJ</b>", lista, "a empresa do colaborador aparece na lista de ASO")
 
+    @unittest.skip("tela retirada do SESMT em 2026-10-31 (só Pessoas e Ocorrências ficam; código e dados guardados)")
     def test_painel_conta_aso_por_empresa(self):
         html = EDITOR.pagina().text
         self.assertIn("Por empresa", html)
@@ -300,6 +301,7 @@ class T03_Regras(unittest.TestCase):
         r = novo(EDITOR, "treinamentos", status="Concluído", treinamento="Datas ruins", data_inicial="2024-05-10", data_final="2024-05-01")
         self.assertIn("data final não pode ser anterior", r.text)
 
+    @unittest.skip("tela retirada do SESMT em 2026-10-31 (só Pessoas e Ocorrências ficam; código e dados guardados)")
     def test_acidente_dias_sem_acidente_e_taxas(self):
         from datetime import date, timedelta
         h = date.today()
@@ -312,6 +314,7 @@ class T03_Regras(unittest.TestCase):
         r = novo(EDITOR, "acidentes", colaborador_id=self.ids["Ana ASO"], data="2999-01-01")
         self.assertIn("não pode estar no futuro", r.text)
 
+    @unittest.skip("tela retirada do SESMT em 2026-10-31 (só Pessoas e Ocorrências ficam; código e dados guardados)")
     def test_epi_estoque_e_saida_maior_que_o_saldo(self):
         r = novo(EDITOR, "epi", descricao="Capacete", fabricante="ACME", ca="12345", minimo=5, maximo=20, preco="10,50", controlar="Não")
         self.assertEqual(r.status_code, 302, r.text[:300])
@@ -331,6 +334,7 @@ class T03_Regras(unittest.TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIn("ABAIXO", EDITOR.pagina(reg="epi").text)
 
+    @unittest.skip("tela retirada do SESMT em 2026-10-31 (só Pessoas e Ocorrências ficam; código e dados guardados)")
     def test_risco_matriz_5x5(self):
         r = novo(EDITOR, "riscos", funcao="Serralheiro", setor="Operacional", tipo="ACIDENTE", descricao="Queda de altura", probabilidade="ALTA", severidade="GRAVÍSSIMO")
         self.assertEqual(r.status_code, 302, r.text[:300])
@@ -338,6 +342,7 @@ class T03_Regras(unittest.TestCase):
         self.assertIn("EXTREMO", lista)
         self.assertRegex(lista, r">20<")
 
+    @unittest.skip("tela retirada do SESMT em 2026-10-31 (só Pessoas e Ocorrências ficam; código e dados guardados)")
     def test_extintor_e_hidrante(self):
         from datetime import date, timedelta
         h = date.today()
@@ -438,7 +443,7 @@ class T06_Paginas(unittest.TestCase):
             self.assertNotIn("Fatal error", r.text, v)
 
     def test_cadastro_inexistente_cai_no_painel(self):
-        self.assertIn("Painel SESMT", ADMIN.pagina(reg="nao-existe").text)
+        self.assertIn("Acidentes", ADMIN.pagina(reg="nao-existe").text)   # cadastro inexistente cai em Ocorrências
 
     def test_registros_de_outra_obra_nao_aparecem(self):
         AMB.sql("SELECT 1")

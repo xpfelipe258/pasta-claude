@@ -289,8 +289,8 @@ if ($g !== '' && $reg === '' && $formReg === null) {
         }
     }
 }
-// sem cadastro escolhido: abre Ocorrências (as telas de Painel/Configurar saíram do menu; listas e acessos só por endereço, para o administrador)
-if ($reg === '' && !($ehAdmin && in_array($v, ['listas', 'config', 'acessos'], true))) {
+// sem cadastro escolhido: abre Ocorrências (as telas de Painel/Configurar saíram do menu; listas, configurações e acessos só por endereço)
+if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
     foreach ($REG as $k => $d) {
         if ($d['grupo'] === 'Ocorrências') {
             $reg = $k;
