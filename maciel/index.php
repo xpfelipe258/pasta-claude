@@ -65,7 +65,7 @@ $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundar
 $oe = obra_empresa_info((int)$obra['id']);
 $contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? '<a href="obras.php?todas=1">← Todas as obras</a>' : '') . '<span>' . h($obra['nome']) . '</span>' .
     ($oe ? '<em class="obra-empresa-aviso" title="Esta obra é uma cópia só da ' . h($oe['empresa']) . '. O que você lança ou altera aqui não muda a obra principal.">Visão da empresa ' . h($oe['empresa']) . ' · dados independentes</em>' : '') .
-    ($u['perfil'] === 'admin' ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+    (usuario_admin_da_obra($u, (int)$obra['id']) ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);

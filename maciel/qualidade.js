@@ -16,7 +16,7 @@ const QUAL_COR_GRAV = { baixa: 'verde', media: 'amarelo', alta: 'vermelho', crit
 
 const qualSomenteLeitura = () => document.body.classList.contains('somente-leitura');
 const qualMinhaEmpresa = () => (window.USUARIO_EMPRESA || '').trim();
-const qualEhAdmin = () => !!(D && D.usuario && D.usuario.perfil === 'admin');
+const qualEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || D.usuario.admin_obra));
 const qualTodas = () => (T.nao_conformidades || []).slice();
 const qualFotosDe = (id, tipo) => (T.nc_fotos || []).filter(f => f.nc_id === id && (!tipo || (f.tipo || 'antes') === tipo)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.linha - b.linha);
 const qualAtrasada = n => !!n.prazo && n.situacao === 'aberta' && n.prazo < hoje();   // prazo para responder venceu e a empresa ainda não respondeu

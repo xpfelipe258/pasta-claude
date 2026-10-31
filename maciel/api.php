@@ -47,7 +47,7 @@ try {
                 'arquivo' => obra_info()['nome'] . ' · sistema online',
                 'obra' => obra_ficha(),
                 'modificado' => sistema_ler('modificado', date('c')),
-                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
+                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
                 'recursos' => ['importar_mensal' => false, 'exportar' => false, 'online' => true],
                 'modelo' => montar_modelo(),
             ]);
@@ -1245,7 +1245,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     $acao = (string)($corpo['acao'] ?? 'salvar');
     $id = isset($corpo['id']) && $corpo['id'] !== null && $corpo['id'] !== '' ? (int)$corpo['id'] : null;
     $minhaEmp = trim((string)($usuario['empresa'] ?? ''));
-    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $admin = usuario_admin_da_obra($usuario);   // administrador do sistema ou da obra
     $agoraBrt = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $hoje = $agoraBrt->format('Y-m-d');
     $carimbo = $agoraBrt->format('Y-m-d H:i:s');
@@ -2995,7 +2995,7 @@ function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
 
 function acao_mapa_obra_atualizar(array $corpo, array $usuario)
 {
-    if (($usuario['perfil'] ?? '') !== 'admin') {
+    if (!usuario_admin_da_obra($usuario)) {
         throw new ErroValidacao('Só o administrador pode refazer o mapa pela leitura do IFC.');
     }
     require_once __DIR__ . '/inc/importacao.php';
@@ -3668,7 +3668,7 @@ function fluxo_tem_ciclo(array $mapa)
 // Validar RDO / retirar a validação: SÓ o administrador. Dia validado = travado (clima, observações, fotos e legendas; o servidor recusa).
 function acao_rdo_validar(array $corpo, array $usuario)
 {
-    if (($usuario['perfil'] ?? '') !== 'admin') {
+    if (!usuario_admin_da_obra($usuario)) {
         throw new ErroValidacao('Só o administrador pode validar o RDO ou retirar a validação.');
     }
     $data = (string)($corpo['data'] ?? '');

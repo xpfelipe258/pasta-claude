@@ -74,8 +74,8 @@ if ($acao === 'callback_pacote') {
 }
 
 // ---- daqui em diante: só administrador logado
-$eu = exigir_admin();
 $obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
+$eu = exigir_admin_da_obra($obraId);   // administrador do sistema ou quem criou esta obra
 $obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status = 'rascunho'", [$obraId])->fetch() : null;
 if (!$obra) {
     header('Location: obras.php');
