@@ -5656,13 +5656,13 @@ function bmImprimir(r, emp, p) {
   r.itens.forEach(it => {
     linhasItens += `<tr class="grupo"><td colspan="4"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td>
-      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td>
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n"><b>${rs(it.pct * it.valor[R])}</b></td><td class="n"><b>${rs(it.valor[R] - it.pct * it.valor[R])}</b></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td></tr>`;
     it.ats.forEach(x => {
       const pr = bmPrecoAtividade(it, x.a, R);
       linhasItens += `<tr><td class="bm-ativ">${esc(x.a.atividade)}</td><td class="n">${nf(x.a.qtd, 2)} ${esc(x.a.unidade)}</td>
         <td class="n">${nf(x.real - x.realAnt, 2)}</td><td class="n">${nf(x.real, 2)}</td>
-        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td>
+        <td class="n" colspan="3">${pc(x.pct)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>
         <td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td></tr>`;
     });
   });
@@ -5692,6 +5692,7 @@ function bmImprimir(r, emp, p) {
     <div class="cards">
       ${card('Contrato RÓTULA × ' + esc(emp), rs(tot.contrato), 'valor total contratado da empresa terceirizada', 'az')}
       ${card('Medição do BM' + p.n, rs(tot.per), pc(tot.pctPer) + ' do contrato neste período', 'nd')}
+      ${card('Saldo a medir', rs(tot.contrato - tot.acum), 'contrato − medido acumulado · ' + pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0) + ' do contrato', 'nd')}
       ${card('Descontos', rs(dd.total[R]), `sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}`, 'am')}
       ${card('Valor a faturar pela ' + esc(emp), rs(fat), 'medição − descontos', 'vd')}
     </div>
@@ -5699,12 +5700,12 @@ function bmImprimir(r, emp, p) {
     <div class="bm-tab"><table><thead><tr>
       <th>Item / Atividade</th><th class="n">Qtd contratada</th><th class="n">Período (qtd)</th><th class="n">Acumulado (qtd)</th>
       <th class="n">% Já medido</th><th class="n">% Período</th><th class="n">% Acumulado</th>
-      <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th>
+      <th class="n">Já medido (R$)</th><th class="n">Período (R$)</th><th class="n">Acumulado (R$)</th><th class="n">Saldo (R$)</th>
       <th class="n">Valor total (R$)</th><th class="n">Valor unitário (R$)</th>
     </tr></thead><tbody>${linhasItens}</tbody>
     <tfoot><tr><th colspan="4">Total do contrato da ${esc(emp)}</th>
       <th class="n">${pc(tot.ant / (tot.contrato || 1))}</th><th class="n">${pc(tot.pctPer)}</th><th class="n">${pc(tot.pctAcum)}</th>
-      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th>
+      <th class="n">${rs(tot.ant)}</th><th class="n">${rs(tot.per)}</th><th class="n">${rs(tot.acum)}</th><th class="n">${rs(tot.contrato - tot.acum)}</th>
       <th class="n">${rs2(tot.contrato)}</th><th></th>
     </tr></tfoot></table></div>
     <h2>Descontos e valor a faturar</h2>
@@ -5786,6 +5787,7 @@ function renderBMBoletim(box) {
     bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
     bmTile('Já medido (BMs anteriores)', rs(tot.ant), anteriores.length ? anteriores.map(x => 'BM' + x.n).join(' + ') + ' · já pago' : 'nenhum BM anterior', 'var(--fg3)') +
     bmTile(`Medição do BM${p.n}`, rs(tot.per), `acumulado − já medido · ${pc(tot.pctPer)} do contrato`, 'var(--acento)') +
+    bmTile('Saldo a medir', rs(tot.contrato - tot.acum), `contrato − medido acumulado · ${pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0)} do contrato`, 'var(--fg)') +
     bmTile('Descontos', rs(r.ded.total[R]), `sinal ${rs(r.ded.sinalAuto)}${r.ded.manuais.length ? ' + ' + r.ded.manuais.length + ' lançamento(s)' : ''}${r.ded.equip + r.ded.comb ? ' + equipamentos' : ''}`, 'var(--vermelho)') +
     bmTile('Valor a faturar', rs(r.faturar[R]), 'medição − descontos', 'var(--verde)') + '</div></details>';
 
@@ -5805,22 +5807,22 @@ function renderBMBoletim(box) {
   const colBms = bmsAteMeusInclusos.map(pm => `<th class="n">BM${pm.n}</th>`).join('');
   h += `<div class="bloco"><div class="bloco-cab"><h2>Medição por item e atividade</h2><span class="nota">Clique no item para ver as atividades.</span></div><div class="tabela-rolagem"><table class="tabela-bm"><thead><tr>
     <th>Item / atividade</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">Peso</th><th class="n" title="Valor total contratado (RÓTULA): do item e, por atividade, valor do item × peso">Valor total (R$)</th><th class="n" title="Valor total da atividade ÷ quantidade contratada">Valor unitário (R$)</th><th class="n">% já medido</th><th class="n">% período</th><th class="n">% acumulado</th><th class="n" title="Quanto já representa do valor total do contrato (igual à planilha de medição): % acumulado × valor ÷ contrato">% do contrato</th>
-    <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th>${colBms}</tr></thead><tbody>`;
+    <th class="n">Já medido (R$)</th><th class="n">Medição do período (R$)</th><th class="n">Acumulado (R$)</th><th class="n" title="Saldo a medir = valor total do contrato − medido acumulado">Saldo (R$)</th>${colBms}</tr></thead><tbody>`;
   r.itens.forEach(it => {
     const aberto = bmAbertos.has(it.item);
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td><td class="n"><b>${pc(tot.contrato ? it.pct * it.valor[R] / tot.contrato : 0)}</b></td>
-      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td><td class="n"><b>${rs(it.valor[R] - it.pct * it.valor[R])}</b></td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>${colBmsAti}</tr>`;
     });
   });
   h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
-    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td></tr></tfoot></table></div></div>`;
+    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td><td class="n"><b>${rs(tot.contrato - tot.acum)}</b></td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
   const linhaDesc = d => {
