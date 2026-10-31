@@ -10,6 +10,10 @@ if (isset($_GET['acesso'])) {
     responder_json(200, ['ok' => sesmt_pode_ver($eu)]);
 }
 $obra = exigir_obra_pagina();
+// Modo embutido: o sistema (index.php) mostra estas telas DENTRO das suas abas (Pessoal e Ocorrências), no mesmo layout, em um quadro.
+// embed=1 = com as sub-abas dos cadastros; embed=p = sem elas (a aba Pessoal do sistema já mostra as sub-abas). O modo acompanha todos os links, formulários e redirecionamentos.
+$GLOBALS['SV_EMBED'] = in_array($_GET['embed'] ?? '', ['1', 'p'], true) ? (string)$_GET['embed'] : '';
+$embed = $GLOBALS['SV_EMBED'];
 
 if (!sesmt_pode_ver($eu)) {
     http_response_code(403);
@@ -33,6 +37,9 @@ $REG = array_filter(sesmt_registros(), function ($d) use ($GRUPOS_ATIVOS) { retu
 
 function sv_url(array $p = [])
 {
+    if (!empty($GLOBALS['SV_EMBED'])) {
+        $p['embed'] = $GLOBALS['SV_EMBED'];
+    }
     return 'sesmt.php' . ($p ? '?' . http_build_query($p) : '');
 }
 
@@ -301,6 +308,17 @@ if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
 if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
     $v = 'painel';
 }
+// Aberta direto pelo endereço (favorito, link antigo): leva para a mesma tela DENTRO do sistema, sem trocar de "versão".
+// Ficam fora: as telas administrativas (?v=listas|config|acessos) e a exportação CSV.
+if ($embed === '' && $_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['export']) && !in_array($v, ['listas', 'config', 'acessos'], true)) {
+    $q = array_filter(array_intersect_key($_GET, array_flip(['id', 'modo', 'empresa', 'q', 'sit', 'p'])), function ($x) { return is_string($x) && $x !== ''; });
+    if ($reg !== '' && isset($REG[$reg]) && $REG[$reg]['grupo'] === 'Pessoas') {
+        header('Location: index.php?' . http_build_query(['aba' => 'dp', 'reg' => $reg] + $q));
+    } else {
+        header('Location: index.php?' . http_build_query(['aba' => 'sesmtocorr'] + ($reg !== '' ? ['reg' => $reg] : []) + $q));
+    }
+    exit;
+}
 $modo = $_GET['modo'] ?? 'lista';
 if ($formReg !== null) {
     $modo = 'form';
@@ -336,8 +354,12 @@ pagina_inicio($titulo . ' · SESMT GERAL', true);
 // mesma aparência do sistema: cores da obra e faixa "← Todas as obras" no topo
 $corP = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $corS = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
-echo '<style>body{--marca:' . h($corP) . ';--marca2:' . h($corS) . '}</style><div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>'
-    . ($ehAdmin ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+echo '<style>body{--marca:' . h($corP) . ';--marca2:' . h($corS) . '}</style>';
+if ($embed !== '') {   // dentro do sistema: sem topo, faixa nem menu (o sistema já tem os dele)
+    echo '<style>.obra-contexto,header.topo,.sidebar,.sidebar-toggle{display:none!important}html,body{background:transparent!important;min-height:0!important}body{padding:0!important}main.admin{margin:0!important;max-width:none!important;padding:0 2px 24px!important;min-height:0!important}</style>';
+} else {
+    echo '<div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>' . ($ehAdmin ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+}
 
 // Abas (menu) = grupos do SESMT; sub-abas (tela principal) = cadastros do grupo aberto.
 $grupos = [];
@@ -362,7 +384,7 @@ function sv_botao($rotulo, $url, $ativo)
 {
     return '<button type="button" class="' . ($ativo ? 'ativa' : '') . '" onclick="location.href=\'' . h($url) . '\'">' . h($rotulo) . '</button>';
 }
-$botoesSesmt = sv_botao('Ocorrências', sv_url(['g' => 'ocorrencias']), $abaAtual === 'ocorrencias');
+$botoesSesmt = '<button type="button" class="' . ($abaAtual === 'ocorrencias' ? 'ativa' : '') . '" onclick="location.href=\'index.php?aba=sesmtocorr\'">Ocorrências</button>';
 $grupoSesmt = menu_pagina_grupo('sesmt', '✚', 'SESMT GERAL', $botoesSesmt);
 ?>
 <style>
@@ -401,10 +423,10 @@ a.btn.primario{color:#fff}
 </header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
-<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt, $abaAtual === 'pessoas') ?>
+<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt) ?>
 </nav></aside>
 <main class="admin">
-<?php if ($subAbas): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : $REG[$reg]['grupo']) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
+<?php if ($subAbas && $embed !== 'p'): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : $REG[$reg]['grupo']) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
 <?php if ($flash): ?><div class="faixa <?= $flash[0] === 'ok' ? 'ok-faixa' : '' ?>"><?= h($flash[1]) ?></div><?php endif; ?>
 <?php if ($erros && $modo !== 'form'): ?><div class="faixa"><?= h(implode(' ', $erros)) ?></div><?php endif; ?>
 
@@ -645,7 +667,7 @@ elseif ($reg !== ''):
         <?php if ($podeEditar): ?><a class="btn primario" href="<?= h(sv_url(['reg' => $reg, 'modo' => 'form'])) ?>">+ Novo <?= h($def['singular']) ?></a><?php endif; ?>
         <a class="btn" href="<?= h(sv_url($params + ['export' => 'csv'])) ?>">Exportar CSV</a>
       </div></div>
-    <form method="get" class="barra-filtros"><input type="hidden" name="reg" value="<?= h($reg) ?>">
+    <form method="get" class="barra-filtros"><input type="hidden" name="reg" value="<?= h($reg) ?>"><?php if ($embed !== ''): ?><input type="hidden" name="embed" value="<?= h($embed) ?>"><?php endif; ?>
       <?php if ($mostraEmpresa): ?><label>Empresa<select name="empresa"><option value="">Todas as empresas</option>
         <?php foreach (sesmt_empresas() as $e): ?><option value="<?= h($e) ?>" <?= sesmt_norm_empresa($filtros['empresa']) === $e ? 'selected' : '' ?>><?= h($e) ?></option><?php endforeach; ?></select></label><?php endif; ?>
       <label>Buscar<input type="search" name="q" value="<?= h($filtros['q']) ?>" placeholder="Digite para buscar" autocomplete="off"></label>

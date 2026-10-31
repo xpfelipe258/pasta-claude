@@ -54,6 +54,7 @@ class Sessao:
         return self
 
     def pagina(self, **params):
+        params.setdefault("embed", "1") if "v" not in params else None
         return self.s.get(self.base + "/sesmt.php", params=params, allow_redirects=False)
 
     def post(self, **dados):
@@ -437,7 +438,14 @@ class T06_Paginas(unittest.TestCase):
                 self.assertNotIn("Fatal error", r.text, f"{reg}/{modo}")
                 self.assertNotIn("Warning:", r.text, f"{reg}/{modo}")
                 self.assertNotIn("Notice:", r.text, f"{reg}/{modo}")
-        for v in ("painel", "listas", "config", "acessos"):
+        # aberta direto (sem embed), a tela leva para a mesma tela DENTRO do sistema
+        r = ADMIN.s.get(AMB.base + "/sesmt.php?reg=aso", allow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("index.php?aba=dp&reg=aso", r.headers["Location"])
+        r = ADMIN.s.get(AMB.base + "/sesmt.php?g=ocorrencias", allow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("aba=sesmtocorr", r.headers["Location"])
+        for v in ("listas", "config", "acessos"):
             r = ADMIN.pagina(v=v)
             self.assertEqual(r.status_code, 200, v)
             self.assertNotIn("Fatal error", r.text, v)

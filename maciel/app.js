@@ -572,11 +572,11 @@ function renderAba() {
   // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
-     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(), sesmtocorr: () => renderSesmtOcorr(),
      plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
-  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], sesmtocorr: ['renderSesmtOcorr', 'sesmt_aba.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
   if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
     const chave = '_script_' + exigido[1];
     if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar
@@ -6627,6 +6627,7 @@ function dpRegistros(emp, data, funcao) {
   return (T.dp_efetivo || []).filter(r => normEmp(r.empresa) === emp && r.data === data && String(r.funcao || '').trim().toUpperCase() === funcao);
 }
 function renderDP() {
+  if (typeof dpSubAplicar === 'function') dpSubAplicar();   // sub-abas do SESMT (Colaboradores, ASO…) dentro de Pessoal
   const emps = dpEmpresas();
   const todas = T.dp_efetivo || [];
   if (!dpEmpSel || !emps.includes(dpEmpSel)) dpEmpSel = emps[0] || '';

@@ -16,8 +16,8 @@ function menu_pagina_grupo($id, $icone, $titulo, $botoes)
         . '<span class="seta-grupo">‹</span></div><div class="sidebar-itens aberto" id="grp-' . $id . '">' . $botoes . '</div></div>';
 }
 
-/** $atual = HTML logo abaixo de "Tarefas" (ex.: o botão da página aberta); $sesmt = HTML do grupo SESMT GERAL, inserido antes de "Geral"; $pessoasAtiva marca o botão "Pessoas" (dentro de Gestão, para quem vê o SESMT). */
-function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '', $pessoasAtiva = false)
+/** $atual = HTML logo abaixo de "Tarefas" (ex.: o botão da página aberta); $sesmt = HTML do grupo SESMT GERAL, inserido antes de "Geral". Os cadastros de pessoas do SESMT ficam na aba Pessoal do sistema. */
+function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '')
 {
     $pode = function ($m) use ($eu) { return usuario_pode_modulo($eu, $m); };
     $b = function ($aba, $txt) use ($ocultos) { return menu_pagina_botao($aba, $txt, $ocultos); };
@@ -37,10 +37,8 @@ function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '', 
     if ($pode('financeiro')) {
         $o .= menu_pagina_grupo('financeiro', '$', 'Financeiro', $b('bm', 'Medição (BM)') . $b('proj', 'Projeção físico-financeira') . $b('cff', 'Cronograma físico-financeiro')) . "\n";
     }
-    $verSesmt = ($eu['perfil'] ?? '') === 'admin' || (bool)q_global("SELECT 1 FROM usuarios_modulos WHERE usuario_id = ? AND modulo = 'sesmt' AND permitido = 1", [(int)$eu['id']])->fetchColumn();
-    $pessoas = $verSesmt ? '<button type="button" class="' . ($pessoasAtiva ? 'ativa' : '') . '" onclick="location.href=\'sesmt.php?g=pessoas\'" title="Colaboradores, ASO, treinamentos, presença, advertências e CIPA">Pessoas</button>' : '';
-    if ($pode('gestao') || $pessoas !== '') {   // "Pessoas" (cadastros do SESMT) fica dentro de Gestão
-        $o .= menu_pagina_grupo('gestao', '◆', 'Gestão', ($pode('gestao') ? $b('metas', 'Metas') . $b('impactos', 'Impactos') : '') . $pessoas) . "\n";
+    if ($pode('gestao')) {
+        $o .= menu_pagina_grupo('gestao', '◆', 'Gestão', $b('metas', 'Metas') . $b('impactos', 'Impactos') . $b('dp', 'Pessoal')) . "\n";
     }
     if ($pode('qualidade')) {
         $o .= menu_pagina_grupo('qualidade', '✓', 'Qualidade', $b('qualidade', 'Não conformidades')) . "\n";

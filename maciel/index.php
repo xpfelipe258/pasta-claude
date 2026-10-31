@@ -44,6 +44,7 @@ $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(
 $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @filemtime(__DIR__ . '/pdf_relatorio.js') . '"', $html);
 $html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
+$html = str_replace('src="sesmt_aba.js"', 'src="sesmt_aba.js?v=' . @filemtime(__DIR__ . '/sesmt_aba.js') . '"', $html);
 $html = str_replace('src="qualidade.js"', 'src="qualidade.js?v=' . @filemtime(__DIR__ . '/qualidade.js') . '"', $html);
 $html = str_replace('src="rdo.js"', 'src="rdo.js?v=' . @filemtime(__DIR__ . '/rdo.js') . '"', $html);
 $html = str_replace('src="rel_suprimentos.js"', 'src="rel_suprimentos.js?v=' . @filemtime(__DIR__ . '/rel_suprimentos.js') . '"', $html);
