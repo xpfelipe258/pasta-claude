@@ -754,6 +754,31 @@ function reSecResumo(d) {
   </div>`;
 }
 
+// Produção realizada no período: TODA atividade do catálogo (BM) que teve avanço entre as datas, com a quantidade do período (mesma conta do Relatório de produção de Lançamentos).
+function reSecProdPeriodo(d) {
+  if (typeof lcDados !== 'function') return '<p class="aviso">Cálculo de produção do período indisponível (recarregue a página).</p>';
+  const emps = d.geral ? (d.emps || []) : [d.emp], pc = v => nf(v * 100, 1) + '%';
+  const blocos = emps.map(emp => {
+    let q;
+    try { q = lcDados(emp, d.ini, d.fim); } catch (e) { console.error('produção do período', emp, e); return `<h3>${esc(emp)}</h3><p class="aviso">Não foi possível calcular a produção desta empresa.</p>`; }
+    if (!q.itens.length) return `<h3>${esc(emp)}</h3><p class="nota">Nenhuma atividade teve avanço entre ${fdA(d.ini)} e ${fdA(d.fim)}.</p>`;
+    let linhas = '';
+    q.itens.forEach(x => {
+      linhas += `<tr class="grupo"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+      x.ats.forEach(t => {
+        const a = t.a, ds = t.dias.map(z => z[0]).sort(), nDias = new Set(ds).size;
+        linhas += `<tr><td>${esc(a.atividade)}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, a.controle ? bmQtdContratadaUnd(a) : null)}</td>
+          <td class="n"><b>${bmFmtQtdFinanceira(a, t.per, t.und)}</b></td><td class="n">${bmFmtQtdFinanceira(a, t.real, t.undAc)}</td>
+          <td class="n">+${pc(a.qtd ? t.per / a.qtd : 0)}</td><td class="n">${pc(t.pct)}</td>
+          <td class="nota">${nDias} dia(s)${ds.length ? ` · ${fdA(ds[0])}${ds[ds.length - 1] !== ds[0] ? ' a ' + fdA(ds[ds.length - 1]) : ''}` : ''}</td></tr>`;
+      });
+    });
+    return `<h3>${esc(emp)} <span class="nota">· ${nf(q.nAtiv)} atividade(s) com avanço em ${nf(q.itens.length)} item(ns)</span></h3>
+      <table><thead><tr><th>Atividade (catálogo do BM)</th><th>Un.</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">Acumulado</th><th class="n">% da atividade no período</th><th class="n">% acumulado</th><th>Lançado em</th></tr></thead><tbody>${linhas}</tbody></table>`;
+  }).join('');
+  return `<p class="nota">Período de ${fdA(d.ini)} a ${fdA(d.fim)}. Só aparecem as atividades que tiveram avanço; a coluna "No período" é a quantidade produzida entre as duas datas.</p>${blocos}`;
+}
+
 function reSecProducao(d) {
   const p = d.producao;
   if (p.erro) return reErro(p);
@@ -968,6 +993,7 @@ function reSecao(titulo, html) { return `<h2>${titulo}</h2>${html}`; }
 // Seções do relatório (a pessoa escolhe quais entram; a numeração acompanha as escolhidas)
 const RE_SECOES = [
   ['resumo', 'Resumo executivo (cartões)', () => 'Resumo executivo', reSecResumo, false],
+  ['prodperiodo', 'Produção realizada no período — atividades com avanço e quantidade', () => 'Produção realizada no período — atividades com avanço', reSecProdPeriodo, true],
   ['producao', 'Resumo de produção do período', () => 'Resumo de produção do período', reSecProducao, true],
   ['semanas', 'Meta da semana — atingimento', () => 'Meta da semana — atingimento', reSecSemanas, true],
   ['atividades', 'Atividades que precisavam ser iniciadas', d => d.geral ? 'Atividades que precisavam ser iniciadas' : 'Atividades que a empresa precisava iniciar', reSecAtividades, true],
@@ -1047,7 +1073,8 @@ function reOpcPadrao() {
 }
 const RE_ATALHOS = {
   tudo: null,
-  producao: ['resumo', 'producao', 'semanas', 'atividades', 'planos', 'previsto'],
+  soprod: ['prodperiodo'],
+  producao: ['resumo', 'prodperiodo', 'producao', 'semanas', 'atividades', 'planos', 'previsto'],
   financeiro: ['resumo', 'bm', 'financeiro', 'equip'],
   pessoas: ['resumo', 'efetivo', 'suprimentos', 'impactos'],
 };
@@ -1060,6 +1087,7 @@ function reFiltroAbrir(ini, fim) {
     <div class="rs-filtro">
       <p class="nota" style="margin:0 0 8px">Período de ${fdA(ini)} a ${fdA(fim)}. Marque o que quer ver; a numeração acompanha as seções escolhidas.</p>
       <fieldset><legend>Atalhos</legend>
+        <button type="button" class="btn" data-re-atalho="soprod">Só produção do período</button>
         <button type="button" class="btn" data-re-atalho="tudo">Relatório completo</button>
         <button type="button" class="btn" data-re-atalho="producao">Produção e metas</button>
         <button type="button" class="btn" data-re-atalho="financeiro">Financeiro e custos</button>
