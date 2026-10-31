@@ -1313,8 +1313,13 @@ function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'TELHAR') k = 
 function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
-  const cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
-  const it = ganAplicarDatas({ ...c, inicio_plan: cr?.inicio_plan || c.inicio_plan, prazo: cr?.prazo || c.prazo });
+  let cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
+  if (!cr) {   // nome do cadastro mais longo que o do cronograma (ex.: "ECLUSA – TELHAS COBERTURA" × "Eclusa - Telhas"): vale a linha de mesmo início de nome
+    const nc = ganNorm(c.servico);
+    cr = GAN_CRONOGRAMA_CLIENTE.filter(x => ganNorm(x.frente) === ganNorm(c.frente) && ganFaseNumero(x) === ganFaseNumero(c) && nc.startsWith(ganNorm(x.servico) + ' '))
+      .sort((a, b) => ganNorm(b.servico).length - ganNorm(a.servico).length)[0] || null;
+  }
+  const it = ganAplicarDatas({ ...c, servico: cr?.servico || c.servico, inicio_plan: cr?.inicio_plan || c.inicio_plan, prazo: cr?.prazo || c.prazo });
   return { inicio_plan: it.inicio_plan || null, prazo: it.prazo || null };
 }
 
@@ -1326,6 +1331,13 @@ function clienteComFontes(c0) {
   if (fonte) {
     const qtd = fonte.percentual ? 100 : catalogoQtd(fonte.atividades);
     if (qtd > 0) item = { ...item, qtd, peso: Number(c0.peso) || 1, servico_exib: fonte.nome, fonte_catalogo: true, fonte_pct: !!fonte.percentual, contrato_total: true };
+  }
+  // Eclusa (telhas da cobertura, calhas): o item não tem contrato cadastrado; vale o catálogo do BM da própria Eclusa e o executado é o que foi
+  // lançado nessa atividade (ex.: "Instalação de telhas Eclusa" = 1.163,25 m²). Uma atividade só = quantidade dela (m²); várias = % de avanço.
+  if (!fonte && !c0._eclusa && !(Number(item.qtd) > 0) && ganNorm(c0.frente) === 'ECLUSA') {
+    const ats = ganBmAtividadesEspecificas(c0);
+    if (ats.length === 1 && Number(ats[0].qtd) > 0) item = { ...item, qtd: Number(ats[0].qtd), peso: Number(c0.peso) || 1, contrato_total: true };
+    else if (ats.length > 1) item = { ...item, qtd: 100, peso: Number(c0.peso) || 1, contrato_total: true };
   }
   // Contrato editado na tela do Dashboard cliente (vale sobre o catálogo; apagar volta ao catálogo)
   const ov = Number((M.contratos_cliente || {})[contratoCliKey(c0)]);
@@ -1940,6 +1952,7 @@ function ganBmAtividadesEspecificas(it) {
   let filtro = null;
   if (sv.includes('VIGAS E JOISTS')) filtro = a => ganNorm(a.item_desc).includes('COBERTURA DA ECLUSA');
   else if (sv.includes('CALHAS')) filtro = a => ganNorm(a.item_desc).includes('CALHAS') && ganNorm(a.atividade).includes('ECLUSA');
+  else if (sv.includes('PLATIBANDA')) filtro = null;   // platibanda tem atividades próprias (ANEXO_CAT.E), não as da cobertura
   else if (sv.includes('TELHAS')) filtro = a => ganNorm(a.atividade).includes('ECLUSA') && ganNorm(a.atividade).includes('TELHA') && ganNorm(a.item_desc).includes('COBERTURA DOS ANEXOS');
   return filtro ? bmTab('bm_atividades').filter(filtro) : [];
 }
@@ -5994,7 +6007,7 @@ function renderLancServico(e) {
       const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
       const baseFin = bmAtividadeUsaBaseFinanceira(a);
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''} ${typeof vcConsumoAbrir === 'function' ? `<button type="button" class="link vc-cons-btn" data-cons-ativ="${esc(a.codigo)}" title="Vincular o consumo de material a esta atividade (baixa automática ao lançar a produção)">consumo${vcConsumoResumo(a.codigo)}</button>` : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);

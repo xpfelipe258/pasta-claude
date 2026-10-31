@@ -1629,3 +1629,8 @@ tr.qual-linha-atraso td:first-child { box-shadow: inset 4px 0 0 #b42318; }
 .dp-subabas{margin:0 0 14px;display:flex;max-width:100%}
 .dp-subabas .seg{flex-wrap:wrap;max-width:100%}
 .dp-subabas .seg button[hidden]{display:none}
+
+/* Lançamentos: vínculo de consumo de material por atividade */
+.vc-cons-btn { font-size: 11px; margin-left: 6px; white-space: nowrap; }
+#dlgConsAtiv { width: min(820px, 96vw); }
+#dlgConsAtiv .vc-sel { max-width: 100%; }
