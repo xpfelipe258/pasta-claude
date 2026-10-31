@@ -1486,8 +1486,31 @@ function acao_registro(array $corpo)
             throw new ErroValidacao('Empresa inválida.');
         }
     }
-    if ($tabela === 'bm_periodos' && empty($campos['corte'])) {
+    if ($tabela === 'bm_periodos' && empty($campos['corte']) && ($id === null || array_key_exists('corte', $campos))) {
         throw new ErroValidacao('Informe a data de corte do BM.');
+    }
+    if ($tabela === 'bm_periodos' && array_key_exists('sinal_perc', $campos)) {   // % de sinal de contrato do BM: de 0 a 100 e travado depois de fechar
+        $perc = $campos['sinal_perc'] === '' || $campos['sinal_perc'] === null ? null : numero($campos['sinal_perc']);
+        if ($perc !== null && ($perc < 0 || $perc > 100)) {
+            throw new ErroValidacao('O % de sinal de contrato deve ficar entre 0 e 100.');
+        }
+        if ($id !== null) {
+            $linhaBm = q('SELECT empresa, bm FROM bm_periodos WHERE id = ?', [$id])->fetch();
+            if ($linhaBm) {
+                $nBm = (int)$linhaBm['bm'];
+                if ($nBm <= 0) {   // sem número gravado: vale a posição na ordem dos cortes, como a tela
+                    $nBm = 0;
+                    foreach (q('SELECT id FROM bm_periodos WHERE empresa = ? AND corte IS NOT NULL ORDER BY corte, id', [$linhaBm['empresa']])->fetchAll() as $i => $o) {
+                        if ((int)$o['id'] === $id) {
+                            $nBm = $i + 1;
+                        }
+                    }
+                }
+                if ($nBm > 0 && q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$linhaBm['empresa'], $nBm])->fetchColumn()) {
+                    throw new ErroValidacao("O BM$nBm está fechado: reabra o BM para mudar o % de sinal de contrato.");
+                }
+            }
+        }
     }
     if ($tabela === 'bm_apontamentos') {
         if (isset($campos['quantidade']) && (numero($campos['quantidade']) ?? 0) < 0) {

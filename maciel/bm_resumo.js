@@ -14,6 +14,51 @@ const bmPrimeiraData = emp => {
   return ds.sort()[0] || ref;
 };
 
+// ---------------------------------------------------------------- BM impresso: uso de equipamento + combustível POR MÁQUINA da empresa
+// Mesma regra do desconto do BM (bmDeducoes): equipamento locado por mês já é descontado como locação (o uso lançado dele não soma custo de novo);
+// abastecimento da SANY não entra na medição. As linhas dessas regras aparecem marcadas e não somam no total descontado.
+function bmEquipDetalheHtml(emp, p, dd) {
+  const ini = p.ini === '0000-01-01' ? bmPrimeiraData(emp) : p.ini, fim = p.fim;
+  const dados = relEquipDados(emp, ini, fim, 'todos');
+  const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
+  const meses = mesesNoPeriodo(p.ini, p.fim);
+  const maq = new Map();   // equipamento -> { resp, linhas[], dias:Set, custo, litros, comb }
+  const pega = (nome, resp) => { if (!maq.has(nome)) maq.set(nome, { nome, resp: resp || '—', cobranca: '', linhas: [], dias: new Set(), custo: 0, litros: 0, comb: 0, mensal: 0, mesesMensal: 0 }); const m = maq.get(nome); if (resp && m.resp === '—') m.resp = resp; return m; };
+  dados.linhas.forEach(l => {
+    const m = pega(l.equipamento, l.resp);
+    const eAbast = ganNorm(l.uso).includes('ABASTECIMENTO') || l.litros > 0 || l.comb > 0;
+    const locado = locados.has(ganNorm(l.equipamento)) && l.custo > 0;
+    const semComb = ganNorm(l.equipamento).includes('SANY') && eAbast && (l.litros > 0 || l.comb > 0);
+    const c = locado ? 0 : l.custo, lt = semComb ? 0 : l.litros, cb = semComb ? 0 : l.comb;
+    const nota = [locado ? 'coberto pela locação mensal' : '', semComb ? 'abastecimento não entra na medição' : '', l.rateio || ''].filter(Boolean).join(' · ');
+    m.linhas.push({ ...l, c, lt, cb, nota });
+    m.custo += c; m.litros += lt; m.comb += cb; if (l.data) m.dias.add(l.data);
+  });
+  (dd.eqMensList || []).forEach(e => { const m = pega(e.equipamento, e.responsavel || emp); m.cobranca = 'MENSAL'; m.mensal = (e.valor || 0) * meses; m.mesesMensal = meses; m.valorMes = e.valor || 0; });
+  (bmTab('equipamentos') || []).forEach(e => { const m = maq.get(e.equipamento); if (m && !m.cobranca) m.cobranca = e.cobranca || ''; });
+  const lista = [...maq.values()].sort((a, b) => (b.custo + b.comb + b.mensal) - (a.custo + a.comb + a.mensal) || a.nome.localeCompare(b.nome));
+  const tot = x => x.custo + x.comb + x.mensal;
+  const gEq = soma0(lista, m => m.custo + m.mensal), gLt = soma0(lista, m => m.litros), gCb = soma0(lista, m => m.comb), gTot = soma0(lista, tot);
+  if (!lista.length) return `<h2>Equipamentos e combustível do período — ${esc(emp)}</h2><p class="nota">Nenhum uso de equipamento nem abastecimento lançado para ${esc(emp)} neste período.</p>`;
+  const resumo = lista.map(m => `<tr><td><b>${esc(m.nome)}</b></td><td>${esc(m.resp)}</td><td>${esc(m.cobranca || '—')}</td><td class="n">${m.dias.size || (m.mensal ? '—' : 0)}</td><td class="n">${rs2(m.custo + m.mensal)}</td><td class="n">${nf(m.litros, 1)}</td><td class="n">${rs2(m.comb)}</td><td class="n"><b>${rs2(tot(m))}</b></td></tr>`).join('');
+  const detalhe = lista.map(m => {
+    const linhas = m.linhas.slice().sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+    const cab = `<tr class="grupo"><td colspan="9"><b>${esc(m.nome)}</b> · responsável ${esc(m.resp)}${m.cobranca ? ' · cobrança ' + esc(m.cobranca) : ''}</td></tr>`;
+    const mens = m.mensal ? `<tr><td colspan="4">Locação mensal <span class="nota">${m.mesesMensal}× ${rs2(m.valorMes)}</span></td><td class="n">${rs2(m.mensal)}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs2(m.mensal)}</b></td><td></td></tr>` : '';
+    const rows = linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.uso || '—')}</td><td>${esc(l.operTxt || '—')}</td><td class="n">${l.qtd ? nf(l.qtd, 1) : '—'}</td><td class="n">${rs2(l.c)}</td><td class="n">${l.lt ? nf(l.lt, 1) : '—'}</td><td class="n">${rs2(l.cb)}</td><td class="n"><b>${rs2(l.c + l.cb)}</b></td><td class="sub">${esc(l.nota)}</td></tr>`).join('');
+    const sub = `<tr class="linha-total"><td colspan="4"><b>Total ${esc(m.nome)}</b></td><td class="n"><b>${rs2(m.custo + m.mensal)}</b></td><td class="n"><b>${nf(m.litros, 1)}</b></td><td class="n"><b>${rs2(m.comb)}</b></td><td class="n"><b>${rs2(tot(m))}</b></td><td></td></tr>`;
+    return cab + mens + rows + sub;
+  }).join('');
+  const dif = Math.abs(gTot - (dd.equip + dd.comb)) > 1
+    ? `<p class="nota">${p.fechado ? 'BM fechado: o desconto do boletim usa os valores congelados no fechamento (' + rs2(dd.equip + dd.comb) + '); esta tabela mostra o uso lançado hoje no período.' : 'Atenção: o total listado difere do desconto do boletim (' + rs2(dd.equip + dd.comb) + ').'}</p>` : '';
+  return `<h2>Equipamentos e combustível do período — ${esc(emp)}</h2>
+    <p class="nota">Uso de equipamento e combustível por máquina, lançados para ${esc(emp)} de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. Locação mensal entra como desconto do mês; uso lançado do equipamento locado e abastecimento da SANY não somam de novo.</p>
+    <table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Cobrança</th><th class="n">Dias de uso</th><th class="n">Equipamento (R$)</th><th class="n">Litros</th><th class="n">Combustível (R$)</th><th class="n">Total descontado (R$)</th></tr></thead><tbody>${resumo}</tbody>
+      <tfoot><tr><th colspan="4">Total de equipamentos + combustível</th><th class="n">${rs2(gEq)}</th><th class="n">${nf(gLt, 1)}</th><th class="n">${rs2(gCb)}</th><th class="n">${rs2(gTot)}</th></tr></tfoot></table>${dif}
+    <h2>Detalhe por máquina — ${esc(emp)}</h2>
+    <table><thead><tr><th>Data</th><th>Uso</th><th>Operador / abastecido por</th><th class="n">Qtd</th><th class="n">Equipamento (R$)</th><th class="n">Litros</th><th class="n">Combustível (R$)</th><th class="n">Total (R$)</th><th>Observação</th></tr></thead><tbody>${detalhe}</tbody></table>`;
+}
+
 // ---------------------------------------------------------------- resumo do período: o que foi gasto e o ganho produtivo
 function bmResumoPeriodoHtml(emp, p, r, tot, cc) {
   const dd = r.ded, ini = p.ini === '0000-01-01' ? bmPrimeiraData(emp) : p.ini, fim = p.fim;
