@@ -258,8 +258,6 @@ async function plCarregar(forcar) {
     PL.dados = r.ok ? await r.json() : { planos: [] };
   } catch { PL.dados = { planos: [] }; }
   if (!Array.isArray(PL.dados.planos)) PL.dados = { planos: [] };
-  // Fase 2 do galpão não é usada: itens "GALPÃO F2…" de planos antigos saem da tela (o contrato total fica na linha da cobertura, Fase 1)
-  PL.dados.planos.forEach(p => { if (Array.isArray(p.itens)) p.itens = p.itens.filter(i => !ehGalpaoFase2(i.frente)); });
   plMigrarEclusa(PL.dados.planos);
   try { plMigrarAnexos(PL.dados.planos); } catch (e) { console.warn('migração dos anexos', e); }
   return PL.dados;

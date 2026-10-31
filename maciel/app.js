@@ -361,7 +361,6 @@ async function carregar() {
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
-  M.cliente = (M.cliente || []).filter(c => !ehGalpaoFase2(c.frente));   // a Fase 2 do galpão não é usada: o contrato total fica numa linha só, a da cobertura (Fase 1)
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
@@ -1574,6 +1573,21 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Testeira', inicio_plan: '2026-11-27', prazo: '2026-12-14', fontes: ['Cobertura de Pedestres', 'Testeira'] },
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura Área de Vivência', inicio_plan: '2026-11-18', prazo: '2026-12-16', fontes: ['Área de Vivência', 'Cobertura'] },
 
+  // Galpão - Fase 2
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Premontagem', inicio_plan: '2026-09-17', prazo: '2027-03-17', fontes: ['Premontagem'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Vigas', inicio_plan: '2026-09-28', prazo: '2027-03-23', fontes: ['Vigas'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Içamento Joist', inicio_plan: '2026-10-14', prazo: '2027-04-08', fontes: ['Içamento Joist', 'Içamento', 'Joist'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Instalação de telhas', inicio_plan: '2026-10-21', prazo: '2027-04-15', fontes: ['Instalação de telhas', 'Montagem Telhas', 'Telhas'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Calhas Cobertura', inicio_plan: '2026-12-18', prazo: '2027-04-23', fontes: ['Calhas Cobertura', 'Calhas'] },
+  { frente: 'GALPÃO F2', fase: '2', servico: 'Arremates Cobertura', inicio_plan: '2027-01-06', prazo: '2027-04-30', fontes: ['Arremates Cobertura', 'Arremates', 'Rufos'] },
+  { frente: 'GALPÃO F2 – FECHAMENTO LATERAL', fase: '2', servico: 'Fech. Lateral – Estrutura', inicio_plan: '2026-11-12', prazo: '2027-04-08', fontes: ['Fech. Lateral – Estrutura', 'Fechamento Lateral Estrutura', 'Fechamento Lateral'] },
+  { frente: 'GALPÃO F2 – FECHAMENTO LATERAL', fase: '2', servico: 'Fechamento', inicio_plan: '2026-12-04', prazo: '2027-04-30', fontes: ['Fechamento', 'Fechamento Lateral Telha PIR', 'Telha PIR'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Vigas', inicio_plan: '2026-12-22', prazo: '2027-03-19', fontes: ['Marquise - Vigas', 'Vigas'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Premontagem Terças', inicio_plan: '2026-12-30', prazo: '2027-03-29', fontes: ['Marquise - Premontagem Terças', 'Premontagem', 'Terças'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Montagem Terças', inicio_plan: '2027-01-06', prazo: '2027-04-01', fontes: ['Marquise - Montagem Terças', 'Terças'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Calhas', inicio_plan: '2027-01-07', prazo: '2027-04-02', fontes: ['Marquise - Calhas', 'Calhas'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Telhas', inicio_plan: '2027-01-19', prazo: '2027-04-14', fontes: ['Marquise - Telhas', 'Telhas', 'Instalação de telhas'] },
+  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Testeira', inicio_plan: '2027-01-21', prazo: '2027-04-16', fontes: ['Marquise - Testeira', 'Testeira'] },
 ];
 
 const GAN_AJUSTES_DATAS_PADRAO = {
@@ -1695,10 +1709,6 @@ function ganNorm(txt) {
   return String(txt || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim();
 }
 
-// Linhas "GALPÃO F2…" (cobertura, fechamento lateral, marquise) não são usadas: valem só as linhas de Fase 1, que já trazem o contrato total.
-function ehGalpaoFase2(frente) {
-  return /^GALP[AÃ]O\s+F2\b/i.test(String(frente || '').trim());
-}
 function ganFaseNumero(it) {
   return it.fase || faseItem(it.frente);
 }
