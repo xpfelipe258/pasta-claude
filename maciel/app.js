@@ -5521,21 +5521,44 @@ function bmItens(emp, ate, snap) {
 function bmPeriodos(emp) {
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((a, b) => a.corte.localeCompare(b.corte));
   const lista = [];
-  let ant = null, sinal = BM_SINAL_PERCENTUAL;   // % de sinal de contrato: o do próprio BM (Períodos e deduções) ou, se vazio, o do BM anterior; padrão 10
+  let ant = null, sinal = BM_SINAL_PERCENTUAL;   // % de sinal de contrato: o do próprio BM (linha "Sinal de contrato" dos descontos) ou, se vazio, o do BM anterior; padrão 10
+  const sinaisDesc = bmTab('bm_deducoes').filter(d => d.empresa === emp && ganNorm(d.tipo) === 'SINAL DE CONTRATO' && d.percentual != null && d.percentual !== '' && isFinite(Number(d.percentual)));
+  const sinalDoBm = (n, ini, fim) => sinaisDesc.filter(d => d.bm != null && d.bm !== '' ? Number(d.bm) === n : (d.data && d.data >= ini && d.data <= fim)).sort((a, b) => a.linha - b.linha).pop();
   ps.forEach((p, i) => {
-    const n = p.bm || i + 1, fech = bmFech(emp, n);
-    const propria = p.sinal_perc != null && p.sinal_perc !== '' && isFinite(Number(p.sinal_perc));
-    if (propria) sinal = Number(p.sinal_perc);
-    lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, cortado: true, fechado: !!fech, fech, sinalPerc: sinal, sinalPropria: propria, linha: p.linha,
+    const n = p.bm || i + 1, fech = bmFech(emp, n), iniP = ant ? add(ant, 1) : '0000-01-01';
+    const ld = sinalDoBm(n, iniP, p.corte);
+    const antigo = p.sinal_perc != null && p.sinal_perc !== '' && isFinite(Number(p.sinal_perc));   // valor digitado na versão anterior da célula (vale se não houver linha de desconto)
+    const propria = !!ld || antigo;
+    if (ld) sinal = Number(ld.percentual); else if (antigo) sinal = Number(p.sinal_perc);
+    lista.push({ chave: 'p' + p.linha, n, ini: iniP, fim: p.corte, cortado: true, fechado: !!fech, fech, sinalPerc: sinal, sinalPropria: propria, sinalLinha: ld ? ld.linha : null, linha: p.linha,
       rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
     ant = p.corte;
   });
   if (!ant || ref > ant) {
     const n = lista.length ? lista[lista.length - 1].n + 1 : 1;
-    lista.push({ chave: 'aberto', n, ini: ant ? add(ant, 1) : '0000-01-01', fim: ref, cortado: false, fechado: false, sinalPerc: sinal, sinalPropria: false,
+    const iniA = ant ? add(ant, 1) : '0000-01-01', ldA = sinalDoBm(n, iniA, ref);
+    if (ldA) sinal = Number(ldA.percentual);
+    lista.push({ chave: 'aberto', n, ini: iniA, fim: ref, cortado: false, fechado: false, sinalPerc: sinal, sinalPropria: !!ldA, sinalLinha: ldA ? ldA.linha : null,
       rot: ant ? `BM${n} em aberto · até ${fdA(ref)}` : `Acumulado até ${fdA(ref)} (sem corte definido)` });
   }
   return lista;
+}
+
+// % de sinal de contrato do BM n: vira (ou atualiza/apaga) a linha "SINAL DE CONTRATO" da lista de descontos daquele BM.
+async function bmSinalSalvar(emp, n, perc) {
+  const p = bmPeriodos(emp).find(x => x.n === n);
+  if (!p) throw new Error('BM não encontrado. Recarregue a tela.');
+  if (p.fechado) throw new Error(`O BM${n} está fechado: reabra o BM para mudar o % de sinal de contrato.`);
+  const antigas = bmTab('bm_deducoes').filter(d => d.empresa === emp && ganNorm(d.tipo) === 'SINAL DE CONTRATO' && d.percentual != null && d.percentual !== '' && (d.bm != null && d.bm !== '' ? Number(d.bm) === n : (d.data && d.data >= p.ini && d.data <= p.fim)));
+  if (perc == null) { for (const d of antigas) await postar(API + 'registro', { tabela: 'bm_deducoes', linha: d.linha, excluir: true }); }
+  else if (antigas.length) {
+    await postar(API + 'registro', { tabela: 'bm_deducoes', linha: antigas[antigas.length - 1].linha, campos: { percentual: perc } });
+    for (const d of antigas.slice(0, -1)) await postar(API + 'registro', { tabela: 'bm_deducoes', linha: d.linha, excluir: true });
+  } else await postar(API + 'registro', { tabela: 'bm_deducoes', campos: { empresa: emp, bm: n, data: p.fim, tipo: 'SINAL DE CONTRATO', descricao: 'Sinal de contrato (% do medido no BM)', percentual: perc, contrato: 'RÓTULA' } });
+  if (p.cortado && p.linha != null) {   // valor digitado na versão anterior da célula (bm_periodos.sinal_perc) não pode reaparecer depois
+    const lin = bmTab('bm_periodos').find(x => x.linha === p.linha);
+    if (lin && lin.sinal_perc != null && lin.sinal_perc !== '') await postar(API + 'registro', { tabela: 'bm_periodos', linha: p.linha, campos: { sinal_perc: null } });
+  }
 }
 
 // Desconto como nas planilhas: valor fixo ou % do medido no período (ex.: sinal de contrato 10%). Negativo = crédito.
@@ -5583,7 +5606,7 @@ function bmDeducoes(emp, p, medido = 0) {
   }
   const manuaisLancados = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
   const manuais = manuaisLancados.filter(d => ganNorm(d.tipo) !== 'SINAL DE CONTRATO');
-  const sinalManualIgnorado = manuaisLancados.length - manuais.length;
+  const sinalManualIgnorado = manuaisLancados.filter(d => ganNorm(d.tipo) === 'SINAL DE CONTRATO' && (d.percentual == null || d.percentual === '')).length;   // sinal com valor fixo (sem %) não vale: o sistema desconta o % × medido
   const sinalPerc = p.sinalPerc != null && isFinite(Number(p.sinalPerc)) ? Number(p.sinalPerc) : BM_SINAL_PERCENTUAL;   // vem de Períodos e deduções
   const sinalAuto = medido > 0 ? medido * sinalPerc / 100 : 0;
   const total = {};
@@ -5838,18 +5861,18 @@ function renderBMBoletim(box) {
   };
   h += `<div class="bloco"><div class="bloco-cab"><h2>Descontos e valor a faturar — BM${p.n}</h2>
       <div class="acoes"><button class="btn primario" data-novo="bm_deducoes" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, data: p.fim, contrato: R }))}'>+ Desconto</button></div></div>
-    <p class="nota">O sinal de contrato entra automaticamente como ${nf(dd.sinalPercentual, 1)}% do valor medido neste BM (% definido em Períodos e deduções). Equipamento emprestado da Rótula, faturamento direto, diesel, medição antecipada e almoço podem continuar sendo lançados como descontos manuais. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
+    <p class="nota">O sinal de contrato entra automaticamente como ${nf(dd.sinalPercentual, 1)}% do valor medido neste BM; o % é editável na própria linha de sinal (e em Períodos e deduções) e fica registrado na lista de descontos do BM. Equipamento emprestado da Rótula, faturamento direto, diesel, medição antecipada e almoço podem continuar sendo lançados como descontos manuais. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
     <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">RÓTULA</th></tr></thead><tbody>
     <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
     <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
-    (dd.sinalAuto ? `<tr><td>(−) Sinal de contrato <span class="nota">${nf(dd.sinalPercentual, 1)}% do valor medido no BM · % definido em Períodos e deduções</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
+    (dd.sinalAuto || !p.fechado ? `<tr><td>(−) Sinal de contrato ${p.fechado ? `<b>${nf(dd.sinalPercentual, 1)}%</b>` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:72px;text-align:right" value="${esc(String(dd.sinalPercentual))}" data-edit-sinal-bm="${p.n}" title="% de sinal de contrato deste BM: digite e saia da célula para gravar (vazio volta a repetir o do BM anterior)"${document.body.classList.contains('somente-leitura') ? ' disabled' : ''}> %`} <span class="nota">do valor medido no BM${p.sinalPropria ? '' : ' · repetido do BM anterior (padrão 10%)'}${p.fechado ? '' : ' · edite aqui ou em Períodos e deduções'}</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
     (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
     (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× R$ ${nf(e.valor, 0)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.usosIgnoradosLocacao ? `<tr><td class="nota">Uso de equipamento locado desconsiderado <span class="nota">${dd.usosIgnoradosLocacao} lançamento(s) de equipamento com locação mensal já descontada — só o uso diário dos demais equipamentos soma</span></td><td class="n">—</td></tr>` : '') +
     (dd.usosIgnoradosAbast ? `<tr><td class="nota">Abastecimento de SANY desconsiderado na medição <span class="nota">mantida apenas a diária/custo do equipamento</span></td><td class="n">—</td></tr>` : '') +
-    (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal manual cadastrado ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% (definido em Períodos e deduções)</span></td><td class="n">—</td></tr>` : '') +
+    (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal de contrato com valor fixo (sem %) ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% do medido; para mudar, edite o % na linha de sinal</span></td><td class="n">—</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : (!dd.sinalAuto && !(dd.equip - dd.mensalEquip) && !dd.mensalEquip && !dd.comb && !dd.sinalManualIgnorado ? '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>' : '')) +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
   box.innerHTML = h;
@@ -5871,9 +5894,9 @@ function renderBMPeriodos(box) {
   const ds = bmTab('bm_deducoes').filter(d => d.empresa === emp).sort((a, b) => String(b.data).localeCompare(String(a.data)));
   box.innerHTML = `<div class="grade-2">
     <div class="bloco"><div class="bloco-cab"><h2>Períodos de medição (BM)</h2><button class="btn primario" data-novo="bm_periodos">+ Período</button></div>
-      <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto. <b>% sinal de contrato:</b> digite na coluna de cada BM; o Boletim desconta esse % do valor medido no BM automaticamente. Célula vazia repete o % do BM anterior (padrão 10%); BM fechado trava o %.</p>
+      <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto. <b>% sinal de contrato:</b> digite na coluna de cada BM (ou direto na linha de sinal do Boletim); o Boletim desconta esse % do valor medido automaticamente e a linha "Sinal de contrato" aparece em Descontos dos BMs. Célula vazia repete o % do BM anterior (padrão 10%); BM fechado trava o %.</p>
       <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th class="n" title="Desconto de sinal de contrato = este % × valor medido no BM. Vazio = repete o do BM anterior (padrão 10%).">% sinal de contrato</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>` +
-    (ps.length ? ps.map(p => { const pp = bmPeriodos(emp).find(x => x.linha === p.linha); const f = bmFech(emp, pp ? pp.n : p.bm); const own = p.sinal_perc != null && p.sinal_perc !== ''; return `<tr><td><b>BM${pp ? pp.n : (p.bm ?? '')}</b></td><td>${fdA(p.corte)}</td><td class="n">${f ? `${nf(pp ? pp.sinalPerc : 10, 1)}%` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:76px;text-align:right" value="${own ? esc(String(p.sinal_perc)) : ''}" placeholder="${nf(pp ? pp.sinalPerc : 10, 1)}" data-edit-sinal="${p.linha}"> %`}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
+    (ps.length ? ps.map(p => { const pp = bmPeriodos(emp).find(x => x.linha === p.linha); const f = bmFech(emp, pp ? pp.n : p.bm); const own = p.sinal_perc != null && p.sinal_perc !== ''; return `<tr><td><b>BM${pp ? pp.n : (p.bm ?? '')}</b></td><td>${fdA(p.corte)}</td><td class="n">${f ? `${nf(pp ? pp.sinalPerc : 10, 1)}%` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:76px;text-align:right" value="${pp && pp.sinalPropria ? esc(String(pp.sinalPerc)) : ''}" placeholder="${nf(pp ? pp.sinalPerc : 10, 1)}" data-edit-sinal-bm="${pp ? pp.n : p.bm}"> %`}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
       : '<tr><td colspan="6" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
     `</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Descontos dos BMs</h2><button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></div>
@@ -6022,8 +6045,7 @@ const FORMS = {
     ['custo', 'Custo do equipamento (R$)', 'num'], ['litros', 'Combustível (L)', 'num'], ['preco_litro', 'Preço do litro (R$)', 'num'],
     ['custo_combustivel', 'Custo combustível (R$) — calculado se vazio', 'num'], ['operador', 'Operador', 'text'], ['obs', 'Observação', 'text', 0, 'largo']] },
   bm_periodos: { tit: 'período de medição (BM)', campos: [
-    ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM', 'num', 1], ['corte', 'Data de corte', 'date', 1],
-    ['sinal_perc', '% de sinal de contrato deste BM (vazio = o do BM anterior; padrão 10)', 'num'], ['obs', 'Observação', 'text', 0, 'largo']] },
+    ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM', 'num', 1], ['corte', 'Data de corte', 'date', 1],['obs', 'Observação', 'text', 0, 'largo']] },
   bm_deducoes: { tit: 'desconto do BM', campos: [
     ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM (vazio = pela data)', 'num'], ['data', 'Data', 'date', 1],
     ['tipo', 'Tipo', 'select:EQUIPAMENTO EMPRESTADO,FATURAMENTO DIRETO,COMBUSTÍVEL,SINAL DE CONTRATO,MEDIÇÃO ANTECIPADA,REFEIÇÃO,ADIANTAMENTO,OUTROS', 1],
@@ -7334,13 +7356,13 @@ function ligarEventos() {
   });
   $('#aba-bm').addEventListener('change', async ev => {
     if (ev.target.id === 'selBmPer') { bmPerSel = ev.target.value; renderBM(); return; }
-    const cs = ev.target.closest('[data-edit-sinal]');
-    if (cs) {   // % de sinal de contrato do BM (Períodos e deduções): grava ao sair da célula; vazio volta a repetir o do BM anterior
+    const cs = ev.target.closest('[data-edit-sinal-bm]');
+    if (cs) {   // % de sinal de contrato do BM: grava como linha "Sinal de contrato" nos descontos; vazio apaga a linha (volta a repetir o BM anterior)
       const v = cs.value.trim().replace(',', '.');
       if (v !== '' && (!isFinite(Number(v)) || Number(v) < 0 || Number(v) > 100)) { toast('Informe um % entre 0 e 100.', true); return; }
       cs.disabled = true;
       try {
-        await postar(API + 'registro', { tabela: 'bm_periodos', linha: parseInt(cs.dataset.editSinal), campos: { sinal_perc: v === '' ? null : Number(v) } });
+        await bmSinalSalvar(bmEmp, parseInt(cs.dataset.editSinalBm), v === '' ? null : Number(v));
         await carregar();
         renderBM();
         toast(v === '' ? '% de sinal de contrato: repete o do BM anterior' : `% de sinal de contrato do BM: ${nf(Number(v), 1)}%`);

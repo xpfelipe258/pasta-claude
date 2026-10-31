@@ -1420,6 +1420,21 @@ function acao_registro(array $corpo)
             }
         }
     }
+    if ($tabela === 'bm_deducoes') {   // linha "Sinal de contrato" (o % do BM): travada depois de fechar o BM e com % de 0 a 100
+        $linhaD = $id !== null ? q('SELECT empresa, bm, tipo FROM bm_deducoes WHERE id = ?', [$id])->fetch() : null;
+        $camposD = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
+        $ehSinal = ($linhaD && mb_strtoupper(trim((string)$linhaD['tipo'])) === 'SINAL DE CONTRATO') || mb_strtoupper(trim((string)($camposD['tipo'] ?? ''))) === 'SINAL DE CONTRATO';
+        if ($ehSinal) {
+            $empD = mb_strtoupper(trim((string)($camposD['empresa'] ?? ($linhaD['empresa'] ?? ''))));
+            $bmD = (int)($camposD['bm'] ?? ($linhaD['bm'] ?? 0));
+            if ($bmD > 0 && $empD !== '' && q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$empD, $bmD])->fetchColumn()) {
+                throw new ErroValidacao("O BM$bmD está fechado: reabra o BM para mudar o % de sinal de contrato.");
+            }
+            if (isset($camposD['percentual']) && $camposD['percentual'] !== '' && (numero($camposD['percentual']) < 0 || numero($camposD['percentual']) > 100)) {
+                throw new ErroValidacao('O % de sinal de contrato deve ficar entre 0 e 100.');
+            }
+        }
+    }
     if (!empty($corpo['excluir'])) {
         if ($tabela === 'materiais') {
             $matExcluir = q('SELECT codigo FROM materiais WHERE id = ?', [$id])->fetch();
@@ -1521,9 +1536,13 @@ function acao_registro(array $corpo)
         }
     }
     if ($tabela === 'bm_deducoes') {
-        $campos['tipo'] = mb_strtoupper((string)($campos['tipo'] ?? 'OUTROS'));
-        $campos['contrato'] = mb_strtoupper((string)($campos['contrato'] ?? 'RÓTULA'));
-        if (!in_array($campos['contrato'], ['RÓTULA', 'QPC', 'AMBOS'], true)) {
+        if ($id === null || array_key_exists('tipo', $campos)) {
+            $campos['tipo'] = mb_strtoupper((string)($campos['tipo'] ?? 'OUTROS'));
+        }
+        if ($id === null || array_key_exists('contrato', $campos)) {
+            $campos['contrato'] = mb_strtoupper((string)($campos['contrato'] ?? 'RÓTULA'));
+        }
+        if (isset($campos['contrato']) && !in_array($campos['contrato'], ['RÓTULA', 'QPC', 'AMBOS'], true)) {
             throw new ErroValidacao('Contrato deve ser RÓTULA, QPC ou AMBOS.');
         }
     }
