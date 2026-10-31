@@ -195,7 +195,8 @@ function vcBom(grupos, cat) {
           origem: `${nf(por, 4)} por ${un || 'und'} × ${nf(qtd, 0)} ${un || 'und'}`, config: true, parafuso: tipo === 'parafuso' ? '' : l.tag });
         marca(tag, key, nec);
       };
-      add(l.tag, l.por_unidade, 'parafuso');
+      const mp = info.get(l.tag);
+      add(l.tag, l.por_unidade, !mp || ehFixador(mp) || vcKindDe((mp.produto || '') + ' ' + (mp.material || '')) ? 'parafuso' : 'material');   // material comum (peça, consumível) não é parafuso
       add(l.arruela, l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade, 'arruela');
       add(l.porca, l.porca_qtd != null ? l.porca_qtd : l.por_unidade, 'porca');
     });
@@ -690,7 +691,7 @@ function vcRealizadoAtividade(key) {
 const vcKindDe = txt => { const t = vcUp(txt); return /ARRUELA|WASHER/.test(t) ? 'arruela' : /PORCA|NUT/.test(t) ? 'porca' : /PARAF|PARABOLT|CHUMBADOR/.test(t) ? 'parafuso' : ''; };
 const vcDiamDe = txt => { const m = /Ø\s*(\d+\/\d+|\d+)"/.exec(String(txt || '')); return m ? m[1] : ''; };
 function vcOpcoesFix(kind, sel) {
-  const l = estMateriaisComCadastros().filter(m => m.tag && ehFixador(m) && (!kind || vcKindDe(m.produto + ' ' + m.material) === kind))
+  const l = estMateriaisComCadastros().filter(m => m.tag && (kind ? ehFixador(m) && vcKindDe(m.produto + ' ' + m.material) === kind : true))   // parafuso/principal = qualquer material do cadastro; arruela e porca = só fixadores
     .sort((a, b) => a.tag.localeCompare(b.tag, 'pt', { numeric: true }));
   return '<option value="">—</option>' + l.map(m => `<option value="${esc(m.tag)}" ${m.tag === sel ? 'selected' : ''}>${esc(m.tag + ' · ' + (m.produto || m.material) + (m.material && m.material !== m.produto ? ' ' + m.material : ''))}</option>`).join('');
 }
@@ -996,8 +997,8 @@ async function vcConsumoSalvar() {
     await postar(API + 'fixadores-atividade', { atividade: VCC.key, linhas });
     await carregar();
     document.getElementById('dlgConsAtiv')?.close();
-    toast(linhas.length ? 'Consumo da atividade gravado. A baixa acontece com a produção lançada.' : 'Consumo da atividade removido.');
-    if (typeof renderLanc === 'function') try { renderLanc(); } catch (_) {}
+    toast(linhas.length ? 'Consumo gravado e levado para Vínculos › Por atividade. A baixa acontece com a produção lançada.' : 'Consumo da atividade removido.');
+    vcIrParaAtividade(VCC.key);
   } catch (err) { toast(err.message || String(err), true); }
 }
 document.addEventListener('click', ev => {
@@ -1019,3 +1020,10 @@ document.addEventListener('input', ev => {   // por unidade ⇄ total
   if (t.matches('[data-cons-por]')) { const v = num(t.value); tot.value = v > 0 && qtd > 0 ? Math.round(v * qtd * 10000) / 10000 : ''; }
   else if (t.matches('[data-cons-total]')) { const v = num(t.value); por.value = v > 0 && qtd > 0 ? Math.round(v / qtd * 10000) / 10000 : ''; }
 });
+
+// leva o usuário para Suprimentos › Vínculos › Por atividade, com a atividade aberta no cadastro de consumo (mesmo editor, mesmos dados)
+function vcIrParaAtividade(key) {
+  VC.filtro = 'atividades'; VC.sel = ''; VC.abertas.add(key); VC.abertasFx.add(key); VC.extras.add(key);
+  mudarAba('estvinc');
+  setTimeout(() => { const d = document.querySelector(`details[data-vc-ativ="${CSS.escape(key)}"]`); if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }, 250);
+}
