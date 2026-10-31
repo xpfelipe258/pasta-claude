@@ -177,10 +177,11 @@ function sesmt_registros()
             'calc' => ['fim_mandato' => 'Final do mandato', 'situacao' => 'Mandato', 'fim_estab' => 'Final da estabilidade', 'situacao2' => 'Estabilidade'],
         ],
         'acidentes' => [
-            'grupo' => 'Ocorrências', 'titulo' => 'Acidentes', 'singular' => 'acidente', 'emp' => 'colab', 'ordem' => 'data DESC',
+            'grupo' => 'Ocorrências', 'titulo' => 'Acidentes', 'singular' => 'acidente', 'emp' => 'opc', 'ordem' => 'data DESC',
             'ajuda' => 'Registro de acidentes de trabalho. Alimenta os dias sem acidente e as taxas do painel.',
             'campos' => [
                 'colaborador_id' => $f('Colaborador', 'ref:colaboradores', ['r' => 1, 'l' => 1]),
+                'empresa' => $f('Empresa responsável', 'empresa', ['l' => 1, 'q' => 1, 'dica' => 'Se ficar em branco, vale a empresa do colaborador.']),
                 'data' => $f('Data', 'data', ['r' => 1, 'l' => 1]),
                 'horario' => $f('Horário', 'hora', ['l' => 1]),
                 'status' => $f('Status', 'lista:acidente_status', ['l' => 1]),
@@ -201,7 +202,8 @@ function sesmt_registros()
             'grupo' => 'Ocorrências', 'titulo' => 'Desvios e incidentes', 'singular' => 'desvio', 'emp' => 'opc', 'ordem' => 'data DESC',
             'ajuda' => 'Desvios e incidentes com ação corretiva. A situação da ação depende do prazo e da data de conclusão.',
             'campos' => [
-                'empresa' => $f('Empresa', 'empresa', ['l' => 1]),
+                'colaborador_id' => $f('Colaborador envolvido', 'ref:colaboradores', ['r' => 1, 'l' => 1]),
+                'empresa' => $f('Empresa responsável', 'empresa', ['l' => 1, 'q' => 1, 'dica' => 'Se ficar em branco, vale a empresa do colaborador.']),
                 'ocorrencia' => $f('Desvio ou incidente', 'lista:desvio_ocorrencia', ['r' => 1, 'l' => 1]),
                 'descricao' => $f('Descrição', 'longo', ['r' => 1, 'l' => 1, 'q' => 1, 'full' => 1]),
                 'data' => $f('Data', 'data', ['r' => 1, 'l' => 1]),

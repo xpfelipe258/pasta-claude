@@ -4,7 +4,7 @@
 
 require_once __DIR__ . '/sesmt_registros.php';
 
-const SESMT_ESQUEMA_VERSAO = 1;
+const SESMT_ESQUEMA_VERSAO = 2;   // 2: acidentes.empresa e desvios.colaborador_id/empresa (ocorrência com colaborador e empresa responsável)
 const SESMT_POR_PAGINA = 50;
 
 // ----------------------------------------------------------------- tempo (horário de Brasília)
@@ -323,9 +323,52 @@ function sesmt_cfg_salvar(array $post)
 
 // ----------------------------------------------------------------- acesso (dados pessoais e de saúde: liberação explícita)
 
+// Os dados do SESMT moram numa obra só: a obra principal. A Rótula (obra principal) e cada empresa (obra própria dela) trabalham sobre o mesmo
+// cadastro; a empresa só enxerga e só grava o que é dela (sesmt_escopo_empresa).
+function sesmt_obra_id()
+{
+    return qualidade_obra_id();
+}
+
+// '' = visão geral (Rótula, administrador, usuário sem empresa); senão o nome normalizado da empresa do usuário, que limita tudo o que ele vê e grava.
+function sesmt_escopo_empresa()
+{
+    static $escopo = null;
+    if ($escopo === null) {
+        $u = usuario_atual();
+        $e = $u ? trim((string)($u['empresa'] ?? '')) : '';
+        $escopo = (!$u || ($u['perfil'] ?? '') === 'admin' || $e === '' || preg_match('/^R[OÓ]TULA$/u', mb_strtoupper($e, 'UTF-8')) === 1) ? '' : sesmt_norm_empresa($e);
+    }
+    return $escopo;
+}
+
+// Condição SQL (e parâmetros) que seleciona só as linhas da empresa: coluna empresa e/ou colaborador da empresa. 1=0 se o cadastro não tem como saber.
+function sesmt_filtro_empresa($reg, $emp, array &$params)
+{
+    $def = sesmt_registros()[$reg];
+    $ors = [];
+    if (isset($def['campos']['empresa'])) {
+        $ors[] = 'UPPER(TRIM(empresa)) = ?';
+        $params[] = $emp;
+    }
+    foreach (sesmt_campos_ref($reg) as $k => $alvo) {
+        if ($alvo === 'colaboradores') {
+            $ors[] = "`$k` IN (SELECT id FROM sesmt_colaboradores WHERE obra_id = ? AND UPPER(TRIM(empresa)) = ?)";
+            $params[] = sesmt_obra_id();
+            $params[] = $emp;
+        }
+    }
+    return $ors ? '(' . implode(' OR ', $ors) . ')' : '1 = 0';
+}
+
 function sesmt_pode_ver(array $u)
 {
-    if (($u['perfil'] ?? '') === 'admin') {
+    if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u)) {
+        return true;
+    }
+    // usuário de empresa usa o SESMT só da empresa dele (colaboradores e ocorrências), sem precisar de liberação
+    $e = trim((string)($u['empresa'] ?? ''));
+    if ($e !== '' && ($u['perfil'] ?? '') !== 'admin') {
         return true;
     }
     return (bool)q_global("SELECT 1 FROM usuarios_modulos WHERE usuario_id = ? AND modulo = 'sesmt' AND permitido = 1", [(int)$u['id']])->fetchColumn();
@@ -361,6 +404,7 @@ function sesmt_alterar_acesso($usuarioId, $liberar)
 
 function sesmt_empresas()
 {
+    if (($esc = sesmt_escopo_empresa()) !== '') { return [$esc]; }
     $nomes = ['RÓTULA'];
     try {
         foreach (q('SELECT nome FROM empresas ORDER BY ordem')->fetchAll(PDO::FETCH_COLUMN) as $n) {
@@ -368,7 +412,7 @@ function sesmt_empresas()
         }
     } catch (Throwable $e) {
     }
-    $obra = obra_atual_id();
+    $obra = sesmt_obra_id();
     foreach (sesmt_registros() as $reg => $def) {
         if (isset($def['campos']['empresa'])) {
             $st = q_global("SELECT DISTINCT empresa FROM sesmt_$reg WHERE obra_id = ? AND empresa IS NOT NULL AND empresa <> ''", [$obra]);
@@ -419,11 +463,14 @@ function sesmt_ref_rotulo($alvo, array $r)
 
 function sesmt_opcoes_ref($alvo)
 {
-    $obra = obra_atual_id();
+    $obra = sesmt_obra_id();
     $t = sesmt_tabela($alvo);
     $ordem = $alvo === 'colaboradores' ? 'empresa, nome' : sesmt_registros()[$alvo]['ordem'];
     $o = [];
-    foreach (q_global("SELECT * FROM $t WHERE obra_id = ? ORDER BY $ordem", [$obra])->fetchAll() as $r) {
+    $sql = "SELECT * FROM $t WHERE obra_id = ?";
+    $pr = [$obra];
+    if ($alvo === 'colaboradores' && ($esc = sesmt_escopo_empresa()) !== '') { $sql .= ' AND UPPER(TRIM(empresa)) = ?'; $pr[] = $esc; }
+    foreach (q_global("$sql ORDER BY $ordem", $pr)->fetchAll() as $r) {
         $o[(int)$r['id']] = sesmt_ref_rotulo($alvo, $r);
     }
     return $o;
@@ -432,7 +479,10 @@ function sesmt_opcoes_ref($alvo)
 function sesmt_mapa($reg)
 {
     $m = [];
-    foreach (q_global('SELECT * FROM ' . sesmt_tabela($reg) . ' WHERE obra_id = ?', [obra_atual_id()])->fetchAll() as $r) {
+    $sql = 'SELECT * FROM ' . sesmt_tabela($reg) . ' WHERE obra_id = ?';
+    $pr = [sesmt_obra_id()];
+    if ($reg === 'colaboradores' && ($esc = sesmt_escopo_empresa()) !== '') { $sql .= ' AND UPPER(TRIM(empresa)) = ?'; $pr[] = $esc; }
+    foreach (q_global($sql, $pr)->fetchAll() as $r) {
         $m[(int)$r['id']] = $r;
     }
     return $m;
@@ -452,7 +502,7 @@ function sesmt_contexto($reg)
     }
     if ($reg === 'treinamentos') {
         $ctx['alunos'] = [];
-        foreach (q_global('SELECT treinamento_id, COUNT(*) n FROM sesmt_presenca WHERE obra_id = ? GROUP BY treinamento_id', [obra_atual_id()])->fetchAll() as $x) {
+        foreach (q_global('SELECT treinamento_id, COUNT(*) n FROM sesmt_presenca WHERE obra_id = ? GROUP BY treinamento_id', [sesmt_obra_id()])->fetchAll() as $x) {
             $ctx['alunos'][(int)$x['treinamento_id']] = (int)$x['n'];
         }
     }
@@ -466,7 +516,7 @@ function sesmt_saldo_epi($ignorarMov = 0)
 {
     $s = [];
     $sql = 'SELECT epi_id, movimento, SUM(qtd) q FROM sesmt_mov_epi WHERE obra_id = ?' . ($ignorarMov ? ' AND id <> ?' : '') . ' GROUP BY epi_id, movimento';
-    $p = $ignorarMov ? [obra_atual_id(), (int)$ignorarMov] : [obra_atual_id()];
+    $p = $ignorarMov ? [sesmt_obra_id(), (int)$ignorarMov] : [sesmt_obra_id()];
     foreach (q_global($sql, $p)->fetchAll() as $x) {
         $id = (int)$x['epi_id'];
         $s[$id] = $s[$id] ?? ['ent' => 0.0, 'sai' => 0.0];
@@ -713,7 +763,7 @@ function sesmt_where_busca($reg, $q, array &$params, $profundidade = 0)
             $w = sesmt_where_busca($alvo, $q, $sub, $profundidade + 1);
             if ($w !== '') {
                 $ors[] = "`$k` IN (SELECT id FROM sesmt_$alvo WHERE obra_id = ? AND ($w))";
-                $params[] = obra_atual_id();
+                $params[] = sesmt_obra_id();
                 foreach ($sub as $p) {
                     $params[] = $p;
                 }
@@ -745,27 +795,12 @@ function sesmt_listar($reg, array $filtros = [])
 {
     $def = sesmt_registros()[$reg];
     $t = sesmt_tabela($reg);
-    $obra = obra_atual_id();
+    $obra = sesmt_obra_id();
     $where = ['obra_id = ?'];
     $params = [$obra];
-    $emp = sesmt_norm_empresa($filtros['empresa'] ?? '');
+    $emp = sesmt_escopo_empresa() !== '' ? sesmt_escopo_empresa() : sesmt_norm_empresa($filtros['empresa'] ?? '');   // a empresa do usuário não escolhe outra
     if ($emp !== '') {
-        if (isset($def['campos']['empresa'])) {
-            $where[] = 'empresa = ?';
-            $params[] = $emp;
-        } else {
-            $ors = [];
-            foreach (sesmt_campos_ref($reg) as $k => $alvo) {
-                if ($alvo === 'colaboradores') {
-                    $ors[] = "`$k` IN (SELECT id FROM sesmt_colaboradores WHERE obra_id = ? AND empresa = ?)";
-                    $params[] = $obra;
-                    $params[] = $emp;
-                }
-            }
-            if ($ors) {
-                $where[] = '(' . implode(' OR ', $ors) . ')';
-            }
-        }
+        $where[] = sesmt_filtro_empresa($reg, $emp, $params);
     }
     $q = trim((string)($filtros['q'] ?? ''));
     if ($q !== '') {
@@ -812,7 +847,10 @@ function sesmt_listar($reg, array $filtros = [])
 
 function sesmt_obter($reg, $id)
 {
-    $r = q_global('SELECT * FROM ' . sesmt_tabela($reg) . ' WHERE id = ? AND obra_id = ?', [(int)$id, obra_atual_id()])->fetch();
+    $sql = 'SELECT * FROM ' . sesmt_tabela($reg) . ' WHERE id = ? AND obra_id = ?';
+    $pr = [(int)$id, sesmt_obra_id()];
+    if (($esc = sesmt_escopo_empresa()) !== '') { $sql .= ' AND ' . sesmt_filtro_empresa($reg, $esc, $pr); }
+    $r = q_global($sql, $pr)->fetch();
     return $r ?: null;
 }
 
@@ -876,7 +914,7 @@ function sesmt_normalizar_campo($reg, $k, array $c, $bruto, array &$erros, $idAt
                 $erros[] = 'CPF inválido. Confira os 11 dígitos.';
                 return null;
             }
-            $dup = q_global('SELECT id FROM sesmt_colaboradores WHERE obra_id = ? AND cpf = ? AND id <> ?', [obra_atual_id(), $d, (int)$idAtual])->fetchColumn();
+            $dup = q_global('SELECT id FROM sesmt_colaboradores WHERE obra_id = ? AND cpf = ? AND id <> ?', [sesmt_obra_id(), $d, (int)$idAtual])->fetchColumn();
             if ($dup) {
                 $erros[] = 'Já existe um colaborador com este CPF.';
             }
@@ -971,7 +1009,7 @@ function sesmt_validar($reg, array $d, $id)
             break;
         case 'presenca':
             $dup = q_global('SELECT id FROM sesmt_presenca WHERE obra_id = ? AND treinamento_id = ? AND colaborador_id = ? AND id <> ?',
-                [obra_atual_id(), (int)$d['treinamento_id'], (int)$d['colaborador_id'], (int)$id])->fetchColumn();
+                [sesmt_obra_id(), (int)$d['treinamento_id'], (int)$d['colaborador_id'], (int)$id])->fetchColumn();
             if ($dup) {
                 $e[] = 'Este colaborador já está na lista de presença do treinamento.';
             }
@@ -984,8 +1022,29 @@ function sesmt_dados_do_post($reg, array $post, $id)
 {
     $erros = [];
     $dados = [];
+    $esc = sesmt_escopo_empresa();
     foreach (sesmt_registros()[$reg]['campos'] as $k => $c) {
+        if ($esc !== '' && $k === 'empresa') { $post[$k] = $esc; }   // a empresa grava sempre na própria
         $dados[$k] = sesmt_normalizar_campo($reg, $k, $c, $post[$k] ?? null, $erros, $id);
+    }
+    if (!$erros) {
+        // colaborador referido precisa ser da empresa do usuário
+        foreach (sesmt_campos_ref($reg) as $k => $alvo) {
+            if ($alvo === 'colaboradores' && $esc !== '' && !empty($dados[$k]) && !sesmt_obter('colaboradores', $dados[$k])) {
+                $erros[] = 'Escolha um colaborador da sua empresa.';
+            }
+        }
+        // ocorrência (acidente, desvio ou incidente): sempre com colaborador e empresa responsável; sem empresa informada vale a do colaborador
+        if (!$erros && in_array($reg, ['acidentes', 'desvios'], true)) {
+            if (empty($dados['colaborador_id'])) {
+                $erros[] = 'Escolha o colaborador envolvido na ocorrência.';
+            } else {
+                $col = q_global('SELECT empresa FROM sesmt_colaboradores WHERE id = ? AND obra_id = ?', [(int)$dados['colaborador_id'], sesmt_obra_id()])->fetch();
+                if (!$col) { $erros[] = 'Colaborador não encontrado.'; }
+                elseif (trim((string)$dados['empresa']) === '') { $dados['empresa'] = sesmt_norm_empresa($col['empresa']); }
+            }
+            if (!$erros && trim((string)$dados['empresa']) === '') { $erros[] = 'Informe a empresa responsável pela ocorrência.'; }
+        }
     }
     if (!$erros) {
         $erros = sesmt_validar($reg, $dados, $id);
@@ -1017,16 +1076,16 @@ function sesmt_salvar($reg, $id, array $post)
         $sets[] = 'atualizado_em = ?';
         $p[] = $agora;
         $p[] = (int)$id;
-        $p[] = obra_atual_id();
+        $p[] = sesmt_obra_id();
         q_global("UPDATE $t SET " . implode(', ', $sets) . ' WHERE id = ? AND obra_id = ?', $p);
     } else {
         $cols = array_keys($dados);
         $marcas = implode(', ', array_fill(0, count($cols) + 3, '?'));
-        $p = array_merge([obra_atual_id(), $agora, $agora], array_values($dados));
+        $p = array_merge([sesmt_obra_id(), $agora, $agora], array_values($dados));
         q_global("INSERT INTO $t (obra_id, criado_em, atualizado_em, `" . implode('`, `', $cols) . "`) VALUES ($marcas)", $p);
         $id = (int)bd()->lastInsertId();
     }
-    registrar_global($novo ? 'sesmt_criar' : 'sesmt_salvar', ['cadastro' => $reg, 'id' => (int)$id, 'obra' => obra_atual_id()]);
+    registrar_global($novo ? 'sesmt_criar' : 'sesmt_salvar', ['cadastro' => $reg, 'id' => (int)$id, 'obra' => sesmt_obra_id()]);
     return [(int)$id, []];
 }
 
@@ -1042,18 +1101,18 @@ function sesmt_salvar_presenca_lote($treinamentoId, array $colaboradores, $obs)
         if ($cid <= 0 || !sesmt_obter('colaboradores', $cid)) {
             continue;
         }
-        $dup = q_global('SELECT 1 FROM sesmt_presenca WHERE obra_id = ? AND treinamento_id = ? AND colaborador_id = ?', [obra_atual_id(), (int)$treinamentoId, $cid])->fetchColumn();
+        $dup = q_global('SELECT 1 FROM sesmt_presenca WHERE obra_id = ? AND treinamento_id = ? AND colaborador_id = ?', [sesmt_obra_id(), (int)$treinamentoId, $cid])->fetchColumn();
         if ($dup) {
             $ignorados++;
             continue;
         }
         $agora = sesmt_agora();
         q_global('INSERT INTO sesmt_presenca (obra_id, criado_em, atualizado_em, treinamento_id, colaborador_id, obs) VALUES (?, ?, ?, ?, ?, ?)',
-            [obra_atual_id(), $agora, $agora, (int)$treinamentoId, $cid, $obs !== '' ? mb_substr($obs, 0, 255, 'UTF-8') : null]);
+            [sesmt_obra_id(), $agora, $agora, (int)$treinamentoId, $cid, $obs !== '' ? mb_substr($obs, 0, 255, 'UTF-8') : null]);
         $ok++;
     }
     if ($ok) {
-        registrar_global('sesmt_presenca_lote', ['treinamento' => (int)$treinamentoId, 'incluidos' => $ok, 'obra' => obra_atual_id()]);
+        registrar_global('sesmt_presenca_lote', ['treinamento' => (int)$treinamentoId, 'incluidos' => $ok, 'obra' => sesmt_obra_id()]);
     }
     return [$ok, $ignorados, $ok || $ignorados ? [] : ['Marque ao menos um colaborador.']];
 }
@@ -1065,7 +1124,7 @@ function sesmt_dependentes($reg, $id)
     foreach (sesmt_registros() as $outro => $def) {
         foreach (sesmt_campos_ref($outro) as $campo => $alvo) {
             if ($alvo === $reg) {
-                $n = (int)q_global("SELECT COUNT(*) FROM sesmt_$outro WHERE obra_id = ? AND `$campo` = ?", [obra_atual_id(), (int)$id])->fetchColumn();
+                $n = (int)q_global("SELECT COUNT(*) FROM sesmt_$outro WHERE obra_id = ? AND `$campo` = ?", [sesmt_obra_id(), (int)$id])->fetchColumn();
                 if ($n) {
                     $out[] = $n . ' em ' . $def['titulo'];
                 }
@@ -1085,9 +1144,53 @@ function sesmt_excluir($reg, $id)
         return 'Não é possível excluir: há registros vinculados (' . implode(', ', $dep) . '). Remova-os antes'
             . ($reg === 'colaboradores' ? ' ou mude o status do colaborador para Demitido.' : '.');
     }
-    q_global('DELETE FROM ' . sesmt_tabela($reg) . ' WHERE id = ? AND obra_id = ?', [(int)$id, obra_atual_id()]);
-    registrar_global('sesmt_excluir', ['cadastro' => $reg, 'id' => (int)$id, 'obra' => obra_atual_id()]);
+    q_global('DELETE FROM ' . sesmt_tabela($reg) . ' WHERE id = ? AND obra_id = ?', [(int)$id, sesmt_obra_id()]);
+    registrar_global('sesmt_excluir', ['cadastro' => $reg, 'id' => (int)$id, 'obra' => sesmt_obra_id()]);
     return '';
+}
+
+// ----------------------------------------------------------------- dashboard de ocorrências (acidentes, desvios e incidentes)
+
+/** Uma linha por ocorrência, já limitada à empresa do usuário. Tratada = acidente com status Concluído ou desvio/incidente com data de conclusão. */
+function sesmt_ocorrencias_dados()
+{
+    $hoje = sesmt_hoje();
+    $esc = sesmt_escopo_empresa();
+    $colab = [];
+    foreach (q_global('SELECT id, nome, empresa FROM sesmt_colaboradores WHERE obra_id = ?', [sesmt_obra_id()])->fetchAll() as $c) {
+        $colab[(int)$c['id']] = $c;
+    }
+    $out = [];
+    foreach (['acidentes', 'desvios'] as $reg) {
+        $sql = "SELECT * FROM sesmt_$reg WHERE obra_id = ?";
+        $pr = [sesmt_obra_id()];
+        if ($esc !== '') { $sql .= ' AND ' . sesmt_filtro_empresa($reg, $esc, $pr); }
+        foreach (q_global($sql . ' ORDER BY data DESC, id DESC', $pr)->fetchAll() as $r) {
+            $c = $colab[(int)($r['colaborador_id'] ?? 0)] ?? null;
+            $emp = trim((string)($r['empresa'] ?? '')) !== '' ? sesmt_norm_empresa($r['empresa']) : ($c ? sesmt_norm_empresa($c['empresa']) : 'SEM EMPRESA');
+            if ($reg === 'acidentes') {
+                $tratada = ($r['status'] ?? '') === 'Concluído';
+                $familia = 'Acidente';
+                $tipo = (string)($r['tipo'] ?: 'Não informado');
+                $grav = (string)($r['gravidade'] ?: 'Não informada');
+                $sit = $tratada ? 'Tratada' : 'Pendente';
+                $det = (string)($r['status'] ?: 'Sem status');
+                $prazo = '';
+            } else {
+                $tratada = !empty($r['conclusao']);
+                $familia = ($r['ocorrencia'] ?? '') === 'Incidente' ? 'Incidente' : 'Desvio';
+                $tipo = (string)($r['tipo'] ?: 'Não informado');
+                $grav = (string)($r['gravidade'] ?: 'Não informada');
+                $prazo = (string)($r['prazo'] ?? '');
+                $sit = $tratada ? 'Tratada' : ($prazo !== '' && $prazo < $hoje ? 'Atrasada' : 'Pendente');
+                $det = $tratada ? 'Concluído em ' . sesmt_fmt_data($r['conclusao']) : ($prazo !== '' ? 'Prazo ' . sesmt_fmt_data($prazo) : 'Sem prazo');
+            }
+            $out[] = ['reg' => $reg, 'id' => (int)$r['id'], 'data' => (string)$r['data'], 'empresa' => $emp, 'colaborador' => $c ? $c['nome'] : '—',
+                'familia' => $familia, 'tipo' => $tipo, 'gravidade' => $grav, 'situacao' => $sit, 'detalhe' => $det,
+                'descricao' => mb_substr((string)($r['descricao'] ?? $r['detalhes'] ?? ''), 0, 140, 'UTF-8')];
+        }
+    }
+    return $out;
 }
 
 // ----------------------------------------------------------------- painel (indicadores)
@@ -1224,7 +1327,7 @@ function sesmt_painel()
     foreach ($alvos as $a) {
         $ctx = sesmt_contexto($a[0]);
         $n = ['vermelho' => 0, 'amarelo' => 0, 'verde' => 0];
-        foreach (q_global('SELECT * FROM ' . sesmt_tabela($a[0]) . ' WHERE obra_id = ?', [obra_atual_id()])->fetchAll() as $r) {
+        foreach (q_global('SELECT * FROM ' . sesmt_tabela($a[0]) . ' WHERE obra_id = ?', [sesmt_obra_id()])->fetchAll() as $r) {
             $cel = sesmt_calcular($a[0], $r, $ctx)[$a[2]] ?? null;
             if ($cel && $cel['tom']) {
                 $n[$cel['tom']]++;

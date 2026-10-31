@@ -999,7 +999,7 @@ function modulos_usuario(array $u)
     $todos = modulos_sistema();
     if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u)) { return $todos; }   // o administrador da obra tem todas as áreas nela
     $rows = q_global('SELECT modulo FROM usuarios_modulos WHERE usuario_id=? AND permitido=1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN);
-    if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; }   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
+    if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; $rows[] = 'sesmt'; }   // SESMT: cada empresa usa só o que é dela (colaboradores e ocorrências)   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
     // Compatibilidade: usuário antigo sem configuração continua vendo tudo até o administrador salvar seus acessos.
     return $rows ? array_values(array_intersect($todos, $rows)) : $todos;
 }
