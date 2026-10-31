@@ -494,7 +494,7 @@ async function renderPlanejamento() {
     .map(([k, r]) => `<button data-pl-sub="${k}" class="${k === PL.sub ? 'ativa' : ''}">${r}</button>`).join('');
   box.hidden = false;
   if (PL.sub === 'sug') { await plCarregar(); return renderSugestao(box); }
-  if (PL.sub === 'qual') return renderQualidade(box);
+  if (PL.sub === 'qual') return renderQualidadeDados(box);
   if (PL.sub === 'fluxo') return renderFluxoObra(box);
   if (!PL.dados) { box.innerHTML = '<p class="vazio">Carregando planejamentos…</p>'; await plCarregar(); }
   PL._atv = null;
@@ -1125,7 +1125,62 @@ function plSeloQualidade(itens, comLink) {
   if (!itens.length) return `<span class="farol f-verde" title="Nenhuma pendência de dados nas atividades deste plano">DADOS CONSISTENTES</span>${comLink ? ver : ''}`;
   return `<span class="farol f-${n('alta') ? 'vermelho' : n('media') ? 'amarelo' : 'pendente'}" title="Pendências de dados que afetam estas atividades">${itens.length} PENDÊNCIA(S) DE DADOS</span> <span class="nota">${n('alta')} alta(s) · ${n('media')} média(s) · ${n('baixa')} baixa(s)</span>${ver}`;
 }
-function renderQualidade(box) {
+// Conferência do que foi LANÇADO × o que aparece como avanço no plano (Planejamento). Para cada atividade do catálogo do BM com apontamento e para cada coluna da grade com produção:
+// diz se o lançamento entra no plano, em qual atividade/linha ele conta, e quando NÃO conta (sem atividade no plano, lançado depois da data de referência, plano mostra menos que o lançado).
+function plConferirLancamentos() {
+  const ats = plAtividades(), base = plBase(), tol = 0.005, linhas = [];
+  const donosBm = new Map(), usadasGrade = new Set();
+  ats.forEach(a => {
+    const o = plOrigemRealizado(a, '2000-01-01', '2099-12-31', true);
+    o.bm.forEach(b => { const k = b.empresa + '|' + b.codigo; (donosBm.get(k) || donosBm.set(k, []).get(k)).push(a); });
+    o.grade.forEach(g => usadasGrade.add(g.empresa + '|' + g.col));
+  });
+  const nomeDono = a => `${a.nome} · ${cap(a.frente || '')}${a.it && a.it.bm_percentual ? ' (linha em %)' : ''}`;
+  bmTab('bm_atividades').forEach(at => {
+    let tot = 0, ate = 0, fut = 0, ultima = '';
+    bmTab('bm_apontamentos').forEach(x => {
+      if (x.empresa !== at.empresa || x.codigo !== at.codigo || !x.data) return;
+      const q = Number(x.quantidade) || 0;
+      if (!(q > 0)) return;
+      tot += q;
+      if (x.data <= base) { ate += q; if (x.data > ultima) ultima = x.data; } else fut += q;
+    });
+    if (!(tot > 0)) return;
+    const un = at.unidade || '', rot = `${at.empresa} · ${at.codigo} — ${at.item_desc || ''} ${at.atividade || ''}`.replace(/\s+/g, ' ').trim();
+    const donos = donosBm.get(at.empresa + '|' + at.codigo) || [], proprio = ats.find(a => a.codigo === at.codigo);
+    const linha = (sev, situ, onde, plano, como) => linhas.push({ sev, origem: 'BM', alvo: rot, lancado: ate, un, plano, situ, onde, como, chave: proprio ? proprio.chave : (donos[0] ? donos[0].chave : '') });
+    if (!donos.length) {
+      if (ate > 0) linha('alta', 'NÃO CONTA', 'nenhuma atividade do plano', 0, 'A atividade não está em nenhum planejamento. Inclua a atividade (ou a linha do cronograma que a cobre) no plano; enquanto isso o avanço não aparece.');
+    } else if (proprio) {
+      const esperado = Math.min(ate, proprio.qtd > 0 ? proprio.qtd : ate);
+      if (ate > 0 && proprio.realAc + tol < esperado) linha('alta', 'PLANO MOSTRA MENOS', nomeDono(proprio), proprio.realAc, 'O plano mostra menos que o lançado. Confira se a data do lançamento é anterior à data de referência e se a atividade/empresa está correta.');
+      else if (ate > 0 && donos.length > 1) linha('media', 'CONTA TAMBÉM EM OUTRA LINHA', donos.map(nomeDono).join(' + '), proprio.realAc, 'Além da atividade, o mesmo lançamento alimenta outra linha do plano (em %). Está certo se a linha em % representa o conjunto.');
+    } else if (ate > 0) {
+      linha('media', 'CONTA SÓ EM OUTRA LINHA', donos.map(nomeDono).join(' + '), donos.every(d => d.it && d.it.bm_percentual) ? `${nf(Math.max(...donos.map(d => d.realAc)), 1)} % da linha` : soma0(donos, d => d.realAc), 'O lançamento alimenta a linha acima, mas esta atividade não é um item do plano (por isso não mostra avanço próprio). Se quer vê-la individualmente, inclua-a no planejamento.');
+    }
+    if (fut > 0) linhas.push({ sev: 'media', origem: 'BM', alvo: rot, lancado: fut, un, plano: 0, situ: 'LANÇADO DEPOIS DA REFERÊNCIA', onde: `data de referência ${fdA(base)}`, como: `${plFmt(fut, un)} ${un} têm data posterior à data de referência e só entram no avanço quando a referência chegar nessa data.`, chave: proprio ? proprio.chave : '' });
+  });
+  M.empresas.forEach(e => (e.servicos || []).forEach(sv => {
+    let ate = 0, fut = 0;
+    Object.keys(e.registros || {}).forEach(d => { const v = e.registros[d].v[sv.col]; if (typeof v === 'number' && v > 0) { if (d <= base) ate += v; else fut += v; } });
+    if (ate > 0 && !usadasGrade.has(e.nome + '|' + sv.col))
+      linhas.push({ sev: 'alta', origem: 'Grade', alvo: `${e.nome} · ${sv.nome} (${cap(sv.frente || '—')})`, lancado: ate, un: '', plano: 0, situ: 'NÃO CONTA', onde: 'nenhuma atividade do plano', como: 'A coluna da grade não está ligada a nenhuma atividade do plano. Lance na atividade do catálogo do BM correspondente (ou ligue o serviço ao cronograma).', chave: '' });
+    if (fut > 0) linhas.push({ sev: 'media', origem: 'Grade', alvo: `${e.nome} · ${sv.nome} (${cap(sv.frente || '—')})`, lancado: fut, un: '', plano: 0, situ: 'LANÇADO DEPOIS DA REFERÊNCIA', onde: `data de referência ${fdA(base)}`, como: 'Há produção com data posterior à data de referência: só entra no avanço quando a referência chegar nessa data.', chave: '' });
+  }));
+  const ordem = { alta: 0, media: 1, baixa: 2 };
+  return linhas.sort((x, y) => ordem[x.sev] - ordem[y.sev] || x.situ.localeCompare(y.situ) || x.alvo.localeCompare(y.alvo));
+}
+function plConferenciaHtml() {
+  const L = plConferirLancamentos(), n = s => L.filter(x => x.sev === s).length, base = plBase();
+  const cor = s => s === 'alta' ? 'vermelho' : 'amarelo';
+  const corpo = L.length ? `<div class="tabela-rolagem"><table class="pl-tab"><thead><tr><th>Situação</th><th>Origem</th><th>Atividade / coluna lançada</th><th class="n">Lançado (até a referência)</th><th class="n">Avanço no plano</th><th>Onde conta</th><th>O que fazer</th><th></th></tr></thead><tbody>` +
+    L.map(x => `<tr><td><span class="farol f-${cor(x.sev)}">${esc(x.situ)}</span></td><td>${x.origem}</td><td><b>${esc(x.alvo)}</b></td><td class="n">${plFmt(x.lancado, x.un)} ${esc(x.un)}</td><td class="n">${typeof x.plano === 'string' ? esc(x.plano) : plFmt(x.plano, x.un) + ' ' + esc(x.un)}</td><td>${esc(x.onde)}</td><td class="nota">${esc(x.como)}</td>
+      <td>${x.chave ? `<button class="btn" data-pl-audit="${esc(x.chave)}" data-ini="2000-01-01" data-fim="2099-12-31">Ver origem</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>'
+    : '<p class="vazio">Tudo o que foi lançado até a data de referência aparece no avanço do plano.</p>';
+  return `<div class="bloco"><div class="bloco-cab"><div><h2>Lançado × avanço no plano — conferência</h2><span class="nota">Compara tudo o que foi lançado (grade de Lançamentos e apontamentos do BM) até a data de referência (${fdA(base)}) com o avanço que o plano mostra. Só aparece o que NÃO fecha.</span></div>
+    <span class="nota">${n('alta')} não conta(m) ou diferente(s) · ${n('media')} para conferir</span></div>${corpo}</div>`;
+}
+function renderQualidadeDados(box) {
   PL._atv = null;
   const itens = plQualidade(), n = s => itens.filter(i => i.sev === s).length, tipos = [...new Set(itens.map(i => i.tipo))];
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
@@ -1137,6 +1192,8 @@ function renderQualidade(box) {
       vis.map(i => `<tr><td><span class="farol f-${i.sev === 'alta' ? 'vermelho' : i.sev === 'media' ? 'amarelo' : 'pendente'}">${i.sev.toUpperCase()}</span></td><td>${esc(i.tipo)}</td><td><b>${esc(i.alvo)}</b></td><td>${esc(i.det)}</td><td class="nota">${esc(i.como)}</td>
         <td>${i.chave ? `<button class="btn" data-pl-audit="${esc(i.chave)}" data-ini="2000-01-01" data-fim="2099-12-31">Ver origem</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>'
       : '<p class="vazio">Nenhuma pendência. Os dados estão consistentes.</p>') + '</div>';
+  try { const tl = box.querySelector('.tiles'); if (tl) tl.insertAdjacentHTML('afterend', plConferenciaHtml()); }   // conferência lançado × avanço no plano, logo abaixo dos cartões
+  catch (err) { console.error('Conferência de lançamentos', err); }
 }
 
 // ---------------------------------------------------------------- fluxo da obra: dependências entre as etapas (editável)
