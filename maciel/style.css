@@ -1634,3 +1634,8 @@ tr.qual-linha-atraso td:first-child { box-shadow: inset 4px 0 0 #b42318; }
 .vc-cons-btn { font-size: 11px; margin-left: 6px; white-space: nowrap; }
 #dlgConsAtiv { width: min(820px, 96vw); }
 #dlgConsAtiv .vc-sel { max-width: 100%; }
+
+/* Tarefas a fazer: alerta de não conformidade (Qualidade) */
+.tf-alertas.tf-qual { border-color: #e3a3a3; background: #fdeeee; }
+.tf-alertas.tf-qual .tf-alerta-tit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; color: #8a1c1c; }
+.tf-alertas.tf-qual .qual-resp { font-size: 12px; }

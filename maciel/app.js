@@ -401,6 +401,7 @@ async function carregar() {
   preencherListas();
   renderTudo();
   if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
+  if (typeof qualAvisoNovas === 'function') qualAvisoNovas();   // aviso vermelho só quando chega uma NC nova (não a cada entrada)
   fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); if (abaAtual === 'estvinc' || abaAtual === 'estpronto') renderAba(); }).catch(() => {});
 }
 
@@ -7617,9 +7618,7 @@ function ligarEventos() {
   catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
-  if (!abaUrl && window.USUARIO_EMPRESA && typeof qualPendencias === 'function' && qualPendencias().length) aba = 'qualidade';   // empresa com não conformidade para responder: abre direto na Qualidade, como alerta
   mudarAba(document.getElementById('aba-' + aba) && !UI_OCULTOS.abas.includes(aba) ? aba : (document.querySelector('#abas .sidebar-grupo:not([hidden]) button[data-aba]')?.dataset.aba || 'tarefas'));   // aba ocultada pelo administrador não abre nem pelo endereço
-  if (typeof qualAvisoAoAbrir === 'function') qualAvisoAoAbrir();
   if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
