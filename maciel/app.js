@@ -3160,7 +3160,7 @@ function edBarra(k) {
   if (!ed) { box.innerHTML = ''; return; }
   const { itens } = edItens(k), tot = itens.reduce((s, i) => s + i.quantidade, 0);
   const resumo = !itens.length ? 'Digite as quantidades na coluna nova' : k === 'cons'
-    ? `${itens.length} lançamento(s) · EJ ${nf(itens.filter(i => i.empresa === 'EJ').reduce((s, i) => s + i.quantidade, 0))} · CMM ${nf(itens.filter(i => i.empresa === 'CMM').reduce((s, i) => s + i.quantidade, 0))}`
+    ? `${itens.length} lançamento(s) · ` + relConsEmpresas().map(e => `${e} ${nf(itens.filter(i => i.empresa === e).reduce((s, i) => s + i.quantidade, 0))}`).join(' · ')
     : `${itens.length} item(ns) · total ${nf(tot)}`;
   if (!box.dataset.pronto) {
     box.dataset.pronto = '1';
@@ -3384,7 +3384,13 @@ function editarConsumoInline(td) {
 // ------------------------------------------------------------ RELATÓRIO DE CONSUMO (Consumo físico)
 // Escolhe empresa (cada uma em separado, só EJ, só CMM ou geral somado), semanas e itens; gera um HTML para imprimir/salvar em PDF.
 const relCons = { sem: new Set(), it: new Set() };
-function relConsEmpresas() { const cf = estConsumoComCadastros(); return (cf.empresas && cf.empresas.length ? cf.empresas : ['EJ', 'CMM']).filter(Boolean); }
+function relConsEmpresas() {   // colunas do consumo = empresas da obra (EJ, CMM e GLOBO AÇOS); o servidor já manda a lista, a Globo é garantida aqui se estiver cadastrada
+  const cf = estConsumoComCadastros(), l = (cf.empresas && cf.empresas.length ? [...cf.empresas] : ['EJ', 'CMM']).filter(Boolean);
+  const ga = (M?.empresas || []).find(e => ganNorm(e.nome) === 'GLOBO ACOS');
+  if (ga && !l.some(n => ganNorm(n) === 'GLOBO ACOS')) l.push(ga.nome);
+  return l;
+}
+const consCorEmp = e => `var(${COR_EMP[e] || '--fg'})`;
 function relConsTotalItem(m, sems) { let t = 0; sems.forEach(s => { const d = m.consumo_semanas[s]; if (d) relConsEmpresas().forEach(e => { t += Number(d[e]) || 0; }); }); return t; }
 function abrirRelConsumo() {
   if (!EP) return toast('Aguarde o carregamento do estoque.', true);
@@ -3585,20 +3591,21 @@ function renderEstConsumo() {
     tile('Total consumido', nf(totCons), 'soma de todos os itens', 'var(--vermelho)');
 
   const abrevS = s => s.length > 14 ? s.slice(0, 12) + '…' : s;
+  const emps = relConsEmpresas(), nE = emps.length;   // uma coluna por empresa (EJ, CMM, GLOBO AÇOS) em cada semana
   const ed = estEdit.cons, cxC = $('#tabEstCons').closest('.tabela-rolagem'), sxC = cxC.scrollLeft;
   const inp = (m, emp) => `<td class="col-nova"><input class="ed-in" data-ed="cons" data-tag="${esc(m.tag)}" data-emp="${emp}" inputmode="decimal" value="${esc(ed.val.get(m.tag + '|' + emp) || '')}" aria-label="${esc(m.tag)} ${emp}"></td>`;
   $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
-    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}${consPeriodoTxt(cf, s) ? ' · período ' + esc(consPeriodoTxt(cf, s)) : ''}">${esc(abrevS(s))}${consPeriodoTxt(cf, s) ? `<div class="nota">${esc(consPeriodoTxt(cf, s))}</div>` : ''} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
-    (ed ? `<th class="n col-nova" colspan="2"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
+    sems.map(s => `<th class="n" colspan="${nE}" title="${esc(s)}${consPeriodoTxt(cf, s) ? ' · período ' + esc(consPeriodoTxt(cf, s)) : ''}">${esc(abrevS(s))}${consPeriodoTxt(cf, s) ? `<div class="nota">${esc(consPeriodoTxt(cf, s))}</div>` : ''} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
+    (ed ? `<th class="n col-nova" colspan="${nE}"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
     `<th class="n">Total</th></tr><tr><th></th><th></th>` +
-    sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
-    (ed ? `<th class="n col-nova" style="color:var(--ej)">EJ</th><th class="n col-nova" style="color:var(--cmm)">CMM</th>` : '') +
+    sems.map(() => emps.map(e => `<th class="n" style="color:${consCorEmp(e)}">${esc(e)}</th>`).join('')).join('') +
+    (ed ? emps.map(e => `<th class="n col-nova" style="color:${consCorEmp(e)}">${esc(e)}</th>`).join('') : '') +
     `<th></th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
-      sems.map(s => celulaConsumo(m, s, 'EJ') + celulaConsumo(m, s, 'CMM')).join('') +
-      (ed ? inp(m, 'EJ') + inp(m, 'CMM') : '') +
+      sems.map(s => emps.map(e => celulaConsumo(m, s, e)).join('')).join('') +
+      (ed ? emps.map(e => inp(m, e)).join('') : '') +
       `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
-    : `<tr><td colspan="${2 + sems.length * 2 + (ed ? 2 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+    : `<tr><td colspan="${2 + sems.length * nE + (ed ? nE : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
   cxC.scrollLeft = sxC;
   edBarra('cons');
 

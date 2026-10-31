@@ -2346,11 +2346,11 @@ function acao_estoque_consumo(array $corpo)
         list($tag, $empresa) = explode('|', $chave);
         $item = &$dados['consumo_fisico']['itens'][$porTag[$tag]];
         if (!isset($item['consumo_semanas'][$semana])) {
-            $item['consumo_semanas'][$semana] = ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+            $item['consumo_semanas'][$semana] = ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
         }
         $e = &$item['consumo_semanas'][$semana];
         $e[$empresa] = ($e[$empresa] ?? 0) + $qtd;
-        $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+        $e['total'] = estoque_total_semana($e);
         unset($e);
         $item['total_consumo'] = array_sum(array_column($item['consumo_semanas'], 'total'));
         $consumo = $item['total_consumo'];
@@ -2416,9 +2416,9 @@ function acao_estoque_consumo_celula(array $corpo)
     if (!isset($item['consumo_semanas']) || !is_array($item['consumo_semanas'])) {
         $item['consumo_semanas'] = [];
     }
-    $e = $item['consumo_semanas'][$semana] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+    $e = $item['consumo_semanas'][$semana] ?? ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
     $e[$empresa] = $q;
-    $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+    $e['total'] = estoque_total_semana($e);
     if ($e['total'] > 0) {
         $item['consumo_semanas'][$semana] = $e;
     } else {
@@ -2493,11 +2493,11 @@ function acao_estoque_consumo_semana(array $corpo)
             $novoCs[$nome] = $e;
         }
         if (!$excluir && isset($valores[$tag])) {
-            $e = $novoCs[$novo] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+            $e = $novoCs[$novo] ?? ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
             foreach ($valores[$tag] as $emp => $q) {
                 $e[$emp] = $q;
             }
-            $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+            $e['total'] = estoque_total_semana($e);
             if ($e['total'] > 0) {
                 $novoCs[$novo] = $e;
             } else {

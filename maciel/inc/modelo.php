@@ -263,7 +263,25 @@ function estoque_tag($tag)
 
 function estoque_empresas_consumo()
 {
-    return obra_preserva_identidade_ifc() ? q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll(PDO::FETCH_COLUMN) : ['EJ', 'CMM'];
+    if (obra_preserva_identidade_ifc()) {
+        return q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll(PDO::FETCH_COLUMN);
+    }
+    $l = ['EJ', 'CMM'];
+    if (q('SELECT id FROM empresas WHERE nome = ?', ['GLOBO AÇOS'])->fetch()) {   // a Globo Aços também retira material (telhas, fixadores…)
+        $l[] = 'GLOBO AÇOS';
+    }
+    return $l;
+}
+// total de uma semana de consumo = soma das empresas (todas as chaves menos "total")
+function estoque_total_semana(array $e)
+{
+    $t = 0;
+    foreach ($e as $k => $v) {
+        if ($k !== 'total' && is_numeric($v)) {
+            $t += (float)$v;
+        }
+    }
+    return $t;
 }
 
 function estoque_planilha_ler()
@@ -290,6 +308,9 @@ function estoque_planilha_ler()
                 $d['remessas']['datas'] = $f['remessas']['datas'];
             }
         }
+    }
+    if (isset($d['consumo_fisico']) && is_array($d['consumo_fisico'])) {   // colunas do consumo = empresas da obra (EJ, CMM e GLOBO AÇOS)
+        $d['consumo_fisico']['empresas'] = estoque_empresas_consumo();
     }
     return $d;
 }
