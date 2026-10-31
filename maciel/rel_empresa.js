@@ -1011,7 +1011,7 @@ function reHtmlEmpresa(d) {
   let n = 0;
   const corpo = RE_SECOES.filter(([k]) => sel[k] !== false).map(([k, , tit, fn, numera]) => reSecao(numera ? `${++n}. ${tit(d)}` : tit(d), fn(d))).join('\n    ');
   return `<section class="emp-sec"><div class="pag">
-    <h1>${esc(d.emp)}</h1><p class="sub-cab">${d.geral ? `Relatório geral da obra (${esc(d.emps.join(' · '))})` : 'Relatório da empresa'} · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (data de referência)</p>
+    <h1>${esc(d.emp)}</h1><p class="sub-cab">${d.geral ? `Relatório geral da obra (${esc(d.emps.join(' · '))})` : 'Relatório da empresa'} · ${fdA(d.ini)} a ${fdA(d.fim)} · dados até ${fdA(d.corte)} (fim do período)</p>
     ${corpo}
   </div></section>`;
 }
@@ -1020,11 +1020,21 @@ async function reHtml(ini, fim, emps, geral = false, opc = null) {
   await plCarregar(true).catch(() => {});
   if (!window._regras_baixa) { regrasBaixa(() => {}); await window._regras_pend; }   // regras e IFC do mapa de montagem
   if (!window._frentes) { frentesMontagem(() => {}); await window._frentes_pend; }
-  const c = minD(fim, ref), ls = reLinhas(c);
-  const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));
-  if (opc) dados.forEach(d => { d.opc = opc; });   // geral = um documento só, sem seção por empresa
   await tplLogosCarregar();
-  return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join(''), empresa: !geral && emps.length === 1 ? emps[0] : '' });
+  // O relatório segue SÓ o período escolhido ao lado do botão: a data de referência do topo é só de visualização e não pode limitar nem mudar os números.
+  // Por isso, enquanto o documento é montado (tudo síncrono daqui em diante), a referência vale o fim do período e depois volta ao que era.
+  const refOriginal = ref;
+  ref = fim;
+  if (typeof PL !== 'undefined') PL._atv = null;
+  try {
+    const c = fim, ls = reLinhas(c);
+    const dados = geral ? [reDadosGeral(emps, ini, fim, ls)] : emps.map(emp => reDados(emp, ini, fim, ls));
+    if (opc) dados.forEach(d => { d.opc = opc; });   // geral = um documento só, sem seção por empresa
+    return tplDocumento({ titulo: geral ? 'Relatório geral da obra' : 'Relatório das empresas', subtitulo: `Período de ${fdA(ini)} a ${fdA(fim)}`, meta: geral ? RE_GERAL : emps.join(' · '), corpo: dados.map(reHtmlEmpresa).join(''), empresa: !geral && emps.length === 1 ? emps[0] : '' });
+  } finally {
+    ref = refOriginal;
+    if (typeof PL !== 'undefined') PL._atv = null;
+  }
 }
 
 // ---------------------------------------------------------------- tela: botão do Painel (empresa do painel + período ao lado do botão)
