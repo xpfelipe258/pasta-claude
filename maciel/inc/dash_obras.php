@@ -3,11 +3,11 @@
 // A conta repete a da Medição (BM) do sistema: avanço do item = soma dos avanços das atividades × peso (cada atividade limitada a 100%);
 // valor medido = avanço do item × valor do item no contrato RÓTULA; só entra o catálogo de atividades de cada empresa da obra.
 
-/** Quem cai direto neste painel: administra (admin_obra) duas ou mais obras ativas. O perfil administrador do sistema abre a Central normalmente. */
+/** Quem cai direto neste painel: administra (admin_obra) pelo menos uma obra ativa (uma só também). O perfil administrador do sistema abre a Central normalmente. */
 function usuario_abre_painel_obras(array $u)
 {
     if (($u['perfil'] ?? '') === 'admin') { return false; }
-    return count(dashobras_obras_do_usuario($u)) >= 2;
+    return count(dashobras_obras_do_usuario($u)) >= 1;
 }
 
 /** Obras ativas que o usuário administra (administrador do sistema: todas as ativas). */

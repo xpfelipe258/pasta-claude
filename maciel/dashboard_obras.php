@@ -124,13 +124,13 @@ pagina_inicio('Painel das obras');
   </header>
   <main class="dp-shell">
     <section class="dp-hero">
-      <div><span class="eyebrow">PAINEL FINANCEIRO E DE AVANÇO</span><h1>Suas obras até <?= h(dt_p($ate)) ?></h1>
-        <p>O que cada obra já mediu e quanto ela avançou, comparado ao ritmo previsto pelo prazo. Valores em R$ do contrato de medição (RÓTULA), com centavos.</p></div>
+      <div><span class="eyebrow">PAINEL FINANCEIRO E DE AVANÇO</span><h1><?= count($resumos) === 1 ? 'Sua obra' : 'Suas obras' ?> até <?= h(dt_p($ate)) ?></h1>
+        <p>O que <?= count($resumos) === 1 ? 'a obra' : 'cada obra' ?> já mediu e quanto <?= count($resumos) === 1 ? 'ela' : 'ela' ?> avançou, comparado ao ritmo previsto pelo prazo. Valores em R$ do contrato de medição (RÓTULA), com centavos.</p></div>
       <form class="dp-data" method="get"><label>Posição até<input type="date" name="ate" value="<?= h($ate) ?>" max="<?= h($hoje) ?>"></label><button class="btn">Atualizar</button><?php if ($ate !== $hoje): ?><a class="btn ghost" href="dashboard_obras.php">Hoje</a><?php endif; ?></form>
     </section>
 
     <section class="dp-kpis">
-      <div class="dp-kpi"><small>Obras em andamento</small><b><?= count($resumos) ?></b><span><?= $tot['atrasadas'] ?> atrasada(s) · <?= $tot['atencao'] ?> em atenção</span></div>
+      <div class="dp-kpi"><small><?= count($resumos) === 1 ? 'Obra em andamento' : 'Obras em andamento' ?></small><b><?= count($resumos) ?></b><span><?= $tot['atrasadas'] ?> atrasada(s) · <?= $tot['atencao'] ?> em atenção</span></div>
       <div class="dp-kpi"><small>Contratado (medição)</small><b><?= h(rs_p($tot['contrato'])) ?></b><span>soma dos contratos das obras</span></div>
       <div class="dp-kpi verde"><small>Medido até <?= h(date('d/m', strtotime($ate))) ?></small><b><?= h(rs_p($tot['medido'])) ?></b><span><?= h(pc_p($pctGeral)) ?> do contratado</span></div>
       <div class="dp-kpi azul"><small>Medido neste mês</small><b><?= h(rs_p($tot['no_mes'])) ?></b><span>de <?= h(date('01/m', strtotime($ate))) ?> a <?= h(date('d/m', strtotime($ate))) ?></span></div>
@@ -163,7 +163,7 @@ pagina_inicio('Painel das obras');
     </div>
 
     <section class="dp-tabela-box">
-      <h3>Comparativo das obras</h3><p>Ordenado da obra que mais precisa de atenção para a que está mais confortável. p.p. = pontos percentuais.</p>
+      <h3><?= count($resumos) === 1 ? 'Resumo da obra' : 'Comparativo das obras' ?></h3><p><?= count($resumos) === 1 ? 'p.p. = pontos percentuais.' : 'Ordenado da obra que mais precisa de atenção para a que está mais confortável. p.p. = pontos percentuais.' ?></p>
       <table class="dp-tabela"><thead><tr><th>Obra</th><th>Contratado</th><th>Medido acumulado</th><th>Avanço</th><th>Previsto</th><th>Desvio</th><th>Neste mês</th><th>Saldo a medir</th><th>Fim previsto</th></tr></thead><tbody>
       <?php foreach ($ordem as $r): if ($r['sem_medicao']) { continue; } ?>
         <tr><td><b><?= h($r['nome']) ?></b><span class="dp-chip <?= h($r['situacao']['cls']) ?>" style="padding:2px 8px;font-size:.7rem"><?= h($r['situacao']['txt']) ?></span></td>
