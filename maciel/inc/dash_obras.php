@@ -3,19 +3,19 @@
 // A conta repete a da Medição (BM) do sistema: avanço do item = soma dos avanços das atividades × peso (cada atividade limitada a 100%);
 // valor medido = avanço do item × valor do item no contrato RÓTULA; só entra o catálogo de atividades de cada empresa da obra.
 
-/** Quem cai direto neste painel: administra (admin_obra) pelo menos uma obra ativa (uma só também). O perfil administrador do sistema abre a Central normalmente. */
+/** Quem cai direto neste painel: o administrador do sistema e quem administra (admin_obra) pelo menos uma obra ativa (uma só também). */
 function usuario_abre_painel_obras(array $u)
 {
-    if (($u['perfil'] ?? '') === 'admin') { return false; }
     return count(dashobras_obras_do_usuario($u)) >= 1;
 }
 
-/** Obras ativas que o usuário administra (administrador do sistema: todas as ativas). */
+/** Obras ativas que o usuário administra (administrador do sistema: todas as ativas, menos as cópias "obra da empresa", que repetem o contrato da obra principal). */
 function dashobras_obras_do_usuario(array $u)
 {
     $ids = obras_que_administra($u);
     if (($u['perfil'] ?? '') === 'admin') {
-        return q_global("SELECT * FROM obras WHERE status = 'ativa' ORDER BY nome")->fetchAll();
+        $todas = q_global("SELECT * FROM obras WHERE status = 'ativa' ORDER BY nome")->fetchAll();
+        return array_values(array_filter($todas, function ($o) { return trim((string)($o['empresa_vinculada'] ?? '')) === ''; }));
     }
     if (!$ids) { return []; }
     $lista = q_global("SELECT * FROM obras WHERE status = 'ativa' AND id IN (" . implode(',', array_map('intval', $ids)) . ') ORDER BY nome')->fetchAll();
