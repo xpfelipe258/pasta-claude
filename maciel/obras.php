@@ -264,12 +264,12 @@ pagina_inicio('Central de obras');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Central inteligente de gestão</small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><a class="btn ghost" href="sair.php">Sair</a></div>
+    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
   <main class="portal-main">
     <section class="hero-obras">
       <div><span class="eyebrow">PORTFÓLIO OPERACIONAL</span><h1>Suas obras, uma visão central.</h1><p>Escolha uma obra para abrir o ambiente operacional completo. Cada projeto mantém seus dados totalmente separados.</p></div>
-      <div class="hero-stat"><strong><?= count($obras) ?></strong><span>obras disponíveis</span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php" style="margin-top:10px">Painel financeiro das obras →</a><?php endif; ?></div>
+      <div class="hero-stat"><strong><?= count($obras) ?></strong><span>obras disponíveis</span></div>
     </section>
     <?php if ($msg): ?><div class="toast ok-faixa"><?= h($msg) ?></div><?php endif; ?>
     <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
