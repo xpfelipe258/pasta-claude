@@ -5591,6 +5591,16 @@ function mesesNoPeriodo(ini, fim) {
   const [af, mf] = fim.split('-').map(Number);
   return Math.max(1, (af - ai) * 12 + (mf - mi) + 1);
 }
+// Locação mensal de equipamento NO BM: cada mês é cobrado uma única vez, no BM em que o mês COMEÇA.
+// BM de 03/10 a 03/11: cobra outubro (1×); novembro fica para o BM seguinte (que começa em 04/11). Antes contava os dois meses
+// que o período tocava e descontava a locação em dobro. Se o corte cai no último dia do mês, o mês do corte é deste BM.
+function bmMesesCobrados(ini, fim) {
+  if (!ini || !fim || ini === '0000-01-01') return 1;
+  const [ai, mi] = ini.split('-').map(Number), [af, mf, df] = fim.split('-').map(Number);
+  let n = (af - ai) * 12 + (mf - mi) + 1;
+  if (n > 1 && df < new Date(af, mf, 0).getDate()) n--;   // o mês do corte (incompleto) é cobrado pelo BM seguinte
+  return Math.max(1, n);
+}
 function bmDesconsideraAbastecimentoMedicao(r) {
   const eq = ganNorm(r.equipamento), uso = ganNorm(r.uso);
   const ehAbastecimento = uso.includes('ABASTECIMENTO') || (r.litrosR || 0) > 0 || (r.combR || 0) > 0 || (r.litros || 0) > 0 || (r.custo_combustivel || 0) > 0;
@@ -5616,7 +5626,7 @@ function bmDeducoes(emp, p, medido = 0) {
     });
     equip = soma0(rt, r => r.custoR); comb = soma0(rt, r => r.combR); litros = soma0(rt, r => r.litrosR); usos = rt.length;
     // Equipamentos mensais com empresa responsável — deduzidos automaticamente
-    const meses = mesesNoPeriodo(p.ini, p.fim);
+    const meses = bmMesesCobrados(p.ini, p.fim);
     eqMensList = bmTab('equipamentos').filter(e =>
       e.cobranca === 'MENSAL' && (e.responsavel || '').toUpperCase() === emp.toUpperCase() &&
       e.valor && e.situacao !== 'DESMOBILIZADO');
@@ -5716,7 +5726,7 @@ function bmImprimir(r, emp, p) {
   const _dailyEquip = dd.equip - dd.mensalEquip;
   if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
   if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
-  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  if (dd.mensalEquip) { const _m = bmMesesCobrados(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
     linhasDesc += `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td class="n">${rs(-v)}</td></tr>`;
@@ -5887,7 +5897,7 @@ function renderBMBoletim(box) {
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
     (dd.sinalAuto || !p.fechado ? `<tr><td>(−) Sinal de contrato ${p.fechado ? `<b>${nf(dd.sinalPercentual, 1)}%</b>` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:72px;text-align:right" value="${esc(String(dd.sinalPercentual))}" data-edit-sinal-bm="${p.n}" title="% de sinal de contrato deste BM: digite e saia da célula para gravar (vazio volta a repetir o do BM anterior)"${document.body.classList.contains('somente-leitura') ? ' disabled' : ''}> %`} <span class="nota">do valor medido no BM${p.sinalPropria ? '' : ' · repetido do BM anterior (padrão 10%)'}${p.fechado ? '' : ' · edite aqui ou em Períodos e deduções'}</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
     (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
-    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× ${rs2(e.valor)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
+    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota" title="Cada mês de locação é cobrado uma só vez, no BM em que o mês começa">${bmMesesCobrados(p.ini, p.fim)}× ${rs2(e.valor)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * bmMesesCobrados(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.usosIgnoradosLocacao ? `<tr><td class="nota">Uso de equipamento locado desconsiderado <span class="nota">${dd.usosIgnoradosLocacao} lançamento(s) de equipamento com locação mensal já descontada — só o uso diário dos demais equipamentos soma</span></td><td class="n">—</td></tr>` : '') +
     (dd.usosIgnoradosAbast ? `<tr><td class="nota">Abastecimento de SANY desconsiderado na medição <span class="nota">mantida apenas a diária/custo do equipamento</span></td><td class="n">—</td></tr>` : '') +

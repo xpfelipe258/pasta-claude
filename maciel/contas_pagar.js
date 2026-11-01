@@ -1,8 +1,8 @@
 'use strict';
 // ------------------------------------------------------------------------------------------------
 // FINANCEIRO › CONTAS A PAGAR (por obra)
-//   • Imposto  — percentual (informado no cadastro) sobre o VALOR A FATURAR do mês na Medição (BM): soma, das empresas, dos BMs cujo corte cai no mês
-//                (medido − descontos, a mesma conta do Boletim). O BM em aberto conta no mês da data de referência, como parcial.
+//   • Imposto  — percentual (informado no cadastro) sobre o VALOR A FATURAR do mês na Medição (BM): soma, das empresas, dos BMs que COMEÇAM no mês
+//                (medido − descontos, a mesma conta do Boletim). O BM pertence ao mês em que COMEÇA (aberto em outubro e fechado em novembro = outubro, uma vez só).
 //   • Folha    — custo mensal de todos os colaboradores cadastrados em Gestão › Pessoal (salário + encargos + provisões + benefícios),
 //                calculado no servidor (os salários não vão no modelo geral da obra). Ver parâmetros em "Parâmetros da folha".
 //   • Outros   — valor fixo mensal ou único (aluguel, seguro, contabilidade, fornecedor…).
@@ -49,7 +49,7 @@ async function cpAcao(corpo) {
   return j;
 }
 
-// ----- valor a faturar do mês (Medição): BMs com corte no mês, de uma empresa ou de todas
+// ----- valor a faturar do mês (Medição): BMs que COMEÇAM no mês, de uma empresa ou de todas
 function cpFaturarMes(ym, empresa) {
   const chave = ym + '|' + (empresa || '') + '|' + ref;
   if (CP.cacheBm.has(chave)) return CP.cacheBm.get(chave);
@@ -58,8 +58,9 @@ function cpFaturarMes(ym, empresa) {
   const alvo = empresa ? ganNorm(empresa) : '';
   bmEmpresas().filter(e => !alvo || ganNorm(e) === alvo).forEach(emp => {
     bmPeriodos(emp).forEach(p => {
-      if (cpMesDe(p.fim) !== ym) return;
-      if (!p.cortado && ym !== cpMesDe(ref)) return;   // BM em aberto só vale no mês da data de referência
+      // O BM pertence ao mês em que COMEÇA (BM aberto em 03/10 e fechado em 03/11 = outubro, uma vez só; novembro é do BM seguinte)
+      const iniBm = p.ini === '0000-01-01' ? (typeof bmPrimeiraData === 'function' ? bmPrimeiraData(emp) : '') : p.ini;
+      if (!iniBm || cpMesDe(iniBm) !== ym) return;
       const r = bmCalc(emp, p);
       const v = Math.max(0, r.faturar[CP_R] || 0);
       det.push({ emp, n: p.n, fechado: !!p.fechado, parcial: !p.cortado, medido: r.tot[CP_R].per, descontos: r.ded.total[CP_R], faturar: v });
@@ -131,7 +132,7 @@ function cpAlertas(ym, linhas) {
   if (f && f.sem_salario > 0) a.push(['vermelho', `${f.sem_salario} colaborador(es) ativo(s) sem salário informado — a folha está subestimada. Complete em Gestão › Pessoal › Colaboradores: ${(f.sem_salario_nomes || []).slice(0, 5).join(', ')}${f.sem_salario > 5 ? '…' : ''}.`]);
   if (f && f.n === 0 && temFolha) a.push(['amarelo', 'Nenhum colaborador ativo cadastrado neste mês: a folha está zerada. Cadastre em Gestão › Pessoal › Colaboradores.']);
   if (!temFolha && f && f.n > 0) a.push(['amarelo', `Há ${f.n} colaborador(es) cadastrado(s), mas nenhuma conta de Folha salarial: use “+ Nova conta a pagar” › Folha salarial.`]);
-  linhas.filter(l => l.c.tipo === 'IMPOSTO' && l.p.semBase).forEach(l => a.push(['amarelo', `${l.c.descricao}: nenhuma medição (BM) com corte em ${cpMesRot(ym)} — o imposto do mês ficou zerado até haver um BM.`]));
+  linhas.filter(l => l.c.tipo === 'IMPOSTO' && l.p.semBase).forEach(l => a.push(['amarelo', `${l.c.descricao}: nenhum BM começa em ${cpMesRot(ym)} — o imposto do mês ficou zerado (o BM pertence ao mês em que começa).`]));
   linhas.filter(l => l.c.tipo === 'IMPOSTO' && l.p.parcial).forEach(l => a.push(['azul', `${l.c.descricao}: usa o BM em aberto (parcial). O valor muda até o corte do BM.`]));
   const venc = linhas.filter(l => l.situ === 'VENCIDA');
   if (venc.length) a.push(['vermelho', `${venc.length} conta(s) vencida(s) somando ${rs2(venc.reduce((s, l) => s + l.p.valor, 0))}.`]);
@@ -188,7 +189,7 @@ function cpDesenhar() {
       ${tile('Pago', rs2(t.pago), `${linhas.filter(l => l.situ === 'PAGA').length} conta(s) paga(s)`, 'var(--verde)')}
       ${tile('Em aberto', rs2(t.aberto), 'ainda a pagar', 'var(--amarelo)')}
       ${tile('Vencido', rs2(t.vencido), t.vencido > 0 ? 'precisa de atenção' : 'nada vencido', t.vencido > 0 ? 'var(--vermelho)' : 'var(--verde)')}
-      ${tile('Valor a faturar (Medição)', rs2(fat.total), fat.det.length ? fat.det.map(d => `${esc(d.emp)} BM${d.n}${d.parcial ? ' (em aberto)' : ''}`).join(' · ') : 'nenhum BM com corte neste mês', 'var(--acento)')}
+      ${tile('Valor a faturar (Medição)', rs2(fat.total), fat.det.length ? fat.det.map(d => `${esc(d.emp)} BM${d.n}${d.parcial ? ' (em aberto)' : ''}`).join(' · ') : 'nenhum BM começa neste mês', 'var(--acento)')}
     </div>
     ${alertas.length ? `<div class="bloco cp-alertas"><div class="bloco-cab"><h2>Pontos de atenção</h2></div><ul>${alertas.map(([cor, txt]) => `<li class="cp-al cp-al-${cor}">${esc(txt)}</li>`).join('')}</ul></div>` : ''}
     <div class="bloco">
@@ -212,7 +213,7 @@ function cpLinhaHtml(l, editar) {
   const c = l.c, p = l.p;
   let como = '';
   if (c.tipo === 'IMPOSTO') {
-    como = p.semBase ? '<span class="nota">sem medição com corte no mês</span>'
+    como = p.semBase ? '<span class="nota">nenhum BM começa neste mês</span>'
       : `${cpPerc(c.percentual)} × ${rs2(p.base)}<br><span class="nota">valor a faturar${c.empresa ? ' da ' + esc(c.empresa) : ''}: ${p.det.map(d => `${esc(d.emp)} BM${d.n}${d.parcial ? ' (em aberto)' : ''}`).join(' + ')}</span>`;
   } else if (c.tipo === 'FOLHA') {
     como = `${nf(p.n)} colaborador(es)${c.empresa ? ' da ' + esc(c.empresa) : ''}<br><span class="nota">${c.base_folha === 'caixa' ? 'só o que sai do caixa (sem provisões)' : 'custo total: salário + encargos + provisões + benefícios'}</span>`;
@@ -277,7 +278,7 @@ function cpAbrirConta(id) {
     const unica = por() === 'OUTROS' && f.recorrencia.value === 'UNICA';
     f.querySelector('[data-cp-mensal]').hidden = unica;
     const n = f.querySelector('#cpNotaImp');
-    if (n) n.textContent = 'O imposto é mensal e incide sobre o valor a faturar da Medição (medição − descontos) dos BMs com corte no mês. Os percentuais dos modelos são de referência: confirme com o seu contador.';
+    if (n) n.textContent = 'O imposto é mensal e incide sobre o valor a faturar da Medição (medição − descontos) dos BMs que começam no mês. Os percentuais dos modelos são de referência: confirme com o seu contador.';
   };
   f.tipo.addEventListener('change', ajustar); f.recorrencia.addEventListener('change', ajustar);
   f.modelo.addEventListener('change', () => { const m = CP_IMPOSTOS[f.modelo.value]; if (!m) return; f.descricao.value = m[0].split(' — ')[0]; if (m[2]) f.percentual.value = String(m[2]).replace('.', ','); f.querySelector('#cpNotaImp').textContent = m[3] + ' Confirme com o seu contador.'; });

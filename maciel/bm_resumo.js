@@ -21,7 +21,7 @@ function bmEquipDetalheHtml(emp, p, dd) {
   const ini = p.ini === '0000-01-01' ? bmPrimeiraData(emp) : p.ini, fim = p.fim;
   const dados = relEquipDados(emp, ini, fim, 'todos');
   const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
-  const meses = mesesNoPeriodo(p.ini, p.fim);
+  const meses = bmMesesCobrados(p.ini, p.fim);
   const maq = new Map();   // equipamento -> { resp, linhas[], dias:Set, custo, litros, comb }
   const pega = (nome, resp) => { if (!maq.has(nome)) maq.set(nome, { nome, resp: resp || '—', cobranca: '', linhas: [], dias: new Set(), custo: 0, litros: 0, comb: 0, mensal: 0, mesesMensal: 0 }); const m = maq.get(nome); if (resp && m.resp === '—') m.resp = resp; return m; };
   dados.linhas.forEach(l => {
@@ -70,7 +70,7 @@ function bmResumoPeriodoHtml(emp, p, r, tot, cc) {
   const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
   const eqs = dados.equipamentos.filter(q => q.emps.has(emp)).map(q => locados.has(ganNorm(q.equipamento)) ? { ...q, custo: 0 } : q);   // a locação mensal (linha abaixo) já cobre o equipamento
   const linhasEq = eqs.map(q => `<tr><td>${esc(q.equipamento)}</td><td>${esc(q.resp)}</td><td class="n">${q.dias.size}</td><td class="n">${rs(q.custo)}</td><td class="n">${nf(q.litros, 0)}</td><td class="n">${rs(q.comb)}</td><td class="n"><b>${rs(q.custo + q.comb)}</b></td></tr>`);
-  (dd.eqMensList || []).forEach(e => linhasEq.push(`<tr><td>${esc(e.equipamento)} <span class="nota">locação mensal</span></td><td>${esc(e.responsavel || '')}</td><td class="n">—</td><td class="n">${rs(e.valor * mesesNoPeriodo(p.ini, p.fim))}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs(e.valor * mesesNoPeriodo(p.ini, p.fim))}</b></td></tr>`));
+  (dd.eqMensList || []).forEach(e => linhasEq.push(`<tr><td>${esc(e.equipamento)} <span class="nota">locação mensal</span></td><td>${esc(e.responsavel || '')}</td><td class="n">—</td><td class="n">${rs(e.valor * bmMesesCobrados(p.ini, p.fim))}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs(e.valor * bmMesesCobrados(p.ini, p.fim))}</b></td></tr>`));
   const linhasIt = r.itens.filter(it => Math.abs(it.pctPer) > 1e-9).map(it => `<tr><td><b>${esc(it.item)}</b> ${esc(cap(it.desc || ''))}</td><td class="n">${nf(it.pctPer * 100, 1)}%</td><td class="n"><b>${rs(it.pctPer * it.valor[BM_R])}</b></td><td class="n">${nf(it.pct * 100, 1)}%</td></tr>`);
   return `<div class="bloco" id="bmResumoPer"><div class="bloco-cab"><h2>Resumo do período — gasto × ganho produtivo</h2><span class="nota">BM${p.n} · ${fdA(ini)} a ${fdA(fim)} · ${du} dias úteis${p.fechado ? ' · valores congelados no fechamento' : ''}</span></div>
     <div class="tiles">
