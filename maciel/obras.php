@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
+require __DIR__ . '/inc/dash_obras.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
@@ -14,6 +15,11 @@ garantir_usuarios_obras_admin(bd(), config()['driver']);
 garantir_importacao();   // tabela de documentos e coluna de fase da importação
 $msg = '';
 $erro = '';
+// Quem administra duas ou mais obras começa pelo painel financeiro e de avanço delas (a Central continua em obras.php?lista=1).
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['lista']) && usuario_abre_painel_obras($eu)) {
+    header('Location: dashboard_obras.php');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
@@ -263,7 +269,7 @@ pagina_inicio('Central de obras');
   <main class="portal-main">
     <section class="hero-obras">
       <div><span class="eyebrow">PORTFÓLIO OPERACIONAL</span><h1>Suas obras, uma visão central.</h1><p>Escolha uma obra para abrir o ambiente operacional completo. Cada projeto mantém seus dados totalmente separados.</p></div>
-      <div class="hero-stat"><strong><?= count($obras) ?></strong><span>obras disponíveis</span></div>
+      <div class="hero-stat"><strong><?= count($obras) ?></strong><span>obras disponíveis</span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php" style="margin-top:10px">Painel financeiro das obras →</a><?php endif; ?></div>
     </section>
     <?php if ($msg): ?><div class="toast ok-faixa"><?= h($msg) ?></div><?php endif; ?>
     <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
