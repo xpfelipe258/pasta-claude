@@ -75,9 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('Já existe um usuário com esse login.');
             }
             $perfil = in_array($_POST['perfil'] ?? '', $global ? ['admin', 'editor', 'leitura'] : ['editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
+            $orgAtor = $global ? 0 : usuario_organizacao_id($eu)[0];   // administrador de uma empresa cliente: o usuário novo é da empresa e conta no limite do plano
+            if ($orgAtor) { list($okPlano, $msgPlano) = plano_verificar_usuario($orgAtor); if (!$okPlano) { throw new InvalidArgumentException($msgPlano); } }
             q('INSERT INTO usuarios (nome, login, senha, perfil, empresa, email, ativo) VALUES (?, ?, ?, ?, ?, ?, 1)',
                 [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, texto_ou_nulo($_POST['empresa'] ?? null), texto_ou_nulo($email)]);
             $novoUid = (int)bd()->lastInsertId();
+            if ($orgAtor) { q_global('UPDATE usuarios SET organizacao_id = ? WHERE id = ?', [$orgAtor, $novoUid]); }
             q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 0)', [$novoUid, obra_atual_id()]);
             if ($perfil !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
             salvar_acessos_usuario($novoUid, $perfil);
@@ -260,7 +263,7 @@ pagina_inicio('Administração');
 ?>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">198</span><div><h1>Administração</h1>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Planos e limites de obras</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Comercial</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>

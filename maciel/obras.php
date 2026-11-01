@@ -64,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$id, $k, $v]);
             }
             q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 1)', [(int)$eu['id'], $id]);   // quem cria é o administrador da obra
+            if (!empty($planoInfo['org_id'])) { organizacao_vincular_obra((int)$planoInfo['org_id'], $id); }   // obra da empresa cliente: conta no plano dela e os administradores da empresa a controlam
             $minhasAdm[] = $id;
             if ($comImportacao) {
                 registrar_global('obra_criada_rascunho', ['obra_id' => $id, 'nome' => $nome]);
@@ -270,7 +271,7 @@ pagina_inicio('Central de obras');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Central inteligente de gestão</small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Planos e limites</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
+    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Comercial</a><?php endif; ?><?php if (!empty($planoInfo['admin_empresa'])): ?><a class="btn ghost" href="empresa_usuarios.php">Usuários da empresa</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
   <main class="portal-main">
     <section class="hero-obras">
@@ -337,9 +338,10 @@ pagina_inicio('Central de obras');
       <div class="section-title"><span class="eyebrow">ADMINISTRAÇÃO</span><h2><?= $admin ? 'Personalização e controle' : 'Suas obras' ?></h2></div>
       <?php if (!$admin && ($planoInfo['exigido'] || $planoInfo['tem_assinatura'])): ?>
       <div class="plano-faixa <?= $planoOk ? '' : 'bloqueado' ?>">
-        <div><span class="eyebrow">SEU PLANO</span><b><?= $planoInfo['tem_assinatura'] ? h($planoInfo['plano']) . ' · ' . h(['MENSAL' => 'mensal', 'ANUAL' => 'anual'][$planoInfo['ciclo']] ?? '') : 'Sem plano contratado' ?></b>
+        <div><span class="eyebrow"><?= $planoInfo['tem_assinatura'] ? 'PLANO DA EMPRESA ' . h(mb_strtoupper($planoInfo['empresa'], 'UTF-8')) : 'SEU PLANO' ?></span><b><?= $planoInfo['tem_assinatura'] ? h($planoInfo['plano']) . ' · ' . h(['MENSAL' => 'mensal', 'ANUAL' => 'anual'][$planoInfo['ciclo']] ?? '') : 'Sem plano contratado' ?></b>
           <small><?= $planoInfo['tem_assinatura'] ? h($planoInfo['situacao']['rotulo']) . ($planoInfo['vencimento'] ? (($planoInfo['situacao']['dias'] ?? 0) < 0 ? ' · venceu em ' : ' · vence em ') . h(date('d/m/Y', strtotime($planoInfo['vencimento']))) : '') : 'Fale com o administrador para contratar um plano.' ?></small></div>
-        <div class="plano-uso"><b><?= (int)$planoInfo['usadas'] ?></b> de <b><?= $planoInfo['tem_assinatura'] && $planoInfo['limite'] === 0 ? '∞' : (int)$planoInfo['limite'] ?></b> obra(s) criadas</div>
+        <div class="plano-uso"><b><?= (int)$planoInfo['usadas'] ?></b> de <b><?= $planoInfo['tem_assinatura'] && $planoInfo['limite'] === 0 ? '∞' : (int)$planoInfo['limite'] ?></b> obra(s)<?php if ($planoInfo['tem_assinatura']): ?> · <b><?= (int)$planoInfo['usuarios_usados'] ?></b> de <b><?= (int)$planoInfo['usuarios_limite'] === 0 ? '∞' : (int)$planoInfo['usuarios_limite'] ?></b> usuário(s)<?php endif; ?></div>
+        <?php if (!empty($planoInfo['admin_empresa'])): ?><div><a class="btn primario" href="empresa_usuarios.php">Usuários da empresa</a></div><?php endif; ?>
         <?php if (!$planoOk): ?><p class="plano-aviso"><?= h($planoMsg) ?></p><?php endif; ?>
       </div>
       <style>.plano-faixa{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;justify-content:space-between;margin:0 0 18px;padding:16px 20px;border:1px solid #e4e7ec;border-radius:14px;background:#f9fafb}.plano-faixa b{display:block;font-size:1.05rem}.plano-faixa small{color:#667085}.plano-faixa .plano-uso{font-size:1rem}.plano-faixa .plano-uso b{display:inline;font-size:1.4rem}.plano-faixa.bloqueado{border-color:#fda29b;background:#fef3f2}.plano-aviso{flex-basis:100%;margin:0;color:#b42318;font-weight:600}</style>

@@ -145,7 +145,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 29;   // 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 30;   // 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -472,8 +472,8 @@ function criar_esquema(PDO $pdo, $driver)
         contas_pagar_sql($pk, $longo, $fim),
         contas_pagar_baixas_sql($pk, $fim),
         planos_sql($pk, $longo, $fim),
-        assinaturas_sql($pk, $longo, $fim),
-        assinaturas_pagamentos_sql($pk, $fim),
+        organizacoes_sql($pk, $longo, $fim),
+        organizacoes_pagamentos_sql($pk, $fim),
         tarefas_msgs_sql($pk, $longo, $fim),
         tarefas_lidas_sql($pk, $longo, $fim),
         importacao_sql($pk, $longo, $fim),
@@ -494,6 +494,7 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_autenticacao_estendida($pdo, $driver);
     garantir_obras_detalhes($pdo, $driver);
     garantir_usuarios_obras_admin($pdo, $driver);
+    garantir_organizacoes($pdo, $driver);   // planos por empresa: vínculo de usuários e obras com a empresa
     if (!in_array('importacao', colunas_tabela($pdo, $driver, 'obras'), true)) {   // fase da importação automática (rascunho, aguardando_leitura…); vazio = obra comum
         $pdo->exec("ALTER TABLE obras ADD COLUMN importacao VARCHAR(25) NULL");
     }
@@ -912,6 +913,8 @@ function obras_que_administra(array $u)
 // Quem pode criar obra: o administrador e o editor sem empresa (usuário de empresa trabalha na obra própria dela; leitura só lê).
 function usuario_pode_criar_obra(array $u)
 {
+    list($oid, $admOrg) = usuario_organizacao_id($u);
+    if ($oid && !$admOrg) { return false; }   // numa empresa cliente, quem cria obras é o administrador da empresa
     return ($u['perfil'] ?? '') === 'admin' || (($u['perfil'] ?? '') === 'editor' && trim((string)($u['empresa'] ?? '')) === '');
 }
 
@@ -1003,16 +1006,19 @@ function modulos_sistema()
 function modulos_usuario(array $u)
 {
     $todos = modulos_sistema();
-    if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u)) { return $todos; }   // o administrador da obra tem todas as áreas nela
+    if (($u['perfil'] ?? '') === 'admin') { return $todos; }
+    $plano = organizacao_modulos_do_usuario($u);   // áreas que o plano da empresa libera (null = sem restrição)
+    $limitar = function (array $mods) use ($plano) { return $plano === null ? $mods : array_values(array_intersect($mods, $plano)); };
+    if (usuario_admin_da_obra($u) || usuario_admin_organizacao($u)) { return $limitar($todos); }   // o administrador da obra (e da empresa) tem todas as áreas que o plano libera
     $rows = q_global('SELECT modulo FROM usuarios_modulos WHERE usuario_id=? AND permitido=1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN);
     if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; $rows[] = 'sesmt'; }   // SESMT: cada empresa usa só o que é dela (colaboradores e ocorrências)   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
     // Compatibilidade: usuário antigo sem configuração continua vendo tudo até o administrador salvar seus acessos.
-    return $rows ? array_values(array_intersect($todos, $rows)) : $todos;
+    return $limitar($rows ? array_values(array_intersect($todos, $rows)) : $todos);
 }
 
 function usuario_pode_modulo(array $u, $modulo)
 {
-    return ($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u) || in_array($modulo, modulos_usuario($u), true);
+    return ($u['perfil'] ?? '') === 'admin' || in_array($modulo, modulos_usuario($u), true);
 }
 
 // Catálogo de áreas > abas > sub-abas que o administrador pode mostrar ou ocultar por usuário (Administração › Usuários › acessos).

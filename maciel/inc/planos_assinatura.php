@@ -1,31 +1,59 @@
 <?php
-// Planos, assinaturas e limite de obras por usuário (comercialização do sistema).
+// Comercialização do sistema: PLANOS EMPRESARIAIS (nível 1, 2 e 3) contratados por EMPRESA (organização cliente).
 //
-// REGRA: cada usuário (que não seja administrador do sistema) tem no máximo N obras criadas por ele, conforme o plano da assinatura
-// (mais as obras extras contratadas). Contam as obras que ele administra (usuarios_obras.admin_obra = 1) com situação ativa ou em importação;
-// obra arquivada não conta. Assinatura vencida (depois da tolerância), suspensa ou cancelada bloqueia a CRIAÇÃO de obras novas — as obras já criadas
-// continuam abrindo normalmente. A regra só vale quando o administrador liga "Exigir plano" em Administração › Planos e limites de obras.
+// MODELO: a empresa cliente (organizacoes) assina um plano; o administrador do sistema cadastra a empresa junto com o USUÁRIO ADMINISTRADOR DELA
+// (usuarios.admin_organizacao = 1). Esse administrador cria as obras da empresa e os demais usuários da empresa (empresa_usuarios.php), dentro
+// dos limites do plano: obras, usuários e áreas (módulos) liberadas. Obras e usuários da empresa carregam organizacao_id.
 //
-// Planos: ciclo MENSAL ou ANUAL, preço por ciclo (R$ com centavos) e limite de obras (0 = ilimitado). A assinatura guarda uma cópia do preço e do limite
-// do plano no momento da contratação (preço negociado e mudanças futuras no catálogo não alteram quem já assina).
+// PLANO (planos_assinatura): nome, nível, preço mensal, preço anual, limite de obras, limite de usuários (0 = ilimitado), áreas liberadas
+// (vazio = todas) e a lista de itens do nível (texto livre mostrado à empresa). Os limites e as áreas são lidos do plano NA HORA (mudar o nível
+// vale para quem já assina); o preço cobrado fica copiado na assinatura da empresa (preço negociado não muda sozinho).
+//
+// REGRA: só vale quando o administrador liga "Exigir plano" (padrão desligado = nada muda para ninguém). Empresa vencida (depois da tolerância),
+// suspensa ou cancelada não cria obras nem usuários novos; o que já existe continua funcionando. Quem NÃO pertence a nenhuma empresa segue a
+// regra antiga: "obras de quem não tem plano".
 
 function planos_sql($pk, $longo, $fim)
 {
     return "CREATE TABLE IF NOT EXISTS planos_assinatura (id $pk, nome VARCHAR(80) NOT NULL, ciclo VARCHAR(10) NOT NULL DEFAULT 'MENSAL', preco DOUBLE NOT NULL DEFAULT 0,
-        max_obras INT NOT NULL DEFAULT 1, obs VARCHAR(255) NULL, ativo INT NOT NULL DEFAULT 1, criado_em VARCHAR(19) NULL)$fim";
+        max_obras INT NOT NULL DEFAULT 1, obs VARCHAR(255) NULL, ativo INT NOT NULL DEFAULT 1, criado_em VARCHAR(19) NULL,
+        nivel INT NOT NULL DEFAULT 0, preco_mensal DOUBLE NOT NULL DEFAULT 0, preco_anual DOUBLE NOT NULL DEFAULT 0, max_usuarios INT NOT NULL DEFAULT 0,
+        modulos VARCHAR(200) NULL, itens $longo NULL)$fim";
 }
 
-function assinaturas_sql($pk, $longo, $fim)
+function organizacoes_sql($pk, $longo, $fim)
 {
-    return "CREATE TABLE IF NOT EXISTS assinaturas (id $pk, usuario_id INT NOT NULL UNIQUE, plano_id INT NULL, plano_nome VARCHAR(80) NULL, ciclo VARCHAR(10) NOT NULL DEFAULT 'MENSAL',
-        preco DOUBLE NOT NULL DEFAULT 0, max_obras INT NOT NULL DEFAULT 1, obras_extra INT NOT NULL DEFAULT 0, inicio DATE NULL, vencimento DATE NULL,
-        status VARCHAR(12) NOT NULL DEFAULT 'ATIVA', obs $longo NULL, criado_em VARCHAR(19) NULL, atualizado_em VARCHAR(19) NULL)$fim";
+    return "CREATE TABLE IF NOT EXISTS organizacoes (id $pk, nome VARCHAR(120) NOT NULL, documento VARCHAR(30) NULL, contato VARCHAR(120) NULL, email VARCHAR(150) NULL,
+        telefone VARCHAR(30) NULL, plano_id INT NULL, ciclo VARCHAR(10) NOT NULL DEFAULT 'MENSAL', preco DOUBLE NOT NULL DEFAULT 0, obras_extra INT NOT NULL DEFAULT 0,
+        usuarios_extra INT NOT NULL DEFAULT 0, inicio DATE NULL, vencimento DATE NULL, status VARCHAR(12) NOT NULL DEFAULT 'TESTE', obs $longo NULL,
+        criado_em VARCHAR(19) NULL, atualizado_em VARCHAR(19) NULL)$fim";
 }
 
-function assinaturas_pagamentos_sql($pk, $fim)
+function organizacoes_pagamentos_sql($pk, $fim)
 {
-    return "CREATE TABLE IF NOT EXISTS assinaturas_pagamentos (id $pk, assinatura_id INT NOT NULL, data_pagamento DATE NOT NULL, valor DOUBLE NOT NULL DEFAULT 0,
+    return "CREATE TABLE IF NOT EXISTS organizacoes_pagamentos (id $pk, organizacao_id INT NOT NULL, data_pagamento DATE NOT NULL, valor DOUBLE NOT NULL DEFAULT 0,
         periodo_ate DATE NULL, forma VARCHAR(30) NULL, obs VARCHAR(255) NULL, por VARCHAR(100) NULL, em VARCHAR(19) NULL)$fim";
+}
+
+/** Colunas novas (banco antigo): vínculo de usuários e obras com a empresa e campos novos do plano. Os planos por usuário da versão anterior ficam inativos. */
+function garantir_organizacoes(PDO $pdo, $driver)
+{
+    $add = function ($tabela, $col, $def) use ($pdo, $driver) {
+        if (!in_array($col, colunas_tabela($pdo, $driver, $tabela), true)) {
+            $pdo->exec("ALTER TABLE $tabela ADD COLUMN $col $def");
+        }
+    };
+    $add('usuarios', 'organizacao_id', 'INT NULL');
+    $add('usuarios', 'admin_organizacao', 'INT NOT NULL DEFAULT 0');
+    $add('obras', 'organizacao_id', 'INT NULL');
+    $longo = $driver === 'sqlite' ? 'TEXT' : 'LONGTEXT';
+    $add('planos_assinatura', 'nivel', 'INT NOT NULL DEFAULT 0');
+    $add('planos_assinatura', 'preco_mensal', 'DOUBLE NOT NULL DEFAULT 0');
+    $add('planos_assinatura', 'preco_anual', 'DOUBLE NOT NULL DEFAULT 0');
+    $add('planos_assinatura', 'max_usuarios', 'INT NOT NULL DEFAULT 0');
+    $add('planos_assinatura', 'modulos', 'VARCHAR(200) NULL');
+    $add('planos_assinatura', 'itens', "$longo NULL");
+    $pdo->exec('UPDATE planos_assinatura SET ativo = 0 WHERE nivel = 0');   // plano por usuário da versão anterior: não vale mais
 }
 
 function planos_hoje()
@@ -44,8 +72,8 @@ function planos_config()
     $c = is_array($c) ? $c : [];
     return [
         'exigir_plano' => !empty($c['exigir_plano']) ? 1 : 0,           // 0 = comportamento de sempre (sem limite)
-        'limite_sem_plano' => max(0, (int)($c['limite_sem_plano'] ?? 0)),  // obras que quem NÃO tem assinatura pode criar quando o plano é exigido
-        'tolerancia_dias' => max(0, min(60, (int)($c['tolerancia_dias'] ?? 5))),   // dias depois do vencimento em que ainda pode criar obra
+        'limite_sem_plano' => max(0, (int)($c['limite_sem_plano'] ?? 0)),  // obras que quem NÃO pertence a uma empresa pode criar quando o plano é exigido
+        'tolerancia_dias' => max(0, min(60, (int)($c['tolerancia_dias'] ?? 5))),   // dias depois do vencimento em que a empresa ainda cria obras e usuários
         'dias_teste' => max(1, min(90, (int)($c['dias_teste'] ?? 14))),
     ];
 }
@@ -72,58 +100,87 @@ function planos_status_lista()
     return ['TESTE' => 'Em teste', 'ATIVA' => 'Ativa', 'SUSPENSA' => 'Suspensa', 'CANCELADA' => 'Cancelada'];
 }
 
+/** Áreas do sistema que um plano pode liberar: [código => rótulo]. */
+function planos_modulos_rotulos()
+{
+    return ['producao' => 'Produção', 'suprimentos' => 'Suprimentos', 'consumo' => 'Consumo', 'financeiro' => 'Financeiro', 'gestao' => 'Gestão', 'qualidade' => 'Qualidade', 'sesmt' => 'SESMT'];
+}
+
 function planos_listar($somenteAtivos = false)
 {
-    $sql = 'SELECT * FROM planos_assinatura' . ($somenteAtivos ? ' WHERE ativo = 1' : '') . ' ORDER BY CASE WHEN ciclo = \'MENSAL\' THEN 0 ELSE 1 END, preco, nome';
+    $sql = 'SELECT * FROM planos_assinatura WHERE nivel > 0' . ($somenteAtivos ? ' AND ativo = 1' : '') . ' ORDER BY nivel, nome';
     return q_global($sql)->fetchAll();
 }
 
-function planos_semear_exemplos()
+/** Áreas do plano como lista (vazio no cadastro = todas as áreas do sistema). */
+function plano_modulos(array $p = null)
 {
-    if ((int)q_global('SELECT COUNT(*) FROM planos_assinatura')->fetchColumn() > 0) {
+    $todos = modulos_sistema();
+    if (!$p) {
+        return $todos;
+    }
+    $lista = array_values(array_filter(array_map('trim', explode(',', (string)($p['modulos'] ?? '')))));
+    $lista = array_values(array_intersect($todos, $lista));
+    return $lista ?: $todos;
+}
+
+/** Os três níveis empresariais (valores de partida: ajuste preços, limites e áreas em Comercial › Planos). */
+function planos_semear_niveis()
+{
+    if ((int)q_global('SELECT COUNT(*) FROM planos_assinatura WHERE nivel > 0')->fetchColumn() > 0) {
         return 0;
     }
-    $exemplos = [
-        ['Essencial', 'MENSAL', 197.00, 1, '1 obra'],
-        ['Profissional', 'MENSAL', 497.00, 5, 'até 5 obras'],
-        ['Profissional anual', 'ANUAL', 4970.00, 5, 'até 5 obras — 2 meses grátis no pagamento anual'],
-        ['Empresarial anual', 'ANUAL', 11940.00, 20, 'até 20 obras — 2 meses grátis no pagamento anual'],
+    $niveis = [
+        [1, 'Plano Empresarial — Nível 1', 297.00, 2970.00, 2, 5],
+        [2, 'Plano Empresarial — Nível 2', 697.00, 6970.00, 10, 20],
+        [3, 'Plano Empresarial — Nível 3', 1497.00, 14970.00, 0, 0],
     ];
-    foreach ($exemplos as $e) {
-        q_global('INSERT INTO planos_assinatura (nome, ciclo, preco, max_obras, obs, ativo, criado_em) VALUES (?, ?, ?, ?, ?, 1, ?)', array_merge($e, [planos_agora()]));
+    foreach ($niveis as $n) {
+        q_global("INSERT INTO planos_assinatura (nome, ciclo, preco, max_obras, obs, ativo, criado_em, nivel, preco_mensal, preco_anual, max_usuarios, modulos, itens) VALUES (?, 'MENSAL', ?, ?, NULL, 1, ?, ?, ?, ?, ?, NULL, NULL)",
+            [$n[1], $n[2], $n[4], planos_agora(), $n[0], $n[2], $n[3], $n[5]]);
     }
-    return count($exemplos);
+    return count($niveis);
 }
 
 function planos_salvar(array $e, $id = 0)
 {
     $nome = trim((string)($e['nome'] ?? ''));
-    $ciclo = strtoupper((string)($e['ciclo'] ?? ''));
-    $preco = numero($e['preco'] ?? null);
-    $max = $e['max_obras'] ?? '';
+    $nivel = (int)($e['nivel'] ?? 0);
+    $pm = numero($e['preco_mensal'] ?? null);
+    $pa = numero($e['preco_anual'] ?? null);
+    $maxO = $e['max_obras'] ?? '';
+    $maxU = $e['max_usuarios'] ?? '';
     $erros = [];
     if ($nome === '' || mb_strlen($nome, 'UTF-8') > 80) {
         $erros[] = 'Informe o nome do plano (até 80 caracteres).';
     }
-    if (!isset(planos_ciclos()[$ciclo])) {
-        $erros[] = 'Escolha o ciclo: mensal ou anual.';
+    if ($nivel < 1 || $nivel > 9) {
+        $erros[] = 'Nível: use um número de 1 a 9.';
     }
-    if ($preco === null || $preco < 0) {
-        $erros[] = 'Informe o preço do plano (zero ou maior).';
+    if ($pm === null || $pm < 0 || $pa === null || $pa < 0) {
+        $erros[] = 'Informe o preço mensal e o preço anual (zero ou maior).';
     }
-    if (!is_numeric($max) || (int)$max < 0 || (int)$max > 10000) {
-        $erros[] = 'Limite de obras: use um número inteiro (0 = ilimitado).';
+    if (!is_numeric($maxO) || (int)$maxO < 0 || (int)$maxO > 10000 || !is_numeric($maxU) || (int)$maxU < 0 || (int)$maxU > 100000) {
+        $erros[] = 'Limites de obras e de usuários: use números inteiros (0 = ilimitado).';
     }
     if ($erros) {
         return [0, $erros];
     }
-    $obs = texto_ou_nulo(mb_substr((string)($e['obs'] ?? ''), 0, 255, 'UTF-8'));
+    $todos = array_keys(planos_modulos_rotulos());
+    $mods = array_values(array_intersect($todos, array_map('strval', (array)($e['modulos'] ?? []))));
+    if (!$mods) {
+        return [0, ['Marque ao menos uma área que o plano libera.']];
+    }
+    $modsTxt = count($mods) === count($todos) ? null : implode(',', $mods);   // todas = vazio (inclui áreas novas que surgirem)
+    $itens = texto_ou_nulo(mb_substr((string)($e['itens'] ?? ''), 0, 4000, 'UTF-8'));
     $ativo = !empty($e['ativo']) ? 1 : 0;
+    $campos = [$nome, round((float)$pm, 2), (int)$maxO, $nivel, round((float)$pm, 2), round((float)$pa, 2), (int)$maxU, $modsTxt, $itens, $ativo];
     if ($id) {
-        q_global('UPDATE planos_assinatura SET nome = ?, ciclo = ?, preco = ?, max_obras = ?, obs = ?, ativo = ? WHERE id = ?', [$nome, $ciclo, round((float)$preco, 2), (int)$max, $obs, $ativo, (int)$id]);
+        q_global('UPDATE planos_assinatura SET nome = ?, preco = ?, max_obras = ?, nivel = ?, preco_mensal = ?, preco_anual = ?, max_usuarios = ?, modulos = ?, itens = ?, ativo = ? WHERE id = ?', array_merge($campos, [(int)$id]));
         return [(int)$id, []];
     }
-    q_global('INSERT INTO planos_assinatura (nome, ciclo, preco, max_obras, obs, ativo, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)', [$nome, $ciclo, round((float)$preco, 2), (int)$max, $obs, $ativo, planos_agora()]);
+    q_global("INSERT INTO planos_assinatura (nome, ciclo, preco, max_obras, nivel, preco_mensal, preco_anual, max_usuarios, modulos, itens, ativo, criado_em) VALUES (?, 'MENSAL', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        array_merge($campos, [planos_agora()]));
     return [(int)bd()->lastInsertId(), []];
 }
 
@@ -137,40 +194,96 @@ function planos_somar_ciclo($data, $ciclo)
     return sprintf('%04d-%02d-%02d', $y, $m, $dia);
 }
 
-function assinatura_do_usuario($usuarioId)
+// ---------------------------------------------------------------- empresas (organizações)
+
+/** Empresa com os dados do plano (limites e áreas lidos do plano na hora). */
+function organizacao_ler($id)
 {
-    $a = q_global('SELECT * FROM assinaturas WHERE usuario_id = ?', [(int)$usuarioId])->fetch();
-    return $a ?: null;
+    $o = q_global('SELECT o.*, p.nome AS plano_nome, p.nivel AS plano_nivel, p.max_obras AS plano_max_obras, p.max_usuarios AS plano_max_usuarios, p.modulos AS plano_modulos,
+        p.preco_mensal AS plano_preco_mensal, p.preco_anual AS plano_preco_anual, p.itens AS plano_itens
+        FROM organizacoes o LEFT JOIN planos_assinatura p ON p.id = o.plano_id WHERE o.id = ?', [(int)$id])->fetch();
+    return $o ?: null;
 }
 
-/** Obras que o usuário criou e administra e que ocupam uma vaga do plano (ativas ou em importação; arquivada e obra própria de empresa não contam). */
+/** [id da empresa do usuário (0 = nenhuma), é administrador da empresa]. O resultado é guardado durante a requisição. */
+function usuario_organizacao_id(array $u)
+{
+    static $cache = [];
+    $uid = (int)($u['id'] ?? 0);
+    if (!$uid) {
+        return [0, false];
+    }
+    if (!array_key_exists($uid, $cache)) {
+        try {
+            $r = q_global('SELECT organizacao_id, admin_organizacao FROM usuarios WHERE id = ?', [$uid])->fetch();
+            $cache[$uid] = $r && (int)$r['organizacao_id'] > 0 ? [(int)$r['organizacao_id'], (int)$r['admin_organizacao'] === 1] : [0, false];
+        } catch (Throwable $e) {
+            $cache[$uid] = [0, false];   // banco ainda sem as colunas
+        }
+    }
+    return $cache[$uid];
+}
+
+function usuario_admin_organizacao(array $u)
+{
+    return usuario_organizacao_id($u)[1];
+}
+
+/** Áreas que o plano da empresa do usuário libera; null = sem restrição (sem empresa, regra desligada ou administrador do sistema). */
+function organizacao_modulos_do_usuario(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin' || !planos_config()['exigir_plano']) {
+        return null;
+    }
+    list($oid) = usuario_organizacao_id($u);
+    if (!$oid) {
+        return null;
+    }
+    $o = organizacao_ler($oid);
+    return $o ? plano_modulos(['modulos' => $o['plano_modulos']]) : null;
+}
+
+function organizacao_obras_em_uso($orgId)
+{
+    return (int)q_global("SELECT COUNT(*) FROM obras WHERE organizacao_id = ? AND status IN ('ativa', 'rascunho') AND (origem_obra_id IS NULL OR origem_obra_id = 0)", [(int)$orgId])->fetchColumn();
+}
+
+function organizacao_usuarios_em_uso($orgId)
+{
+    return (int)q_global('SELECT COUNT(*) FROM usuarios WHERE organizacao_id = ? AND ativo = 1', [(int)$orgId])->fetchColumn();
+}
+
+/** Obras que o usuário cria e administra sem empresa (regra antiga, usada quando ele não pertence a nenhuma empresa). */
 function planos_obras_em_uso($usuarioId)
 {
     return (int)q_global("SELECT COUNT(*) FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
         WHERE uo.usuario_id = ? AND uo.admin_obra = 1 AND o.status IN ('ativa', 'rascunho') AND (o.origem_obra_id IS NULL OR o.origem_obra_id = 0)", [(int)$usuarioId])->fetchColumn();
 }
 
-/** Situação financeira da assinatura: ok, rótulo, classe de cor e quantos dias de atraso/restantes. */
-function assinatura_situacao(array $a = null, array $cfg = null)
+/** Situação financeira da empresa: rótulo, classe de cor, dias (negativo = atraso) e se ainda pode criar obras/usuários. */
+function organizacao_situacao(array $o = null, array $cfg = null)
 {
     $cfg = $cfg ?: planos_config();
-    if (!$a) {
+    if (!$o) {
         return ['codigo' => 'SEM_PLANO', 'rotulo' => 'Sem plano', 'cls' => 'cinza', 'pode_criar' => false, 'dias' => null];
     }
     $hoje = planos_hoje();
-    if ($a['status'] === 'CANCELADA') {
+    if ($o['status'] === 'CANCELADA') {
         return ['codigo' => 'CANCELADA', 'rotulo' => 'Cancelada', 'cls' => 'cinza', 'pode_criar' => false, 'dias' => null];
     }
-    if ($a['status'] === 'SUSPENSA') {
+    if ($o['status'] === 'SUSPENSA') {
         return ['codigo' => 'SUSPENSA', 'rotulo' => 'Suspensa', 'cls' => 'vermelho', 'pode_criar' => false, 'dias' => null];
     }
-    $venc = $a['vencimento'];
-    $dias = $venc ? (int)round((strtotime($venc) - strtotime($hoje)) / 86400) : null;   // negativo = dias de atraso
+    if (empty($o['plano_id'])) {
+        return ['codigo' => 'SEM_PLANO', 'rotulo' => 'Sem plano', 'cls' => 'cinza', 'pode_criar' => false, 'dias' => null];
+    }
+    $venc = $o['vencimento'];
+    $dias = $venc ? (int)round((strtotime($venc) - strtotime($hoje)) / 86400) : null;
     if ($venc && $dias < 0) {
         $dentro = -$dias <= $cfg['tolerancia_dias'];
         return ['codigo' => $dentro ? 'TOLERANCIA' : 'VENCIDA', 'rotulo' => $dentro ? 'Vencida (tolerância)' : 'Vencida', 'cls' => $dentro ? 'amarelo' : 'vermelho', 'pode_criar' => $dentro, 'dias' => $dias];
     }
-    if ($a['status'] === 'TESTE') {
+    if ($o['status'] === 'TESTE') {
         return ['codigo' => 'TESTE', 'rotulo' => 'Em teste', 'cls' => 'azul', 'pode_criar' => true, 'dias' => $dias];
     }
     if ($venc && $dias <= 7) {
@@ -179,96 +292,242 @@ function assinatura_situacao(array $a = null, array $cfg = null)
     return ['codigo' => 'ATIVA', 'rotulo' => 'Ativa', 'cls' => 'verde', 'pode_criar' => true, 'dias' => $dias];
 }
 
-function assinatura_limite(array $a = null, array $cfg = null)
+/** Limite de obras da empresa (0 = ilimitado): plano + obras extras contratadas. */
+function organizacao_limite_obras(array $o)
 {
-    $cfg = $cfg ?: planos_config();
-    if (!$a) {
-        return $cfg['limite_sem_plano'];
-    }
-    return (int)$a['max_obras'] === 0 ? 0 : (int)$a['max_obras'] + max(0, (int)$a['obras_extra']);   // 0 = ilimitado
+    return (int)$o['plano_max_obras'] === 0 ? 0 : (int)$o['plano_max_obras'] + max(0, (int)$o['obras_extra']);
+}
+
+function organizacao_limite_usuarios(array $o)
+{
+    return (int)$o['plano_max_usuarios'] === 0 ? 0 : (int)$o['plano_max_usuarios'] + max(0, (int)$o['usuarios_extra']);
 }
 
 /**
  * Pode o usuário criar mais uma obra? Devolve [ok, mensagem, info]. Administrador do sistema nunca é limitado;
- * com "Exigir plano" desligado nada muda para ninguém.
+ * com "Exigir plano" desligado nada muda para ninguém. Quem pertence a uma empresa usa o plano DELA.
  */
 function plano_verificar_criacao(array $u)
 {
     $cfg = planos_config();
+    list($oid) = usuario_organizacao_id($u);
+    $o = $oid ? organizacao_ler($oid) : null;
+    if ($o) {
+        $sit = organizacao_situacao($o, $cfg);
+        $limite = organizacao_limite_obras($o);
+        $usados = organizacao_obras_em_uso($oid);
+        $info = ['exigido' => (bool)$cfg['exigir_plano'], 'usadas' => $usados, 'limite' => $limite, 'ilimitado' => $limite === 0, 'plano' => $o['plano_nome'], 'ciclo' => $o['ciclo'],
+            'vencimento' => $o['vencimento'], 'situacao' => $sit, 'tem_assinatura' => true, 'empresa' => $o['nome'], 'org_id' => (int)$oid, 'nivel' => (int)$o['plano_nivel'],
+            'usuarios_usados' => organizacao_usuarios_em_uso($oid), 'usuarios_limite' => organizacao_limite_usuarios($o), 'admin_empresa' => usuario_admin_organizacao($u)];
+        if (($u['perfil'] ?? '') === 'admin' || !$cfg['exigir_plano']) {
+            return [true, '', $info];
+        }
+        if (!$sit['pode_criar']) {
+            $motivo = ['CANCELADA' => 'A assinatura da empresa foi cancelada.', 'SUSPENSA' => 'A assinatura da empresa está suspensa.', 'SEM_PLANO' => 'A empresa está sem plano.',
+                'VENCIDA' => 'A assinatura da empresa venceu em ' . ($o['vencimento'] ? date('d/m/Y', strtotime($o['vencimento'])) : '—') . '.'][$sit['codigo']] ?? 'A assinatura da empresa não está ativa.';
+            return [false, $motivo . ' Regularize o pagamento para criar novas obras (as obras que já existem continuam funcionando).', $info];
+        }
+        if ($limite !== 0 && $usados >= $limite) {
+            return [false, 'A empresa atingiu o limite do ' . $o['plano_nome'] . ': ' . $usados . ' de ' . $limite . ' obra(s). Arquive uma obra ou peça ao administrador do sistema um plano maior.', $info];
+        }
+        return [true, '', $info];
+    }
     $usados = planos_obras_em_uso($u['id']);
-    $a = assinatura_do_usuario($u['id']);
-    $sit = assinatura_situacao($a, $cfg);
-    $limite = assinatura_limite($a, $cfg);
-    $info = ['exigido' => (bool)$cfg['exigir_plano'], 'usadas' => $usados, 'limite' => $limite, 'ilimitado' => $a ? $limite === 0 : false,
-        'plano' => $a ? $a['plano_nome'] : null, 'ciclo' => $a ? $a['ciclo'] : null, 'vencimento' => $a ? $a['vencimento'] : null, 'situacao' => $sit, 'tem_assinatura' => (bool)$a];
+    $limite = $cfg['limite_sem_plano'];
+    $info = ['exigido' => (bool)$cfg['exigir_plano'], 'usadas' => $usados, 'limite' => $limite, 'ilimitado' => false, 'plano' => null, 'ciclo' => null, 'vencimento' => null,
+        'situacao' => organizacao_situacao(null, $cfg), 'tem_assinatura' => false, 'empresa' => null, 'org_id' => 0, 'nivel' => 0, 'usuarios_usados' => 0, 'usuarios_limite' => 0, 'admin_empresa' => false];
     if (($u['perfil'] ?? '') === 'admin' || !$cfg['exigir_plano']) {
         return [true, '', $info];
     }
-    if ($a && !$sit['pode_criar']) {
-        $motivo = ['CANCELADA' => 'A assinatura foi cancelada.', 'SUSPENSA' => 'A assinatura está suspensa.', 'VENCIDA' => 'A assinatura venceu em ' . date('d/m/Y', strtotime($a['vencimento'])) . '.'][$sit['codigo']] ?? 'A assinatura não está ativa.';
-        return [false, $motivo . ' Regularize o pagamento para criar novas obras (as obras que você já criou continuam funcionando).', $info];
-    }
-    if ($a && $limite === 0) {
-        return [true, '', $info];   // plano ilimitado
-    }
     if ($usados >= $limite) {
-        if (!$a) {
-            return [false, $limite === 0 ? 'Para criar obras é preciso ter um plano. Fale com o administrador do sistema para contratar.' : 'Você atingiu o limite de ' . $limite . ' obra(s) sem plano. Fale com o administrador para contratar um plano.', $info];
-        }
-        return [false, 'Você atingiu o limite do plano ' . $a['plano_nome'] . ': ' . $usados . ' de ' . $limite . ' obra(s). Arquive uma obra ou peça ao administrador um plano maior.', $info];
+        return [false, $limite === 0 ? 'Para criar obras é preciso que sua empresa tenha um plano. Fale com o administrador do sistema para contratar.' : 'Você atingiu o limite de ' . $limite . ' obra(s) sem plano. Fale com o administrador para contratar um plano.', $info];
     }
     return [true, '', $info];
 }
 
-function assinatura_salvar(array $e)
+/** Pode a empresa criar mais um usuário? [ok, mensagem]. Vale para a página de usuários da empresa e para a Administração da obra. */
+function plano_verificar_usuario($orgId)
 {
-    $uid = (int)($e['usuario_id'] ?? 0);
-    if ($uid <= 0 || !q_global('SELECT id FROM usuarios WHERE id = ?', [$uid])->fetch()) {
-        return ['Usuário não encontrado.'];
+    $cfg = planos_config();
+    $o = $orgId ? organizacao_ler($orgId) : null;
+    if (!$o || !$cfg['exigir_plano']) {
+        return [true, ''];
     }
-    $plano = q_global('SELECT * FROM planos_assinatura WHERE id = ?', [(int)($e['plano_id'] ?? 0)])->fetch();
+    $sit = organizacao_situacao($o, $cfg);
+    if (!$sit['pode_criar']) {
+        return [false, 'A assinatura da empresa não está em dia (' . $sit['rotulo'] . '). Regularize o pagamento para criar novos usuários.'];
+    }
+    $lim = organizacao_limite_usuarios($o);
+    $usados = organizacao_usuarios_em_uso($orgId);
+    if ($lim !== 0 && $usados >= $lim) {
+        return [false, 'A empresa atingiu o limite do ' . $o['plano_nome'] . ': ' . $usados . ' de ' . $lim . ' usuário(s). Desative um usuário ou peça ao administrador do sistema um plano maior.'];
+    }
+    return [true, ''];
+}
+
+/** Liga uma obra à empresa e dá a todos os administradores da empresa o controle dela. */
+function organizacao_vincular_obra($orgId, $obraId)
+{
+    q_global('UPDATE obras SET organizacao_id = ? WHERE id = ?', [(int)$orgId, (int)$obraId]);
+    foreach (q_global('SELECT id FROM usuarios WHERE organizacao_id = ? AND admin_organizacao = 1 AND ativo = 1', [(int)$orgId])->fetchAll(PDO::FETCH_COLUMN) as $uid) {
+        organizacao_ligar_usuario_obra($uid, $obraId, 1);
+    }
+}
+
+function organizacao_ligar_usuario_obra($uid, $obraId, $admin = 0)
+{
+    $linha = q_global('SELECT admin_obra FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$uid, (int)$obraId])->fetch();
+    if (!$linha) {
+        q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, ?)', [(int)$uid, (int)$obraId, $admin ? 1 : 0]);
+    } elseif ($admin && !(int)$linha['admin_obra']) {
+        q_global('UPDATE usuarios_obras SET admin_obra = 1 WHERE usuario_id = ? AND obra_id = ?', [(int)$uid, (int)$obraId]);
+    }
+}
+
+/** Cria o usuário (login único, senha com 8+ caracteres) já ligado à empresa; devolve [id, erros]. Não abre transação. */
+function organizacao_usuario_inserir($orgId, array $e, $admin = false)
+{
+    $login = trim((string)($e['login'] ?? ''));
+    $nome = trim((string)($e['nome'] ?? ''));
+    $email = trim((string)($e['email'] ?? ''));
+    $senha = (string)($e['senha'] ?? '');
+    if ($nome === '' || $login === '') {
+        return [0, ['Informe o nome e o login do usuário.']];
+    }
+    if (!preg_match('/^[A-Za-z0-9._@-]{3,50}$/', $login)) {
+        return [0, ['Login: de 3 a 50 caracteres (letras, números, ponto, hífen, sublinhado ou @).']];
+    }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return [0, ['Informe um e-mail válido.']];
+    }
+    if (strlen($senha) < 8) {
+        return [0, ['A senha inicial precisa ter pelo menos 8 caracteres.']];
+    }
+    if (q_global('SELECT id FROM usuarios WHERE login = ?', [$login])->fetch()) {
+        return [0, ['Já existe um usuário com o login “' . $login . '”.']];
+    }
+    $perfil = $admin ? 'editor' : (in_array($e['perfil'] ?? '', ['editor', 'leitura'], true) ? $e['perfil'] : 'editor');
+    q_global('INSERT INTO usuarios (nome, login, senha, perfil, empresa, email, ativo, organizacao_id, admin_organizacao) VALUES (?, ?, ?, ?, NULL, ?, 1, ?, ?)',
+        [$nome, $login, password_hash($senha, PASSWORD_DEFAULT), $perfil, texto_ou_nulo($email), (int)$orgId, $admin ? 1 : 0]);
+    $uid = (int)bd()->lastInsertId();
+    if ($admin) {
+        foreach (q_global('SELECT id FROM obras WHERE organizacao_id = ?', [(int)$orgId])->fetchAll(PDO::FETCH_COLUMN) as $obraId) {
+            organizacao_ligar_usuario_obra($uid, $obraId, 1);
+        }
+    }
+    return [$uid, []];
+}
+
+/** Grava as áreas do usuário (limitadas às do plano da empresa). */
+function organizacao_usuario_modulos($uid, array $mods, array $permitidas)
+{
+    q_global('DELETE FROM usuarios_modulos WHERE usuario_id = ?', [(int)$uid]);
+    foreach (array_values(array_intersect($permitidas, array_map('strval', $mods))) as $m) {
+        q_global('INSERT INTO usuarios_modulos (usuario_id, modulo, permitido) VALUES (?, ?, 1)', [(int)$uid, $m]);
+    }
+}
+
+/**
+ * Cadastra a empresa cliente junto com o usuário administrador dela. Devolve [id da empresa, erros]; usar dentro de uma transação
+ * (erro no administrador lança InvalidArgumentException para a página desfazer tudo).
+ * $e: nome, documento, contato, email, telefone, plano_id, ciclo, preco (vazio = preço do plano), obras_extra, usuarios_extra, status, inicio, vencimento, obs
+ *     e admin_nome, admin_login, admin_email, admin_senha.
+ */
+function organizacao_criar(array $e)
+{
+    list($dados, $erros) = organizacao_validar($e);
+    if ($erros) {
+        return [0, $erros];
+    }
+    $adm = ['nome' => $e['admin_nome'] ?? '', 'login' => $e['admin_login'] ?? '', 'email' => $e['admin_email'] ?? '', 'senha' => $e['admin_senha'] ?? ''];
+    if (trim($adm['nome']) === '' || trim($adm['login']) === '') {
+        return [0, ['Informe o nome e o login do administrador da empresa.']];
+    }
+    $campos = ['nome', 'documento', 'contato', 'email', 'telefone', 'plano_id', 'ciclo', 'preco', 'obras_extra', 'usuarios_extra', 'inicio', 'vencimento', 'status', 'obs'];
+    q_global('INSERT INTO organizacoes (' . implode(', ', $campos) . ', criado_em, atualizado_em) VALUES (' . implode(', ', array_fill(0, count($campos), '?')) . ', ?, ?)',
+        array_merge(array_map(function ($c) use ($dados) { return $dados[$c]; }, $campos), [planos_agora(), planos_agora()]));
+    $id = (int)bd()->lastInsertId();
+    list($uid, $erros) = organizacao_usuario_inserir($id, $adm, true);
+    if ($erros) {
+        throw new InvalidArgumentException(implode(' ', $erros));
+    }
+    registrar_global('organizacao_criar', ['id' => $id, 'nome' => $dados['nome'], 'admin' => trim($adm['login'])]);
+    return [$id, []];
+}
+
+/** Valida os campos da empresa e devolve [dados prontos para gravar, erros]. */
+function organizacao_validar(array $e)
+{
+    $nome = trim((string)($e['nome'] ?? ''));
+    $erros = [];
+    if ($nome === '' || mb_strlen($nome, 'UTF-8') > 120) {
+        $erros[] = 'Informe o nome da empresa (até 120 caracteres).';
+    }
+    $plano = q_global('SELECT * FROM planos_assinatura WHERE id = ? AND nivel > 0', [(int)($e['plano_id'] ?? 0)])->fetch();
     if (!$plano) {
-        return ['Escolha o plano.'];
+        $erros[] = 'Escolha o plano da empresa.';
     }
-    $status = strtoupper((string)($e['status'] ?? 'ATIVA'));
+    $ciclo = strtoupper((string)($e['ciclo'] ?? 'MENSAL'));
+    if (!isset(planos_ciclos()[$ciclo])) {
+        $erros[] = 'Escolha o ciclo: mensal ou anual.';
+    }
+    $status = strtoupper((string)($e['status'] ?? 'TESTE'));
     if (!isset(planos_status_lista()[$status])) {
-        return ['Situação inválida.'];
+        $erros[] = 'Situação inválida.';
     }
-    $venc = (string)($e['vencimento'] ?? '');
     $inicio = (string)($e['inicio'] ?? '');
+    $venc = (string)($e['vencimento'] ?? '');
     if (!data_valida($inicio)) {
-        return ['Informe a data de início.'];
+        $erros[] = 'Informe a data de início.';
     }
     if (!data_valida($venc)) {
-        return ['Informe o vencimento (fim do período já pago).'];
+        $erros[] = 'Informe o vencimento (fim do período já pago ou do teste).';
+    } elseif (data_valida($inicio) && $venc < $inicio) {
+        $erros[] = 'O vencimento não pode ser anterior ao início.';
     }
-    if ($venc < $inicio) {
-        return ['O vencimento não pode ser anterior ao início.'];
+    $email = trim((string)($e['email'] ?? ''));
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $erros[] = 'E-mail da empresa inválido.';
     }
-    $preco = $e['preco'] === '' || !isset($e['preco']) ? (float)$plano['preco'] : numero($e['preco']);
+    $precoIn = $e['preco'] ?? '';
+    $preco = ($precoIn === '' || $precoIn === null) && $plano ? (float)($ciclo === 'ANUAL' ? $plano['preco_anual'] : $plano['preco_mensal']) : numero($precoIn);
     if ($preco === null || $preco < 0) {
-        return ['Informe o valor cobrado (zero ou maior).'];
+        $erros[] = 'Informe o valor cobrado por ciclo (zero ou maior).';
     }
-    $extra = max(0, min(1000, (int)($e['obras_extra'] ?? 0)));
-    $atual = assinatura_do_usuario($uid);
-    $dados = [$plano['id'], $plano['nome'], $plano['ciclo'], round((float)$preco, 2), (int)$plano['max_obras'], $extra, $inicio, $venc, $status, texto_ou_nulo($e['obs'] ?? null)];
-    if ($atual) {
-        q_global('UPDATE assinaturas SET plano_id = ?, plano_nome = ?, ciclo = ?, preco = ?, max_obras = ?, obras_extra = ?, inicio = ?, vencimento = ?, status = ?, obs = ?, atualizado_em = ? WHERE usuario_id = ?',
-            array_merge($dados, [planos_agora(), $uid]));
-    } else {
-        q_global('INSERT INTO assinaturas (plano_id, plano_nome, ciclo, preco, max_obras, obras_extra, inicio, vencimento, status, obs, usuario_id, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            array_merge($dados, [$uid, planos_agora(), planos_agora()]));
+    if ($erros) {
+        return [null, $erros];
     }
-    registrar_global($atual ? 'assinatura_salvar' : 'assinatura_criar', ['usuario' => $uid, 'plano' => $plano['nome'], 'status' => $status]);
+    return [[
+        'nome' => $nome, 'documento' => texto_ou_nulo(mb_substr((string)($e['documento'] ?? ''), 0, 30, 'UTF-8')), 'contato' => texto_ou_nulo(mb_substr((string)($e['contato'] ?? ''), 0, 120, 'UTF-8')),
+        'email' => texto_ou_nulo($email), 'telefone' => texto_ou_nulo(mb_substr((string)($e['telefone'] ?? ''), 0, 30, 'UTF-8')), 'plano_id' => (int)$plano['id'], 'ciclo' => $ciclo,
+        'preco' => round((float)$preco, 2), 'obras_extra' => max(0, min(1000, (int)($e['obras_extra'] ?? 0))), 'usuarios_extra' => max(0, min(100000, (int)($e['usuarios_extra'] ?? 0))),
+        'inicio' => $inicio, 'vencimento' => $venc, 'status' => $status, 'obs' => texto_ou_nulo($e['obs'] ?? null),
+    ], []];
+}
+
+function organizacao_salvar(array $e)
+{
+    $id = (int)($e['id'] ?? 0);
+    if (!q_global('SELECT id FROM organizacoes WHERE id = ?', [$id])->fetch()) {
+        return ['Empresa não encontrada.'];
+    }
+    list($dados, $erros) = organizacao_validar($e);
+    if ($erros) {
+        return $erros;
+    }
+    $campos = ['nome', 'documento', 'contato', 'email', 'telefone', 'plano_id', 'ciclo', 'preco', 'obras_extra', 'usuarios_extra', 'inicio', 'vencimento', 'status', 'obs'];
+    q_global('UPDATE organizacoes SET ' . implode(' = ?, ', $campos) . ' = ?, atualizado_em = ? WHERE id = ?',
+        array_merge(array_map(function ($c) use ($dados) { return $dados[$c]; }, $campos), [planos_agora(), $id]));
+    registrar_global('organizacao_salvar', ['id' => $id, 'plano' => $dados['plano_id'], 'status' => $dados['status']]);
     return [];
 }
 
 /** Registra o pagamento e renova: o novo vencimento soma um ciclo ao vencimento atual (ou à data do pagamento, se já tinha vencido). */
-function assinatura_registrar_pagamento(array $e, array $admin)
+function organizacao_registrar_pagamento(array $e, array $admin)
 {
-    $a = q_global('SELECT * FROM assinaturas WHERE id = ?', [(int)($e['assinatura_id'] ?? 0)])->fetch();
-    if (!$a) {
-        return ['Assinatura não encontrada.'];
+    $o = q_global('SELECT * FROM organizacoes WHERE id = ?', [(int)($e['organizacao_id'] ?? 0)])->fetch();
+    if (!$o) {
+        return ['Empresa não encontrada.'];
     }
     $data = (string)($e['data_pagamento'] ?? '');
     $valor = numero($e['valor'] ?? null);
@@ -278,27 +537,29 @@ function assinatura_registrar_pagamento(array $e, array $admin)
     if ($valor === null || $valor <= 0) {
         return ['Informe o valor recebido (maior que zero).'];
     }
-    $base = $a['vencimento'] && $a['vencimento'] >= $data ? $a['vencimento'] : $data;
-    $novo = planos_somar_ciclo($base, $a['ciclo']);
-    q_global('INSERT INTO assinaturas_pagamentos (assinatura_id, data_pagamento, valor, periodo_ate, forma, obs, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [(int)$a['id'], $data, round((float)$valor, 2), $novo, texto_ou_nulo(mb_substr((string)($e['forma'] ?? ''), 0, 30, 'UTF-8')), texto_ou_nulo(mb_substr((string)($e['obs'] ?? ''), 0, 255, 'UTF-8')), $admin['nome'], planos_agora()]);
-    q_global("UPDATE assinaturas SET vencimento = ?, status = 'ATIVA', atualizado_em = ? WHERE id = ?", [$novo, planos_agora(), (int)$a['id']]);
-    registrar_global('assinatura_pagamento', ['assinatura' => (int)$a['id'], 'valor' => round((float)$valor, 2), 'vencimento' => $novo]);
+    $base = $o['vencimento'] && $o['vencimento'] >= $data ? $o['vencimento'] : $data;
+    $novo = planos_somar_ciclo($base, $o['ciclo']);
+    q_global('INSERT INTO organizacoes_pagamentos (organizacao_id, data_pagamento, valor, periodo_ate, forma, obs, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [(int)$o['id'], $data, round((float)$valor, 2), $novo, texto_ou_nulo(mb_substr((string)($e['forma'] ?? ''), 0, 30, 'UTF-8')), texto_ou_nulo(mb_substr((string)($e['obs'] ?? ''), 0, 255, 'UTF-8')), $admin['nome'], planos_agora()]);
+    q_global("UPDATE organizacoes SET vencimento = ?, status = 'ATIVA', atualizado_em = ? WHERE id = ?", [$novo, planos_agora(), (int)$o['id']]);
+    registrar_global('organizacao_pagamento', ['organizacao' => (int)$o['id'], 'valor' => round((float)$valor, 2), 'vencimento' => $novo]);
     return [];
 }
 
-/** Receita recorrente: mensal = preço; anual = preço ÷ 12. Só assinaturas ativas pagas (teste não conta). */
+/** Receita recorrente: mensal = preço; anual = preço ÷ 12. Só empresas ativas e em dia (teste não conta). */
 function planos_indicadores()
 {
     $cfg = planos_config();
-    $ind = ['assinantes' => 0, 'teste' => 0, 'inadimplentes' => 0, 'a_vencer' => 0, 'mrr' => 0.0, 'arr' => 0.0, 'recebido_mes' => 0.0, 'obras_em_uso' => 0, 'vagas' => 0, 'sem_plano' => 0];
-    $comAss = [];
-    foreach (q_global('SELECT * FROM assinaturas')->fetchAll() as $a) {
-        $comAss[(int)$a['usuario_id']] = true;
-        $s = assinatura_situacao($a, $cfg);
-        $ind['obras_em_uso'] += planos_obras_em_uso($a['usuario_id']);
-        $lim = assinatura_limite($a, $cfg);
-        $ind['vagas'] += $lim;
+    $ind = ['empresas' => 0, 'assinantes' => 0, 'teste' => 0, 'inadimplentes' => 0, 'a_vencer' => 0, 'mrr' => 0.0, 'arr' => 0.0, 'recebido_mes' => 0.0,
+        'obras_em_uso' => 0, 'vagas_obras' => 0, 'usuarios_em_uso' => 0, 'vagas_usuarios' => 0];
+    foreach (q_global('SELECT id FROM organizacoes')->fetchAll(PDO::FETCH_COLUMN) as $oid) {
+        $o = organizacao_ler($oid);
+        $ind['empresas']++;
+        $s = organizacao_situacao($o, $cfg);
+        $ind['obras_em_uso'] += organizacao_obras_em_uso($oid);
+        $ind['usuarios_em_uso'] += organizacao_usuarios_em_uso($oid);
+        $ind['vagas_obras'] += organizacao_limite_obras($o);
+        $ind['vagas_usuarios'] += organizacao_limite_usuarios($o);
         if ($s['codigo'] === 'TESTE') {
             $ind['teste']++;
             continue;
@@ -309,17 +570,16 @@ function planos_indicadores()
         if ($s['codigo'] === 'A_VENCER') {
             $ind['a_vencer']++;
         }
-        if (in_array($a['status'], ['ATIVA'], true)) {
+        if ($o['status'] === 'ATIVA') {
             $ind['assinantes']++;
-            if (!in_array($s['codigo'], ['VENCIDA'], true)) {
-                $ind['mrr'] += $a['ciclo'] === 'ANUAL' ? $a['preco'] / 12 : $a['preco'];
+            if ($s['codigo'] !== 'VENCIDA') {
+                $ind['mrr'] += $o['ciclo'] === 'ANUAL' ? $o['preco'] / 12 : $o['preco'];
             }
         }
     }
     $ind['mrr'] = round($ind['mrr'], 2);
     $ind['arr'] = round($ind['mrr'] * 12, 2);
     $mes = substr(planos_hoje(), 0, 7);
-    $ind['recebido_mes'] = round((float)q_global("SELECT COALESCE(SUM(valor), 0) FROM assinaturas_pagamentos WHERE data_pagamento >= ? AND data_pagamento <= ?", [$mes . '-01', $mes . '-31'])->fetchColumn(), 2);
-    $ind['sem_plano'] = (int)q_global("SELECT COUNT(*) FROM usuarios WHERE perfil <> 'admin' AND ativo = 1 AND id NOT IN (SELECT usuario_id FROM assinaturas)")->fetchColumn();
+    $ind['recebido_mes'] = round((float)q_global('SELECT COALESCE(SUM(valor), 0) FROM organizacoes_pagamentos WHERE data_pagamento >= ? AND data_pagamento <= ?', [$mes . '-01', $mes . '-31'])->fetchColumn(), 2);
     return $ind;
 }
