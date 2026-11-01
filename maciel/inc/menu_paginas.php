@@ -35,7 +35,7 @@ function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '')
         $o .= menu_pagina_grupo('consumo', '⚙', 'Consumo', $b('equip', 'Equipamentos')) . "\n";
     }
     if ($pode('financeiro')) {
-        $o .= menu_pagina_grupo('financeiro', '$', 'Financeiro', $b('bm', 'Medição (BM)') . $b('proj', 'Projeção físico-financeira') . $b('cff', 'Cronograma físico-financeiro')) . "\n";
+        $o .= menu_pagina_grupo('financeiro', '$', 'Financeiro', $b('bm', 'Medição (BM)') . $b('proj', 'Projeção físico-financeira') . $b('cff', 'Cronograma físico-financeiro') . $b('contaspagar', 'Contas a pagar')) . "\n";
     }
     if ($pode('gestao')) {
         $o .= menu_pagina_grupo('gestao', '◆', 'Gestão', $b('metas', 'Metas') . $b('impactos', 'Impactos') . $b('dp', 'Pessoal')) . "\n";

@@ -127,6 +127,8 @@ def tearDownModule():
 
 
 def novo(sessao, reg, **campos):
+    if reg == "colaboradores":
+        campos.setdefault("salario", "3000,00")   # o salário é obrigatório para quem tem a área Financeiro (custo da folha)
     return sessao.post(acao="salvar", reg=reg, id=0, **campos)
 
 

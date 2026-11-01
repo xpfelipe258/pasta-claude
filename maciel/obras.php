@@ -15,6 +15,8 @@ garantir_usuarios_obras_admin(bd(), config()['driver']);
 garantir_importacao();   // tabela de documentos e coluna de fase da importação
 $msg = '';
 $erro = '';
+// Plano do usuário: quantas obras já criou, quantas pode criar e se a assinatura está em dia (a regra só vale com "Exigir plano" ligado)
+list($planoOk, $planoMsg, $planoInfo) = plano_verificar_criacao($eu);
 // Quem administra duas ou mais obras começa pelo painel financeiro e de avanço delas (a Central continua em obras.php?lista=1).
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['lista']) && usuario_abre_painel_obras($eu)) {
     header('Location: dashboard_obras.php');
@@ -38,6 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (in_array($acao, ['identidade', 'permissoes'], true) && !$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
         if (in_array($acao, ['criar_obra', 'criar_obra_importacao'], true) && !$podeCriar) { throw new InvalidArgumentException('Seu perfil não pode criar obras.'); }
+        if (in_array($acao, ['criar_obra', 'criar_obra_importacao'], true)) {   // plano e limite de obras (Administração › Planos e limites de obras)
+            list($planoOk, $planoMsg) = plano_verificar_criacao($eu);
+            if (!$planoOk) { throw new InvalidArgumentException($planoMsg); }
+        }
         if (in_array($acao, ['editar_obra', 'status_obra', 'excluir_obra'], true) && !$ehAdminDe((int)($_POST['obra_id'] ?? 0))) {
             throw new InvalidArgumentException('Só o administrador da obra pode alterá-la.');
         }
@@ -264,7 +270,7 @@ pagina_inicio('Central de obras');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Central inteligente de gestão</small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
+    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Planos e limites</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
   <main class="portal-main">
     <section class="hero-obras">
@@ -329,6 +335,15 @@ pagina_inicio('Central de obras');
     <?php if ($admin || $podeCriar || $minhasAdm): ?>
     <section class="portal-admin">
       <div class="section-title"><span class="eyebrow">ADMINISTRAÇÃO</span><h2><?= $admin ? 'Personalização e controle' : 'Suas obras' ?></h2></div>
+      <?php if (!$admin && ($planoInfo['exigido'] || $planoInfo['tem_assinatura'])): ?>
+      <div class="plano-faixa <?= $planoOk ? '' : 'bloqueado' ?>">
+        <div><span class="eyebrow">SEU PLANO</span><b><?= $planoInfo['tem_assinatura'] ? h($planoInfo['plano']) . ' · ' . h(['MENSAL' => 'mensal', 'ANUAL' => 'anual'][$planoInfo['ciclo']] ?? '') : 'Sem plano contratado' ?></b>
+          <small><?= $planoInfo['tem_assinatura'] ? h($planoInfo['situacao']['rotulo']) . ($planoInfo['vencimento'] ? (($planoInfo['situacao']['dias'] ?? 0) < 0 ? ' · venceu em ' : ' · vence em ') . h(date('d/m/Y', strtotime($planoInfo['vencimento']))) : '') : 'Fale com o administrador para contratar um plano.' ?></small></div>
+        <div class="plano-uso"><b><?= (int)$planoInfo['usadas'] ?></b> de <b><?= $planoInfo['tem_assinatura'] && $planoInfo['limite'] === 0 ? '∞' : (int)$planoInfo['limite'] ?></b> obra(s) criadas</div>
+        <?php if (!$planoOk): ?><p class="plano-aviso"><?= h($planoMsg) ?></p><?php endif; ?>
+      </div>
+      <style>.plano-faixa{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;justify-content:space-between;margin:0 0 18px;padding:16px 20px;border:1px solid #e4e7ec;border-radius:14px;background:#f9fafb}.plano-faixa b{display:block;font-size:1.05rem}.plano-faixa small{color:#667085}.plano-faixa .plano-uso{font-size:1rem}.plano-faixa .plano-uso b{display:inline;font-size:1.4rem}.plano-faixa.bloqueado{border-color:#fda29b;background:#fef3f2}.plano-aviso{flex-basis:100%;margin:0;color:#b42318;font-weight:600}</style>
+      <?php endif; ?>
       <?php if (!$admin): ?><p class="nota">Ao criar uma obra você passa a ser o <b>administrador dela</b>: tem todas as áreas, usuários e configurações dessa obra — e só dela. O acesso ao restante do sistema não muda.</p><?php endif; ?>
       <div class="portal-columns">
         <?php if ($admin): ?><form method="post" enctype="multipart/form-data" class="bloco painel-form">
@@ -339,7 +354,7 @@ pagina_inicio('Central de obras');
           <label>Logo / ícone<input type="file" name="logo_global" accept="image/png,image/jpeg,image/webp"></label>
           <label class="check"><input type="checkbox" name="remover_logo" value="1"> Remover logo atual</label><button class="btn primario">Salvar identidade</button>
         </form><?php endif; ?>
-        <?php if ($podeCriar): ?>
+        <?php if ($podeCriar && $planoOk): ?>
         <form method="post" enctype="multipart/form-data" class="bloco painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_obra_importacao">
           <h3>Nova obra</h3><p class="nota">Passo 1 de 3: dados da obra. No passo 2 você envia os documentos obrigatórios (IFC, fixadores, cronograma, orçamento e projetos) e o sistema monta a obra a partir deles.</p>

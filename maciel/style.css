@@ -1646,3 +1646,36 @@ tr.qual-linha-atraso td:first-child { box-shadow: inset 4px 0 0 #b42318; }
   :root[data-theme="nevoa"]:not([data-menu="topo"]) .obra-contexto, :root[data-theme="grafite"]:not([data-menu="topo"]) .obra-contexto { padding-left: 264px; }
   :root[data-theme="salvia"]:not([data-menu="topo"]) .obra-contexto { padding-left: 282px; }
 }
+
+
+/* ---------- Financeiro › Contas a pagar ---------- */
+#aba-contaspagar .cp-tiles { margin-bottom: 14px; }
+.cp-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cp-barra .espaco, dialog .acoes .espaco { flex: 1; }
+.cp-mes { display: inline-flex; align-items: flex-end; gap: 6px; }
+.cp-mes .rot-sel { flex-direction: row; align-items: center; gap: 6px; }
+.cp-tab td.n, .cp-tab th.n { text-align: right; white-space: nowrap; }
+.cp-tab tfoot td { border-top: 2px solid var(--linha-forte); }
+.cp-tab tr.cp-atual td { background: color-mix(in srgb, var(--acento) 9%, transparent); }
+.cp-tab tr.cp-vencida td:first-child { box-shadow: inset 3px 0 0 var(--vermelho); }
+.cp-tab tr.cp-paga td { opacity: .78; }
+.cp-acoes { white-space: nowrap; text-align: right; }
+.cp-acoes .btn { padding: 4px 10px; font-size: .78rem; }
+.cp-tipo { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .7rem; font-weight: 700; background: var(--pend-bg); color: var(--fg2); }
+.cp-t-imposto { background: #fde8d4; color: #8a4b0f; } .cp-t-folha { background: #dbe8fb; color: #1d4f9c; } .cp-t-outros { background: #e6e9ee; color: #4b5563; }
+.cp-bar { display: flex; width: 100%; min-width: 160px; height: 12px; border-radius: 6px; overflow: hidden; background: var(--pend-bg); }
+.cp-bar i, .cp-leg i { display: inline-block; height: 100%; }
+.cp-leg i { width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 12px; vertical-align: -1px; }
+.cp-b-imp { background: #e08a2e; } .cp-b-fol { background: #3b7dd8; } .cp-b-out { background: #8b95a5; }
+.cp-barra-col { width: 28%; }
+.cp-alertas ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cp-al { padding: 8px 12px; border-radius: 8px; border-left: 4px solid var(--fg3); background: var(--pend-bg); font-size: .88rem; }
+.cp-al-vermelho { border-left-color: var(--vermelho); } .cp-al-amarelo { border-left-color: var(--amarelo); } .cp-al-azul { border-left-color: var(--acento); }
+dialog.cp-dialog { width: min(760px, calc(100vw - 24px)); }
+dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
+.cp-form .cp-check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; grid-column: 1 / -1; }
+.cp-form .cp-check input { width: auto; }
+.cp-premissas { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--linha); border-radius: 8px; background: var(--pend-bg); font-size: .85rem; }
+.cp-premissas summary { cursor: pointer; font-weight: 700; }
+.cp-premissas ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+@media (max-width: 700px) { .cp-barra-col { display: none; } }

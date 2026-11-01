@@ -107,6 +107,16 @@ try {
             }
             responder_json(200, configuracoes_ler($usuario));
         }
+        if ($rota === 'contas-pagar') {   // Financeiro › Contas a pagar: tem salários, por isso não vai no modelo geral
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Contas a pagar não estão disponíveis por token de máquina.']);
+            }
+            if (!usuario_pode_modulo($usuario, 'financeiro')) {
+                responder_json(403, ['erro' => 'Seu usuário não possui acesso ao módulo FINANCEIRO.']);
+            }
+            $mesCp = cp_mes_valido($_GET['mes'] ?? '') ? $_GET['mes'] : (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m');
+            responder_json(200, cp_ler_dados($mesCp));
+        }
         if ($rota === 'identidade') {   // logos/cores das empresas para montar os relatórios
             if ($via_token) {
                 responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
@@ -161,6 +171,25 @@ try {
             throw new ErroValidacao('Dados inválidos.');
         }
         responder_json(200, acao_configuracoes($corpoC, $usuario));
+    }
+    if ($rota === 'contas-pagar') {   // não mexe no modelo geral da obra: as telas de contas a pagar se atualizam sozinhas
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Contas a pagar não estão disponíveis por token de máquina.']);
+        }
+        $corpoP = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoP)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        $pdoP = bd();
+        $pdoP->beginTransaction();
+        try {
+            $rP = acao_contas_pagar($corpoP, $usuario);
+            $pdoP->commit();
+        } catch (Throwable $eP) {
+            if ($pdoP->inTransaction()) { $pdoP->rollBack(); }
+            throw $eP;
+        }
+        responder_json(200, $rP);
     }
     if ($rota === 'tarefas-chat') {
         if ($via_token) {

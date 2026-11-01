@@ -260,7 +260,7 @@ pagina_inicio('Administração');
 ?>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">198</span><div><h1>Administração</h1>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Planos e limites de obras</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>

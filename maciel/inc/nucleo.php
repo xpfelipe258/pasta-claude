@@ -52,7 +52,8 @@ function q($sql, array $params = [])
 function tabelas_da_obra()
 {
     return array_merge([
-        'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico'
+        'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico',
+        'contas_pagar', 'contas_pagar_baixas'   // fora de tabelas_spec() de propósito: não vão no modelo que todo usuário recebe (têm salários)
     ], array_keys(tabelas_spec()));
 }
 
@@ -144,7 +145,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 28;   // 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 29;   // 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -468,6 +469,11 @@ function criar_esquema(PDO $pdo, $driver)
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         tarefas_sql($pk, $longo, $fim),
+        contas_pagar_sql($pk, $longo, $fim),
+        contas_pagar_baixas_sql($pk, $fim),
+        planos_sql($pk, $longo, $fim),
+        assinaturas_sql($pk, $longo, $fim),
+        assinaturas_pagamentos_sql($pk, $fim),
         tarefas_msgs_sql($pk, $longo, $fim),
         tarefas_lidas_sql($pk, $longo, $fim),
         importacao_sql($pk, $longo, $fim),
@@ -1030,7 +1036,7 @@ function ui_catalogo()
         ['consumo', 'Consumo', [['equip', 'Equipamentos', []]]],
         ['financeiro', 'Financeiro', [
             ['bm', 'Medição (BM)', [['boletim', 'Boletim (BM)'], ['periodos', 'Períodos e deduções'], ['catalogo', 'Catálogo de atividades']]],
-            ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []],
+            ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []], ['contaspagar', 'Contas a pagar', []],
         ]],
         ['gestao', 'Gestão', [['impactos', 'Impactos', []], ['dp', 'Pessoal', []]]],
         ['qualidade', 'Qualidade', [['qualidade', 'Não conformidades', []]]],
@@ -1348,3 +1354,6 @@ function imagem_upload_para_data_uri($campo, $atual = '')
 
 
 require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa terceirizada
+require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
+require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
+require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)

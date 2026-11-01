@@ -4,7 +4,7 @@
 
 require_once __DIR__ . '/sesmt_registros.php';
 
-const SESMT_ESQUEMA_VERSAO = 2;   // 2: acidentes.empresa e desvios.colaborador_id/empresa (ocorrência com colaborador e empresa responsável)
+const SESMT_ESQUEMA_VERSAO = 3;   // 3: colaboradores com salário, adicional e benefícios (custo mensal da folha); 2: acidentes.empresa e desvios.colaborador_id/empresa (ocorrência com colaborador e empresa responsável)
 const SESMT_POR_PAGINA = 50;
 
 // ----------------------------------------------------------------- tempo (horário de Brasília)
@@ -150,6 +150,7 @@ function sesmt_tipo_sql($tipo)
         case 'longo':
             return 'TEXT NULL';
         case 'num':
+        case 'moeda':
             return 'DOUBLE NULL';
         case 'int':
         case 'ref':
@@ -564,6 +565,19 @@ function sesmt_calcular($reg, array $r, array $ctx)
             $c['idade'] = sesmt_cel($r['nascimento'] ? (int)sesmt_dt($r['nascimento'])->diff(sesmt_dt($hoje))->y . ' anos' : '');
             $fim = $r['desligamento'] ?: $hoje;
             $c['tempo'] = sesmt_cel($r['admissao'] && $r['admissao'] <= $fim ? sesmt_fmt_num(sesmt_dias_entre($r['admissao'], $fim)) . ' dias' : '');
+            if (rh_pode_ver_salarios() && ($r['status'] ?? '') === 'Demitido') {
+                $c['custo_mensal'] = sesmt_cel('');
+                $c['fator_encargos'] = sesmt_cel('');
+            } elseif (rh_pode_ver_salarios()) {
+                $k = rh_custo_colaborador($r, rh_params(), null);
+                if ($k['sem_salario']) {
+                    $c['custo_mensal'] = sesmt_cel('SEM SALÁRIO', 'amarelo');
+                    $c['fator_encargos'] = sesmt_cel('');
+                } else {
+                    $c['custo_mensal'] = sesmt_cel('R$ ' . number_format($k['total'], 2, ',', '.'));
+                    $c['fator_encargos'] = sesmt_cel($k['bruto'] > 0 ? '+' . number_format($k['fator_enc'] * 100, 1, ',', '.') . '%' : '');
+                }
+            }
             break;
         case 'aso':
             if (($r['atualizou'] ?? '') === 'Sim') {
@@ -879,6 +893,7 @@ function sesmt_normalizar_campo($reg, $k, array $c, $bruto, array &$erros, $idAt
                 $erros[] = "$rot aceita até 20.000 caracteres.";
             }
             return $v;
+        case 'moeda':
         case 'num':
             $n = numero($v);
             if ($n === null) {
@@ -955,6 +970,9 @@ function sesmt_validar($reg, array $d, $id)
             if ($d['nascimento'] && $d['nascimento'] > sesmt_hoje()) {
                 $e[] = 'O nascimento não pode estar no futuro.';
             }
+            if (array_key_exists('salario', $d) && ($d['salario'] === null || (float)$d['salario'] <= 0)) {
+                $e[] = 'Informe o salário do colaborador (maior que zero): é com ele que o sistema calcula os encargos e o custo mensal.';
+            }
             break;
         case 'treinamentos':
             if ($d['data_inicial'] && $d['data_final'] && $d['data_final'] < $d['data_inicial']) {
@@ -1018,12 +1036,22 @@ function sesmt_validar($reg, array $d, $id)
     return $e;
 }
 
+/** Campos do cadastro que o usuário pode ver e gravar: os de remuneração (rh) exigem a área Financeiro. */
+function sesmt_campos_visiveis($reg)
+{
+    $campos = sesmt_registros()[$reg]['campos'];
+    if (rh_pode_ver_salarios()) {
+        return $campos;
+    }
+    return array_filter($campos, function ($c) { return empty($c['rh']); });
+}
+
 function sesmt_dados_do_post($reg, array $post, $id)
 {
     $erros = [];
     $dados = [];
     $esc = sesmt_escopo_empresa();
-    foreach (sesmt_registros()[$reg]['campos'] as $k => $c) {
+    foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if ($esc !== '' && $k === 'empresa') { $post[$k] = $esc; }   // a empresa grava sempre na própria
         $dados[$k] = sesmt_normalizar_campo($reg, $k, $c, $post[$k] ?? null, $erros, $id);
     }

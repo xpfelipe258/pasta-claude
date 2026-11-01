@@ -2,7 +2,7 @@
 // SESMT GERAL: painel e cadastros de segurança do trabalho, convertidos da planilha "Gestão SST - Rótula".
 // Página própria. Não altera nenhuma tela ou tabela existente.
 require __DIR__ . '/inc/nucleo.php';
-require __DIR__ . '/inc/sesmt_modelo.php';
+require_once __DIR__ . '/inc/sesmt_modelo.php';
 require __DIR__ . '/inc/menu_paginas.php';
 
 $eu = exigir_login_pagina();
@@ -26,6 +26,19 @@ if (!sesmt_pode_ver($eu)) {
 }
 
 sesmt_garantir_esquema();
+if (isset($_GET['rh_previa'])) {   // prévia do custo mensal do colaborador enquanto o formulário é preenchido (mesma conta da folha)
+    if (!rh_pode_ver_salarios($eu)) {
+        responder_json(403, ['erro' => 'Sem acesso aos salários.']);
+    }
+    $ent = [];
+    foreach (['status', 'tipo_salario', 'salario', 'adicional', 'vale_transporte', 'alimentacao', 'outros_beneficios'] as $kp) {
+        $ent[$kp] = (string)($_GET[$kp] ?? '');
+    }
+    $ent['status'] = $ent['status'] === 'Demitido' ? 'Contratado' : $ent['status'];   // a prévia mostra o custo de um mês cheio
+    $r = rh_custo_colaborador($ent, rh_params(), null);
+    $r['vinculo_rotulo'] = rh_rotulo_vinculo($r['vinculo']);
+    responder_json(200, $r);
+}
 $podeEditar = sesmt_pode_editar($eu);
 $ehAdmin = ($eu['perfil'] ?? '') === 'admin';
 $csrf = token_csrf();
@@ -74,6 +87,8 @@ function sv_texto_valor($reg, $k, array $c, array $r)
             return sesmt_fmt_data($v);
         case 'cpf':
             return sesmt_cpf_exibir($v, true);
+        case 'moeda':
+            return 'R$ ' . number_format((float)$v, 2, ',', '.') . ($k === 'salario' && ($r['tipo_salario'] ?? '') === 'Hora' ? ' /hora' : '');
         case 'num':
             return sesmt_fmt_num($v, floor((float)$v) == (float)$v ? 0 : 2);
         case 'ref':
@@ -102,6 +117,8 @@ function sv_input($reg, $k, array $c, $valor)
             return '<input type="date"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
         case 'hora':
             return '<input type="time"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
+        case 'moeda':
+            return '<input type="text" inputmode="decimal" placeholder="0,00"' . $nome . ' value="' . h(is_numeric($valor) ? number_format((float)$valor, 2, ',', '') : $valor) . '"' . $req . '>';
         case 'num':
             return '<input type="text" inputmode="decimal"' . $nome . ' value="' . h(is_numeric($valor) ? sv_num_form($valor) : $valor) . '"' . $req . '>';
         case 'int':
@@ -154,7 +171,7 @@ function sv_colunas($reg)
         $cols[] = ['Empresa', function ($r) { return $r['empresa_exib'] !== '' ? '<b>' . h($r['empresa_exib']) . '</b>' : '<span class="nota">—</span>'; },
             function ($r) { return $r['empresa_exib']; }];
     }
-    foreach ($def['campos'] as $k => $c) {
+    foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if (empty($c['l'])) {
             continue;
         }
@@ -173,6 +190,9 @@ function sv_colunas($reg)
             function ($r) use ($reg, $k, $c) { return sv_texto_valor($reg, $k, $c, $r); }];
     }
     foreach ($def['calc'] as $k => $rotulo) {
+        if (in_array($k, $def['calc_rh'] ?? [], true) && !rh_pode_ver_salarios()) {
+            continue;
+        }
         $cols[] = [$rotulo, function ($r) use ($k) { return sv_farol($r['calc'][$k] ?? ['v' => '']); },
             function ($r) use ($k) { return $r['calc'][$k]['v'] ?? ''; }];
     }
@@ -393,6 +413,11 @@ $grupoSesmt = menu_pagina_grupo('sesmt', '✚', 'SESMT GERAL', $botoesSesmt);
 <style>
 .sv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 16px}
 .sv-grid .full{grid-column:1/-1}
+.rh-previa{margin:16px 0 4px;border:1px solid var(--borda,#d8dee6);border-radius:10px;padding:12px 14px;background:var(--cartao,#f8fafc)}
+.rh-previa-cab{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-bottom:8px}
+.rh-tab{width:100%;max-width:560px}.rh-tab td.n{text-align:right;white-space:nowrap}
+.rh-tab tr.rh-grupo td{font-weight:700;font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--fg3,#667);padding-top:10px}
+.rh-tab tfoot td{border-top:2px solid var(--borda,#cbd2db)}
 .sv-campo{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sv-campo label{font-size:.78rem;font-weight:700;color:var(--fg2)}
 .sv-campo label .obrig{color:var(--vermelho)}
@@ -705,7 +730,7 @@ elseif ($reg !== '' && $modo === 'form'):
     }
     $lote = ($reg === 'presenca' && !$id);
     $valores = [];
-    foreach ($def['campos'] as $k => $c) {
+    foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if ($valoresForm !== null) {
             $valores[$k] = $valoresForm[$k] ?? '';
         } elseif ($linha) {
@@ -757,12 +782,46 @@ elseif ($reg !== '' && $modo === 'form'):
     <?php else: ?>
     <form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="reg" value="<?= h($reg) ?>"><input type="hidden" name="id" value="<?= (int)$id ?>">
       <div class="sv-grid">
-        <?php foreach ($def['campos'] as $k => $c): $full = !empty($c['full']) || explode(':', $c['tipo'])[0] === 'longo'; ?>
+        <?php foreach (sesmt_campos_visiveis($reg) as $k => $c): $full = !empty($c['full']) || explode(':', $c['tipo'])[0] === 'longo'; ?>
           <div class="sv-campo <?= $full ? 'full' : '' ?>"><label for="f_<?= h($k) ?>"><?= h($c['rotulo']) ?><?= !empty($c['r']) ? ' <span class="obrig">*</span>' : '' ?></label>
             <?= sv_input($reg, $k, $c, $valores[$k]) ?>
             <?php if (!empty($c['dica'])): ?><span class="dica"><?= h($c['dica']) ?></span><?php endif; ?></div>
         <?php endforeach; ?>
       </div>
+      <?php if ($reg === 'colaboradores' && rh_pode_ver_salarios($eu)): ?>
+      <div class="rh-previa" id="rhPrevia" data-url="<?= h(sv_url(['rh_previa' => 1])) ?>">
+        <div class="rh-previa-cab"><b>Custo mensal deste colaborador</b><span class="nota">calculado na hora, com os parâmetros de encargos da obra (Financeiro › Contas a pagar › Parâmetros da folha)</span></div>
+        <div id="rhPreviaCorpo" class="nota">Informe o salário para ver os encargos e o custo mensal.</div>
+      </div>
+      <script>
+      (function () {
+        var box = document.getElementById('rhPrevia'), corpo = document.getElementById('rhPreviaCorpo'), t = null;
+        var campos = ['status', 'tipo_salario', 'salario', 'adicional', 'vale_transporte', 'alimentacao', 'outros_beneficios'];
+        var brl = function (v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+        var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        var grupos = { remuneracao: 'Remuneração', encargos: 'Encargos sociais (empregador)', provisoes: 'Provisões (13º, férias, rescisão)', beneficios: 'Benefícios e custos de obra' };
+        function calcular() {
+          var q = new URLSearchParams();
+          campos.forEach(function (c) { var el = document.getElementById('f_' + c); if (el) q.set(c, el.value); });
+          if (!(parseFloat(String(document.getElementById('f_salario').value).replace(/\./g, '').replace(',', '.')) > 0)) { corpo.className = 'nota'; corpo.textContent = 'Informe o salário para ver os encargos e o custo mensal.'; return; }
+          fetch(box.dataset.url + '&' + q.toString(), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.erro) { corpo.textContent = d.erro; return; }
+            if (d.sem_salario) { corpo.textContent = 'Informe o salário (maior que zero).'; return; }
+            var h = '<table class="sv-tabela-pequena rh-tab"><tbody>', atual = '';
+            d.linhas.forEach(function (l) {
+              if (l.grupo !== atual) { atual = l.grupo; h += '<tr class="rh-grupo"><td colspan="2">' + esc(grupos[atual] || atual) + '</td></tr>'; }
+              h += '<tr><td>' + esc(l.rotulo) + '</td><td class="n">' + brl(l.valor) + '</td></tr>';
+            });
+            h += '</tbody><tfoot><tr><td><b>Custo mensal total</b> <span class="nota">(' + esc(d.vinculo_rotulo) + ')</span></td><td class="n"><b>' + brl(d.total) + '</b></td></tr>' +
+              '<tr><td class="nota">Encargos + provisões sobre a remuneração bruta</td><td class="n nota">+' + ((d.fator_enc || 0) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%</td></tr></tfoot></table>';
+            corpo.className = ''; corpo.innerHTML = h;
+          }).catch(function () { corpo.textContent = 'Não foi possível calcular agora.'; });
+        }
+        campos.forEach(function (c) { var el = document.getElementById('f_' + c); if (el) { el.addEventListener('input', function () { clearTimeout(t); t = setTimeout(calcular, 250); }); el.addEventListener('change', calcular); } });
+        calcular();
+      })();
+      </script>
+      <?php endif; ?>
       <div class="sv-acoes"><?php if ($podeEditar): ?><button class="btn primario">Salvar</button><?php endif; ?><a class="btn" href="<?= h(sv_url(['reg' => $reg])) ?>">Cancelar</a></div>
     </form>
     <?php if ($id && $podeEditar): ?>

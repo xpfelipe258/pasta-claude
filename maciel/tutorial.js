@@ -205,6 +205,16 @@ const TUT_TOPICOS = [
       { t: 'Os dois têm botão de relatório em PDF.' },
     ] },
 
+  { id: 'contaspagar', mod: 'fin', aba: 'contaspagar', titulo: 'Contas a pagar',
+    resumo: 'Imposto (% do valor a faturar), folha salarial dos colaboradores e outras contas da obra, mês a mês.',
+    passos: [
+      { t: 'Antes, cadastre o salário de cada colaborador em Gestão › Pessoal › Colaboradores: o sistema calcula encargos, provisões e o custo mensal dele na hora.', aba: 'dp' },
+      { t: 'Em Financeiro › Contas a pagar clique em "+ Nova conta a pagar". Imposto: informe o percentual; ele incide sobre o valor a faturar da Medição (BM) do mês.', alvo: '#cpCorpo', aba: 'contaspagar' },
+      { t: 'Folha salarial: o valor é automático (soma de todos os colaboradores ativos no mês). "Colaboradores" mostra o custo de cada um.' },
+      { t: 'Outros: valor fixo, todo mês ou uma vez só. Em cada linha use "Pagar" para registrar o pagamento; a situação muda para Paga, Em aberto ou Vencida.' },
+      { t: '"Parâmetros da folha" ajusta os percentuais de encargo (INSS patronal, RAT, FGTS, rotatividade…). Confirme com o contador.' },
+    ] },
+
   { id: 'impactos', mod: 'ges', aba: 'impactos', titulo: 'Impactos',
     resumo: 'Registro de tudo que atrasa ou para a obra, com responsável, tempo perdido e solução.',
     passos: [
