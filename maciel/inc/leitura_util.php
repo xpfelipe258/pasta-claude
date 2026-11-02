@@ -66,10 +66,10 @@ function xlsx_coluna($ref)
 }
 
 /**
- * Lê as abas do .xlsx: [['nome' => 'Aba', 'linhas' => [[col0, col1, ...], ...]], ...].
+ * Lê as abas do .xlsx (todas, ou só as de $soAbas, em maiúsculas): [['nome' => 'Aba', 'linhas' => [[col0, col1, ...], ...]], ...].
  * Datas viram 'YYYY-MM-DD'. $maxLinhas e $maxCols limitam abas enormes (ex.: planilha com 16.384 colunas declaradas).
  */
-function xlsx_ler($caminho, $maxLinhas = 6000, $maxCols = 40)
+function xlsx_ler($caminho, $maxLinhas = 6000, $maxCols = 40, array $soAbas = null)
 {
     if (!class_exists('ZipArchive')) {
         throw new RuntimeException('O servidor não tem a extensão ZIP do PHP (necessária para ler .xlsx).');
@@ -126,6 +126,9 @@ function xlsx_ler($caminho, $maxLinhas = 6000, $maxCols = 40)
     }
     $saida = [];
     foreach ($wb->xpath('//*[local-name()="sheets"]/*[local-name()="sheet"]') as $sh) {
+        if ($soAbas !== null && !in_array(mb_strtoupper(trim((string)$sh['name']), 'UTF-8'), $soAbas, true)) {
+            continue;   // só as abas pedidas (planilhas grandes como a do SINAPI)
+        }
         $rid = (string)$sh->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
         $alvo = $rels[$rid] ?? '';
         $alvo = ltrim($alvo[0] === '/' ? substr($alvo, 1) : 'xl/' . $alvo, '/');

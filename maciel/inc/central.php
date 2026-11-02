@@ -4,6 +4,7 @@
 // e quem administra obras (admin_obra) veem só o que é da empresa / das obras deles.
 
 require_once __DIR__ . '/dash_obras.php';
+require_once __DIR__ . '/sinapi.php';
 
 /** Quem entra na Central: administrador do sistema, administrador de empresa cliente e quem administra ao menos uma obra. */
 function central_pode(array $u)

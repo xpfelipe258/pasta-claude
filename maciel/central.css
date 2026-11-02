@@ -56,3 +56,13 @@
 .cfg-chip img { max-height:44px; max-width:150px; display:block; } .cfg-chip i { font-size:.78rem; color:#98a2b3; } .cfg-rot { font-weight:900; color:#c8102e; letter-spacing:.04em; }
 .cfg-menus .cfg-menu { width:auto; height:auto; min-height:78px; overflow:visible; justify-self:stretch; align-self:stretch; box-sizing:border-box; }
 .cfg-temas .cfg-tema { width:auto; height:auto; overflow:visible; }
+/* Pesquisa SINAPI no orçamento */
+.ce-dlg { border:0; border-radius:16px; padding:0; width:min(1060px,96vw); max-height:92vh; box-shadow:0 24px 60px rgba(16,24,40,.35); }
+.ce-dlg::backdrop { background:rgba(16,24,40,.55); }
+.ce-dlg-cab { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid #eaecf0; position:sticky; top:0; background:#fff; z-index:2; }
+.ce-dlg-corpo { padding:16px 20px 22px; }
+.ce-sin-filtros { display:grid; grid-template-columns:2fr 90px 1.2fr 1.4fr; gap:10px; margin-bottom:10px; } .ce-sin-filtros label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; font-weight:700; color:#344054; }
+.ce-sin-filtros input, .ce-sin-filtros select { border:1px solid #d0d5dd; border-radius:9px; padding:9px 10px; font:inherit; font-weight:400; background:#fff; }
+.ce-sin-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; } .ce-sin-chips button { border:1px solid #d0d5dd; background:#fff; border-radius:999px; padding:6px 13px; font:inherit; font-size:.82rem; font-weight:700; color:#475467; cursor:pointer; }
+.ce-sin-chips button.on { background:var(--marca,#d97706); border-color:var(--marca,#d97706); color:#fff; }
+@media (max-width:720px) { .ce-sin-filtros { grid-template-columns:1fr 1fr; } }
