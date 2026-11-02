@@ -3,9 +3,25 @@
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
 require __DIR__ . '/inc/atualizar.php';
+require __DIR__ . '/inc/empresas_obra.php';
 
-$eu = exigir_admin();
 $obraSelecionada = exigir_obra_pagina();
+$eu = exigir_admin_da_obra((int)$obraSelecionada['id']);   // administrador do sistema ou administrador DESTA obra (quem a criou)
+$global = $eu['perfil'] === 'admin';   // só o administrador do sistema mexe no que é global: GitHub, token da API, administradores e usuários de outras obras
+
+// Usuário que o administrador de uma obra pode gerenciar: está nesta obra, não é administrador do sistema e não tem acesso a outras obras
+// (as áreas e abas liberadas valem para o usuário em todas as obras dele). O administrador do sistema gerencia todos.
+function usuario_gerenciavel($id)
+{
+    global $global, $eu;
+    if ($global) { return true; }
+    $id = (int)$id;
+    if ($id <= 0 || $id === (int)$eu['id']) { return false; }
+    $u = q_global('SELECT perfil FROM usuarios WHERE id = ?', [$id])->fetch();
+    if (!$u || $u['perfil'] === 'admin') { return false; }
+    $obras = q_global('SELECT obra_id FROM usuarios_obras WHERE usuario_id = ?', [$id])->fetchAll(PDO::FETCH_COLUMN);
+    return count($obras) === 1 && (int)$obras[0] === obra_atual_id();
+}
 $msg = '';
 $erro = '';
 $cfg = config();
@@ -41,6 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $acao = $_POST['acao'] ?? '';
     try {
+        if (!$global && in_array($acao, ['sincronizar_github', 'atualizar', 'gerar_machine_token', 'revogar_machine_token'], true)) {
+            throw new InvalidArgumentException('Esta ação é só do administrador do sistema.');
+        }
+        if (!$global && in_array($acao, ['editar_usuario', 'enviar_reset_usuario', 'senha_usuario', 'alternar_usuario'], true) && !usuario_gerenciavel($_POST['id'] ?? 0)) {
+            throw new InvalidArgumentException('Você só gerencia os usuários exclusivos desta obra.');
+        }
         if ($acao === 'criar_usuario') {
             $login = trim($_POST['login'] ?? '');
             $email = trim($_POST['email'] ?? '');
@@ -53,11 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (q('SELECT id FROM usuarios WHERE login = ?', [$login])->fetch()) {
                 throw new InvalidArgumentException('Já existe um usuário com esse login.');
             }
-            $perfil = in_array($_POST['perfil'] ?? '', ['admin', 'editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
+            $perfil = in_array($_POST['perfil'] ?? '', $global ? ['admin', 'editor', 'leitura'] : ['editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
+            $orgAtor = $global ? 0 : usuario_organizacao_id($eu)[0];   // administrador de uma empresa cliente: o usuário novo é da empresa e conta no limite do plano
+            if ($orgAtor) { list($okPlano, $msgPlano) = plano_verificar_usuario($orgAtor); if (!$okPlano) { throw new InvalidArgumentException($msgPlano); } }
             q('INSERT INTO usuarios (nome, login, senha, perfil, empresa, email, ativo) VALUES (?, ?, ?, ?, ?, ?, 1)',
                 [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, texto_ou_nulo($_POST['empresa'] ?? null), texto_ou_nulo($email)]);
             $novoUid = (int)bd()->lastInsertId();
-            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [$novoUid, obra_atual_id()]);
+            if ($orgAtor) { q_global('UPDATE usuarios SET organizacao_id = ? WHERE id = ?', [$orgAtor, $novoUid]); }
+            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 0)', [$novoUid, obra_atual_id()]);
             if ($perfil !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
             salvar_acessos_usuario($novoUid, $perfil);
             registrar_alteracao('usuario_criado', ['login' => $login, 'perfil' => $perfil]);
@@ -67,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nome = trim($_POST['nome'] ?? '');
             $login = trim($_POST['login'] ?? '');
             $email = trim($_POST['email'] ?? '');
-            $perfil = in_array($_POST['perfil'] ?? '', ['admin', 'editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
+            $perfil = in_array($_POST['perfil'] ?? '', $global ? ['admin', 'editor', 'leitura'] : ['editor', 'leitura'], true) ? $_POST['perfil'] : 'editor';
             if ($id <= 0 || $nome === '' || $login === '') {
                 throw new InvalidArgumentException('Informe nome e login do usuário.');
             }
@@ -116,6 +141,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             obra_empresa_criar_usuario((int)($_POST['obra_id'] ?? 0), (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
                 (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
             $msg = 'Usuário criado nesta obra de empresa.';
+        } elseif ($acao === 'empresa_atualizar_obra') {
+            $oid = (int)($_POST['obra_id'] ?? 0);
+            $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
+            if (!$o || (int)$o['origem_obra_id'] !== obra_atual_id()) { throw new InvalidArgumentException('Esta obra de empresa não pertence à obra aberta.'); }
+            $c = obra_empresa_atualizar($oid) ?: [];
+            $msg = 'Obra “' . $o['nome'] . '” atualizada com o que é novo na obra principal (' . array_sum($c) . ' lançamento(s)) e com os planos 5W2H. Nada que a empresa lançou foi apagado.';
         } elseif ($acao === 'empresa_recarregar_obra') {
             $oid = (int)($_POST['obra_id'] ?? 0);
             $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
@@ -211,10 +242,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$usuarios = q('SELECT id, nome, login, perfil, empresa, email, ativo FROM usuarios ORDER BY nome')->fetchAll();
+$usuarios = array_values(array_filter(q('SELECT id, nome, login, perfil, empresa, email, ativo FROM usuarios ORDER BY nome')->fetchAll(), function ($u) { return usuario_gerenciavel($u['id']); }));
 $modsPorUsuario=[]; foreach (q_global('SELECT usuario_id,modulo FROM usuarios_modulos WHERE permitido=1')->fetchAll() as $x) $modsPorUsuario[(int)$x['usuario_id']][]=$x['modulo'];
 $empresas = q('SELECT nome FROM empresas ORDER BY ordem')->fetchAll(PDO::FETCH_COLUMN);
 $ehObraEmpresa = obra_empresa_info() !== null;
+$empresasObra = $ehObraEmpresa ? [] : eo_listar();
 $obrasEmpresa = $ehObraEmpresa ? [] : obra_empresa_listar(obra_atual_id());
 $usuariosDaObra = [];
 foreach ($obrasEmpresa as $oe) {
@@ -233,7 +265,7 @@ pagina_inicio('Administração');
 ?>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">198</span><div><h1>Administração</h1>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Comercial</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>
@@ -308,6 +340,13 @@ pagina_inicio('Administração');
   </section>
 
   <?php if (!$ehObraEmpresa): ?>
+  <section class="bloco" id="empresasObra">
+    <div class="bloco-cab"><div><h2>Empresas e catálogo de serviços</h2><span class="nota">Cadastre empresas novas, serviços da grade, catálogo de atividades e <b>aditivos de contrato</b> desta obra (<?= count($empresasObra) ?> empresa(s) hoje).</span></div>
+      <a class="btn primario" href="obra_empresas.php?obra=<?= (int)obra_atual_id() ?>">Abrir empresas, catálogo e aditivos</a></div>
+  </section>
+  <?php endif; ?>
+
+  <?php if (!$ehObraEmpresa): ?>
   <section class="bloco" id="obrasEmpresas">
     <div class="bloco-cab"><div><h2>Obra própria de cada empresa</h2><span class="nota">Cada empresa recebe uma obra só dela (cópia do que é dela nesta obra), com usuário próprio. O que a empresa lança ou altera lá <b>não altera esta obra</b>.</span></div></div>
     <div class="tabela-rolagem"><table>
@@ -328,6 +367,7 @@ pagina_inicio('Administração');
               <button class="btn">Criar usuário</button>
             </form>
           </details>
+          <form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_atualizar_obra"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>"><button class="btn" title="Traz o que é novo da obra principal (lançamentos e planos) sem apagar o que a empresa lançou">Atualizar (sem apagar)</button></form>
           <details class="acesso-editar"><summary>Recarregar da obra principal</summary>
             <form method="post" class="access-checks access-checks-col">
               <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_recarregar_obra"><input type="hidden" name="obra_id" value="<?= (int)$oe['id'] ?>">
@@ -363,7 +403,7 @@ pagina_inicio('Administração');
       <div class="modal-admin-topo"><div><h2 id="tituloNovoUsuario">Criar novo usuário</h2><p id="textoModalUsuario">Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.</p></div><button type="button" class="modal-admin-x" data-fechar-modal aria-label="Fechar">×</button></div>
       <form method="post" class="form-novo-usuario">
         <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_usuario"><input type="hidden" name="id" value="">
-        <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Perfil<select name="perfil" id="novoPerfil"><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="admin">Admin</option></select></label><label>Empresa<select name="empresa"><option value="">Todas</option><?php foreach ($empresas as $e): ?><option><?= h($e) ?></option><?php endforeach; ?></select></label></div>
+        <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Perfil<select name="perfil" id="novoPerfil"><option value="editor">Editor</option><option value="leitura">Leitura</option><?php if ($global): ?><option value="admin">Admin</option><?php endif; ?></select></label><label>Empresa<select name="empresa"><option value="">Todas</option><?php foreach ($empresas as $e): ?><option><?= h($e) ?></option><?php endforeach; ?></select></label></div>
         <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" checked><span><?= h(ucfirst($m)) ?></span></label><?php endforeach; ?></div><details class="acesso-abas"><summary>Abas e sub-abas visíveis</summary><input type="hidden" name="ui_enviado" value="1"><p class="nota">Desmarque o que este usuário não deve ver. A área inteira continua valendo pela marcação acima.</p><div class="acesso-abas-lista"><?php foreach (ui_catalogo() as $areaCat): ?><div class="acesso-area"><b><?= h($areaCat[1]) ?></b><?php foreach ($areaCat[2] as $abaCat): ?><label class="check"><input type="checkbox" name="abas[]" value="<?= h($abaCat[0]) ?>" checked><?= h($abaCat[1]) ?></label><?php foreach ($abaCat[2] as $subCat): ?><label class="check acesso-sub"><input type="checkbox" name="subs[]" value="<?= h($abaCat[0] . ':' . $subCat[0]) ?>" checked><?= h($subCat[1]) ?></label><?php endforeach; ?><?php endforeach; ?></div><?php endforeach; ?></div></details><small>Administradores sempre têm acesso total.</small></fieldset>
         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-modal>Cancelar</button><button class="btn primario" id="btnSalvarUsuarioModal">Criar usuário</button></div>
       </form>
@@ -402,6 +442,7 @@ pagina_inicio('Administração');
         <label>Fim do calendário<input type="date" name="data_fim" value="<?= h($obra['data_fim']) ?>"></label>
         <button class="btn primario">Salvar</button>
       </form>
+      <?php if ($global): ?>
       <div class="bloco-cab" style="margin-top:18px"><h2>Atualização do sistema</h2></div>
       <p class="nota">Repositório: <b><?= h($cfg['github_repositorio'] ?? '—') ?></b> · ramo: <b><?= h($cfg['github_ramo'] ?? '') ?></b>
         <?= empty($cfg['github_token']) ? ' · <b class="alerta-txt">sem token configurado</b> (edite inc/config.php → github_token)' : ' · token configurado ✓' ?></p>
@@ -415,10 +456,11 @@ pagina_inicio('Administração');
       <?php else: ?>
       <p class="nota">Para ativar a sincronização, gere um token em <b>github.com → Settings → Developer settings → Personal access tokens → Fine-grained</b> com permissão <b>Contents: Read &amp; write</b> no repositório, e cole em <code>inc/config.php</code> no campo <code>github_token</code>.</p>
       <?php endif; ?>
+      <?php endif; ?>
     </section>
   </div>
 
-  <section class="bloco">
+  <?php if ($global): ?><section class="bloco">
     <div class="bloco-cab"><h2>Token de Máquina (API)</h2><span class="nota">Permite que ferramentas externas (ex.: Claude) acessem a API sem sessão de navegador.</span></div>
     <p class="nota">Status: <?= $token_ativo ? '<b style="color:var(--verde,green)">Ativo</b>' : '<b>Nenhum token configurado</b>' ?></p>
     <?php if ($novo_token): ?>
@@ -441,7 +483,7 @@ pagina_inicio('Administração');
       </form>
       <?php endif; ?>
     </div>
-  </section>
+  </section><?php endif; ?>
 
   <section class="bloco">
     <div class="bloco-cab"><h2>Histórico de alterações</h2><span class="nota">Últimos 5 registros: quem alterou, quando e o quê.</span></div>

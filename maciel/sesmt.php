@@ -2,7 +2,7 @@
 // SESMT GERAL: painel e cadastros de segurança do trabalho, convertidos da planilha "Gestão SST - Rótula".
 // Página própria. Não altera nenhuma tela ou tabela existente.
 require __DIR__ . '/inc/nucleo.php';
-require __DIR__ . '/inc/sesmt_modelo.php';
+require_once __DIR__ . '/inc/sesmt_modelo.php';
 require __DIR__ . '/inc/menu_paginas.php';
 
 $eu = exigir_login_pagina();
@@ -10,6 +10,10 @@ if (isset($_GET['acesso'])) {
     responder_json(200, ['ok' => sesmt_pode_ver($eu)]);
 }
 $obra = exigir_obra_pagina();
+// Modo embutido: o sistema (index.php) mostra estas telas DENTRO das suas abas (Pessoal e Ocorrências), no mesmo layout, em um quadro.
+// embed=1 = com as sub-abas dos cadastros; embed=p = sem elas (a aba Pessoal do sistema já mostra as sub-abas). O modo acompanha todos os links, formulários e redirecionamentos.
+$GLOBALS['SV_EMBED'] = in_array($_GET['embed'] ?? '', ['1', 'p'], true) ? (string)$_GET['embed'] : '';
+$embed = $GLOBALS['SV_EMBED'];
 
 if (!sesmt_pode_ver($eu)) {
     http_response_code(403);
@@ -22,6 +26,19 @@ if (!sesmt_pode_ver($eu)) {
 }
 
 sesmt_garantir_esquema();
+if (isset($_GET['rh_previa'])) {   // prévia do custo mensal do colaborador enquanto o formulário é preenchido (mesma conta da folha)
+    if (!rh_pode_ver_salarios($eu)) {
+        responder_json(403, ['erro' => 'Sem acesso aos salários.']);
+    }
+    $ent = [];
+    foreach (['status', 'tipo_salario', 'salario', 'adicional', 'vale_transporte', 'alimentacao', 'outros_beneficios'] as $kp) {
+        $ent[$kp] = (string)($_GET[$kp] ?? '');
+    }
+    $ent['status'] = $ent['status'] === 'Demitido' ? 'Contratado' : $ent['status'];   // a prévia mostra o custo de um mês cheio
+    $r = rh_custo_colaborador($ent, rh_params(), null);
+    $r['vinculo_rotulo'] = rh_rotulo_vinculo($r['vinculo']);
+    responder_json(200, $r);
+}
 $podeEditar = sesmt_pode_editar($eu);
 $ehAdmin = ($eu['perfil'] ?? '') === 'admin';
 $csrf = token_csrf();
@@ -33,6 +50,9 @@ $REG = array_filter(sesmt_registros(), function ($d) use ($GRUPOS_ATIVOS) { retu
 
 function sv_url(array $p = [])
 {
+    if (!empty($GLOBALS['SV_EMBED'])) {
+        $p['embed'] = $GLOBALS['SV_EMBED'];
+    }
     return 'sesmt.php' . ($p ? '?' . http_build_query($p) : '');
 }
 
@@ -67,6 +87,8 @@ function sv_texto_valor($reg, $k, array $c, array $r)
             return sesmt_fmt_data($v);
         case 'cpf':
             return sesmt_cpf_exibir($v, true);
+        case 'moeda':
+            return 'R$ ' . number_format((float)$v, 2, ',', '.') . ($k === 'salario' && ($r['tipo_salario'] ?? '') === 'Hora' ? ' /hora' : '');
         case 'num':
             return sesmt_fmt_num($v, floor((float)$v) == (float)$v ? 0 : 2);
         case 'ref':
@@ -95,6 +117,8 @@ function sv_input($reg, $k, array $c, $valor)
             return '<input type="date"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
         case 'hora':
             return '<input type="time"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
+        case 'moeda':
+            return '<input type="text" inputmode="decimal" placeholder="0,00"' . $nome . ' value="' . h(is_numeric($valor) ? number_format((float)$valor, 2, ',', '') : $valor) . '"' . $req . '>';
         case 'num':
             return '<input type="text" inputmode="decimal"' . $nome . ' value="' . h(is_numeric($valor) ? sv_num_form($valor) : $valor) . '"' . $req . '>';
         case 'int':
@@ -112,6 +136,9 @@ function sv_input($reg, $k, array $c, $valor)
             $mostrar = preg_match('/^\d{11}$/', (string)$valor) ? sesmt_cpf_exibir($valor, false) : $valor;
             return '<input type="text" inputmode="numeric" maxlength="14" autocomplete="off"' . $nome . ' value="' . h($mostrar) . '" placeholder="000.000.000-00">';
         case 'empresa':
+            if (sesmt_escopo_empresa() !== '') {
+                return '<input type="text" readonly' . $nome . ' value="' . h(sesmt_escopo_empresa()) . '" title="Sua empresa: o cadastro é sempre dela">';
+            }
             $out = '<input type="text" list="dl_empresas" maxlength="100" autocomplete="off" placeholder="Escolha da lista ou digite"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
             return $out;
         case 'lista':
@@ -144,7 +171,7 @@ function sv_colunas($reg)
         $cols[] = ['Empresa', function ($r) { return $r['empresa_exib'] !== '' ? '<b>' . h($r['empresa_exib']) . '</b>' : '<span class="nota">—</span>'; },
             function ($r) { return $r['empresa_exib']; }];
     }
-    foreach ($def['campos'] as $k => $c) {
+    foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if (empty($c['l'])) {
             continue;
         }
@@ -163,6 +190,9 @@ function sv_colunas($reg)
             function ($r) use ($reg, $k, $c) { return sv_texto_valor($reg, $k, $c, $r); }];
     }
     foreach ($def['calc'] as $k => $rotulo) {
+        if (in_array($k, $def['calc_rh'] ?? [], true) && !rh_pode_ver_salarios()) {
+            continue;
+        }
         $cols[] = [$rotulo, function ($r) use ($k) { return sv_farol($r['calc'][$k] ?? ['v' => '']); },
             function ($r) use ($k) { return $r['calc'][$k]['v'] ?? ''; }];
     }
@@ -281,7 +311,8 @@ if ($reg !== '' && !isset($REG[$reg])) {
 // aba escolhida no menu (?g=pessoas): abre o primeiro cadastro dela; "configurar" abre as fontes de dados
 $slugAba = function ($nome) { return trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(strtr((string)$nome, ['á' => 'a', 'ã' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ç' => 'c', 'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u', 'Ç' => 'c']))), '-'); };
 $g = (string)($_GET['g'] ?? '');
-if ($g !== '' && $reg === '' && $formReg === null) {
+if ($g === 'ocorrencias' && $reg === '' && $formReg === null && $v === '') { $v = 'dashboard'; }   // a aba Ocorrências abre no dashboard
+if ($g !== '' && $reg === '' && $formReg === null && $v === '') {
     foreach ($REG as $k => $d) {
         if ($slugAba($d['grupo']) === $g) {
             $reg = $k;
@@ -290,16 +321,22 @@ if ($g !== '' && $reg === '' && $formReg === null) {
     }
 }
 // sem cadastro escolhido: abre Ocorrências (as telas de Painel/Configurar saíram do menu; listas, configurações e acessos só por endereço)
-if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
-    foreach ($REG as $k => $d) {
-        if ($d['grupo'] === 'Ocorrências') {
-            $reg = $k;
-            break;
-        }
-    }
-}
-if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos'], true)) {
+if ($reg === '' && $v === '') { $v = 'dashboard'; }
+// a empresa não abre as telas administrativas (listas, configurações, acessos) nem o painel geral: só dashboard e cadastros dela
+if (sesmt_escopo_empresa() !== '' && $reg === '' && in_array($v, ['painel', 'listas', 'config', 'acessos'], true)) { $v = 'dashboard'; }
+if ($reg === '' && !in_array($v, ['listas', 'config', 'acessos', 'dashboard'], true)) {
     $v = 'painel';
+}
+// Aberta direto pelo endereço (favorito, link antigo): leva para a mesma tela DENTRO do sistema, sem trocar de "versão".
+// Ficam fora: as telas administrativas (?v=listas|config|acessos) e a exportação CSV.
+if ($embed === '' && $_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['export']) && !in_array($v, ['listas', 'config', 'acessos'], true)) {
+    $q = array_filter(array_intersect_key($_GET, array_flip(['id', 'modo', 'empresa', 'q', 'sit', 'p'])), function ($x) { return is_string($x) && $x !== ''; });
+    if ($reg !== '' && isset($REG[$reg]) && $REG[$reg]['grupo'] === 'Pessoas') {
+        header('Location: index.php?' . http_build_query(['aba' => 'dp', 'reg' => $reg] + $q));
+    } else {
+        header('Location: index.php?' . http_build_query(['aba' => 'sesmtocorr'] + ($reg !== '' ? ['reg' => $reg] : []) + $q));
+    }
+    exit;
 }
 $modo = $_GET['modo'] ?? 'lista';
 if ($formReg !== null) {
@@ -331,13 +368,17 @@ if ($reg !== '' && $modo === 'lista' && ($_GET['export'] ?? '') === 'csv') {
 
 // ----------------------------------------------------------------- layout
 
-$titulo = $reg !== '' ? $REG[$reg]['titulo'] : ['painel' => 'Painel SESMT', 'listas' => 'Fontes de dados', 'config' => 'Configurações', 'acessos' => 'Acessos'][$v];
+$titulo = $reg !== '' ? $REG[$reg]['titulo'] : ['dashboard' => 'Dashboard de ocorrências', 'painel' => 'Painel SESMT', 'listas' => 'Fontes de dados', 'config' => 'Configurações', 'acessos' => 'Acessos'][$v];
 pagina_inicio($titulo . ' · SESMT GERAL', true);
 // mesma aparência do sistema: cores da obra e faixa "← Todas as obras" no topo
 $corP = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $corS = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
-echo '<style>body{--marca:' . h($corP) . ';--marca2:' . h($corS) . '}</style><div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>'
-    . ($ehAdmin ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+echo '<style>body{--marca:' . h($corP) . ';--marca2:' . h($corS) . '}</style>';
+if ($embed !== '') {   // dentro do sistema: sem topo, faixa nem menu (o sistema já tem os dele)
+    echo '<style>.obra-contexto,header.topo,.sidebar,.sidebar-toggle{display:none!important}html,body{background:transparent!important;min-height:0!important}body{padding:0!important}main.admin{margin:0!important;max-width:none!important;padding:0 2px 24px!important;min-height:0!important}</style>';
+} else {
+    echo '<div class="obra-contexto"><a href="obras.php">← Todas as obras</a><span>' . h($obra['nome']) . '</span>' . ($ehAdmin ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+}
 
 // Abas (menu) = grupos do SESMT; sub-abas (tela principal) = cadastros do grupo aberto.
 $grupos = [];
@@ -345,10 +386,14 @@ foreach ($REG as $k => $d) {
     $grupos[$d['grupo']][$k] = $d['titulo'];
 }
 $ehConfig = $reg === '' && in_array($v, ['listas', 'config', 'acessos'], true);
-$abaAtual = $ehConfig ? 'configurar' : ($reg !== '' ? $slugAba($REG[$reg]['grupo']) : 'painel');
+$abaAtual = $ehConfig ? 'configurar' : ($reg !== '' ? $slugAba($REG[$reg]['grupo']) : ($v === 'dashboard' ? 'ocorrencias' : 'painel'));
 $subAbas = [];   // [rótulo, url, ativa]
-if ($reg !== '') {
-    foreach ($grupos[$REG[$reg]['grupo']] as $k => $rot) {
+if ($reg !== '' || $v === 'dashboard') {
+    $grupoAtual = $v === 'dashboard' ? 'Ocorrências' : $REG[$reg]['grupo'];
+    if ($grupoAtual === 'Ocorrências') {
+        $subAbas[] = ['Dashboard', sv_url(['v' => 'dashboard']), $v === 'dashboard'];
+    }
+    foreach ($grupos[$grupoAtual] as $k => $rot) {
         $subAbas[] = [$rot, sv_url(['reg' => $k]), $reg === $k];
     }
 } elseif ($ehConfig) {
@@ -362,12 +407,17 @@ function sv_botao($rotulo, $url, $ativo)
 {
     return '<button type="button" class="' . ($ativo ? 'ativa' : '') . '" onclick="location.href=\'' . h($url) . '\'">' . h($rotulo) . '</button>';
 }
-$botoesSesmt = sv_botao('Ocorrências', sv_url(['g' => 'ocorrencias']), $abaAtual === 'ocorrencias');
+$botoesSesmt = '<button type="button" class="' . ($abaAtual === 'ocorrencias' ? 'ativa' : '') . '" onclick="location.href=\'index.php?aba=sesmtocorr\'">Ocorrências</button>';
 $grupoSesmt = menu_pagina_grupo('sesmt', '✚', 'SESMT GERAL', $botoesSesmt);
 ?>
 <style>
 .sv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 16px}
 .sv-grid .full{grid-column:1/-1}
+.rh-previa{margin:16px 0 4px;border:1px solid var(--borda,#d8dee6);border-radius:10px;padding:12px 14px;background:var(--cartao,#f8fafc)}
+.rh-previa-cab{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-bottom:8px}
+.rh-tab{width:100%;max-width:560px}.rh-tab td.n{text-align:right;white-space:nowrap}
+.rh-tab tr.rh-grupo td{font-weight:700;font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--fg3,#667);padding-top:10px}
+.rh-tab tfoot td{border-top:2px solid var(--borda,#cbd2db)}
 .sv-campo{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sv-campo label{font-size:.78rem;font-weight:700;color:var(--fg2)}
 .sv-campo label .obrig{color:var(--vermelho)}
@@ -401,10 +451,10 @@ a.btn.primario{color:#fff}
 </header>
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
 <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
-<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt, $abaAtual === 'pessoas') ?>
+<?= menu_paginas_html($eu, ui_ocultos_usuario($eu), '', $grupoSesmt) ?>
 </nav></aside>
 <main class="admin">
-<?php if ($subAbas): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : $REG[$reg]['grupo']) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
+<?php if ($subAbas && $embed !== 'p'): ?><div class="sv-subabas"><div class="seg" role="tablist" aria-label="Cadastros de <?= h($ehConfig ? 'Configurar' : ($reg !== '' ? $REG[$reg]['grupo'] : 'Ocorrências')) ?>"><?php foreach ($subAbas as $sa) { echo sv_botao($sa[0], $sa[1], $sa[2]); } ?></div></div><?php endif; ?>
 <?php if ($flash): ?><div class="faixa <?= $flash[0] === 'ok' ? 'ok-faixa' : '' ?>"><?= h($flash[1]) ?></div><?php endif; ?>
 <?php if ($erros && $modo !== 'form'): ?><div class="faixa"><?= h(implode(' ', $erros)) ?></div><?php endif; ?>
 
@@ -481,6 +531,128 @@ if ($reg === '' && $v === 'painel'):
 
 <?php
 // ================================================================= FONTES DE DADOS
+elseif ($reg === '' && $v === 'dashboard'):
+    $OC = sesmt_ocorrencias_dados();
+    $escDash = sesmt_escopo_empresa();
+    $urlsOc = [];
+    foreach ($OC as $i => $o) { $OC[$i]['url'] = sv_url(['reg' => $o['reg'], 'modo' => 'form', 'id' => $o['id']]); }
+?>
+  <section class="bloco" id="dashOc">
+    <div class="bloco-cab"><div><h2>Dashboard de ocorrências<?= $escDash !== '' ? ' — ' . h($escDash) : '' ?></h2>
+      <span class="nota"><?= $escDash !== '' ? 'Só as ocorrências da sua empresa.' : 'Visão geral de todas as empresas.' ?> Clique nas barras, nos tipos ou nos números da matriz para filtrar. Tratada = acidente concluído ou desvio/incidente com data de conclusão.</span></div>
+      <?php if ($podeEditar): ?><div class="sv-acoes" style="margin:0"><a class="btn primario" href="<?= h(sv_url(['reg' => 'acidentes', 'modo' => 'form'])) ?>">+ Acidente</a><a class="btn primario" href="<?= h(sv_url(['reg' => 'desvios', 'modo' => 'form'])) ?>">+ Desvio / incidente</a></div><?php endif; ?></div>
+    <div class="barra-filtros" id="dcFiltros">
+      <label>Empresa<select id="dcEmp"><option value="">Todas as empresas</option></select></label>
+      <label>Ocorrência<select id="dcFam"><option value="">Todas</option><option>Acidente</option><option>Incidente</option><option>Desvio</option></select></label>
+      <label>Situação<select id="dcSit"><option value="">Todas</option><option>Tratada</option><option>Pendente</option><option>Atrasada</option></select></label>
+      <label>Tipo<select id="dcTipo"><option value="">Todos</option></select></label>
+      <label>De<input type="date" id="dcDe"></label><label>Até<input type="date" id="dcAte"></label>
+      <button type="button" class="btn" id="dcLimpar">Limpar filtros</button>
+    </div>
+    <div class="tiles" id="dcTiles"></div>
+    <div id="dcInsights" class="sv-ajuda" style="margin:10px 0"></div>
+    <div class="dc-graficos">
+      <div class="dc-cx"><h3>Ocorrências por empresa <small>tratadas × pendentes</small></h3><div class="dc-c"><canvas id="dcEmpresas"></canvas></div></div>
+      <div class="dc-cx"><h3>Por tipo de ocorrência <small>acidente, incidente ou desvio · tipo</small></h3><div class="dc-c"><canvas id="dcTipos"></canvas></div></div>
+      <div class="dc-cx"><h3>Evolução por mês</h3><div class="dc-c"><canvas id="dcMeses"></canvas></div></div>
+    </div>
+    <h3 style="margin:16px 0 6px">Matriz empresa × tipo <small class="nota">(quantidade de ocorrências; clique para filtrar)</small></h3>
+    <div class="tabela-rolagem"><table class="sv-tabela-pequena" id="dcMatriz"></table></div>
+    <h3 style="margin:16px 0 6px">Ocorrências <small class="nota" id="dcQtd"></small></h3>
+    <div class="tabela-rolagem"><table class="sv-tabela-pequena" id="dcLista"></table></div>
+  </section>
+  <style>
+  .dc-graficos{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:8px}
+  .dc-cx{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;background:var(--card)}
+  .dc-cx h3{margin:0 0 6px;font-size:.95rem}.dc-cx h3 small{font-weight:400;color:var(--fg2);font-size:.75rem}
+  .dc-c{position:relative;height:260px}
+  #dcMatriz td.dc-cel{cursor:pointer;text-align:center}#dcMatriz td.dc-cel:hover{background:var(--linha)}
+  #dcLista tr.dc-linha{cursor:pointer}
+  .dc-sit{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.78rem;font-weight:700;color:#fff}
+  .dc-Tratada{background:#16a34a}.dc-Pendente{background:#d97706}.dc-Atrasada{background:#dc2626}
+  </style>
+  <script src="chart.umd.js"></script>
+  <script>
+  (function () {
+    var DADOS = <?= json_encode($OC, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+    var ESC = <?= json_encode($escDash, JSON_UNESCAPED_UNICODE) ?>;
+    var COR = { Tratada: '#16a34a', Pendente: '#d97706', Atrasada: '#dc2626' }, SITS = ['Tratada', 'Pendente', 'Atrasada'];
+    var f = { emp: '', fam: '', sit: '', tipo: '', de: '', ate: '' }, gr = {};
+    var $ = function (id) { return document.getElementById(id); };
+    var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var dbr = function (iso) { return iso ? iso.split('-').reverse().join('/') : '—'; };
+    var uniq = function (k) { return Array.from(new Set(DADOS.map(function (d) { return d[k]; }))).sort(); };
+    var rotTipo = function (d) { return d.familia + ' · ' + d.tipo; };
+    function preencher() {
+      if ($('dcEmp')) uniq('empresa').forEach(function (e) { $('dcEmp').insertAdjacentHTML('beforeend', '<option>' + esc(e) + '</option>'); });
+      Array.from(new Set(DADOS.map(rotTipo))).sort().forEach(function (t) { $('dcTipo').insertAdjacentHTML('beforeend', '<option>' + esc(t) + '</option>'); });
+    }
+    function passa(d, ignorar) {
+      return (ignorar === 'emp' || !f.emp || d.empresa === f.emp) && (!f.fam || d.familia === f.fam) && (!f.sit || d.situacao === f.sit) &&
+        (!f.tipo || rotTipo(d) === f.tipo) && (!f.de || d.data >= f.de) && (!f.ate || d.data <= f.ate);
+    }
+    function contar(lista, chave) {
+      var m = {}; lista.forEach(function (d) { var k = chave(d); (m[k] = m[k] || { Tratada: 0, Pendente: 0, Atrasada: 0, total: 0 }); m[k][d.situacao]++; m[k].total++; }); return m;
+    }
+    function barras(id, m, ordemChave, ao) {
+      var chaves = Object.keys(m).sort(ordemChave || function (a, b) { return m[b].total - m[a].total || a.localeCompare(b); });
+      var cfg = { type: 'bar', data: { labels: chaves, datasets: SITS.map(function (s) { return { label: s, data: chaves.map(function (k) { return m[k][s]; }), backgroundColor: COR[s], stack: 'a' }; }) },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: id === 'dcTipos' ? 'y' : 'x', onClick: function (e, els) { if (els.length && ao) ao(chaves[els[0].index]); },
+          scales: { x: { stacked: true, ticks: { precision: 0 } }, y: { stacked: true, ticks: { precision: 0 } } }, plugins: { legend: { position: 'bottom' } } } };
+      if (gr[id]) gr[id].destroy();
+      gr[id] = new Chart($(id), cfg);
+    }
+    function desenhar() {
+      var L = DADOS.filter(function (d) { return passa(d); });
+      var t = L.length, tr = L.filter(function (d) { return d.situacao === 'Tratada'; }).length, at = L.filter(function (d) { return d.situacao === 'Atrasada'; }).length, pe = t - tr - at;
+      var tile = function (r, v, s, c) { return '<div class="tile" style="--c:' + c + '"><div class="rot"><span>' + r + '</span></div><div class="val">' + v + '</div><div class="sub">' + s + '</div></div>'; };
+      $('dcTiles').innerHTML = tile('Ocorrências', t, 'no filtro atual', 'var(--fg)') + tile('Tratadas', tr, t ? Math.round(tr / t * 100) + '% do total' : '—', '#16a34a') +
+        tile('Pendentes', pe, 'dentro do prazo ou sem prazo', '#d97706') + tile('Atrasadas', at, 'prazo vencido sem conclusão', at ? '#dc2626' : '#16a34a');
+      // insights
+      var ins = [];
+      if (!t) ins.push('Nenhuma ocorrência no filtro escolhido.');
+      else {
+        var porEmp = contar(L, function (d) { return d.empresa; }), emps = Object.keys(porEmp);
+        var pior = emps.slice().sort(function (a, b) { return (porEmp[b].Pendente + porEmp[b].Atrasada) - (porEmp[a].Pendente + porEmp[a].Atrasada); })[0];
+        if (emps.length > 1 && (porEmp[pior].Pendente + porEmp[pior].Atrasada) > 0) ins.push('<b>' + esc(pior) + '</b> tem mais ocorrências sem tratar: ' + (porEmp[pior].Pendente + porEmp[pior].Atrasada) + ' de ' + porEmp[pior].total + '.');
+        var porTipo = contar(L, rotTipo), tp = Object.keys(porTipo).sort(function (a, b) { return porTipo[b].total - porTipo[a].total; })[0];
+        ins.push('Tipo mais frequente: <b>' + esc(tp) + '</b> (' + porTipo[tp].total + ' ocorrência(s), ' + Math.round(porTipo[tp].total / t * 100) + '%).');
+        if (at) ins.push('<b>' + at + '</b> ocorrência(s) com o prazo da ação vencido: priorize o tratamento.');
+        var ac = L.filter(function (d) { return d.familia === 'Acidente'; }).length;
+        if (ac) ins.push('<b>' + ac + '</b> acidente(s) registrado(s)' + (L.filter(function (d) { return d.familia === 'Acidente' && d.situacao !== 'Tratada'; }).length ? ', com acidente ainda não concluído.' : ', todos concluídos.'));
+        ins.push('Índice de tratamento: <b>' + Math.round(tr / t * 100) + '%</b>.');
+      }
+      $('dcInsights').innerHTML = ins.map(function (x) { return '• ' + x; }).join('<br>');
+      // gráficos (empresa ignora o próprio filtro de empresa para comparar)
+      var Lemp = DADOS.filter(function (d) { return passa(d, 'emp'); });
+      barras('dcEmpresas', contar(Lemp, function (d) { return d.empresa; }), null, function (e) { f.emp = f.emp === e ? '' : e; if ($('dcEmp')) $('dcEmp').value = f.emp; desenhar(); });
+      barras('dcTipos', contar(L, rotTipo), null, function (tp) { f.tipo = f.tipo === tp ? '' : tp; $('dcTipo').value = f.tipo; desenhar(); });
+      var porMes = contar(L, function (d) { return d.data ? d.data.slice(0, 7) : 'sem data'; });
+      barras('dcMeses', porMes, function (a, b) { return a.localeCompare(b); });
+      // matriz empresa x tipo
+      var tipos = Array.from(new Set(L.map(rotTipo))).sort(), emps2 = Array.from(new Set(L.map(function (d) { return d.empresa; }))).sort();
+      var h = '<thead><tr><th>Empresa</th>' + tipos.map(function (x) { return '<th class="n">' + esc(x) + '</th>'; }).join('') + '<th class="n">Total</th><th class="n">Não tratadas</th></tr></thead><tbody>';
+      emps2.forEach(function (e) {
+        var le = L.filter(function (d) { return d.empresa === e; });
+        h += '<tr><td><b>' + esc(e) + '</b></td>' + tipos.map(function (x) { var n = le.filter(function (d) { return rotTipo(d) === x; }).length; return '<td class="dc-cel" data-e="' + esc(e) + '" data-t="' + esc(x) + '">' + (n || '') + '</td>'; }).join('') +
+          '<td class="n"><b>' + le.length + '</b></td><td class="n">' + le.filter(function (d) { return d.situacao !== 'Tratada'; }).length + '</td></tr>';
+      });
+      $('dcMatriz').innerHTML = h + '</tbody>';
+      // lista
+      $('dcQtd').textContent = '(' + L.length + ')';
+      $('dcLista').innerHTML = '<thead><tr><th>Data</th><th>Empresa</th><th>Colaborador</th><th>Ocorrência</th><th>Tipo</th><th>Gravidade</th><th>Situação</th><th>Detalhe</th></tr></thead><tbody>' +
+        L.slice(0, 200).map(function (d) { return '<tr class="dc-linha" data-u="' + esc(d.url) + '"><td>' + dbr(d.data) + '</td><td>' + esc(d.empresa) + '</td><td>' + esc(d.colaborador) + '</td><td>' + esc(d.familia) + '</td><td>' + esc(d.tipo) + '</td><td>' + esc(d.gravidade) + '</td><td><span class="dc-sit dc-' + d.situacao + '">' + d.situacao + '</span></td><td>' + esc(d.detalhe) + (d.descricao ? ' · ' + esc(d.descricao) : '') + '</td></tr>'; }).join('') + '</tbody>';
+    }
+    preencher();
+    var liga = function (id, k) { var el = $(id); if (el) el.addEventListener('change', function () { f[k] = el.value; desenhar(); }); };
+    liga('dcEmp', 'emp'); liga('dcFam', 'fam'); liga('dcSit', 'sit'); liga('dcTipo', 'tipo'); liga('dcDe', 'de'); liga('dcAte', 'ate');
+    $('dcLimpar').addEventListener('click', function () { f = { emp: '', fam: '', sit: '', tipo: '', de: '', ate: '' }; ['dcEmp', 'dcFam', 'dcSit', 'dcTipo', 'dcDe', 'dcAte'].forEach(function (i) { if ($(i)) $(i).value = ''; }); desenhar(); });
+    $('dcMatriz').addEventListener('click', function (e) { var c = e.target.closest('td.dc-cel'); if (!c || !c.textContent) return; f.emp = c.dataset.e; f.tipo = c.dataset.t; if ($('dcEmp')) $('dcEmp').value = f.emp; $('dcTipo').value = f.tipo; desenhar(); });
+    $('dcLista').addEventListener('click', function (e) { var r = e.target.closest('tr.dc-linha'); if (r) location.href = r.dataset.u; });
+    desenhar();
+  })();
+  </script>
+<?php
 elseif ($reg === '' && $v === 'listas'):
     $listas = sesmt_listas_iniciais();
 ?>
@@ -558,7 +730,7 @@ elseif ($reg !== '' && $modo === 'form'):
     }
     $lote = ($reg === 'presenca' && !$id);
     $valores = [];
-    foreach ($def['campos'] as $k => $c) {
+    foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if ($valoresForm !== null) {
             $valores[$k] = $valoresForm[$k] ?? '';
         } elseif ($linha) {
@@ -610,12 +782,46 @@ elseif ($reg !== '' && $modo === 'form'):
     <?php else: ?>
     <form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="reg" value="<?= h($reg) ?>"><input type="hidden" name="id" value="<?= (int)$id ?>">
       <div class="sv-grid">
-        <?php foreach ($def['campos'] as $k => $c): $full = !empty($c['full']) || explode(':', $c['tipo'])[0] === 'longo'; ?>
+        <?php foreach (sesmt_campos_visiveis($reg) as $k => $c): $full = !empty($c['full']) || explode(':', $c['tipo'])[0] === 'longo'; ?>
           <div class="sv-campo <?= $full ? 'full' : '' ?>"><label for="f_<?= h($k) ?>"><?= h($c['rotulo']) ?><?= !empty($c['r']) ? ' <span class="obrig">*</span>' : '' ?></label>
             <?= sv_input($reg, $k, $c, $valores[$k]) ?>
             <?php if (!empty($c['dica'])): ?><span class="dica"><?= h($c['dica']) ?></span><?php endif; ?></div>
         <?php endforeach; ?>
       </div>
+      <?php if ($reg === 'colaboradores' && rh_pode_ver_salarios($eu)): ?>
+      <div class="rh-previa" id="rhPrevia" data-url="<?= h(sv_url(['rh_previa' => 1])) ?>">
+        <div class="rh-previa-cab"><b>Custo mensal deste colaborador</b><span class="nota">calculado na hora, com os parâmetros de encargos da obra (Financeiro › Contas a pagar › Parâmetros da folha)</span></div>
+        <div id="rhPreviaCorpo" class="nota">Informe o salário para ver os encargos e o custo mensal.</div>
+      </div>
+      <script>
+      (function () {
+        var box = document.getElementById('rhPrevia'), corpo = document.getElementById('rhPreviaCorpo'), t = null;
+        var campos = ['status', 'tipo_salario', 'salario', 'adicional', 'vale_transporte', 'alimentacao', 'outros_beneficios'];
+        var brl = function (v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+        var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        var grupos = { remuneracao: 'Remuneração', encargos: 'Encargos sociais (empregador)', provisoes: 'Provisões (13º, férias, rescisão)', beneficios: 'Benefícios e custos de obra' };
+        function calcular() {
+          var q = new URLSearchParams();
+          campos.forEach(function (c) { var el = document.getElementById('f_' + c); if (el) q.set(c, el.value); });
+          if (!(parseFloat(String(document.getElementById('f_salario').value).replace(/\./g, '').replace(',', '.')) > 0)) { corpo.className = 'nota'; corpo.textContent = 'Informe o salário para ver os encargos e o custo mensal.'; return; }
+          fetch(box.dataset.url + '&' + q.toString(), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.erro) { corpo.textContent = d.erro; return; }
+            if (d.sem_salario) { corpo.textContent = 'Informe o salário (maior que zero).'; return; }
+            var h = '<table class="sv-tabela-pequena rh-tab"><tbody>', atual = '';
+            d.linhas.forEach(function (l) {
+              if (l.grupo !== atual) { atual = l.grupo; h += '<tr class="rh-grupo"><td colspan="2">' + esc(grupos[atual] || atual) + '</td></tr>'; }
+              h += '<tr><td>' + esc(l.rotulo) + '</td><td class="n">' + brl(l.valor) + '</td></tr>';
+            });
+            h += '</tbody><tfoot><tr><td><b>Custo mensal total</b> <span class="nota">(' + esc(d.vinculo_rotulo) + ')</span></td><td class="n"><b>' + brl(d.total) + '</b></td></tr>' +
+              '<tr><td class="nota">Encargos + provisões sobre a remuneração bruta</td><td class="n nota">+' + ((d.fator_enc || 0) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%</td></tr></tfoot></table>';
+            corpo.className = ''; corpo.innerHTML = h;
+          }).catch(function () { corpo.textContent = 'Não foi possível calcular agora.'; });
+        }
+        campos.forEach(function (c) { var el = document.getElementById('f_' + c); if (el) { el.addEventListener('input', function () { clearTimeout(t); t = setTimeout(calcular, 250); }); el.addEventListener('change', calcular); } });
+        calcular();
+      })();
+      </script>
+      <?php endif; ?>
       <div class="sv-acoes"><?php if ($podeEditar): ?><button class="btn primario">Salvar</button><?php endif; ?><a class="btn" href="<?= h(sv_url(['reg' => $reg])) ?>">Cancelar</a></div>
     </form>
     <?php if ($id && $podeEditar): ?>
@@ -645,7 +851,7 @@ elseif ($reg !== ''):
         <?php if ($podeEditar): ?><a class="btn primario" href="<?= h(sv_url(['reg' => $reg, 'modo' => 'form'])) ?>">+ Novo <?= h($def['singular']) ?></a><?php endif; ?>
         <a class="btn" href="<?= h(sv_url($params + ['export' => 'csv'])) ?>">Exportar CSV</a>
       </div></div>
-    <form method="get" class="barra-filtros"><input type="hidden" name="reg" value="<?= h($reg) ?>">
+    <form method="get" class="barra-filtros"><input type="hidden" name="reg" value="<?= h($reg) ?>"><?php if ($embed !== ''): ?><input type="hidden" name="embed" value="<?= h($embed) ?>"><?php endif; ?>
       <?php if ($mostraEmpresa): ?><label>Empresa<select name="empresa"><option value="">Todas as empresas</option>
         <?php foreach (sesmt_empresas() as $e): ?><option value="<?= h($e) ?>" <?= sesmt_norm_empresa($filtros['empresa']) === $e ? 'selected' : '' ?>><?= h($e) ?></option><?php endforeach; ?></select></label><?php endif; ?>
       <label>Buscar<input type="search" name="q" value="<?= h($filtros['q']) ?>" placeholder="Digite para buscar" autocomplete="off"></label>

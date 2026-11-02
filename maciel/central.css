@@ -1,0 +1,38 @@
+/* Central da empresa: abas, cartões e tabelas dos painéis Comercial, Pessoal (RH) e da tela inicial */
+.ce-abas { display:flex; gap:6px; flex-wrap:wrap; padding:10px 28px 0; max-width:1280px; margin:0 auto; border-bottom:1px solid var(--portal-line,#e4e7ec); }
+.ce-abas a { padding:11px 18px; border-radius:10px 10px 0 0; color:#475467; font-weight:700; font-size:.93rem; text-decoration:none; border:1px solid transparent; border-bottom:0; margin-bottom:-1px; }
+.ce-abas a:hover { background:#f2f4f7; }
+.ce-abas a.on { background:#fff; color:#101828; border-color:var(--portal-line,#e4e7ec); box-shadow:inset 0 3px 0 var(--marca,#d97706); }
+.ce-main { max-width:1280px; margin:0 auto; padding:26px 28px 70px; }
+.ce-hero { display:flex; flex-direction:row; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:22px; }
+.ce-hero h1 { margin:4px 0 6px; font-size:1.7rem; color:#101828; } .ce-hero p { margin:0; color:#667085; max-width:720px; line-height:1.5; }
+.ce-eyebrow { color:var(--marca,#d97706); font-size:.74rem; font-weight:800; letter-spacing:.09em; }
+.ce-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:18px; }
+.ce-card { background:#fff; border:1px solid var(--portal-line,#e4e7ec); border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:14px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+.ce-card h2 { margin:0; font-size:1.12rem; color:#101828; } .ce-card small { color:#667085; line-height:1.45; }
+.ce-card .ce-ico { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:color-mix(in srgb,var(--marca,#d97706) 14%,#fff); font-size:1.3rem; }
+.ce-kpis { display:grid; gap:10px; } .ce-kpi { display:flex; justify-content:space-between; gap:10px; align-items:baseline; border-top:1px solid #f2f4f7; padding-top:9px; }
+.ce-kpi span { color:#667085; font-size:.84rem; } .ce-kpi b { color:#101828; font-size:1rem; text-align:right; }
+.ce-card .btn { margin-top:auto; text-align:center; justify-content:center; text-decoration:none; }
+.ce-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin:0 0 22px; }
+.ce-num { background:#fff; border:1px solid var(--portal-line,#e4e7ec); border-radius:14px; padding:16px 18px; } .ce-num small { display:block; color:#667085; font-size:.8rem; }
+.ce-num b { display:block; font-size:1.35rem; color:#101828; margin:4px 0 2px; } .ce-num span { color:#667085; font-size:.78rem; } .ce-num.verde b { color:#05603a; } .ce-num.verm b { color:#b42318; }
+.ce-bloco { background:#fff; border:1px solid var(--portal-line,#e4e7ec); border-radius:16px; padding:20px 22px; margin-bottom:22px; overflow-x:auto; }
+.ce-bloco h2, .ce-bloco h3 { margin:0 0 4px; color:#101828; } .ce-bloco > p, .ce-nota { color:#667085; font-size:.84rem; line-height:1.5; margin:0 0 14px; }
+.ce-tab { width:100%; border-collapse:collapse; font-size:.9rem; } .ce-tab th { text-align:left; color:#667085; font-size:.76rem; text-transform:uppercase; letter-spacing:.04em; padding:9px 10px; border-bottom:2px solid #e4e7ec; white-space:nowrap; }
+.ce-tab td { padding:10px; border-bottom:1px solid #f2f4f7; vertical-align:middle; } .ce-tab .d, .ce-tab th.d { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ce-tab tfoot td { font-weight:800; border-top:2px solid #e4e7ec; border-bottom:0; } .ce-tab tr:hover td { background:#fbfcfd; }
+.ce-tag { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.76rem; font-weight:700; background:#f2f4f7; color:#475467; }
+.ce-tag.verde { background:#dcfae6; color:#05603a; } .ce-tag.azul { background:#e0eaff; color:#1d3a8a; } .ce-tag.amarelo { background:#fef0c7; color:#93370d; } .ce-tag.verm { background:#fee4e2; color:#b42318; }
+.ce-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px 16px; } .ce-form label { display:flex; flex-direction:column; gap:5px; font-size:.82rem; font-weight:700; color:#344054; }
+.ce-form input, .ce-form select, .ce-form textarea, .ce-itens input, .ce-mes input, .ce-mes select { border:1px solid #d0d5dd; border-radius:9px; padding:9px 11px; font:inherit; font-weight:400; background:#fff; color:#101828; min-width:0; }
+.ce-form .full { grid-column:1/-1; } .ce-form textarea { min-height:88px; resize:vertical; }
+.ce-itens { width:100%; border-collapse:collapse; min-width:860px; } .ce-itens th { text-align:left; font-size:.74rem; text-transform:uppercase; color:#667085; padding:6px 4px; }
+.ce-itens td { padding:3px 3px; } .ce-itens input { width:100%; padding:7px 8px; } .ce-itens td.n input { text-align:right; } .ce-itens td.tot { text-align:right; white-space:nowrap; font-weight:700; padding-right:8px; }
+.ce-tot { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-top:16px; } .ce-tot div { background:#f9fafb; border:1px solid #eaecf0; border-radius:12px; padding:12px 14px; } .ce-tot small { color:#667085; display:block; font-size:.78rem; }
+.ce-tot b { font-size:1.12rem; color:#101828; } .ce-tot .gr b { font-size:1.35rem; color:#05603a; }
+.ce-acoes { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:18px; } .ce-acoes .btn, .ce-bloco .btn { text-decoration:none; }
+.ce-mes { display:flex; flex-wrap:wrap; gap:10px; align-items:end; } .ce-mes label { display:flex; flex-direction:column; gap:4px; font-size:.8rem; font-weight:700; color:#344054; }
+.ce-vazio { padding:28px; text-align:center; color:#667085; border:1px dashed #d0d5dd; border-radius:12px; }
+.ce-btn-peq { padding:6px 12px; font-size:.82rem; min-height:0; }
+@media (max-width:720px) { .ce-abas { padding:8px 12px 0; overflow-x:auto; flex-wrap:nowrap; } .ce-abas a { white-space:nowrap; padding:10px 13px; } .ce-main { padding:20px 14px 60px; } .ce-hero h1 { font-size:1.35rem; } }

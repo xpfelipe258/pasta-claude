@@ -20,7 +20,7 @@ if (!class_exists('TCPDF')) {
 function pdf_h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function pdf_n($v): float { return is_numeric($v) ? (float)$v : 0.0; }
 function pdf_brn(float $v, int $d = 1): string { return number_format($v, $d, ',', '.'); }
-function pdf_brl(float $v): string { return 'R$ ' . number_format($v, 0, ',', '.'); }
+function pdf_brl(float $v): string { return 'R$ ' . number_format($v, 2, ',', '.'); }
 function pdf_dataBr(string $s): string {
     $d = DateTime::createFromFormat('Y-m-d', $s);
     return $d ? $d->format('d/m/Y') : $s;

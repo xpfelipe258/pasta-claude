@@ -52,7 +52,8 @@ function q($sql, array $params = [])
 function tabelas_da_obra()
 {
     return array_merge([
-        'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico'
+        'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico',
+        'contas_pagar', 'contas_pagar_baixas'   // fora de tabelas_spec() de propósito: não vão no modelo que todo usuário recebe (têm salários)
     ], array_keys(tabelas_spec()));
 }
 
@@ -111,7 +112,7 @@ function tabelas_spec()
         'bm_atividades' => ['codigo' => 'txt', 'empresa' => 'txt', 'item' => 'txt', 'item_desc' => 'txt', 'atividade' => 'txt',
             'unidade' => 'txt', 'qtd' => 'num', 'peso' => 'num', 'valor_qpc' => 'num', 'valor_rotula' => 'num',
             'controle' => 'txt', 'obs' => 'txt'],
-        'bm_periodos' => ['empresa' => 'txt', 'bm' => 'num', 'corte' => 'data', 'obs' => 'txt'],
+        'bm_periodos' => ['empresa' => 'txt', 'bm' => 'num', 'corte' => 'data', 'obs' => 'txt', 'sinal_perc' => 'num'],
         'bm_apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'codigo' => 'txt', 'quantidade' => 'num', 'obs' => 'txt'],
         'bm_deducoes' => ['empresa' => 'txt', 'bm' => 'num', 'data' => 'data', 'tipo' => 'txt', 'descricao' => 'txt',
             'valor' => 'num', 'contrato' => 'txt', 'percentual' => 'num'],
@@ -144,7 +145,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 26;   // 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 30;   // 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -468,6 +469,11 @@ function criar_esquema(PDO $pdo, $driver)
             PRIMARY KEY (obra_id, chave))$fim",
         "CREATE TABLE IF NOT EXISTS config_global (chave VARCHAR(50) PRIMARY KEY, valor $longo NULL)$fim",
         tarefas_sql($pk, $longo, $fim),
+        contas_pagar_sql($pk, $longo, $fim),
+        contas_pagar_baixas_sql($pk, $fim),
+        planos_sql($pk, $longo, $fim),
+        organizacoes_sql($pk, $longo, $fim),
+        organizacoes_pagamentos_sql($pk, $fim),
         tarefas_msgs_sql($pk, $longo, $fim),
         tarefas_lidas_sql($pk, $longo, $fim),
         importacao_sql($pk, $longo, $fim),
@@ -487,6 +493,8 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_multiobra($pdo, $driver);
     garantir_autenticacao_estendida($pdo, $driver);
     garantir_obras_detalhes($pdo, $driver);
+    garantir_usuarios_obras_admin($pdo, $driver);
+    garantir_organizacoes($pdo, $driver);   // planos por empresa: vínculo de usuários e obras com a empresa
     if (!in_array('importacao', colunas_tabela($pdo, $driver, 'obras'), true)) {   // fase da importação automática (rascunho, aguardando_leitura…); vazio = obra comum
         $pdo->exec("ALTER TABLE obras ADD COLUMN importacao VARCHAR(25) NULL");
     }
@@ -534,6 +542,14 @@ function obras_colunas_detalhe()
 function impactos_colunas_solucao()
 {
     return ['solucao' => 'TEXT NULL', 'solucionado_por' => 'VARCHAR(150) NULL', 'solucionado_em' => 'VARCHAR(19) NULL'];
+}
+
+// Administrador de UMA obra (quem a criou): controla só ela, sem o acesso total do sistema (que é do perfil admin).
+function garantir_usuarios_obras_admin(PDO $pdo, $driver)
+{
+    if (!in_array('admin_obra', colunas_tabela($pdo, $driver, 'usuarios_obras'), true)) {
+        $pdo->exec('ALTER TABLE usuarios_obras ADD COLUMN admin_obra INT NOT NULL DEFAULT 0');
+    }
 }
 
 function garantir_obras_detalhes(PDO $pdo, $driver)
@@ -865,11 +881,77 @@ function definir_obra_atual($obraId)
     $_SESSION['obra_id'] = max(0, (int)$obraId);
 }
 
+// Administrador da obra: o perfil admin (todas as obras) ou quem foi marcado como administrador DAQUELA obra (usuarios_obras.admin_obra,
+// gravado quando o usuário cria a obra). Vale só para a obra indicada (padrão: a aberta).
+function usuario_admin_da_obra(array $u, $obraId = null)
+{
+    if (($u['perfil'] ?? '') === 'admin') { return true; }
+    $obraId = (int)($obraId ?? obra_atual_id());
+    if ($obraId <= 0 || empty($u['id'])) { return false; }
+    static $cache = [];
+    $k = (int)$u['id'] . '/' . $obraId;
+    if (!array_key_exists($k, $cache)) {
+        try {
+            $cache[$k] = (int)q_global('SELECT admin_obra FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], $obraId])->fetchColumn() === 1;
+        } catch (Throwable $e) {
+            $cache[$k] = false;   // banco ainda sem a coluna
+        }
+    }
+    return $cache[$k];
+}
+
+// Ids das obras que o usuário administra (só as dele; o perfil admin não entra aqui, administra todas).
+function obras_que_administra(array $u)
+{
+    try {
+        return array_map('intval', q_global('SELECT obra_id FROM usuarios_obras WHERE usuario_id = ? AND admin_obra = 1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN));
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+// Quem pode criar obra: o administrador e o editor sem empresa (usuário de empresa trabalha na obra própria dela; leitura só lê).
+function usuario_pode_criar_obra(array $u)
+{
+    list($oid, $admOrg) = usuario_organizacao_id($u);
+    if ($oid && !$admOrg) { return false; }   // numa empresa cliente, quem cria obras é o administrador da empresa
+    return ($u['perfil'] ?? '') === 'admin' || (($u['perfil'] ?? '') === 'editor' && trim((string)($u['empresa'] ?? '')) === '');
+}
+
+function exigir_admin_da_obra($obraId)
+{
+    $u = exigir_login_pagina();
+    if (!usuario_admin_da_obra($u, $obraId)) {
+        http_response_code(403);
+        exit('Acesso restrito ao administrador da obra.');
+    }
+    return $u;
+}
+
+// Usuário de empresa (campo Empresa preenchido, perfil não administrador) cuja empresa já tem obra própria: só enxerga a(s) obra(s)
+// própria(s) da empresa dele — nunca a obra principal, mesmo que o cadastro dele ainda esteja ligado a ela.
+// Sem obra própria criada, vale o que o administrador ligou ao usuário (não deixa ninguém sem acesso).
+function obras_proprias_do_usuario(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin' || trim((string)($u['empresa'] ?? '')) === '') { return null; }
+    $alvo = function_exists('oe_norm') ? oe_norm($u['empresa']) : mb_strtoupper(trim((string)$u['empresa']));
+    try {
+        $lista = q_global("SELECT * FROM obras WHERE status = 'ativa' AND empresa_vinculada IS NOT NULL AND empresa_vinculada <> '' ORDER BY nome")->fetchAll();
+    } catch (Throwable $e) {
+        return null;   // banco ainda sem as colunas da obra própria
+    }
+    $minhas = array_values(array_filter($lista, function ($o) use ($alvo) {
+        return (function_exists('oe_norm') ? oe_norm($o['empresa_vinculada']) : mb_strtoupper(trim((string)$o['empresa_vinculada']))) === $alvo;
+    }));
+    return $minhas ?: null;
+}
+
 function obras_do_usuario(array $u)
 {
     if ($u['perfil'] === 'admin') {
         return q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY status, nome")->fetchAll();
     }
+    if (($minhas = obras_proprias_do_usuario($u)) !== null) { return $minhas; }
     return q_global("SELECT o.* FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
         WHERE uo.usuario_id = ? AND o.status = 'ativa' ORDER BY o.nome", [(int)$u['id']])->fetchAll();
 }
@@ -877,6 +959,10 @@ function obras_do_usuario(array $u)
 function usuario_pode_obra(array $u, $obraId)
 {
     if ($u['perfil'] === 'admin') { return true; }
+    if (($minhas = obras_proprias_do_usuario($u)) !== null) {
+        foreach ($minhas as $o) { if ((int)$o['id'] === (int)$obraId) { return true; } }
+        return false;
+    }
     return (bool)q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], (int)$obraId])->fetchColumn();
 }
 
@@ -921,10 +1007,13 @@ function modulos_usuario(array $u)
 {
     $todos = modulos_sistema();
     if (($u['perfil'] ?? '') === 'admin') { return $todos; }
+    $plano = organizacao_modulos_do_usuario($u);   // áreas que o plano da empresa libera (null = sem restrição)
+    $limitar = function (array $mods) use ($plano) { return $plano === null ? $mods : array_values(array_intersect($mods, $plano)); };
+    if (usuario_admin_da_obra($u) || usuario_admin_organizacao($u)) { return $limitar($todos); }   // o administrador da obra (e da empresa) tem todas as áreas que o plano libera
     $rows = q_global('SELECT modulo FROM usuarios_modulos WHERE usuario_id=? AND permitido=1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN);
-    if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; }   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
+    if (trim((string)($u['empresa'] ?? '')) !== '') { $rows[] = 'qualidade'; $rows[] = 'sesmt'; }   // SESMT: cada empresa usa só o que é dela (colaboradores e ocorrências)   // Qualidade é obrigatória para toda empresa: é onde ela responde as não conformidades
     // Compatibilidade: usuário antigo sem configuração continua vendo tudo até o administrador salvar seus acessos.
-    return $rows ? array_values(array_intersect($todos, $rows)) : $todos;
+    return $limitar($rows ? array_values(array_intersect($todos, $rows)) : $todos);
 }
 
 function usuario_pode_modulo(array $u, $modulo)
@@ -953,7 +1042,7 @@ function ui_catalogo()
         ['consumo', 'Consumo', [['equip', 'Equipamentos', []]]],
         ['financeiro', 'Financeiro', [
             ['bm', 'Medição (BM)', [['boletim', 'Boletim (BM)'], ['periodos', 'Períodos e deduções'], ['catalogo', 'Catálogo de atividades']]],
-            ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []],
+            ['proj', 'Projeção físico-financeira', []], ['cff', 'Cronograma físico-financeiro', []], ['contaspagar', 'Contas a pagar', []],
         ]],
         ['gestao', 'Gestão', [['impactos', 'Impactos', []], ['dp', 'Pessoal', []]]],
         ['qualidade', 'Qualidade', [['qualidade', 'Não conformidades', []]]],
@@ -965,7 +1054,7 @@ function ui_catalogo()
 function ui_ocultos_usuario(array $u)
 {
     $vazio = ['abas' => [], 'subs' => []];
-    if (($u['perfil'] ?? '') === 'admin') {
+    if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u)) {
         return $vazio;
     }
     $todos = json_decode((string)global_ler('ui_ocultos', '{}'), true);
@@ -1187,7 +1276,7 @@ function pagina_inicio($titulo, $app = false)
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
-    echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<!doctype html><html lang="pt-BR"' . ($app ? tema_attr() . menu_attr() : ' data-theme="light"') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     echo icones_html();
     echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
@@ -1271,3 +1360,6 @@ function imagem_upload_para_data_uri($campo, $atual = '')
 
 
 require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa terceirizada
+require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
+require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
+require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)

@@ -127,8 +127,8 @@ function lp_nome_fixador($chave)
         $x = (float)$v;
         $int = (int)$x;
         $resto = round($x - $int, 3);
-        $fr = [0.125 => '1/8', 0.25 => '1/4', 0.375 => '3/8', 0.5 => '1/2', 0.625 => '5/8', 0.75 => '3/4', 0.875 => '7/8'];
-        $f = $fr[(string)$resto] ?? ($fr[$resto] ?? '');
+        $fr = ['0.125' => '1/8', '0.25' => '1/4', '0.375' => '3/8', '0.5' => '1/2', '0.625' => '5/8', '0.75' => '3/4', '0.875' => '7/8'];   // chaves em texto: com número o PHP as converte para inteiro (todas viravam 0)
+        $f = $fr[(string)$resto] ?? '';
         return $int && $f ? "$int $f" : ($f ?: (string)$int);
     };
     $rot = ['parafuso' => 'PARAF.', 'parabolt' => 'PARABOLT', 'ab' => 'PARAF. AB', 'porca' => 'PORCA', 'arruela' => 'ARRUELA'][$t[0]] ?? strtoupper($t[0]);

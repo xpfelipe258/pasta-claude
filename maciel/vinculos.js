@@ -195,7 +195,8 @@ function vcBom(grupos, cat) {
           origem: `${nf(por, 4)} por ${un || 'und'} × ${nf(qtd, 0)} ${un || 'und'}`, config: true, parafuso: tipo === 'parafuso' ? '' : l.tag });
         marca(tag, key, nec);
       };
-      add(l.tag, l.por_unidade, 'parafuso');
+      const mp = info.get(l.tag);
+      add(l.tag, l.por_unidade, !mp || ehFixador(mp) || vcKindDe((mp.produto || '') + ' ' + (mp.material || '')) ? 'parafuso' : 'material');   // material comum (peça, consumível) não é parafuso
       add(l.arruela, l.arruela_qtd != null ? l.arruela_qtd : l.por_unidade, 'arruela');
       add(l.porca, l.porca_qtd != null ? l.porca_qtd : l.por_unidade, 'porca');
     });
@@ -690,7 +691,7 @@ function vcRealizadoAtividade(key) {
 const vcKindDe = txt => { const t = vcUp(txt); return /ARRUELA|WASHER/.test(t) ? 'arruela' : /PORCA|NUT/.test(t) ? 'porca' : /PARAF|PARABOLT|CHUMBADOR/.test(t) ? 'parafuso' : ''; };
 const vcDiamDe = txt => { const m = /Ø\s*(\d+\/\d+|\d+)"/.exec(String(txt || '')); return m ? m[1] : ''; };
 function vcOpcoesFix(kind, sel) {
-  const l = estMateriaisComCadastros().filter(m => m.tag && ehFixador(m) && (!kind || vcKindDe(m.produto + ' ' + m.material) === kind))
+  const l = estMateriaisComCadastros().filter(m => m.tag && (kind ? ehFixador(m) && vcKindDe(m.produto + ' ' + m.material) === kind : true))   // parafuso/principal = qualquer material do cadastro; arruela e porca = só fixadores
     .sort((a, b) => a.tag.localeCompare(b.tag, 'pt', { numeric: true }));
   return '<option value="">—</option>' + l.map(m => `<option value="${esc(m.tag)}" ${m.tag === sel ? 'selected' : ''}>${esc(m.tag + ' · ' + (m.produto || m.material) + (m.material && m.material !== m.produto ? ' ' + m.material : ''))}</option>`).join('');
 }
@@ -928,3 +929,101 @@ document.addEventListener('click', ev => {
   if (vp) { ev.preventDefault(); VC.ativSel = VC.ativSel === vp.dataset.vpVer ? '' : vp.dataset.vpVer; VC._rolar = true; return renderPronto(); }
   if (t.closest('[data-vp-fechar]')) { VC.ativSel = ''; return renderPronto(); }
 });
+
+// ---------------------------------------------------------------- Consumo de material vinculado à atividade (aberto em Lançamentos)
+// Na linha de cada atividade do catálogo (Lançamentos) o botão "consumo" abre esta janela: qualquer material do cadastro (peça, fixador,
+// consumível) com a quantidade usada por unidade da atividade OU o total previsto para a atividade inteira (um calcula o outro). Quando a
+// produção da atividade é lançada, o consumo virtual desses materiais sobe sozinho (mesma baixa de Vínculos › Por atividade).
+const VCC = { key: '', linhas: [] };
+function vcConsumoLinhas(key) { return ((M?.fixadores_atividade || {})[key]?.linhas || []); }
+function vcConsumoResumo(codigo) { const n = vcConsumoLinhas(vcChaveAtiv(codigo)).length; return n ? ` (${n})` : ''; }
+function vcOpcoesMaterial(sel) {
+  const l = estMateriaisComCadastros().filter(m => m.tag).sort((a, b) => a.tag.localeCompare(b.tag, 'pt', { numeric: true }));
+  return '<option value="">— escolha o material —</option>' + l.map(m => `<option value="${esc(m.tag)}" ${m.tag === sel ? 'selected' : ''}>${esc(m.tag + ' · ' + (m.produto || m.material || '') + (m.local ? ' · ' + m.local : ''))}</option>`).join('')
+    + (sel && !l.some(m => m.tag === sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}</option>` : '');
+}
+function vcConsumoLinhaHtml(l, i, qtd, un, real, podeEditar) {
+  const por = Number(l.por_unidade) || 0, m = estMateriaisComCadastros().find(x => x.tag === l.tag);
+  const baixado = por * real, plan = m ? Number(m.saldo_inicial ?? m.planejado ?? 0) || 0 : 0;
+  const ro = podeEditar ? '' : 'disabled';
+  return `<tr data-cons-linha="${i}"><td><select class="vc-sel" data-cons-tag ${ro}>${vcOpcoesMaterial(l.tag)}</select>${l.arruela || l.porca ? `<div class="nota">leva junto: ${[l.arruela && 'arruela ' + esc(l.arruela), l.porca && 'porca ' + esc(l.porca)].filter(Boolean).join(' · ')}</div>` : ''}</td>
+    <td><input type="number" step="any" min="0" class="vc-num" data-cons-por value="${por || ''}" placeholder="por ${esc(un || 'und')}" ${ro}></td>
+    <td><input type="number" step="any" min="0" class="vc-num" data-cons-total value="${por && qtd ? Math.round(por * qtd * 10000) / 10000 : ''}" placeholder="total" ${ro}></td>
+    <td class="n">${baixado ? nf(baixado, 2) : '—'}${plan && baixado > plan ? '<div class="nota valor-neg">acima do planejado (' + nf(plan, 0) + ')</div>' : ''}</td>
+    <td>${podeEditar ? '<button type="button" class="link" data-cons-del>remover</button>' : ''}</td></tr>`;
+}
+function vcConsumoAbrir(codigo) {
+  const key = vcChaveAtiv(codigo), at = bmTab('bm_atividades').find(a => a.codigo === codigo);
+  if (!at) return toast('Atividade não encontrada no catálogo.', true);
+  VCC.key = key; VCC.codigo = codigo; VCC.linhas = JSON.parse(JSON.stringify(vcConsumoLinhas(key)));
+  let dlg = document.getElementById('dlgConsAtiv');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlgConsAtiv'; dlg.className = 'rs-dialog'; document.body.appendChild(dlg); }
+  vcConsumoRender();
+  if (!dlg.open) dlg.showModal();
+}
+function vcConsumoRender() {
+  const dlg = document.getElementById('dlgConsAtiv'); if (!dlg) return;
+  const key = VCC.key, { qtd, un } = vcQtdAtividade(key), real = vcRealizadoAtividade(key), podeEditar = vcPerm();
+  const at = bmTab('bm_atividades').find(a => a.codigo === VCC.codigo) || {};
+  const cfg = (M?.fixadores_atividade || {})[key];
+  dlg.innerHTML = `<form method="dialog" class="vc-cons">
+    <div class="bloco-cab"><h2>Consumo de material da atividade</h2><button class="btn" value="x" type="submit">Fechar</button></div>
+    <p><b>${esc(at.atividade || key)}</b> <span class="nota">${esc(key)} · contratado ${nf(qtd, 2)} ${esc(un)} · já lançado ${nf(real, 2)} ${esc(un)} (${qtd ? nf(real / qtd * 100, 1) : '0'}%)</span></p>
+    <p class="nota">Escolha os materiais que esta atividade consome. Informe <b>por ${esc(un || 'unidade')}</b> <u>ou</u> o <b>total previsto para a atividade inteira</b> (um preenche o outro). A cada lançamento de produção da atividade, o consumo desses materiais sobe sozinho em Materiais, Inventário e Baixa automática.${cfg ? ` Gravado por ${esc(cfg.por || '—')} em ${esc(String(cfg.em || '').slice(0, 16))}.` : ''}</p>
+    <div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Material (TAG)</th><th>Por ${esc(un || 'und')}</th><th>Total na atividade</th><th class="n">Baixado até agora</th><th></th></tr></thead>
+    <tbody data-cons-corpo>${VCC.linhas.map((l, i) => vcConsumoLinhaHtml(l, i, qtd, un, real, podeEditar)).join('') || `<tr><td colspan="5" class="vazio">Nenhum material vinculado a esta atividade.</td></tr>`}</tbody></table></div>
+    <div class="barra-acoes">${podeEditar ? '<button type="button" class="btn" data-cons-add>+ Adicionar material</button> <button type="button" class="btn primario" data-cons-salvar>Salvar consumo da atividade</button>' : '<span class="nota">Somente leitura.</span>'}</div>
+  </form>`;
+}
+function vcConsumoLer() {   // lê a tabela da janela (mantém arruela/porca de linhas antigas)
+  const { qtd } = vcQtdAtividade(VCC.key), num = v => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+  return [...document.querySelectorAll('#dlgConsAtiv [data-cons-linha]')].map(tr => {
+    const i = Number(tr.dataset.consLinha), base = VCC.linhas[i] || {}, tag = tr.querySelector('[data-cons-tag]').value;
+    let por = num(tr.querySelector('[data-cons-por]').value);
+    const tot = num(tr.querySelector('[data-cons-total]').value);
+    if (!(por > 0) && tot > 0 && qtd > 0) por = Math.round(tot / qtd * 10000) / 10000;
+    const l = { ...base, tag, por_unidade: por };
+    if (l.arruela && l.arruela_qtd == null) l.arruela_qtd = por;
+    return l;
+  });
+}
+async function vcConsumoSalvar() {
+  const linhas = vcConsumoLer().filter(l => l.tag || l.por_unidade);
+  const sem = linhas.find(l => !l.tag || !(l.por_unidade > 0));
+  if (sem) return toast(sem.tag ? `Informe a quantidade (por unidade ou total) do material ${sem.tag}.` : 'Escolha o material de cada linha.', true);
+  const rep = linhas.find((l, i) => linhas.findIndex(x => x.tag === l.tag) !== i);
+  if (rep) return toast(`O material ${rep.tag} aparece duas vezes.`, true);
+  try {
+    await postar(API + 'fixadores-atividade', { atividade: VCC.key, linhas });
+    await carregar();
+    document.getElementById('dlgConsAtiv')?.close();
+    toast(linhas.length ? 'Consumo gravado e levado para Vínculos › Por atividade. A baixa acontece com a produção lançada.' : 'Consumo da atividade removido.');
+    vcIrParaAtividade(VCC.key);
+  } catch (err) { toast(err.message || String(err), true); }
+}
+document.addEventListener('click', ev => {
+  const t = ev.target && ev.target.closest ? ev.target : null;
+  if (!t) return;
+  const ab = t.closest('[data-cons-ativ]');
+  if (ab) { ev.preventDefault(); return vcConsumoAbrir(ab.dataset.consAtiv); }
+  if (!t.closest('#dlgConsAtiv')) return;
+  if (t.closest('[data-cons-add]')) { ev.preventDefault(); VCC.linhas = vcConsumoLer(); VCC.linhas.push({ tag: '', por_unidade: 0 }); return vcConsumoRender(); }
+  const del = t.closest('[data-cons-del]');
+  if (del) { ev.preventDefault(); VCC.linhas = vcConsumoLer(); VCC.linhas.splice(Number(del.closest('tr').dataset.consLinha), 1); return vcConsumoRender(); }
+  if (t.closest('[data-cons-salvar]')) { ev.preventDefault(); return vcConsumoSalvar(); }
+});
+document.addEventListener('input', ev => {   // por unidade ⇄ total
+  const t = ev.target; if (!t || !t.matches || !t.closest('#dlgConsAtiv')) return;
+  const tr = t.closest('[data-cons-linha]'); if (!tr) return;
+  const { qtd } = vcQtdAtividade(VCC.key), num = v => parseFloat(String(v).replace(',', '.'));
+  const por = tr.querySelector('[data-cons-por]'), tot = tr.querySelector('[data-cons-total]');
+  if (t.matches('[data-cons-por]')) { const v = num(t.value); tot.value = v > 0 && qtd > 0 ? Math.round(v * qtd * 10000) / 10000 : ''; }
+  else if (t.matches('[data-cons-total]')) { const v = num(t.value); por.value = v > 0 && qtd > 0 ? Math.round(v / qtd * 10000) / 10000 : ''; }
+});
+
+// leva o usuário para Suprimentos › Vínculos › Por atividade, com a atividade aberta no cadastro de consumo (mesmo editor, mesmos dados)
+function vcIrParaAtividade(key) {
+  VC.filtro = 'atividades'; VC.sel = ''; VC.abertas.add(key); VC.abertasFx.add(key); VC.extras.add(key);
+  mudarAba('estvinc');
+  setTimeout(() => { const d = document.querySelector(`details[data-vc-ativ="${CSS.escape(key)}"]`); if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }, 250);
+}

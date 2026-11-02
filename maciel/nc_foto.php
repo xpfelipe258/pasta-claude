@@ -30,7 +30,7 @@ $obraQ = obra_atual_id();
 $acao = $_GET['acao'] ?? '';
 $dir = importacao_diretorio($obraQ) . '/qualidade';
 $minhaEmp = trim((string)($u['empresa'] ?? ''));
-$admin = ($u['perfil'] ?? '') === 'admin';
+$admin = usuario_admin_da_obra($u);
 
 // A não conformidade precisa existir e, para usuário de empresa, ser da empresa dele.
 function nc_da_foto($ncId, $minhaEmp)

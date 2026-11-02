@@ -11,27 +11,27 @@ function importacao_tipos()
 {
     return [
         'ifc' => [
-            'rotulo' => 'Modelos IFC (Tekla)', 'ext' => ['ifc', 'zip'], 'minimo' => 1,
+            'rotulo' => 'Modelos IFC (Tekla) (opcional)', 'ext' => ['ifc', 'zip'], 'minimo' => 0,
             'ajuda' => 'Um IFC por edificação (galpão, anexos…). Pode enviar .ifc ou .zip com o .ifc dentro. Exportar do Tekla com Assemblies e código de posição.',
             'gera' => ['Lista de material por local e família', 'Inventário da obra', 'Mapa de apontamento (joists, vigas, fechamento, marquise, contraventamento, telhas)', 'Fluxo de baixa por peça'],
         ],
         'fixadores' => [
-            'rotulo' => 'Lista de parafusos e fixadores', 'ext' => ['trb', 'xlsx', 'xlsm', 'csv', 'zip'], 'minimo' => 1,
+            'rotulo' => 'Lista de parafusos e fixadores (opcional)', 'ext' => ['trb', 'xlsx', 'xlsm', 'csv', 'zip'], 'minimo' => 0,
             'ajuda' => 'Relatório de parafusos do Tekla (.xlsx ou .csv), modelo .trb ou .zip com esses arquivos. Precisa ter diâmetro, comprimento, norma e quantidade.',
             'gera' => ['Fixadores do projeto por local', 'Kit de parafuso, porca e arruela por peça', 'Baixa de fixador'],
         ],
         'cronograma' => [
             'ext' => ['xml', 'xlsx', 'xlsm', 'pdf', 'zip'], 'rotulo' => 'Cronograma do cliente (opcional)', 'minimo' => 0,
-            'ajuda' => 'Opcional nesta etapa. Preferir .xml do MS Project ou .xlsx; também aceita .zip com cronogramas. Pode ser incluído depois.',
+            'ajuda' => 'Opcional. Preferir .xml do MS Project ou .xlsx; também aceita .zip com cronogramas. Pode ser incluído depois.',
             'gera' => ['Cronograma (Gantt) e previsto', 'Fases e frentes', 'Ligação atividade × frente de montagem'],
         ],
         'orcamento' => [
-            'ext' => ['xlsx', 'xlsm', 'zip'], 'rotulo' => 'Orçamento / planilha de medição por empresa', 'minimo' => 1,
+            'ext' => ['xlsx', 'xlsm', 'zip'], 'rotulo' => 'Orçamento / planilha de medição por empresa (opcional)', 'minimo' => 0,
             'ajuda' => 'Um arquivo por empresa executora, com item, descrição, quantidade, unidade e valor. Aceita .xlsx, .xlsm ou .zip com as planilhas.',
             'gera' => ['Catálogo de atividades do BM', 'Valores, pesos e contratos', 'Boletim de medição (BM)'],
         ],
         'projetos' => [
-            'ext' => ['pdf', 'zip'], 'rotulo' => 'Projetos em PDF', 'minimo' => 1,
+            'ext' => ['pdf', 'zip'], 'rotulo' => 'Projetos em PDF (opcional)', 'minimo' => 0,
             'ajuda' => 'Pranchas e memoriais em PDF, ou .zip com os PDFs: quantidade de telhas, vãos, unidades e m² por serviço.',
             'gera' => ['Biblioteca de projetos com revisão', 'Quantidades de telha e fechamento (vão, unidade, m²)', 'Lista de material por serviço'],
         ],
@@ -314,7 +314,7 @@ function importacao_situacao($obraId)
     $tipos = importacao_tipos();
     $porTipo = [];
     foreach ($tipos as $k => $t) {
-        $porTipo[$k] = ['rotulo' => $t['rotulo'], 'documentos' => [], 'ok' => false, 'pendente' => false, 'opcional' => ((int)$t['minimo'] === 0), 'motivo' => 'Nenhum arquivo enviado.'];
+        $porTipo[$k] = ['rotulo' => $t['rotulo'], 'documentos' => [], 'ok' => false, 'pendente' => false, 'enviado' => false, 'opcional' => true, 'motivo' => 'Nenhum arquivo enviado.'];
     }
     foreach ($docs as $d) {
         if (!isset($porTipo[$d['tipo']])) {
@@ -337,7 +337,8 @@ function importacao_situacao($obraId)
                 $validos++;
             }
         }
-        $p['ok'] = $validos >= $tipos[$k]['minimo'] && $invalidos === 0 && $pendentes === 0;
+        $p['ok'] = $invalidos === 0 && $pendentes === 0;   // documento é opcional: só atrapalha o arquivo recusado ou ainda sendo validado
+        $p['enviado'] = $validos > 0;
         $p['pendente'] = $pendentes > 0;
         if ($p['ok']) {
             $p['motivo'] = '';
@@ -346,15 +347,15 @@ function importacao_situacao($obraId)
         } elseif ($pendentes) {
             $p['motivo'] = 'Aguardando a leitura profunda do serviço…';
         } elseif (!$p['documentos']) {
-            $p['motivo'] = $p['opcional'] ? 'Opcional: pode ser enviado depois.' : 'Nenhum arquivo enviado.';
+            $p['motivo'] = 'Opcional: pode ser enviado agora ou depois.';
         } else {
             $p['motivo'] = 'Arquivos insuficientes.';
         }
     }
     unset($p);
-    $obrigatorios = array_filter($tipos, function ($t) { return (int)$t['minimo'] > 0; });
-    $completos = count(array_filter($porTipo, function ($p) { return !$p['opcional'] && $p['ok']; }));
-    return ['tipos' => $porTipo, 'completos' => $completos, 'total' => count($obrigatorios), 'pronta' => $completos === count($obrigatorios), 'servico' => $servico];
+    $completos = count(array_filter($porTipo, function ($p) { return !empty($p['enviado']); }));
+    $todosOk = count(array_filter($porTipo, function ($p) { return $p['ok']; })) === count($porTipo);
+    return ['tipos' => $porTipo, 'completos' => $completos, 'total' => count($tipos), 'pronta' => $todosOk, 'servico' => $servico];
 }
 
 function importacao_remover_documento($docId)

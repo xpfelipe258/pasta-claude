@@ -122,6 +122,7 @@ function oe_planos_da_empresa($json, $empresa)
         }
         if ($itens) {
             $p['itens'] = $itens;
+            $p['herdado'] = true;   // veio da obra principal: a sincronização o refaz; os planos criados pela própria empresa não têm esta marca
             $planos[] = $p;
         }
     }
@@ -130,6 +131,41 @@ function oe_planos_da_empresa($json, $empresa)
 }
 
 // Copia da obra $o para a obra $d só o que é da empresa $empresa. Devolve as contagens por tabela.
+// Planejamento criado, editado ou excluído na obra principal aparece sozinho na obra própria de cada empresa, só com as atividades dela.
+// Refaz apenas os planos que vieram da principal (marca "herdado" ou mesmo id); planos criados pela própria empresa e tudo o que ela
+// lançou ficam como estão.
+function oe_sincronizar_planos($origemId)
+{
+    $origemId = (int)$origemId;
+    $json = q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'planos_5w2h'", [$origemId])->fetchColumn();
+    $principal = json_decode((string)$json, true);
+    $idsPrincipal = [];
+    foreach ((is_array($principal) ? ($principal['planos'] ?? []) : []) as $p) { $idsPrincipal[(string)($p['id'] ?? '')] = true; }
+    $n = 0;
+    foreach (q_global("SELECT id, empresa_vinculada FROM obras WHERE origem_obra_id = ? AND status <> 'excluida'", [$origemId])->fetchAll() as $oe) {
+        $emp = (string)$oe['empresa_vinculada'];
+        if ($emp === '') { continue; }
+        $obraId = (int)$oe['id'];
+        $derivado = $json !== false && $json !== null ? oe_planos_da_empresa($json, $emp) : null;
+        $novos = $derivado !== null ? (json_decode($derivado, true)['planos'] ?? []) : [];
+        $atual = json_decode((string)q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'planos_5w2h'", [$obraId])->fetchColumn(), true);
+        $proprios = [];
+        foreach ((is_array($atual) ? ($atual['planos'] ?? []) : []) as $p) {
+            if (!empty($p['herdado']) || isset($idsPrincipal[(string)($p['id'] ?? '')])) { continue; }
+            $proprios[] = $p;
+        }
+        $doc = is_array($atual) ? $atual : [];
+        $doc['planos'] = array_merge($novos, $proprios);
+        $novoJson = json_encode($doc, JSON_UNESCAPED_UNICODE);
+        if ($novoJson === json_encode($atual, JSON_UNESCAPED_UNICODE)) { continue; }
+        oe_config_gravar($obraId, 'planos_5w2h', $novoJson);
+        $v = (int)(q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'versao'", [$obraId])->fetchColumn() ?: 0) + 1;
+        oe_config_gravar($obraId, 'versao', (string)$v);   // as telas abertas da empresa se atualizam
+        $n++;
+    }
+    return $n;
+}
+
 function oe_copiar_dados($o, $d, $empresa)
 {
     $o = (int)$o;
@@ -311,6 +347,83 @@ function obra_empresa_recarregar($obraId)
     }
     if (function_exists('importacao_apagar_pasta')) { importacao_apagar_pasta((int)$obraId); }   // fotos do RDO que a empresa tenha enviado
     registrar_global('obra_empresa_recarregada', ['obra_id' => (int)$obraId, 'linhas' => $cont]);
+    return $cont;
+}
+
+// Traz para a obra própria da empresa o que foi lançado DEPOIS da cópia na obra principal (produção, apontamentos, medição, efetivo,
+// equipamentos e impactos dela) e os planos 5W2H. Só acrescenta (nada do que a empresa lançou ou apagou na obra dela é refeito), e só
+// linhas novas da principal: o que a empresa já tinha na cópia não volta. Na primeira vez (sem marca) acrescenta tudo o que falta.
+function obra_empresa_atualizar($obraId)
+{
+    $o = q_global("SELECT * FROM obras WHERE id = ? AND status <> 'excluida'", [(int)$obraId])->fetch();
+    if (!$o || trim((string)$o['empresa_vinculada']) === '' || !(int)$o['origem_obra_id']) { return null; }
+    $orig = (int)$o['origem_obra_id'];
+    $d = (int)$obraId;
+    $alvo = oe_norm($o['empresa_vinculada']);
+    $marca = json_decode((string)q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'oe_sync'", [$d])->fetchColumn(), true);
+    $primeira = !is_array($marca);
+    $marca = is_array($marca) ? $marca : ['ids' => [], 'data' => ''];
+    $empOrig = null;
+    $empDest = null;
+    foreach (oe_ler('empresas', $orig) as $x) { if (oe_norm($x['nome']) === $alvo) { $empOrig = (int)$x['id']; } }
+    foreach (oe_ler('empresas', $d) as $x) { if (oe_norm($x['nome']) === $alvo) { $empDest = (int)$x['id']; } }
+    if (!$empOrig || !$empDest) { return null; }
+    $assin = function ($l) { unset($l['id'], $l['obra_id']); ksort($l); return md5(json_encode($l, JSON_UNESCAPED_UNICODE)); };
+    $mesma = function ($v) use ($alvo) { return oe_norm($v) === $alvo; };
+    $tabelas = [
+        'apontamentos' => function ($l) use ($mesma) { return $mesma($l['empresa']); },
+        'bm_apontamentos' => function ($l) use ($mesma) { return $mesma($l['empresa']); },
+        'bm_deducoes' => function ($l) use ($mesma) { return $mesma($l['empresa']); },
+        'dp_efetivo' => function ($l) use ($mesma) { return $mesma($l['empresa']); },
+        'usos' => function ($l) use ($alvo) { return strpos(' ' . oe_norm($l['empresa']) . ' ', ' ' . $alvo . ' ') !== false; },
+        'impactos' => function ($l) use ($alvo) {
+            $lista = trim((string)$l['empresas']);
+            return $lista !== '' && (stripos($lista, 'todas') !== false || strpos(' ' . oe_norm($lista) . ' ', ' ' . $alvo . ' ') !== false);
+        },
+    ];
+    $cont = [];
+    $pdo = bd();
+    $pdo->beginTransaction();
+    try {
+        foreach ($tabelas as $t => $filtro) {
+            $ultimo = (int)($marca['ids'][$t] ?? 0);
+            $tem = [];
+            foreach (oe_ler($t, $d) as $l) { $tem[$assin($l)] = true; }
+            $novas = [];
+            $maxId = $ultimo;
+            foreach (oe_ler($t, $orig) as $l) {
+                $maxId = max($maxId, (int)$l['id']);
+                if (!$primeira && (int)$l['id'] <= $ultimo) { continue; }
+                if (!$filtro($l) || isset($tem[$assin($l)])) { continue; }
+                $novas[] = $l;
+            }
+            $cont[$t] = oe_gravar($t, $d, $novas);
+            $marca['ids'][$t] = $maxId;
+        }
+        // produção da grade: dias novos (ou, na primeira vez, todos os que faltam); a célula que já existe na obra da empresa não é trocada
+        $corte = $primeira ? '' : (string)$marca['data'];
+        $tem = [];
+        foreach (oe_ler('producao', $d, 'AND empresa_id = ?', [$empDest]) as $l) { $tem[$l['data'] . '|' . $l['col']] = true; }
+        $novas = [];
+        foreach (oe_ler('producao', $orig, 'AND empresa_id = ?', [$empOrig]) as $l) {
+            if ($corte !== '' && (string)$l['data'] < $corte) { continue; }
+            if (isset($tem[$l['data'] . '|' . $l['col']])) { continue; }
+            $novas[] = $l;
+        }
+        $cont['producao'] = oe_gravar('producao', $d, $novas, function ($l) use ($empDest) { $l['empresa_id'] = $empDest; return $l; });
+        $marca['data'] = date('Y-m-d', strtotime('-7 days'));
+        oe_config_gravar($d, 'oe_sync', json_encode($marca));
+        $mudou = array_sum($cont) > 0;
+        $mudou = oe_sincronizar_planos($orig) > 0 || $mudou;
+        if ($mudou) {
+            $v = (int)(q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'versao'", [$d])->fetchColumn() ?: 0) + 1;
+            oe_config_gravar($d, 'versao', (string)$v);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) { $pdo->rollBack(); }
+        throw $e;
+    }
     return $cont;
 }
 

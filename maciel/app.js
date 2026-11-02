@@ -76,7 +76,8 @@ function isoDeTexto(t) { const m = t.match(/^(\d{1,2})\/?(\d{1,2})\/?(\d{4})$/);
 function patchDatas() { if (typeof datasBrVarrer === 'function') datasBrVarrer(); }
 function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function nf(v, dec = 0) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec }); }
-function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
+// Regra financeira do sistema: SEMPRE com centavos (R$ 1.234,56), em qualquer tela, relatório ou PDF. rs e rs2 são iguais.
+function rs(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function rs2(v) { return v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function cap(s) { s = String(s || ''); if (s !== s.toLowerCase() && s !== s.toUpperCase()) return s; return s.toLowerCase().replace(/(^|\s|–|-|\/)(\S)/g, (m, a, b) => a + b.toUpperCase()); }
 function cor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -360,6 +361,7 @@ async function carregar() {
    'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
+  M.cliente = (M.cliente || []).filter(c => !ehGalpaoFase2(c.frente));   // a Fase 2 do galpão não é usada: o contrato total fica numa linha só, a da cobertura (Fase 1)
   M.cliente = eclusaSepararCliente(M.cliente);   // Eclusa – Vigas e Joists vira dois itens (vigas 9 un, joists 18 un)
   if (!empSel || !M.empresas.some(e => e.aba === empSel)) empSel = M.empresas[0]?.aba;
   $('#arquivoTxt').textContent = `${j.arquivo} · gravada em ${new Date(j.modificado).toLocaleString('pt-BR')}`;
@@ -400,6 +402,7 @@ async function carregar() {
   preencherListas();
   renderTudo();
   if (typeof qualAtualizarContador === 'function') qualAtualizarContador();
+  if (typeof qualAvisoNovas === 'function') qualAvisoNovas();   // aviso vermelho só quando chega uma NC nova (não a cada entrada)
   fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { EP = j; atualizarIndicadoresMenu(); if (ABAS_ESTOQUE.has(abaAtual)) renderEstoquePlanilha(); if (abaAtual === 'estvinc' || abaAtual === 'estpronto') renderAba(); }).catch(() => {});
 }
 
@@ -572,11 +575,11 @@ function renderAba() {
   // cada aba é chamada só quando é a atual: um script que não carregou (ex.: tarefas.js) deixa de derrubar TODAS as telas
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
-     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(),
+     equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), contaspagar: () => renderContasPagar(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(), sesmtocorr: () => renderSesmtOcorr(),
      plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
-  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], cff: ['renderCff', 'cff.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
+  const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], sesmtocorr: ['renderSesmtOcorr', 'sesmt_aba.js'], cff: ['renderCff', 'cff.js'], contaspagar: ['renderContasPagar', 'contas_pagar.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
   if (exigido && typeof window[exigido[0]] !== 'function') {   // o arquivo da aba não foi carregado (rede/cache): busca de novo uma vez e redesenha
     const chave = '_script_' + exigido[1];
     if (window[chave] === 'carregando') return;   // já está buscando; redesenha quando chegar
@@ -1312,8 +1315,13 @@ function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'TELHAR') k = 
 function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
-  const cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
-  const it = ganAplicarDatas({ ...c, inicio_plan: cr?.inicio_plan || c.inicio_plan, prazo: cr?.prazo || c.prazo });
+  let cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
+  if (!cr) {   // nome do cadastro mais longo que o do cronograma (ex.: "ECLUSA – TELHAS COBERTURA" × "Eclusa - Telhas"): vale a linha de mesmo início de nome
+    const nc = ganNorm(c.servico);
+    cr = GAN_CRONOGRAMA_CLIENTE.filter(x => ganNorm(x.frente) === ganNorm(c.frente) && ganFaseNumero(x) === ganFaseNumero(c) && nc.startsWith(ganNorm(x.servico) + ' '))
+      .sort((a, b) => ganNorm(b.servico).length - ganNorm(a.servico).length)[0] || null;
+  }
+  const it = ganAplicarDatas({ ...c, servico: cr?.servico || c.servico, inicio_plan: cr?.inicio_plan || c.inicio_plan, prazo: cr?.prazo || c.prazo });
   return { inicio_plan: it.inicio_plan || null, prazo: it.prazo || null };
 }
 
@@ -1325,6 +1333,13 @@ function clienteComFontes(c0) {
   if (fonte) {
     const qtd = fonte.percentual ? 100 : catalogoQtd(fonte.atividades);
     if (qtd > 0) item = { ...item, qtd, peso: Number(c0.peso) || 1, servico_exib: fonte.nome, fonte_catalogo: true, fonte_pct: !!fonte.percentual, contrato_total: true };
+  }
+  // Eclusa (telhas da cobertura, calhas): o item não tem contrato cadastrado; vale o catálogo do BM da própria Eclusa e o executado é o que foi
+  // lançado nessa atividade (ex.: "Instalação de telhas Eclusa" = 1.163,25 m²). Uma atividade só = quantidade dela (m²); várias = % de avanço.
+  if (!fonte && !c0._eclusa && !(Number(item.qtd) > 0) && ganNorm(c0.frente) === 'ECLUSA') {
+    const ats = ganBmAtividadesEspecificas(c0);
+    if (ats.length === 1 && Number(ats[0].qtd) > 0) item = { ...item, qtd: Number(ats[0].qtd), peso: Number(c0.peso) || 1, contrato_total: true };
+    else if (ats.length > 1) item = { ...item, qtd: 100, peso: Number(c0.peso) || 1, contrato_total: true };
   }
   // Contrato editado na tela do Dashboard cliente (vale sobre o catálogo; apagar volta ao catálogo)
   const ov = Number((M.contratos_cliente || {})[contratoCliKey(c0)]);
@@ -1559,21 +1574,6 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura de Pedestres - Testeira', inicio_plan: '2026-11-27', prazo: '2026-12-14', fontes: ['Cobertura de Pedestres', 'Testeira'] },
   { frente: 'PASSARELAS / ÁREA DE VIVÊNCIA', fase: '1', servico: 'Cobertura Área de Vivência', inicio_plan: '2026-11-18', prazo: '2026-12-16', fontes: ['Área de Vivência', 'Cobertura'] },
 
-  // Galpão - Fase 2
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Premontagem', inicio_plan: '2026-09-17', prazo: '2027-03-17', fontes: ['Premontagem'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Vigas', inicio_plan: '2026-09-28', prazo: '2027-03-23', fontes: ['Vigas'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Içamento Joist', inicio_plan: '2026-10-14', prazo: '2027-04-08', fontes: ['Içamento Joist', 'Içamento', 'Joist'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Instalação de telhas', inicio_plan: '2026-10-21', prazo: '2027-04-15', fontes: ['Instalação de telhas', 'Montagem Telhas', 'Telhas'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Calhas Cobertura', inicio_plan: '2026-12-18', prazo: '2027-04-23', fontes: ['Calhas Cobertura', 'Calhas'] },
-  { frente: 'GALPÃO F2', fase: '2', servico: 'Arremates Cobertura', inicio_plan: '2027-01-06', prazo: '2027-04-30', fontes: ['Arremates Cobertura', 'Arremates', 'Rufos'] },
-  { frente: 'GALPÃO F2 – FECHAMENTO LATERAL', fase: '2', servico: 'Fech. Lateral – Estrutura', inicio_plan: '2026-11-12', prazo: '2027-04-08', fontes: ['Fech. Lateral – Estrutura', 'Fechamento Lateral Estrutura', 'Fechamento Lateral'] },
-  { frente: 'GALPÃO F2 – FECHAMENTO LATERAL', fase: '2', servico: 'Fechamento', inicio_plan: '2026-12-04', prazo: '2027-04-30', fontes: ['Fechamento', 'Fechamento Lateral Telha PIR', 'Telha PIR'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Vigas', inicio_plan: '2026-12-22', prazo: '2027-03-19', fontes: ['Marquise - Vigas', 'Vigas'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Premontagem Terças', inicio_plan: '2026-12-30', prazo: '2027-03-29', fontes: ['Marquise - Premontagem Terças', 'Premontagem', 'Terças'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Montagem Terças', inicio_plan: '2027-01-06', prazo: '2027-04-01', fontes: ['Marquise - Montagem Terças', 'Terças'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Calhas', inicio_plan: '2027-01-07', prazo: '2027-04-02', fontes: ['Marquise - Calhas', 'Calhas'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Telhas', inicio_plan: '2027-01-19', prazo: '2027-04-14', fontes: ['Marquise - Telhas', 'Telhas', 'Instalação de telhas'] },
-  { frente: 'GALPÃO F2 – MARQUISE', fase: '2', servico: 'Marquise - Testeira', inicio_plan: '2027-01-21', prazo: '2027-04-16', fontes: ['Marquise - Testeira', 'Testeira'] },
 ];
 
 const GAN_AJUSTES_DATAS_PADRAO = {
@@ -1695,6 +1695,10 @@ function ganNorm(txt) {
   return String(txt || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim();
 }
 
+// Linhas "GALPÃO F2…" (cobertura, fechamento lateral, marquise) não são usadas: valem só as linhas de Fase 1, que já trazem o contrato total.
+function ehGalpaoFase2(frente) {
+  return /^GALP[AÃ]O\s+F2\b/i.test(String(frente || '').trim());
+}
 function ganFaseNumero(it) {
   return it.fase || faseItem(it.frente);
 }
@@ -1729,7 +1733,12 @@ function ganItensCliente() {
     } else {
       const porBm = ganBmAtividadesEspecificas(cr).length > 0;
       if (M.obra_empresa && !porBm) {   // obra própria da empresa: só entra a linha do cronograma geral que for de um serviço dela (a Fase 2 acompanha a Fase 1)
-        const semFase = x => `${ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, ''))}|${ganNorm(x.servico)}`;
+        // "GALPÃO F2" (sem complemento) é a cobertura da Fase 2: acompanha "GALPÃO F1 – COBERTURA"; "GALPÃO F2 – MARQUISE" acompanha "GALPÃO F1 – MARQUISE"
+        const semFase = x => {
+          let f = ganNorm(String(x.frente || '').replace(/\bF\d\b/gi, '')).replace(/[^A-Z0-9]+/g, ' ').trim();
+          if (f === 'GALPAO') f = 'GALPAO COBERTURA';
+          return `${f}|${ganNorm(x.servico)}`;
+        };
         if (!(M.cliente || []).some(c => ganChavePlanejada(c) === ganChavePlanejada(cr) || semFase(c) === semFase(cr))) return;
       }   // obra própria da empresa: linha do cronograma geral que não é dela não aparece
       const qtd = cr._eclusa ? eclusaQtd(cr._eclusa) : porBm ? 100 : ganQtdRef(cr);
@@ -1939,6 +1948,7 @@ function ganBmAtividadesEspecificas(it) {
   let filtro = null;
   if (sv.includes('VIGAS E JOISTS')) filtro = a => ganNorm(a.item_desc).includes('COBERTURA DA ECLUSA');
   else if (sv.includes('CALHAS')) filtro = a => ganNorm(a.item_desc).includes('CALHAS') && ganNorm(a.atividade).includes('ECLUSA');
+  else if (sv.includes('PLATIBANDA')) filtro = null;   // platibanda tem atividades próprias (ANEXO_CAT.E), não as da cobertura
   else if (sv.includes('TELHAS')) filtro = a => ganNorm(a.atividade).includes('ECLUSA') && ganNorm(a.atividade).includes('TELHA') && ganNorm(a.item_desc).includes('COBERTURA DOS ANEXOS');
   return filtro ? bmTab('bm_atividades').filter(filtro) : [];
 }
@@ -3146,7 +3156,7 @@ function edBarra(k) {
   if (!ed) { box.innerHTML = ''; return; }
   const { itens } = edItens(k), tot = itens.reduce((s, i) => s + i.quantidade, 0);
   const resumo = !itens.length ? 'Digite as quantidades na coluna nova' : k === 'cons'
-    ? `${itens.length} lançamento(s) · EJ ${nf(itens.filter(i => i.empresa === 'EJ').reduce((s, i) => s + i.quantidade, 0))} · CMM ${nf(itens.filter(i => i.empresa === 'CMM').reduce((s, i) => s + i.quantidade, 0))}`
+    ? `${itens.length} lançamento(s) · ` + relConsEmpresas().map(e => `${e} ${nf(itens.filter(i => i.empresa === e).reduce((s, i) => s + i.quantidade, 0))}`).join(' · ')
     : `${itens.length} item(ns) · total ${nf(tot)}`;
   if (!box.dataset.pronto) {
     box.dataset.pronto = '1';
@@ -3370,7 +3380,13 @@ function editarConsumoInline(td) {
 // ------------------------------------------------------------ RELATÓRIO DE CONSUMO (Consumo físico)
 // Escolhe empresa (cada uma em separado, só EJ, só CMM ou geral somado), semanas e itens; gera um HTML para imprimir/salvar em PDF.
 const relCons = { sem: new Set(), it: new Set() };
-function relConsEmpresas() { const cf = estConsumoComCadastros(); return (cf.empresas && cf.empresas.length ? cf.empresas : ['EJ', 'CMM']).filter(Boolean); }
+function relConsEmpresas() {   // colunas do consumo = empresas da obra (EJ, CMM e GLOBO AÇOS); o servidor já manda a lista, a Globo é garantida aqui se estiver cadastrada
+  const cf = estConsumoComCadastros(), l = (cf.empresas && cf.empresas.length ? [...cf.empresas] : ['EJ', 'CMM']).filter(Boolean);
+  const ga = (M?.empresas || []).find(e => ganNorm(e.nome) === 'GLOBO ACOS');
+  if (ga && !l.some(n => ganNorm(n) === 'GLOBO ACOS')) l.push(ga.nome);
+  return l;
+}
+const consCorEmp = e => `var(${COR_EMP[e] || '--fg'})`;
 function relConsTotalItem(m, sems) { let t = 0; sems.forEach(s => { const d = m.consumo_semanas[s]; if (d) relConsEmpresas().forEach(e => { t += Number(d[e]) || 0; }); }); return t; }
 function abrirRelConsumo() {
   if (!EP) return toast('Aguarde o carregamento do estoque.', true);
@@ -3571,20 +3587,21 @@ function renderEstConsumo() {
     tile('Total consumido', nf(totCons), 'soma de todos os itens', 'var(--vermelho)');
 
   const abrevS = s => s.length > 14 ? s.slice(0, 12) + '…' : s;
+  const emps = relConsEmpresas(), nE = emps.length;   // uma coluna por empresa (EJ, CMM, GLOBO AÇOS) em cada semana
   const ed = estEdit.cons, cxC = $('#tabEstCons').closest('.tabela-rolagem'), sxC = cxC.scrollLeft;
   const inp = (m, emp) => `<td class="col-nova"><input class="ed-in" data-ed="cons" data-tag="${esc(m.tag)}" data-emp="${emp}" inputmode="decimal" value="${esc(ed.val.get(m.tag + '|' + emp) || '')}" aria-label="${esc(m.tag)} ${emp}"></td>`;
   $('#tabEstCons').innerHTML = `<thead><tr><th>TAG</th><th>Produto</th>` +
-    sems.map(s => `<th class="n" colspan="2" title="${esc(s)}${consPeriodoTxt(cf, s) ? ' · período ' + esc(consPeriodoTxt(cf, s)) : ''}">${esc(abrevS(s))}${consPeriodoTxt(cf, s) ? `<div class="nota">${esc(consPeriodoTxt(cf, s))}</div>` : ''} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
-    (ed ? `<th class="n col-nova" colspan="2"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
+    sems.map(s => `<th class="n" colspan="${nE}" title="${esc(s)}${consPeriodoTxt(cf, s) ? ' · período ' + esc(consPeriodoTxt(cf, s)) : ''}">${esc(abrevS(s))}${consPeriodoTxt(cf, s) ? `<div class="nota">${esc(consPeriodoTxt(cf, s))}</div>` : ''} <button type="button" class="btn-col-edit" data-cons-col="${esc(s)}" title="Editar coluna: ${esc(s)}" aria-label="Editar coluna ${esc(s)}">✎</button></th>`).join('') +
+    (ed ? `<th class="n col-nova" colspan="${nE}"><input class="ed-cab" data-ed="cons" placeholder="Semana (ex: 28/09 a 02/10)" value="${esc(ed.nome)}" aria-label="Semana"></th>` : '') +
     `<th class="n">Total</th></tr><tr><th></th><th></th>` +
-    sems.map(() => `<th class="n" style="color:var(--ej)">EJ</th><th class="n" style="color:var(--cmm)">CMM</th>`).join('') +
-    (ed ? `<th class="n col-nova" style="color:var(--ej)">EJ</th><th class="n col-nova" style="color:var(--cmm)">CMM</th>` : '') +
+    sems.map(() => emps.map(e => `<th class="n" style="color:${consCorEmp(e)}">${esc(e)}</th>`).join('')).join('') +
+    (ed ? emps.map(e => `<th class="n col-nova" style="color:${consCorEmp(e)}">${esc(e)}</th>`).join('') : '') +
     `<th></th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
-      sems.map(s => celulaConsumo(m, s, 'EJ') + celulaConsumo(m, s, 'CMM')).join('') +
-      (ed ? inp(m, 'EJ') + inp(m, 'CMM') : '') +
+      sems.map(s => emps.map(e => celulaConsumo(m, s, e)).join('')).join('') +
+      (ed ? emps.map(e => inp(m, e)).join('') : '') +
       `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
-    : `<tr><td colspan="${2 + sems.length * 2 + (ed ? 2 : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
+    : `<tr><td colspan="${2 + sems.length * nE + (ed ? nE : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
   cxC.scrollLeft = sxC;
   edBarra('cons');
 
@@ -4843,9 +4860,11 @@ async function salvarApontamento() {
     await carregar();
     const lanc = (r.lancamentos || []).map(l => `${l.empresa} · ${l.servico} +${nf(l.delta)} (dia fecha em ${nf(l.total)})`).join(' · ');
     const bmT = (r.bm_telhas || []).map(t => `${t.empresa} · ${nf(t.telhas)} telha(s) = ${nf(t.delta_m2, 1)} m² em ${t.codigo} (dia fecha em ${nf(t.total_m2, 1)} m²)`).join(' · ');
+    const bmF = (r.bm_fechamento || []).map(t => `${t.empresa} · ${t.codigo} ${t.delta > 0 ? '+' : ''}${nf(t.delta)}`).join(' · ');
     toast(`${r.salvos} apontamento(s) salvo(s)`
       + (lanc ? `. Lançado em produção: ${lanc}` : (s.regular ? '. Regularização: não somou em Lançamentos.' : ''))
       + (bmT ? `. Medição (BM): ${bmT}` : '')
+      + (bmF ? `. Lançamentos (fechamento lateral): ${bmF}` : '')
       + (r.avisos?.length ? '. Atenção: ' + r.avisos.join(' ') : ''),
       !!r.avisos?.length, (r.avisos?.length || lanc) ? 9000 : undefined);
   } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Salvar apontamento'; }
@@ -5342,7 +5361,7 @@ function graficoEquip(rt) {
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}`, footer: its => 'Total: ' + rs(soma0(its, i => i.raw)) } } },
-      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
+      scales: { ...eixos({ stacked: !agrupado, ticks: { color: cor('--fg2'), callback: v => rs2(v) } }), x: { stacked: !agrupado, ticks: { color: cor('--fg2') }, grid: { display: false } } },
     },
   });
 }
@@ -5521,19 +5540,44 @@ function bmItens(emp, ate, snap) {
 function bmPeriodos(emp) {
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((a, b) => a.corte.localeCompare(b.corte));
   const lista = [];
-  let ant = null;
+  let ant = null, sinal = BM_SINAL_PERCENTUAL;   // % de sinal de contrato: o do próprio BM (linha "Sinal de contrato" dos descontos) ou, se vazio, o do BM anterior; padrão 10
+  const sinaisDesc = bmTab('bm_deducoes').filter(d => d.empresa === emp && ganNorm(d.tipo) === 'SINAL DE CONTRATO' && d.percentual != null && d.percentual !== '' && isFinite(Number(d.percentual)));
+  const sinalDoBm = (n, ini, fim) => sinaisDesc.filter(d => d.bm != null && d.bm !== '' ? Number(d.bm) === n : (d.data && d.data >= ini && d.data <= fim)).sort((a, b) => a.linha - b.linha).pop();
   ps.forEach((p, i) => {
-    const n = p.bm || i + 1, fech = bmFech(emp, n);
-    lista.push({ chave: 'p' + p.linha, n, ini: ant ? add(ant, 1) : '0000-01-01', fim: p.corte, cortado: true, fechado: !!fech, fech,
+    const n = p.bm || i + 1, fech = bmFech(emp, n), iniP = ant ? add(ant, 1) : '0000-01-01';
+    const ld = sinalDoBm(n, iniP, p.corte);
+    const antigo = p.sinal_perc != null && p.sinal_perc !== '' && isFinite(Number(p.sinal_perc));   // valor digitado na versão anterior da célula (vale se não houver linha de desconto)
+    const propria = !!ld || antigo;
+    if (ld) sinal = Number(ld.percentual); else if (antigo) sinal = Number(p.sinal_perc);
+    lista.push({ chave: 'p' + p.linha, n, ini: iniP, fim: p.corte, cortado: true, fechado: !!fech, fech, sinalPerc: sinal, sinalPropria: propria, sinalLinha: ld ? ld.linha : null, linha: p.linha,
       rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
     ant = p.corte;
   });
   if (!ant || ref > ant) {
     const n = lista.length ? lista[lista.length - 1].n + 1 : 1;
-    lista.push({ chave: 'aberto', n, ini: ant ? add(ant, 1) : '0000-01-01', fim: ref, cortado: false, fechado: false,
+    const iniA = ant ? add(ant, 1) : '0000-01-01', ldA = sinalDoBm(n, iniA, ref);
+    if (ldA) sinal = Number(ldA.percentual);
+    lista.push({ chave: 'aberto', n, ini: iniA, fim: ref, cortado: false, fechado: false, sinalPerc: sinal, sinalPropria: !!ldA, sinalLinha: ldA ? ldA.linha : null,
       rot: ant ? `BM${n} em aberto · até ${fdA(ref)}` : `Acumulado até ${fdA(ref)} (sem corte definido)` });
   }
   return lista;
+}
+
+// % de sinal de contrato do BM n: vira (ou atualiza/apaga) a linha "SINAL DE CONTRATO" da lista de descontos daquele BM.
+async function bmSinalSalvar(emp, n, perc) {
+  const p = bmPeriodos(emp).find(x => x.n === n);
+  if (!p) throw new Error('BM não encontrado. Recarregue a tela.');
+  if (p.fechado) throw new Error(`O BM${n} está fechado: reabra o BM para mudar o % de sinal de contrato.`);
+  const antigas = bmTab('bm_deducoes').filter(d => d.empresa === emp && ganNorm(d.tipo) === 'SINAL DE CONTRATO' && d.percentual != null && d.percentual !== '' && (d.bm != null && d.bm !== '' ? Number(d.bm) === n : (d.data && d.data >= p.ini && d.data <= p.fim)));
+  if (perc == null) { for (const d of antigas) await postar(API + 'registro', { tabela: 'bm_deducoes', linha: d.linha, excluir: true }); }
+  else if (antigas.length) {
+    await postar(API + 'registro', { tabela: 'bm_deducoes', linha: antigas[antigas.length - 1].linha, campos: { percentual: perc } });
+    for (const d of antigas.slice(0, -1)) await postar(API + 'registro', { tabela: 'bm_deducoes', linha: d.linha, excluir: true });
+  } else await postar(API + 'registro', { tabela: 'bm_deducoes', campos: { empresa: emp, bm: n, data: p.fim, tipo: 'SINAL DE CONTRATO', descricao: 'Sinal de contrato (% do medido no BM)', percentual: perc, contrato: 'RÓTULA' } });
+  if (p.cortado && p.linha != null) {   // valor digitado na versão anterior da célula (bm_periodos.sinal_perc) não pode reaparecer depois
+    const lin = bmTab('bm_periodos').find(x => x.linha === p.linha);
+    if (lin && lin.sinal_perc != null && lin.sinal_perc !== '') await postar(API + 'registro', { tabela: 'bm_periodos', linha: p.linha, campos: { sinal_perc: null } });
+  }
 }
 
 // Desconto como nas planilhas: valor fixo ou % do medido no período (ex.: sinal de contrato 10%). Negativo = crédito.
@@ -5546,6 +5590,16 @@ function mesesNoPeriodo(ini, fim) {
   const [ai, mi] = ini.split('-').map(Number);
   const [af, mf] = fim.split('-').map(Number);
   return Math.max(1, (af - ai) * 12 + (mf - mi) + 1);
+}
+// Locação mensal de equipamento NO BM: cada mês é cobrado uma única vez, no BM em que o mês COMEÇA.
+// BM de 03/10 a 03/11: cobra outubro (1×); novembro fica para o BM seguinte (que começa em 04/11). Antes contava os dois meses
+// que o período tocava e descontava a locação em dobro. Se o corte cai no último dia do mês, o mês do corte é deste BM.
+function bmMesesCobrados(ini, fim) {
+  if (!ini || !fim || ini === '0000-01-01') return 1;
+  const [ai, mi] = ini.split('-').map(Number), [af, mf, df] = fim.split('-').map(Number);
+  let n = (af - ai) * 12 + (mf - mi) + 1;
+  if (n > 1 && df < new Date(af, mf, 0).getDate()) n--;   // o mês do corte (incompleto) é cobrado pelo BM seguinte
+  return Math.max(1, n);
 }
 function bmDesconsideraAbastecimentoMedicao(r) {
   const eq = ganNorm(r.equipamento), uso = ganNorm(r.uso);
@@ -5572,7 +5626,7 @@ function bmDeducoes(emp, p, medido = 0) {
     });
     equip = soma0(rt, r => r.custoR); comb = soma0(rt, r => r.combR); litros = soma0(rt, r => r.litrosR); usos = rt.length;
     // Equipamentos mensais com empresa responsável — deduzidos automaticamente
-    const meses = mesesNoPeriodo(p.ini, p.fim);
+    const meses = bmMesesCobrados(p.ini, p.fim);
     eqMensList = bmTab('equipamentos').filter(e =>
       e.cobranca === 'MENSAL' && (e.responsavel || '').toUpperCase() === emp.toUpperCase() &&
       e.valor && e.situacao !== 'DESMOBILIZADO');
@@ -5581,14 +5635,15 @@ function bmDeducoes(emp, p, medido = 0) {
   }
   const manuaisLancados = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
   const manuais = manuaisLancados.filter(d => ganNorm(d.tipo) !== 'SINAL DE CONTRATO');
-  const sinalManualIgnorado = manuaisLancados.length - manuais.length;
-  const sinalAuto = medido > 0 ? medido * BM_SINAL_PERCENTUAL / 100 : 0;
+  const sinalManualIgnorado = manuaisLancados.filter(d => ganNorm(d.tipo) === 'SINAL DE CONTRATO' && (d.percentual == null || d.percentual === '')).length;   // sinal com valor fixo (sem %) não vale: o sistema desconta o % × medido
+  const sinalPerc = p.sinalPerc != null && isFinite(Number(p.sinalPerc)) ? Number(p.sinalPerc) : BM_SINAL_PERCENTUAL;   // vem de Períodos e deduções
+  const sinalAuto = medido > 0 ? medido * sinalPerc / 100 : 0;
   const total = {};
   BM_CONTRATOS.forEach(c => {
     const descontoSinal = c === 'RÓTULA' ? sinalAuto : 0;
     total[c] = descontoSinal + (c === BM_DESCONTA_EQUIP ? equip + comb : 0) + soma0(manuais.filter(d => d.contrato === c || d.contrato === 'AMBOS'), d => bmValorDeducao(d, medido));
   });
-  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos, mensalEquip, eqMensList, sinalAuto, sinalPercentual: BM_SINAL_PERCENTUAL, sinalManualIgnorado, usosIgnoradosAbast, usosIgnoradosLocacao };
+  return { equip, comb, litros, manuais: manuais.filter(d => d.contrato !== 'QPC'), total, usos, mensalEquip, eqMensList, sinalAuto, sinalPercentual: sinalPerc, sinalManualIgnorado, usosIgnoradosAbast, usosIgnoradosLocacao };
 }
 
 // BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
@@ -5671,7 +5726,7 @@ function bmImprimir(r, emp, p) {
   const _dailyEquip = dd.equip - dd.mensalEquip;
   if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
   if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
-  if (dd.mensalEquip) { const _m = mesesNoPeriodo(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  if (dd.mensalEquip) { const _m = bmMesesCobrados(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
     linhasDesc += `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td class="n">${rs(-v)}</td></tr>`;
@@ -5681,6 +5736,8 @@ function bmImprimir(r, emp, p) {
   // mesmo layout dos demais relatórios (capa Rótula, ficha da obra, rodapé) e mesmo PDF; o BM é da EMPRESA TERCEIRIZADA e isso aparece em destaque
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const situacao = p.fechado ? `BM FECHADO em ${fdA(p.fech.fechado_em)}` : 'BM EM ABERTO';
+  let eqDetalhe = '';
+  try { eqDetalhe = typeof bmEquipDetalheHtml === 'function' ? bmEquipDetalheHtml(emp, p, dd) : ''; } catch (err) { console.error('Detalhe de equipamentos do BM', err); eqDetalhe = '<p class="nota">Não foi possível montar o detalhe de equipamentos e combustível: ' + esc(String(err && err.message || err)) + '</p>'; }
   const corpo = `<section class="emp-sec"><div class="pag">
     <div class="bm-terc">
       <div class="bm-terc-rot">Empresa terceirizada · contratada pela RÓTULA</div>
@@ -5711,6 +5768,7 @@ function bmImprimir(r, emp, p) {
     <h2>Descontos e valor a faturar</h2>
     <table><thead><tr><th>Descrição</th><th class="n" style="width:170px">Valor (R$)</th></tr></thead>
     <tbody>${linhasDesc}</tbody></table>
+    ${eqDetalhe}
     <div class="bm-assin">
       <div><span>Responsável pela medição</span><b>EMPRESA TERCEIRIZADA · ${esc(emp)}</b></div>
       <div><span>Fiscalização / Contratante</span><b>RÓTULA</b></div>
@@ -5832,18 +5890,18 @@ function renderBMBoletim(box) {
   };
   h += `<div class="bloco"><div class="bloco-cab"><h2>Descontos e valor a faturar — BM${p.n}</h2>
       <div class="acoes"><button class="btn primario" data-novo="bm_deducoes" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, data: p.fim, contrato: R }))}'>+ Desconto</button></div></div>
-    <p class="nota">O sinal de contrato entra automaticamente como 10% do valor medido neste BM. Equipamento emprestado da Rótula, faturamento direto, diesel, medição antecipada e almoço podem continuar sendo lançados como descontos manuais. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
+    <p class="nota">O sinal de contrato entra automaticamente como ${nf(dd.sinalPercentual, 1)}% do valor medido neste BM; o % é editável na própria linha de sinal (e em Períodos e deduções) e fica registrado na lista de descontos do BM. Equipamento emprestado da Rótula, faturamento direto, diesel, medição antecipada e almoço podem continuar sendo lançados como descontos manuais. Lançamentos de "Uso de equipamentos" no período também entram sozinhos.</p>
     <div class="tabela-rolagem"><table><thead><tr><th>Descrição</th><th class="n">RÓTULA</th></tr></thead><tbody>
     <tr><td>Acumulado da produção${p.fechado ? '' : ' (até ' + fdA(p.fim) + ')'}</td><td class="n">${rs(tot.acum)}</td></tr>
     <tr><td>(−) Já medido em BMs anteriores${anteriores.length ? ' <span class="nota">' + anteriores.map(x => 'BM' + x.n).join(' + ') + '</span>' : ''}</td><td class="n">${rs(tot.ant)}</td></tr>
     <tr class="linha-total"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(med)}</b></td></tr>` +
-    (dd.sinalAuto ? `<tr><td>(−) Sinal de contrato <span class="nota">${nf(dd.sinalPercentual, 1)}% do valor medido no BM</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
+    (dd.sinalAuto || !p.fechado ? `<tr><td>(−) Sinal de contrato ${p.fechado ? `<b>${nf(dd.sinalPercentual, 1)}%</b>` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:72px;text-align:right" value="${esc(String(dd.sinalPercentual))}" data-edit-sinal-bm="${p.n}" title="% de sinal de contrato deste BM: digite e saia da célula para gravar (vazio volta a repetir o do BM anterior)"${document.body.classList.contains('somente-leitura') ? ' disabled' : ''}> %`} <span class="nota">do valor medido no BM${p.sinalPropria ? '' : ' · repetido do BM anterior (padrão 10%)'}${p.fechado ? '' : ' · edite aqui ou em Períodos e deduções'}</span></td><td class="n">${rs(-dd.sinalAuto)}</td></tr>` : '') +
     (dd.equip - dd.mensalEquip > 0 ? `<tr><td>(−) Equipamentos <span class="nota">${dd.usos == null ? 'valor do fechamento' : dd.usos + ' lançamento(s) em Equipamentos, de ' + (p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)) + ' a ' + fdA(p.fim)}</span></td><td class="n">${rs(-(dd.equip - dd.mensalEquip))}</td></tr>` : '') +
-    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota">${mesesNoPeriodo(p.ini, p.fim)}× R$ ${nf(e.valor, 0)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * mesesNoPeriodo(p.ini, p.fim)))}</td></tr>`).join('') : '') +
+    (dd.mensalEquip ? dd.eqMensList.map(e => `<tr><td>(−) ${esc(e.equipamento)} — locação mensal <span class="nota" title="Cada mês de locação é cobrado uma só vez, no BM em que o mês começa">${bmMesesCobrados(p.ini, p.fim)}× ${rs2(e.valor)} · responsável ${esc(e.responsavel)}</span></td><td class="n">${rs(-(e.valor * bmMesesCobrados(p.ini, p.fim)))}</td></tr>`).join('') : '') +
     (dd.comb ? `<tr><td>(−) Combustível <span class="nota">${nf(dd.litros, 1)} L</span></td><td class="n">${rs(-dd.comb)}</td></tr>` : '') +
     (dd.usosIgnoradosLocacao ? `<tr><td class="nota">Uso de equipamento locado desconsiderado <span class="nota">${dd.usosIgnoradosLocacao} lançamento(s) de equipamento com locação mensal já descontada — só o uso diário dos demais equipamentos soma</span></td><td class="n">—</td></tr>` : '') +
     (dd.usosIgnoradosAbast ? `<tr><td class="nota">Abastecimento de SANY desconsiderado na medição <span class="nota">mantida apenas a diária/custo do equipamento</span></td><td class="n">—</td></tr>` : '') +
-    (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal manual cadastrado ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% automaticamente</span></td><td class="n">—</td></tr>` : '') +
+    (dd.sinalManualIgnorado ? `<tr><td class="nota">Sinal de contrato com valor fixo (sem %) ignorado para evitar duplicidade <span class="nota">o sistema já aplica ${nf(dd.sinalPercentual, 1)}% do medido; para mudar, edite o % na linha de sinal</span></td><td class="n">—</td></tr>` : '') +
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : (!dd.sinalAuto && !(dd.equip - dd.mensalEquip) && !dd.mensalEquip && !dd.comb && !dd.sinalManualIgnorado ? '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>' : '')) +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
   box.innerHTML = h;
@@ -5855,7 +5913,7 @@ function renderBMBoletim(box) {
       { label: 'RÓTULA', data: ev.map(x => +x['RÓTULA'].toFixed(2)), borderColor: corEmpHex(emp), backgroundColor: corEmpHex(emp), tension: .25, pointRadius: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${rs(x.raw)}` } } },
-      scales: eixos({ ticks: { color: cor('--fg2'), callback: v => 'R$ ' + nf(v / 1000) + ' mil' } }) },
+      scales: eixos({ ticks: { color: cor('--fg2'), callback: v => rs2(v) } }) },
   });
 }
 
@@ -5865,10 +5923,10 @@ function renderBMPeriodos(box) {
   const ds = bmTab('bm_deducoes').filter(d => d.empresa === emp).sort((a, b) => String(b.data).localeCompare(String(a.data)));
   box.innerHTML = `<div class="grade-2">
     <div class="bloco"><div class="bloco-cab"><h2>Períodos de medição (BM)</h2><button class="btn primario" data-novo="bm_periodos">+ Período</button></div>
-      <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto.</p>
-      <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>` +
-    (ps.length ? ps.map(p => { const f = bmFech(emp, p.bm); return `<tr><td><b>BM${p.bm ?? ''}</b></td><td>${fdA(p.corte)}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
-      : '<tr><td colspan="5" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
+      <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto. <b>% sinal de contrato:</b> digite na coluna de cada BM (ou direto na linha de sinal do Boletim); o Boletim desconta esse % do valor medido automaticamente e a linha "Sinal de contrato" aparece em Descontos dos BMs. Célula vazia repete o % do BM anterior (padrão 10%); BM fechado trava o %.</p>
+      <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th class="n" title="Desconto de sinal de contrato = este % × valor medido no BM. Vazio = repete o do BM anterior (padrão 10%).">% sinal de contrato</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>` +
+    (ps.length ? ps.map(p => { const pp = bmPeriodos(emp).find(x => x.linha === p.linha); const f = bmFech(emp, pp ? pp.n : p.bm); const own = p.sinal_perc != null && p.sinal_perc !== ''; return `<tr><td><b>BM${pp ? pp.n : (p.bm ?? '')}</b></td><td>${fdA(p.corte)}</td><td class="n">${f ? `${nf(pp ? pp.sinalPerc : 10, 1)}%` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:76px;text-align:right" value="${pp && pp.sinalPropria ? esc(String(pp.sinalPerc)) : ''}" placeholder="${nf(pp ? pp.sinalPerc : 10, 1)}" data-edit-sinal-bm="${pp ? pp.n : p.bm}"> %`}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
+      : '<tr><td colspan="6" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
     `</tbody></table></div></div>
     <div class="bloco"><div class="bloco-cab"><h2>Descontos dos BMs</h2><button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></div>
       <p class="nota">Equipamento emprestado, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço... Valor negativo é crédito. Equipamentos lançados em Equipamentos entram sozinhos.</p>
@@ -5964,7 +6022,7 @@ function renderLancServico(e) {
       const acumUnd = ctl ? soma(e, ctl, '0000', ref) : null;
       const semana = ctl ? bmQtdFinanceira(a, semanaUnd) : bmSomaSemana(a, s, add(s, 6));
       const baseFin = bmAtividadeUsaBaseFinanceira(a);
-      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
+      h += `<tr><td class="fixa sub-ativ">${esc(a.atividade)}${ctl ? (baseFin ? ' <span class="nota" title="Lançamento na mesma unidade financeira do catálogo">↔ catálogo</span>' : ` <span class="nota" title="Lançamento produtivo em und; financeiro convertido para a unidade do BM">↔ ${esc(bmUnProducao(a))}</span>`) : ''} ${typeof vcConsumoAbrir === 'function' ? `<button type="button" class="link vc-cons-btn" data-cons-ativ="${esc(a.codigo)}" title="Vincular o consumo de material a esta atividade (baixa automática ao lançar a produção)">consumo${vcConsumoResumo(a.codigo)}</button>` : ''}</td><td>${bmLegendaUnidade(a)}</td><td class="n">${bmFmtQtdFinanceira(a, a.qtd, bmQtdContratadaUnd(a))}</td>`;
       dias.forEach((d, i) => {
         if (ctl) {
           const k = chave(e.aba, d, ctl), v = pend.has(k) ? pend.get(k) : textoSalvo(e, d, ctl);
@@ -6016,7 +6074,7 @@ const FORMS = {
     ['custo', 'Custo do equipamento (R$)', 'num'], ['litros', 'Combustível (L)', 'num'], ['preco_litro', 'Preço do litro (R$)', 'num'],
     ['custo_combustivel', 'Custo combustível (R$) — calculado se vazio', 'num'], ['operador', 'Operador', 'text'], ['obs', 'Observação', 'text', 0, 'largo']] },
   bm_periodos: { tit: 'período de medição (BM)', campos: [
-    ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM', 'num', 1], ['corte', 'Data de corte', 'date', 1], ['obs', 'Observação', 'text', 0, 'largo']] },
+    ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM', 'num', 1], ['corte', 'Data de corte', 'date', 1],['obs', 'Observação', 'text', 0, 'largo']] },
   bm_deducoes: { tit: 'desconto do BM', campos: [
     ['empresa', 'Empresa', 'empresa', 1], ['bm', 'Nº do BM (vazio = pela data)', 'num'], ['data', 'Data', 'date', 1],
     ['tipo', 'Tipo', 'select:EQUIPAMENTO EMPRESTADO,FATURAMENTO DIRETO,COMBUSTÍVEL,SINAL DE CONTRATO,MEDIÇÃO ANTECIPADA,REFEIÇÃO,ADIANTAMENTO,OUTROS', 1],
@@ -6077,6 +6135,12 @@ function abrirDialogo(tabela, linha, preset = {}) {
     if (tipo === 'ro') inp = `<input name="${k}" type="text" value="${esc(v)}" readonly>`;
     else if (tipo.startsWith('select:')) inp = `<select name="${k}" ${req}>${[...new Set([...tipo.slice(7).split(','), ...(v ? [String(v)] : [])])].map(o => `<option ${String(v) === o ? 'selected' : ''} value="${esc(o)}">${esc(o || '—')}</option>`).join('')}</select>`;
     else if (tipo === 'material') inp = `<select name="${k}" ${req}>${T.materiais.map(m => `<option value="${esc(m.codigo)}" ${m.codigo === v ? 'selected' : ''}>${esc(m.codigo)} — ${esc(m.material)}</option>`).join('')}</select>`;
+    else if (tipo === 'empresa' || tipo === 'equipamento') {   // escolha numa lista, como o campo "Uso" (o valor já gravado entra na lista mesmo que não esteja mais cadastrado)
+      const base = tipo === 'empresa' ? [...document.querySelectorAll('#listaEmpresas option')].map(o => o.value) : T.equipamentos.map(e => e.equipamento);
+      const ops = [...new Set([...base, ...(v ? [String(v)] : [])])].filter(Boolean);
+      if (tipo === 'empresa') ops.sort((x, y) => x.localeCompare(y, 'pt-BR'));
+      inp = `<select name="${k}" ${req}><option value="">${obrig ? 'Selecione…' : '—'}</option>${ops.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    }
     else {
       const lista = { servico: 'listaServicos', empresa: 'listaEmpresas', equipamento: 'listaEquip' }[tipo];
       const t = tipo === 'date' ? 'date' : 'text';
@@ -6627,6 +6691,7 @@ function dpRegistros(emp, data, funcao) {
   return (T.dp_efetivo || []).filter(r => normEmp(r.empresa) === emp && r.data === data && String(r.funcao || '').trim().toUpperCase() === funcao);
 }
 function renderDP() {
+  if (typeof dpSubAplicar === 'function') dpSubAplicar();   // sub-abas do SESMT (Colaboradores, ASO…) dentro de Pessoal
   const emps = dpEmpresas();
   const todas = T.dp_efetivo || [];
   if (!dpEmpSel || !emps.includes(dpEmpSel)) dpEmpSel = emps[0] || '';
@@ -7326,6 +7391,19 @@ function ligarEventos() {
   });
   $('#aba-bm').addEventListener('change', async ev => {
     if (ev.target.id === 'selBmPer') { bmPerSel = ev.target.value; renderBM(); return; }
+    const cs = ev.target.closest('[data-edit-sinal-bm]');
+    if (cs) {   // % de sinal de contrato do BM: grava como linha "Sinal de contrato" nos descontos; vazio apaga a linha (volta a repetir o BM anterior)
+      const v = cs.value.trim().replace(',', '.');
+      if (v !== '' && (!isFinite(Number(v)) || Number(v) < 0 || Number(v) > 100)) { toast('Informe um % entre 0 e 100.', true); return; }
+      cs.disabled = true;
+      try {
+        await bmSinalSalvar(bmEmp, parseInt(cs.dataset.editSinalBm), v === '' ? null : Number(v));
+        await carregar();
+        renderBM();
+        toast(v === '' ? '% de sinal de contrato: repete o do BM anterior' : `% de sinal de contrato do BM: ${nf(Number(v), 1)}%`);
+      } catch (e) { toast(e.message || 'Erro ao salvar o % de sinal.', true); cs.disabled = false; }
+      return;
+    }
     const ci = ev.target.closest('[data-edit-corte]');
     if (ci) {
       const id = parseInt(ci.dataset.editCorte);
@@ -7551,9 +7629,7 @@ function ligarEventos() {
   catch (err) { console.error('Erro ao carregar', err); $('#pontoSync').className = 'ponto erro'; $('#arquivoTxt').textContent = err.message; toast('Erro ao carregar os dados: ' + (err && err.message || err), true, 20000); try { definirRef(ref); } catch { } }
   patchDatas();
   atualizarBotoesSegFase();
-  if (!abaUrl && window.USUARIO_EMPRESA && typeof qualPendencias === 'function' && qualPendencias().length) aba = 'qualidade';   // empresa com não conformidade para responder: abre direto na Qualidade, como alerta
   mudarAba(document.getElementById('aba-' + aba) && !UI_OCULTOS.abas.includes(aba) ? aba : (document.querySelector('#abas .sidebar-grupo:not([hidden]) button[data-aba]')?.dataset.aba || 'tarefas'));   // aba ocultada pelo administrador não abre nem pelo endereço
-  if (typeof qualAvisoAoAbrir === 'function') qualAvisoAoAbrir();
   if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);

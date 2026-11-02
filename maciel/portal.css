@@ -313,3 +313,20 @@ body:has(.portal-shell) h3 { margin: 0; text-transform: none; letter-spacing: no
 .obra-grupo textarea { width:100%; margin-top:5px; padding:9px 11px; border:1px solid var(--portal-line); border-radius:10px; font:inherit; resize:vertical; }
 .obra-dialog-acoes { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; position:sticky; bottom:0; padding:10px 0; background:#fff; }
 @media (max-width:640px){ .painel-form .campos { grid-template-columns:1fr!important; } }
+
+/* Botões legíveis em qualquer aparelho (inclusive iPhone no modo escuro): fundo claro e texto escuro; o principal, texto branco. */
+body:has(.login-premium) .btn, body:has(.portal-shell) .btn { background: #fff; color: var(--portal-text); border-color: #d0d5dd; }
+body:has(.login-premium) .btn.primario, body:has(.portal-shell) .btn.primario { background: var(--portal-primary); border-color: var(--portal-primary); color: #fff; }
+body:has(.portal-shell) .btn.perigo { color: #b42318; border-color: #fda29b; }
+body:has(.portal-shell) .btn:disabled { color: #98a2b3; background: #f2f4f7; }
+/* Contraste: texto branco sobre laranja mais escuro (≥ 4,5:1) e botões secundários em texto escuro, nunca laranja claro */
+body:has(.login-premium) .btn.primario, body:has(.portal-shell) .btn.primario { background: color-mix(in srgb, var(--portal-primary) 76%, #000); border-color: color-mix(in srgb, var(--portal-primary) 76%, #000); color: #fff; }
+body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d0d5dd; background: #fff; }
+@media (max-width: 640px) {
+  .portal-topo { height:auto; min-height:70px; padding:8px 12px; flex-wrap:wrap; gap:8px; }
+  .portal-user { flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+  .portal-user .btn { padding:8px 11px; font-size:.8rem; }
+}
+/* Botões do cartão da obra: a cor da obra é escurecida para o texto branco ficar legível; os secundários usam a cor bem mais escura */
+.obra-card .largura { background: color-mix(in srgb, var(--obra-cor) 74%, #000) !important; color: #fff !important; }
+.obra-card > .btn.ghost.largura { background: transparent !important; color: color-mix(in srgb, var(--obra-cor) 45%, #000) !important; border: 1px solid color-mix(in srgb, var(--obra-cor) 60%, #000); }

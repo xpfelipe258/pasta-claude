@@ -16,7 +16,7 @@ const QUAL_COR_GRAV = { baixa: 'verde', media: 'amarelo', alta: 'vermelho', crit
 
 const qualSomenteLeitura = () => document.body.classList.contains('somente-leitura');
 const qualMinhaEmpresa = () => (window.USUARIO_EMPRESA || '').trim();
-const qualEhAdmin = () => !!(D && D.usuario && D.usuario.perfil === 'admin');
+const qualEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || D.usuario.admin_obra));
 const qualTodas = () => (T.nao_conformidades || []).slice();
 const qualFotosDe = (id, tipo) => (T.nc_fotos || []).filter(f => f.nc_id === id && (!tipo || (f.tipo || 'antes') === tipo)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.linha - b.linha);
 const qualAtrasada = n => !!n.prazo && n.situacao === 'aberta' && n.prazo < hoje();   // prazo para responder venceu e a empresa ainda não respondeu
@@ -65,16 +65,46 @@ function qualAtualizarContador() {
   if (!el) return;
   const n = qualPendencias().length;
   el.hidden = !n; el.textContent = n;
+  if (typeof tfAtualizarMenu === 'function') tfAtualizarMenu();   // a NC também conta como tarefa a fazer
 }
-// Aviso ao entrar no sistema (chamado por app.js): empresa com NC para responder / administrador com respostas para validar
-function qualAvisoAoAbrir() {
-  const p = qualPendencias();
-  if (!p.length) return;
+// Aviso vermelho (toast) SÓ no momento em que uma nova não conformidade é registrada para a empresa — não a cada entrada no sistema.
+// Ao entrar, o que está pendente aparece como alerta clicável na tela Tarefas a fazer (qualAlertaTarefasHtml) e no contador do menu.
+// Chamado por carregar() (app.js) a cada atualização dos dados: a primeira chamada só memoriza o que já existia; as seguintes avisam as NCs novas.
+function qualAvisoNovas() {
+  const cur = new Set(qualPendencias().map(n => n.linha));
+  if (!QUAL.conhecidas) { QUAL.conhecidas = cur; return; }
   if (qualMinhaEmpresa()) {
-    const atras = p.filter(qualAtrasada).length;
-    toast(`⚠ Qualidade: ${p.length} não conformidade(s) aguardando a resposta da ${qualMinhaEmpresa()}${atras ? ` — ${atras} com prazo vencido` : ''}.`, true, 9000);
-  } else if (qualEhAdmin()) toast(`Qualidade: ${p.length} resposta(s) de não conformidade aguardando a sua validação.`, false, 7000);
+    const novas = qualPendencias().filter(n => !QUAL.conhecidas.has(n.linha));
+    if (novas.length) toast(`⚠ Nova não conformidade para a ${qualMinhaEmpresa()}: ${novas.map(n => n.codigo + ' — ' + n.titulo).join(' · ')}. Veja em Tarefas a fazer.`, true, 9000);
+  }
+  QUAL.conhecidas = cur;
 }
+
+// Alerta na tela Tarefas a fazer (primeira tela): a não conformidade é uma tarefa. Clicar leva direto à Qualidade › Não conformidades.
+function qualAlertaTarefasHtml() {
+  if (typeof qualTodas !== 'function') return '';
+  const p = qualPendencias();
+  if (!p.length) return '';
+  const minha = qualMinhaEmpresa(), adm = qualEhAdmin();
+  const tit = minha ? `${p.length} não conformidade(s) aguardando a resposta da ${esc(minha)}`
+    : adm ? `${p.length} resposta(s) de não conformidade aguardando a sua validação` : `${p.length} não conformidade(s) com resposta atrasada`;
+  const acao = minha ? 'Responder' : adm ? 'Validar' : 'Ver';
+  const lista = p.slice().sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999')).slice(0, 8);
+  return `<div class="tf-alertas tf-qual"><div class="tf-alerta-tit">⚠ Qualidade — ${tit}
+      <button type="button" class="btn qual-resp" data-qual-ir="">Abrir Qualidade › Não conformidades</button></div><ul>` +
+    lista.map(n => `<li><button type="button" class="btn qual-resp" data-qual-ir="${n.linha}">${acao}</button> <span class="tf-cod">${esc(n.codigo)}</span>
+      <a href="#" data-qual-ir="${n.linha}">${esc(n.titulo)}</a> <span class="nota">${minha ? '' : `· ${esc(n.empresa || '')} `}${n.local ? `· ${esc(n.local)} ` : ''}· prazo ${qualPrazoTxt(n)}</span></li>`).join('') +
+    (p.length > 8 ? `<li class="nota">…e mais ${p.length - 8}. Abra a Qualidade para ver todas.</li>` : '') + '</ul></div>';
+}
+// clique no alerta (Tarefas a fazer): vai para a Qualidade e, se foi numa não conformidade, já abre a ficha dela
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-qual-ir]');
+  if (!b) return;
+  ev.preventDefault();
+  const linha = Number(b.dataset.qualIr) || 0;
+  mudarAba('qualidade');
+  if (linha) setTimeout(() => { try { qualAbrir(linha); } catch (_) { } }, 350);
+});
 
 // ---------------------------------------------------------------- tela
 function qualAlertaHtml() {

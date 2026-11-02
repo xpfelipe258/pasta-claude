@@ -18,8 +18,8 @@ if (!config()) {
     exit;
 }
 garantir_importacao();
-$eu = exigir_admin();
 $obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
+$eu = exigir_admin_da_obra($obraId);
 $obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND (status = 'rascunho' OR importacao = 'publicada')", [$obraId])->fetch() : null;
 if (!$obra) {
     header('Location: obras.php');

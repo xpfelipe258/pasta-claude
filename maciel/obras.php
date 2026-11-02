@@ -1,15 +1,28 @@
 <?php
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
+require __DIR__ . '/inc/dash_obras.php';
+require_once __DIR__ . '/inc/central.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 $eu = exigir_login_pagina();
 $admin = $eu['perfil'] === 'admin';
+$podeCriar = usuario_pode_criar_obra($eu);   // administrador ou editor sem empresa: quem cria a obra passa a ser o administrador DELA (não do sistema todo)
+$minhasAdm = $admin ? [] : obras_que_administra($eu);
+$ehAdminDe = function ($id) use ($admin, $minhasAdm) { return $admin || in_array((int)$id, $minhasAdm, true); };
 garantir_obras_detalhes(bd(), config()['driver']);   // instalações que ainda não rodaram a migração do esquema 16
+garantir_usuarios_obras_admin(bd(), config()['driver']);
 garantir_importacao();   // tabela de documentos e coluna de fase da importação
 $msg = '';
 $erro = '';
+// Plano do usuário: quantas obras já criou, quantas pode criar e se a assinatura está em dia (a regra só vale com "Exigir plano" ligado)
+list($planoOk, $planoMsg, $planoInfo) = plano_verificar_criacao($eu);
+// Quem administra a empresa ou obras começa pela Central da empresa (Obras, Financeiro, Comercial e Pessoal); a lista de obras fica em obras.php?lista=1.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['lista']) && central_pode($eu)) {
+    header('Location: central.php');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
@@ -23,10 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             definir_obra_atual($id);
             registrar_global('obra_aberta', ['obra_id' => $id]);
-            header('Location: index.php');
+            $destinos = ['pessoal' => 'index.php?aba=dp&reg=colaboradores'];   // atalhos dos painéis da Central (lista fechada)
+            header('Location: ' . ($destinos[$_POST['destino'] ?? ''] ?? 'index.php'));
             exit;
         }
-        if (!$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
+        if (in_array($acao, ['identidade', 'permissoes'], true) && !$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
+        if (in_array($acao, ['criar_obra', 'criar_obra_importacao'], true) && !$podeCriar) { throw new InvalidArgumentException('Seu perfil não pode criar obras.'); }
+        if (in_array($acao, ['criar_obra', 'criar_obra_importacao'], true)) {   // plano e limite de obras (Administração › Planos e limites de obras)
+            list($planoOk, $planoMsg) = plano_verificar_criacao($eu);
+            if (!$planoOk) { throw new InvalidArgumentException($planoMsg); }
+        }
+        if (in_array($acao, ['editar_obra', 'status_obra', 'excluir_obra'], true) && !$ehAdminDe((int)($_POST['obra_id'] ?? 0))) {
+            throw new InvalidArgumentException('Só o administrador da obra pode alterá-la.');
+        }
 
         if ($acao === 'criar_obra' || $acao === 'criar_obra_importacao') {
             $comImportacao = $acao === 'criar_obra_importacao';   // obra nova com importação automática: nasce em rascunho até os documentos serem enviados
@@ -43,7 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (['obra_nome' => $nome, 'data_inicio' => $ini, 'data_fim' => $fim, 'versao' => '0', 'modificado' => date('c'), 'dados_legados' => '0'] as $k => $v) {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$id, $k, $v]);
             }
-            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [(int)$eu['id'], $id]);
+            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 1)', [(int)$eu['id'], $id]);   // quem cria é o administrador da obra
+            if (!empty($planoInfo['org_id'])) { organizacao_vincular_obra((int)$planoInfo['org_id'], $id); }   // obra da empresa cliente: conta no plano dela e os administradores da empresa a controlam
+            $minhasAdm[] = $id;
             if ($comImportacao) {
                 registrar_global('obra_criada_rascunho', ['obra_id' => $id, 'nome' => $nome]);
                 header('Location: obra_importar.php?obra=' . $id);
@@ -118,9 +142,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Identidade visual principal atualizada.';
         } elseif ($acao === 'permissoes') {
             $uid = (int)($_POST['usuario_id'] ?? 0);
+            $eramAdm = obras_que_administra(['id' => $uid]);   // quem é administrador de uma obra continua sendo
             q_global('DELETE FROM usuarios_obras WHERE usuario_id=?', [$uid]);
-            foreach ((array)($_POST['obras'] ?? []) as $oid) {
-                q_global('INSERT INTO usuarios_obras (usuario_id, obra_id) VALUES (?, ?)', [$uid, (int)$oid]);
+            $marcadas = array_unique(array_merge(array_map('intval', (array)($_POST['obras'] ?? [])), $eramAdm));
+            foreach ($marcadas as $oid) {
+                q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, ?)', [$uid, (int)$oid, in_array((int)$oid, $eramAdm, true) ? 1 : 0]);
             }
             registrar_global('permissoes_obras', ['usuario_id' => $uid]);
             $msg = 'Acesso do usuário às obras atualizado.';
@@ -210,7 +236,8 @@ function copiar_estrutura_obra($origem, $destino)
 }
 
 $obras = obras_do_usuario($eu);
-$todas = $admin ? q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY nome")->fetchAll() : $obras;
+$todas = $admin ? q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY nome")->fetchAll()
+    : ($minhasAdm ? q_global("SELECT * FROM obras WHERE status <> 'excluida' AND id IN (" . implode(',', array_map('intval', $minhasAdm)) . ') ORDER BY nome')->fetchAll() : []);
 $resumos = [];
 foreach ($obras as $o) {
     $id = (int)$o['id'];
@@ -222,7 +249,8 @@ foreach ($obras as $o) {
     ];
 }
 $usuarios = $admin ? q_global("SELECT id,nome,login,perfil FROM usuarios WHERE ativo=1 ORDER BY nome")->fetchAll() : [];
-$rascunhos = $admin ? q_global("SELECT * FROM obras WHERE status = 'rascunho' ORDER BY id DESC")->fetchAll() : [];
+$rascunhos = $admin ? q_global("SELECT * FROM obras WHERE status = 'rascunho' ORDER BY id DESC")->fetchAll()
+    : ($minhasAdm ? q_global("SELECT * FROM obras WHERE status = 'rascunho' AND id IN (" . implode(',', array_map('intval', $minhasAdm)) . ') ORDER BY id DESC')->fetchAll() : []);
 $todas = array_values(array_filter($todas, function ($o) { return $o['status'] !== 'rascunho'; }));
 $acessos = [];
 if ($admin) {
@@ -231,6 +259,7 @@ if ($admin) {
 // Usuário de empresa (uma só obra, a obra própria dela): entra direto, sem passar pela lista
 if (!$admin && count($obras) === 1 && $_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['todas']) && obra_empresa_info((int)$obras[0]['id'])) {
     definir_obra_atual((int)$obras[0]['id']);
+    try { obra_empresa_atualizar((int)$obras[0]['id']); } catch (Throwable $e) { /* segue sem sincronizar */ }
     header('Location: index.php');
     exit;
 }
@@ -244,8 +273,9 @@ pagina_inicio('Central de obras');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Central inteligente de gestão</small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><a class="btn ghost" href="sair.php">Sair</a></div>
+    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Comercial</a><?php endif; ?><?php if (!empty($planoInfo['admin_empresa'])): ?><a class="btn ghost" href="empresa_usuarios.php">Usuários da empresa</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
+  <?= central_abas('obras', $eu) ?>
   <main class="portal-main">
     <section class="hero-obras">
       <div><span class="eyebrow">PORTFÓLIO OPERACIONAL</span><h1>Suas obras, uma visão central.</h1><p>Escolha uma obra para abrir o ambiente operacional completo. Cada projeto mantém seus dados totalmente separados.</p></div>
@@ -292,7 +322,8 @@ pagina_inicio('Central de obras');
         <div class="obra-insights"><span><b><?= $resumos[$o['id']]['empresas'] ?></b> empresas</span><span><b><?= $resumos[$o['id']]['lancamentos'] ?></b> lançamentos</span><span class="<?= $resumos[$o['id']]['impactos'] ? 'tem-alerta' : '' ?>"><b><?= $resumos[$o['id']]['impactos'] ?></b> impactos abertos</span></div>
         <small class="ultima-atividade"><?= $resumos[$o['id']]['ultima'] ? 'Atualizada em '.h(date('d/m/Y H:i',strtotime($resumos[$o['id']]['ultima']))) : 'Ainda sem movimentação' ?></small>
         <?php if ($o['status'] === 'ativa'): ?><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="abrir"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><button class="btn primario largura">Abrir obra <span>→</span></button></form><?php endif; ?>
-        <?php if ($admin): ?><button type="button" class="btn ghost largura" data-obra-editar="obraDlg<?= (int)$o['id'] ?>">✎ Editar dados da obra</button>
+        <?php if ($ehAdminDe($o['id'])): ?><button type="button" class="btn ghost largura" data-obra-editar="obraDlg<?= (int)$o['id'] ?>">✎ Editar dados da obra</button>
+          <?php if ($ehAdminDe($o['id'])): ?><a class="btn ghost largura" href="obra_importar.php?obra=<?= (int)$o['id'] ?>" style="margin-top:6px">Documentos da obra (IFC, listas, orçamento…)</a><?php if (empty($o['origem_obra_id'])): ?><a class="btn ghost largura" href="obra_empresas.php?obra=<?= (int)$o['id'] ?>" style="margin-top:6px">Empresas, catálogo e aditivos</a><?php endif; ?><?php endif; ?>
           <?php if (($o['importacao'] ?? '') === 'publicada'): ?><a class="btn ghost largura" href="obra_revisao.php?obra=<?= (int)$o['id'] ?>" style="margin-top:6px">Relatório da importação</a><?php endif; ?>
         <dialog id="obraDlg<?= (int)$o['id'] ?>" class="obra-dialog"><form method="post" enctype="multipart/form-data" class="painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="editar_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>">
@@ -306,18 +337,30 @@ pagina_inicio('Central de obras');
       <?php endforeach; ?>
     </div>
 
-    <?php if ($admin): ?>
+    <?php if ($admin || $podeCriar || $minhasAdm): ?>
     <section class="portal-admin">
-      <div class="section-title"><span class="eyebrow">ADMINISTRAÇÃO</span><h2>Personalização e controle</h2></div>
+      <div class="section-title"><span class="eyebrow">ADMINISTRAÇÃO</span><h2><?= $admin ? 'Personalização e controle' : 'Suas obras' ?></h2></div>
+      <?php if (!$admin && ($planoInfo['exigido'] || $planoInfo['tem_assinatura'])): ?>
+      <div class="plano-faixa <?= $planoOk ? '' : 'bloqueado' ?>">
+        <div><span class="eyebrow"><?= $planoInfo['tem_assinatura'] ? 'PLANO DA EMPRESA ' . h(mb_strtoupper($planoInfo['empresa'], 'UTF-8')) : 'SEU PLANO' ?></span><b><?= $planoInfo['tem_assinatura'] ? h($planoInfo['plano']) . ' · ' . h(['MENSAL' => 'mensal', 'ANUAL' => 'anual'][$planoInfo['ciclo']] ?? '') : 'Sem plano contratado' ?></b>
+          <small><?= $planoInfo['tem_assinatura'] ? h($planoInfo['situacao']['rotulo']) . ($planoInfo['vencimento'] ? (($planoInfo['situacao']['dias'] ?? 0) < 0 ? ' · venceu em ' : ' · vence em ') . h(date('d/m/Y', strtotime($planoInfo['vencimento']))) : '') : 'Fale com o administrador para contratar um plano.' ?></small></div>
+        <div class="plano-uso"><b><?= (int)$planoInfo['usadas'] ?></b> de <b><?= $planoInfo['tem_assinatura'] && $planoInfo['limite'] === 0 ? '∞' : (int)$planoInfo['limite'] ?></b> obra(s)<?php if ($planoInfo['tem_assinatura']): ?> · <b><?= (int)$planoInfo['usuarios_usados'] ?></b> de <b><?= (int)$planoInfo['usuarios_limite'] === 0 ? '∞' : (int)$planoInfo['usuarios_limite'] ?></b> usuário(s)<?php endif; ?></div>
+        <?php if (!empty($planoInfo['admin_empresa'])): ?><div><a class="btn primario" href="empresa_usuarios.php">Usuários da empresa</a></div><?php endif; ?>
+        <?php if (!$planoOk): ?><p class="plano-aviso"><?= h($planoMsg) ?></p><?php endif; ?>
+      </div>
+      <style>.plano-faixa{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;justify-content:space-between;margin:0 0 18px;padding:16px 20px;border:1px solid #e4e7ec;border-radius:14px;background:#f9fafb}.plano-faixa b{display:block;font-size:1.05rem}.plano-faixa small{color:#667085}.plano-faixa .plano-uso{font-size:1rem}.plano-faixa .plano-uso b{display:inline;font-size:1.4rem}.plano-faixa.bloqueado{border-color:#fda29b;background:#fef3f2}.plano-aviso{flex-basis:100%;margin:0;color:#b42318;font-weight:600}</style>
+      <?php endif; ?>
+      <?php if (!$admin): ?><p class="nota">Ao criar uma obra você passa a ser o <b>administrador dela</b>: tem todas as áreas, usuários e configurações dessa obra — e só dela. O acesso ao restante do sistema não muda.</p><?php endif; ?>
       <div class="portal-columns">
-        <form method="post" enctype="multipart/form-data" class="bloco painel-form">
+        <?php if ($admin): ?><form method="post" enctype="multipart/form-data" class="bloco painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="identidade">
           <h3>Identidade principal</h3><p class="nota">A marca exibida no login e na central.</p>
           <label>Nome do sistema<input name="nome_sistema" value="<?= h(global_ler('nome_sistema','Núcleo de Obras')) ?>"></label>
           <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="<?= h(cor_segura(global_ler('cor_primaria',''),'#d97706')) ?>"></label><label>Cor escura<input type="color" name="cor_secundaria" value="<?= h(cor_segura(global_ler('cor_secundaria',''),'#111827')) ?>"></label><label>Fundo<input type="color" name="cor_fundo" value="<?= h(cor_segura(global_ler('cor_fundo',''),'#f4f6f8')) ?>"></label></div>
           <label>Logo / ícone<input type="file" name="logo_global" accept="image/png,image/jpeg,image/webp"></label>
           <label class="check"><input type="checkbox" name="remover_logo" value="1"> Remover logo atual</label><button class="btn primario">Salvar identidade</button>
-        </form>
+        </form><?php endif; ?>
+        <?php if ($podeCriar && $planoOk): ?>
         <form method="post" enctype="multipart/form-data" class="bloco painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_obra_importacao">
           <h3>Nova obra</h3><p class="nota">Passo 1 de 3: dados da obra. No passo 2 você envia os documentos obrigatórios (IFC, fixadores, cronograma, orçamento e projetos) e o sistema monta a obra a partir deles.</p>
@@ -336,9 +379,10 @@ pagina_inicio('Central de obras');
           <?php if (obra_atual_id()): ?><label class="check"><input type="checkbox" name="copiar_estrutura" value="1"> Copiar apenas empresas e serviços da obra aberta (sem produção)</label><?php endif; ?>
           <button class="btn">Criar obra vazia</button></details>
         </form>
+        <?php endif; ?>
       </div>
 
-      <section class="bloco painel-form"><h3>Editar obras</h3><div class="manage-grid">
+      <?php if ($todas): ?><section class="bloco painel-form"><h3>Editar obras</h3><div class="manage-grid">
         <?php foreach ($todas as $o): ?><details><summary><b><?= h($o['nome']) ?></b><span><?= h($o['status']) ?></span></summary>
           <p class="nota">Para alterar os dados desta obra use o botão “Editar dados da obra” no cartão dela.</p>
           <form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="status_obra"><input type="hidden" name="obra_id" value="<?= (int)$o['id'] ?>"><input type="hidden" name="status" value="<?= $o['status']==='ativa'?'arquivada':'ativa' ?>"><button class="btn ghost"><?= $o['status']==='ativa'?'Arquivar':'Reativar' ?></button></form>
@@ -349,11 +393,11 @@ pagina_inicio('Central de obras');
             <button class="btn" style="background:#d92d20;color:#fff;border-color:#d92d20">Excluir obra definitivamente</button>
           </form>
         </details><?php endforeach; ?>
-      </div></section>
+      </div></section><?php endif; ?>
 
-      <section class="bloco painel-form"><h3>Acesso dos usuários</h3><p class="nota">Administradores veem todas as obras. Defina abaixo o acesso de editores e leitores.</p><div class="manage-grid">
+      <?php if ($admin): ?><section class="bloco painel-form"><h3>Acesso dos usuários</h3><p class="nota">Administradores veem todas as obras. Defina abaixo o acesso de editores e leitores.</p><div class="manage-grid">
         <?php foreach ($usuarios as $u): if ($u['perfil']==='admin') continue; ?><form method="post" class="user-access"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="permissoes"><input type="hidden" name="usuario_id" value="<?= (int)$u['id'] ?>"><b><?= h($u['nome']) ?></b><small><?= h($u['login']) ?> · <?= h($u['perfil']) ?></small><div class="access-checks"><?php foreach ($todas as $o): ?><label class="check"><input type="checkbox" name="obras[]" value="<?= (int)$o['id'] ?>" <?= in_array((int)$o['id'],$acessos[$u['id']]??[],true)?'checked':'' ?>> <?= h($o['nome']) ?></label><?php endforeach; ?></div><button class="btn">Salvar acessos</button></form><?php endforeach; ?>
-      </div></section>
+      </div></section><?php endif; ?>
     </section>
     <?php endif; ?>
   </main>

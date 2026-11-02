@@ -96,6 +96,7 @@
         <button data-aba="bm">Medição (BM)</button>
         <button data-aba="proj">Projeção físico-financeira</button>
         <button data-aba="cff">Cronograma físico-financeiro</button>
+        <button data-aba="contaspagar">Contas a pagar</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -105,7 +106,6 @@
       <div class="sidebar-itens aberto" id="grp-gestao">
         <button data-aba="impactos">Impactos <span class="contador alerta" id="impCont" hidden></span></button>
         <button data-aba="dp">Pessoal</button>
-        <button type="button" id="btnPessoasSesmt" style="display:none" onclick="window.location.href='sesmt.php?g=pessoas'" title="Colaboradores, ASO, treinamentos, presença, advertências e CIPA">Pessoas</button>
       </div>
     </div>
     <div class="sidebar-grupo">
@@ -121,10 +121,10 @@
         <span class="sidebar-icone">&#10010;</span>SESMT GERAL<span class="seta-grupo">&#8249;</span>
       </div>
       <div class="sidebar-itens aberto" id="grp-sesmt">
-        <button type="button" onclick="window.location.href='sesmt.php?g=ocorrencias'">Ocorrências</button>
+        <button data-aba="sesmtocorr" title="Acidentes, desvios e incidentes, auditorias, planos 5W2H e DDS">Ocorrências</button>
       </div>
     </div>
-    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){g.style.display='';var b=document.getElementById('btnPessoasSesmt');if(b)b.style.display=''}}).catch(function(){})})();</script>
+    <script>(function(){var t=document.getElementById('sesmtTitulo');if(!t)return;var g=t.closest('.sidebar-grupo');g.style.display='none';fetch('sesmt.php?acesso=1',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){g.style.display='';window.SESMT_OK=true;document.querySelectorAll('.dp-sesmt-sub').forEach(function(b){b.hidden=false});if(typeof dpSubAplicar==='function')dpSubAplicar()}}).catch(function(){})})();</script>
     <div class="sidebar-grupo sidebar-geral">
       <div class="sidebar-titulo aberto" data-grupo="geral">
         <span class="sidebar-icone">&#9776;</span>Geral<span class="seta-grupo">&#8249;</span>
@@ -426,7 +426,7 @@
     <div class="modal-admin" id="modalConsSemana" hidden>
       <div class="modal-admin-fundo" data-fechar-cons-sem></div>
       <div class="modal-admin-caixa relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="tituloConsSemana">
-        <div class="modal-admin-topo"><div><h2 id="tituloConsSemana">Editar coluna (semana)</h2><p>Renomeie a semana, ajuste as quantidades de EJ e CMM de vários itens de uma vez ou exclua a coluna.</p></div><button type="button" class="modal-admin-x" data-fechar-cons-sem aria-label="Fechar">×</button></div>
+        <div class="modal-admin-topo"><div><h2 id="tituloConsSemana">Editar coluna (semana)</h2><p>Renomeie a semana, ajuste as quantidades de cada empresa (EJ, CMM e GLOBO AÇOS) de vários itens de uma vez ou exclua a coluna.</p></div><button type="button" class="modal-admin-x" data-fechar-cons-sem aria-label="Fechar">×</button></div>
         <div class="grade-modal"><label class="largo">Nome da semana<input type="text" id="consSemNome" maxlength="80" autocomplete="off"></label>
           <label>Período do consumo — de<input type="date" id="consSemData"></label><label>até<input type="date" id="consSemFim"></label><span class="nota" id="consSemDataDica"></span></div>
         <input type="search" id="consSemBusca" class="input-filtro" placeholder="Filtrar itens…" autocomplete="off">
@@ -715,6 +715,17 @@
 
   <!-- PESSOAL -->
   <section id="aba-dp" hidden>
+    <div class="dp-subabas"><div class="seg" id="segDpSub" role="tablist" aria-label="Pessoal">
+      <button type="button" class="ativa" data-dpsub="">Efetivo diário</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="colaboradores" hidden>Colaboradores</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="aso" hidden>ASO</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="treinamentos" hidden>Treinamentos</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="presenca" hidden>Lista de presença</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="advertencias" hidden>Advertências</button>
+      <button type="button" class="dp-sesmt-sub" data-dpsub="cipa" hidden>CIPA e estabilidade</button>
+    </div></div>
+    <div id="dpSesmtBox" class="sesmt-box" hidden></div>
+    <div id="dpEfetivoBox">
     <div class="barra-acoes">
       <span class="nota">Pessoal por empresa, dia e função. Edite as quantidades diretamente na matriz mensal.</span>
       <button class="btn" id="btnRelDP">Baixar relatório</button>
@@ -741,11 +752,21 @@
       <div class="bloco-cab"><h2 id="dpTitulo">Pessoal</h2><span class="nota">Cada linha representa um dia do mês da data de referência. As colunas são as funções cadastradas da empresa.</span></div>
       <div class="tabela-rolagem tabela-larga"><table id="tabDP" class="dp-matriz"></table></div>
     </div>
+    </div>
+  </section>
+
+  <!-- SESMT › OCORRÊNCIAS (mesma tela do SESMT, dentro do sistema) -->
+  <section id="aba-sesmtocorr" hidden>
+    <div id="sesmtOcorrBox" class="sesmt-box"></div>
   </section>
 
   <!-- PROJEÇÃO FÍSICO-FINANCEIRA (a partir do planejamento 5W2H) -->
   <section id="aba-proj" hidden>
     <div id="projCorpo"></div>
+  </section>
+
+  <section id="aba-contaspagar" hidden>
+    <div id="cpCorpo"></div>
   </section>
 
   <section id="aba-cff" hidden>
@@ -899,9 +920,11 @@
 <script src="rel_suprimentos.js"></script>
 <script src="rdo.js"></script>
 <script src="qualidade.js"></script>
+<script src="sesmt_aba.js"></script>
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>
+<script src="contas_pagar.js"></script>
 <script src="tarefas.js"></script>
 <script src="mapa_obra.js"></script>
 <script src="vinculos.js"></script>

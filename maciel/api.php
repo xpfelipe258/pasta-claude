@@ -47,7 +47,7 @@ try {
                 'arquivo' => obra_info()['nome'] . ' · sistema online',
                 'obra' => obra_ficha(),
                 'modificado' => sistema_ler('modificado', date('c')),
-                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
+                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
                 'recursos' => ['importar_mensal' => false, 'exportar' => false, 'online' => true],
                 'modelo' => montar_modelo(),
             ]);
@@ -107,6 +107,16 @@ try {
             }
             responder_json(200, configuracoes_ler($usuario));
         }
+        if ($rota === 'contas-pagar') {   // Financeiro › Contas a pagar: tem salários, por isso não vai no modelo geral
+            if ($via_token) {
+                responder_json(403, ['erro' => 'Contas a pagar não estão disponíveis por token de máquina.']);
+            }
+            if (!usuario_pode_modulo($usuario, 'financeiro')) {
+                responder_json(403, ['erro' => 'Seu usuário não possui acesso ao módulo FINANCEIRO.']);
+            }
+            $mesCp = cp_mes_valido($_GET['mes'] ?? '') ? $_GET['mes'] : (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m');
+            responder_json(200, cp_ler_dados($mesCp));
+        }
         if ($rota === 'identidade') {   // logos/cores das empresas para montar os relatórios
             if ($via_token) {
                 responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
@@ -161,6 +171,25 @@ try {
             throw new ErroValidacao('Dados inválidos.');
         }
         responder_json(200, acao_configuracoes($corpoC, $usuario));
+    }
+    if ($rota === 'contas-pagar') {   // não mexe no modelo geral da obra: as telas de contas a pagar se atualizam sozinhas
+        if ($via_token) {
+            responder_json(403, ['erro' => 'Contas a pagar não estão disponíveis por token de máquina.']);
+        }
+        $corpoP = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($corpoP)) {
+            throw new ErroValidacao('Dados inválidos.');
+        }
+        $pdoP = bd();
+        $pdoP->beginTransaction();
+        try {
+            $rP = acao_contas_pagar($corpoP, $usuario);
+            $pdoP->commit();
+        } catch (Throwable $eP) {
+            if ($pdoP->inTransaction()) { $pdoP->rollBack(); }
+            throw $eP;
+        }
+        responder_json(200, $rP);
     }
     if ($rota === 'tarefas-chat') {
         if ($via_token) {
@@ -1245,7 +1274,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     $acao = (string)($corpo['acao'] ?? 'salvar');
     $id = isset($corpo['id']) && $corpo['id'] !== null && $corpo['id'] !== '' ? (int)$corpo['id'] : null;
     $minhaEmp = trim((string)($usuario['empresa'] ?? ''));
-    $admin = ($usuario['perfil'] ?? '') === 'admin';
+    $admin = usuario_admin_da_obra($usuario);   // administrador do sistema ou da obra
     $agoraBrt = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $hoje = $agoraBrt->format('Y-m-d');
     $carimbo = $agoraBrt->format('Y-m-d H:i:s');
@@ -1420,6 +1449,21 @@ function acao_registro(array $corpo)
             }
         }
     }
+    if ($tabela === 'bm_deducoes') {   // linha "Sinal de contrato" (o % do BM): travada depois de fechar o BM e com % de 0 a 100
+        $linhaD = $id !== null ? q('SELECT empresa, bm, tipo FROM bm_deducoes WHERE id = ?', [$id])->fetch() : null;
+        $camposD = is_array($corpo['campos'] ?? null) ? $corpo['campos'] : [];
+        $ehSinal = ($linhaD && mb_strtoupper(trim((string)$linhaD['tipo'])) === 'SINAL DE CONTRATO') || mb_strtoupper(trim((string)($camposD['tipo'] ?? ''))) === 'SINAL DE CONTRATO';
+        if ($ehSinal) {
+            $empD = mb_strtoupper(trim((string)($camposD['empresa'] ?? ($linhaD['empresa'] ?? ''))));
+            $bmD = (int)($camposD['bm'] ?? ($linhaD['bm'] ?? 0));
+            if ($bmD > 0 && $empD !== '' && q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$empD, $bmD])->fetchColumn()) {
+                throw new ErroValidacao("O BM$bmD está fechado: reabra o BM para mudar o % de sinal de contrato.");
+            }
+            if (isset($camposD['percentual']) && $camposD['percentual'] !== '' && (numero($camposD['percentual']) < 0 || numero($camposD['percentual']) > 100)) {
+                throw new ErroValidacao('O % de sinal de contrato deve ficar entre 0 e 100.');
+            }
+        }
+    }
     if (!empty($corpo['excluir'])) {
         if ($tabela === 'materiais') {
             $matExcluir = q('SELECT codigo FROM materiais WHERE id = ?', [$id])->fetch();
@@ -1486,8 +1530,31 @@ function acao_registro(array $corpo)
             throw new ErroValidacao('Empresa inválida.');
         }
     }
-    if ($tabela === 'bm_periodos' && empty($campos['corte'])) {
+    if ($tabela === 'bm_periodos' && empty($campos['corte']) && ($id === null || array_key_exists('corte', $campos))) {
         throw new ErroValidacao('Informe a data de corte do BM.');
+    }
+    if ($tabela === 'bm_periodos' && array_key_exists('sinal_perc', $campos)) {   // % de sinal de contrato do BM: de 0 a 100 e travado depois de fechar
+        $perc = $campos['sinal_perc'] === '' || $campos['sinal_perc'] === null ? null : numero($campos['sinal_perc']);
+        if ($perc !== null && ($perc < 0 || $perc > 100)) {
+            throw new ErroValidacao('O % de sinal de contrato deve ficar entre 0 e 100.');
+        }
+        if ($id !== null) {
+            $linhaBm = q('SELECT empresa, bm FROM bm_periodos WHERE id = ?', [$id])->fetch();
+            if ($linhaBm) {
+                $nBm = (int)$linhaBm['bm'];
+                if ($nBm <= 0) {   // sem número gravado: vale a posição na ordem dos cortes, como a tela
+                    $nBm = 0;
+                    foreach (q('SELECT id FROM bm_periodos WHERE empresa = ? AND corte IS NOT NULL ORDER BY corte, id', [$linhaBm['empresa']])->fetchAll() as $i => $o) {
+                        if ((int)$o['id'] === $id) {
+                            $nBm = $i + 1;
+                        }
+                    }
+                }
+                if ($nBm > 0 && q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$linhaBm['empresa'], $nBm])->fetchColumn()) {
+                    throw new ErroValidacao("O BM$nBm está fechado: reabra o BM para mudar o % de sinal de contrato.");
+                }
+            }
+        }
     }
     if ($tabela === 'bm_apontamentos') {
         if (isset($campos['quantidade']) && (numero($campos['quantidade']) ?? 0) < 0) {
@@ -1498,9 +1565,13 @@ function acao_registro(array $corpo)
         }
     }
     if ($tabela === 'bm_deducoes') {
-        $campos['tipo'] = mb_strtoupper((string)($campos['tipo'] ?? 'OUTROS'));
-        $campos['contrato'] = mb_strtoupper((string)($campos['contrato'] ?? 'RÓTULA'));
-        if (!in_array($campos['contrato'], ['RÓTULA', 'QPC', 'AMBOS'], true)) {
+        if ($id === null || array_key_exists('tipo', $campos)) {
+            $campos['tipo'] = mb_strtoupper((string)($campos['tipo'] ?? 'OUTROS'));
+        }
+        if ($id === null || array_key_exists('contrato', $campos)) {
+            $campos['contrato'] = mb_strtoupper((string)($campos['contrato'] ?? 'RÓTULA'));
+        }
+        if (isset($campos['contrato']) && !in_array($campos['contrato'], ['RÓTULA', 'QPC', 'AMBOS'], true)) {
             throw new ErroValidacao('Contrato deve ser RÓTULA, QPC ou AMBOS.');
         }
     }
@@ -2304,11 +2375,11 @@ function acao_estoque_consumo(array $corpo)
         list($tag, $empresa) = explode('|', $chave);
         $item = &$dados['consumo_fisico']['itens'][$porTag[$tag]];
         if (!isset($item['consumo_semanas'][$semana])) {
-            $item['consumo_semanas'][$semana] = ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+            $item['consumo_semanas'][$semana] = ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
         }
         $e = &$item['consumo_semanas'][$semana];
         $e[$empresa] = ($e[$empresa] ?? 0) + $qtd;
-        $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+        $e['total'] = estoque_total_semana($e);
         unset($e);
         $item['total_consumo'] = array_sum(array_column($item['consumo_semanas'], 'total'));
         $consumo = $item['total_consumo'];
@@ -2374,9 +2445,9 @@ function acao_estoque_consumo_celula(array $corpo)
     if (!isset($item['consumo_semanas']) || !is_array($item['consumo_semanas'])) {
         $item['consumo_semanas'] = [];
     }
-    $e = $item['consumo_semanas'][$semana] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+    $e = $item['consumo_semanas'][$semana] ?? ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
     $e[$empresa] = $q;
-    $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+    $e['total'] = estoque_total_semana($e);
     if ($e['total'] > 0) {
         $item['consumo_semanas'][$semana] = $e;
     } else {
@@ -2451,11 +2522,11 @@ function acao_estoque_consumo_semana(array $corpo)
             $novoCs[$nome] = $e;
         }
         if (!$excluir && isset($valores[$tag])) {
-            $e = $novoCs[$novo] ?? ['EJ' => 0, 'CMM' => 0, 'total' => 0];
+            $e = $novoCs[$novo] ?? ['EJ' => 0, 'CMM' => 0, 'GLOBO AÇOS' => 0, 'total' => 0];
             foreach ($valores[$tag] as $emp => $q) {
                 $e[$emp] = $q;
             }
-            $e['total'] = ($e['EJ'] ?? 0) + ($e['CMM'] ?? 0);
+            $e['total'] = estoque_total_semana($e);
             if ($e['total'] > 0) {
                 $novoCs[$novo] = $e;
             } else {
@@ -2844,6 +2915,89 @@ function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
     return ['codigo' => $cod, 'data' => $data, 'total_m2' => $novo, 'delta_m2' => $deltaM2];
 }
 
+// ---- Fechamento lateral (estrutura): cada trecho (vão) apontado lança no BM, em Lançamentos, as atividades do item "Fechamento Lateral" da empresa:
+// Pré montagem de estrutura, Instalação de terças (ou "Instalação de estrutura") e Alinhamento das terças = 1 vão por trecho; Instalação do suporte
+// de terça = uma unidade por terça do trecho (1 suporte por terça). O Checklist não é lançado. Excluir o apontamento devolve.
+function norm_sem_acento($t)
+{
+    return mb_strtoupper(strtr(trim((string)$t), ['Á' => 'A', 'À' => 'A', 'Ã' => 'A', 'Â' => 'A', 'É' => 'E', 'Ê' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ú' => 'U', 'Ç' => 'C',
+        'á' => 'A', 'à' => 'A', 'ã' => 'A', 'â' => 'A', 'é' => 'E', 'ê' => 'E', 'í' => 'I', 'ó' => 'O', 'ô' => 'O', 'õ' => 'O', 'ú' => 'U', 'ç' => 'C']));
+}
+function fechamento_bm_atividades($empresa)
+{
+    static $cache = [];
+    $k = obra_atual_id() . '|' . $empresa;
+    if (isset($cache[$k])) {
+        return $cache[$k];
+    }
+    $r = ['vao' => [], 'suporte' => null];
+    foreach (q('SELECT codigo, atividade, item_desc, controle FROM bm_atividades WHERE empresa = ?', [$empresa])->fetchAll() as $a) {
+        if (norm_sem_acento($a['item_desc'] ?? '') !== 'FECHAMENTO LATERAL' || !empty($a['controle'])) {
+            continue;
+        }
+        $n = norm_sem_acento($a['atividade'] ?? '');
+        if (strpos($n, 'SUPORTE') !== false) {
+            $r['suporte'] = $a['codigo'];
+        } elseif (strpos($n, 'PRE MONTAGEM') !== false || strpos($n, 'INSTALACAO DE TERCAS') !== false || strpos($n, 'INSTALACAO DE ESTRUTURA') !== false || strpos($n, 'ALINHAMENTO') !== false) {
+            $r['vao'][] = $a['codigo'];
+        }
+    }
+    return $cache[$k] = $r;
+}
+function fechamento_tercas(array $frentes, $parte, $trecho)
+{
+    foreach (($frentes['frentes']['fechamento']['partes'] ?? []) as $p) {
+        if ((string)($p['id'] ?? '') !== (string)$parte) {
+            continue;
+        }
+        foreach (($p['celulas'] ?? []) as $c) {
+            if ((string)($c['trecho'] ?? '') === (string)$trecho) {
+                return (int)(($c['pecas'] ?? [])['TERÇA FECHAMENTO'] ?? 0);
+            }
+        }
+    }
+    return 0;
+}
+// soma (ou tira, com delta negativo) quantidade de uma atividade do catálogo em bm_apontamentos (empresa + código + dia)
+function bm_ajustar_codigo($empresa, $codigo, $data, $delta, $obs)
+{
+    if (!$codigo || abs($delta) < 1e-9) {
+        return null;
+    }
+    $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$empresa, $codigo, $data])->fetch();
+    $novo = round(max(0, (float)($ex['quantidade'] ?? 0) + $delta), 4);
+    if ($ex) {
+        if ($novo > 0) {
+            q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+        } else {
+            q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+        }
+    } elseif ($novo > 0) {
+        q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $empresa, $codigo, $novo, $obs]);
+    }
+    return ['codigo' => $codigo, 'data' => $data, 'delta' => $delta, 'total' => $novo];
+}
+// $mov = ['empresa|data' => ['vaos' => n, 'suportes' => n]] (negativos ao excluir)
+function fechamento_bm_lancar(array $mov)
+{
+    $out = [];
+    foreach ($mov as $k => $m) {
+        list($emp, $dia) = explode('|', $k);
+        $at = fechamento_bm_atividades($emp);
+        foreach ($at['vao'] as $cod) {
+            $r = bm_ajustar_codigo($emp, $cod, $dia, $m['vaos'], 'trechos do fechamento lateral apontados no mapa de montagem');
+            if ($r) {
+                $out[] = $r + ['empresa' => $emp];
+            }
+        }
+        $r = bm_ajustar_codigo($emp, $at['suporte'], $dia, $m['suportes'], 'suportes de terça do fechamento lateral apontados no mapa de montagem');
+        if ($r) {
+            $out[] = $r + ['empresa' => $emp];
+        }
+    }
+    return $out;
+}
+
 // ---- Apontamento por peça (obras criadas pela importação automática): cada conjunto do IFC é apontado numa atividade do catálogo do BM.
 // A produção vai para o serviço do controle ligado à atividade (campo "controle") ou, sem ele, para os apontamentos do BM.
 function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
@@ -2870,7 +3024,7 @@ function pecas_credito($empresa, array $atv, $data, $delta, array $usuario)
 
 function acao_mapa_obra_atualizar(array $corpo, array $usuario)
 {
-    if (($usuario['perfil'] ?? '') !== 'admin') {
+    if (!usuario_admin_da_obra($usuario)) {
         throw new ErroValidacao('Só o administrador pode refazer o mapa pela leitura do IFC.');
     }
     require_once __DIR__ . '/inc/importacao.php';
@@ -3120,6 +3274,7 @@ function acao_apontamento(array $corpo, array $usuario)
     $grupos = [];
     $telhasEmp = [];
     $telhasM2 = [];
+    $fechMov = [];
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
@@ -3215,6 +3370,13 @@ function acao_apontamento(array $corpo, array $usuario)
             throw new ErroValidacao('Tipo de apontamento inválido (JOIST, VIGA, FECHAMENTO, MARQUISE, CONTRAVENTAMENTO, TELHA, PERFILAGEM ou TELHAFECH).');
         }
         $novas = array_merge($novas, $doItem);
+        if ($tipo === 'FECHAMENTO') {   // cada trecho = 1 vão; suportes = terças do trecho
+            $kf = $empNome . '|' . $data;
+            foreach ($doItem as $l) {
+                $fechMov[$kf]['vaos'] = ($fechMov[$kf]['vaos'] ?? 0) + 1;
+                $fechMov[$kf]['suportes'] = ($fechMov[$kf]['suportes'] ?? 0) + fechamento_tercas($frentes, $l['faixa'] ?? '', $l['rua'] ?? '');
+            }
+        }
         $fator = 1;
         $nQtd = count($doItem);
         if ($tipo === 'TELHA' || $tipo === 'PERFILAGEM') {   // lançamento em m²: telhas × (177,32 × 0,485)
@@ -3265,8 +3427,9 @@ function acao_apontamento(array $corpo, array $usuario)
             }
         }
     }
+    $bmFech = $lanca ? fechamento_bm_lancar($fechMov) : [];
     return ['celulas' => count($novas), 'salvos' => count($novas), 'avisos' => [],
-            'linhas' => $ids, 'lancamentos' => $lancamentos, 'bm_telhas' => $bmTelhas];
+            'linhas' => $ids, 'lancamentos' => $lancamentos, 'bm_telhas' => $bmTelhas, 'bm_fechamento' => $bmFech];
 }
 
 function rua_valida($rua, array $eixos)
@@ -3290,6 +3453,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
     $lancamentos = [];
     $bmTelhas = [];
     $bmM2 = [];
+    $fechMov = [];
     foreach ($alvo as $lin) {
         $lin = (int)$lin;
         if (!isset($porLinha[$lin])) {
@@ -3298,6 +3462,11 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         $r = $porLinha[$lin];
         $t = mb_strtoupper((string)($r['tipo'] ?? ''));
         if (mb_strtoupper((string)($r['lanca_producao'] ?? '')) === 'SIM' && !empty($r['data']) && !empty($r['empresa'])) {
+            if ($t === 'FECHAMENTO') {   // devolve o vão e os suportes lançados no BM
+                $kf = $r['empresa'] . '|' . $r['data'];
+                $fechMov[$kf]['vaos'] = ($fechMov[$kf]['vaos'] ?? 0) - 1;
+                $fechMov[$kf]['suportes'] = ($fechMov[$kf]['suportes'] ?? 0) - fechamento_tercas(frentes_montagem(), $r['faixa'] ?? '', $r['rua'] ?? '');
+            }
             $frente = null;
             if (isset(tipos_frente()[$t])) {
                 $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
@@ -3342,6 +3511,7 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
         list($tp, $emp, $dia) = explode('|', $kt);
         bm_telhas_ajustar($emp, $dia, $m2, $tp);
     }
+    fechamento_bm_lancar($fechMov);
     foreach ($alvo as $lin) {
         q('DELETE FROM apontamentos WHERE id = ?', [(int)$lin]);
     }
@@ -3527,7 +3697,7 @@ function fluxo_tem_ciclo(array $mapa)
 // Validar RDO / retirar a validação: SÓ o administrador. Dia validado = travado (clima, observações, fotos e legendas; o servidor recusa).
 function acao_rdo_validar(array $corpo, array $usuario)
 {
-    if (($usuario['perfil'] ?? '') !== 'admin') {
+    if (!usuario_admin_da_obra($usuario)) {
         throw new ErroValidacao('Só o administrador pode validar o RDO ou retirar a validação.');
     }
     $data = (string)($corpo['data'] ?? '');
@@ -3809,6 +3979,16 @@ function plano_portoes($novo, $antigo, $agora, $quem)
     return $saida;
 }
 
+// Plano da obra principal -> obra própria de cada empresa (só as atividades dela). Não faz nada dentro de uma obra própria.
+function plano_propagar_empresas()
+{
+    try {
+        if (obra_empresa_info() === null) { oe_sincronizar_planos(obra_atual_id()); }
+    } catch (Throwable $e) {
+        registrar_global('plano_propagar_falhou', ['obra_id' => obra_atual_id(), 'erro' => $e->getMessage()]);
+    }
+}
+
 function acao_planos(array $corpo, array $usuario)
 {
     $doc = planos_ler();
@@ -3822,6 +4002,7 @@ function acao_planos(array $corpo, array $usuario)
             throw new ErroValidacao('Plano não encontrado. Recarregue a tela.');
         }
         sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+        plano_propagar_empresas();
         registrar_alteracao('plano_excluido', ['id' => $id]);
         return ['salvos' => 1];
     }
@@ -3918,6 +4099,7 @@ function acao_planos(array $corpo, array $usuario)
         $doc['planos'][] = $novo;
     }
     sistema_gravar('planos_5w2h', json_encode($doc, JSON_UNESCAPED_UNICODE));
+    plano_propagar_empresas();
     registrar_alteracao('plano_salvo', ['id' => $novo['id'], 'nome' => $nome, 'atividades' => count($itens)]);
     return ['salvos' => 1, 'id' => $novo['id']];
 }

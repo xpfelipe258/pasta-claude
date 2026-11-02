@@ -285,8 +285,9 @@ function tfAtualizarMenu() {
   if (!el || !TF.dados) return;
   const h = hoje();
   const al = tfMinhas().filter(tfAberta).map(t => tfSituacao(t, h)).filter(s => s.nivel);
-  el.textContent = al.length; el.hidden = !al.length;
-  el.classList.toggle('alerta', al.some(s => s.nivel === 'atrasada' || s.ordem === 1));
+  const nNc = typeof qualPendencias === 'function' ? qualPendencias().length : 0;   // + não conformidades pendentes
+  el.textContent = al.length + nNc; el.hidden = !(al.length + nNc);
+  el.classList.toggle('alerta', nNc > 0 || al.some(s => s.nivel === 'atrasada' || s.ordem === 1));
 }
 
 function tfAlertasHtml() {
@@ -299,9 +300,10 @@ function tfAlertasHtml() {
     if (!minha && !(d.admin && s.nivel === 'atrasada')) return;   // do que é dos outros, o admin só vê o que está atrasado
     itens.push({ t, s, minha });
   });
-  if (!itens.length) return '<div class="tf-alertas tf-ok"><b>Tudo em dia.</b> Nenhuma tarefa atrasada, vencendo ou começando agora.</div>';
+  const nc = typeof qualAlertaTarefasHtml === 'function' ? qualAlertaTarefasHtml() : '';   // não conformidades a responder/validar contam como tarefa
+  if (!itens.length) return nc || '<div class="tf-alertas tf-ok"><b>Tudo em dia.</b> Nenhuma tarefa atrasada, vencendo ou começando agora.</div>';
   itens.sort((a, b) => a.s.ordem - b.s.ordem);
-  return `<div class="tf-alertas"><div class="tf-alerta-tit">Alertas — ${tfPlural(itens.length, 'tarefa pede atenção', 'tarefas pedem atenção')}</div><ul>` +
+  return nc + `<div class="tf-alertas"><div class="tf-alerta-tit">Alertas — ${tfPlural(itens.length, 'tarefa pede atenção', 'tarefas pedem atenção')}</div><ul>` +
     itens.slice(0, 12).map(({ t, s, minha }) => `<li><span class="farol ${s.cls}">${esc(s.rot)}</span> <span class="tf-cod">${esc(t.codigo || '')}</span> <a href="#" data-tf-abrir="${t.id}">${esc(t.titulo)}</a>
       <span class="nota">${minha ? '' : `· de ${esc(t.responsavel_nome || '—')} `}· conclusão ${fdA(t.data_fim)}</span></li>`).join('') +
     (itens.length > 12 ? `<li class="nota">…e mais ${itens.length - 12}. Use os filtros abaixo.</li>` : '') + '</ul></div>';

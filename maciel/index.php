@@ -44,6 +44,7 @@ $html = str_replace('src="planos_doc.js"', 'src="planos_doc.js?v=' . @filemtime(
 $html = str_replace('src="pdf_relatorio.js"', 'src="pdf_relatorio.js?v=' . @filemtime(__DIR__ . '/pdf_relatorio.js') . '"', $html);
 $html = str_replace('src="template_doc.js"', 'src="template_doc.js?v=' . @filemtime(__DIR__ . '/template_doc.js') . '"', $html);
 $html = str_replace('src="rel_empresa.js"', 'src="rel_empresa.js?v=' . @filemtime(__DIR__ . '/rel_empresa.js') . '"', $html);
+$html = str_replace('src="sesmt_aba.js"', 'src="sesmt_aba.js?v=' . @filemtime(__DIR__ . '/sesmt_aba.js') . '"', $html);
 $html = str_replace('src="qualidade.js"', 'src="qualidade.js?v=' . @filemtime(__DIR__ . '/qualidade.js') . '"', $html);
 $html = str_replace('src="rdo.js"', 'src="rdo.js?v=' . @filemtime(__DIR__ . '/rdo.js') . '"', $html);
 $html = str_replace('src="rel_suprimentos.js"', 'src="rel_suprimentos.js?v=' . @filemtime(__DIR__ . '/rel_suprimentos.js') . '"', $html);
@@ -53,6 +54,7 @@ $html = str_replace('src="mapa_obra.js"', 'src="mapa_obra.js?v=' . @filemtime(__
 $html = str_replace('src="tabelas.js"', 'src="tabelas.js?v=' . @filemtime(__DIR__ . '/tabelas.js') . '"', $html);
 $html = str_replace('src="tarefas.js"', 'src="tarefas.js?v=' . @filemtime(__DIR__ . '/tarefas.js') . '"', $html);
 $html = str_replace('src="cff.js"', 'src="cff.js?v=' . @filemtime(__DIR__ . '/cff.js') . '"', $html);
+$html = str_replace('src="contas_pagar.js"', 'src="contas_pagar.js?v=' . @filemtime(__DIR__ . '/contas_pagar.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . '/toque.js') . '"', $html);
 foreach (['i18n.js', 'config.js', 'tutorial.js'] as $arqNovo) {
@@ -64,7 +66,7 @@ $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundar
 $oe = obra_empresa_info((int)$obra['id']);
 $contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? '<a href="obras.php?todas=1">← Todas as obras</a>' : '') . '<span>' . h($obra['nome']) . '</span>' .
     ($oe ? '<em class="obra-empresa-aviso" title="Esta obra é uma cópia só da ' . h($oe['empresa']) . '. O que você lança ou altera aqui não muda a obra principal.">Visão da empresa ' . h($oe['empresa']) . ' · dados independentes</em>' : '') .
-    ($u['perfil'] === 'admin' ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+    (usuario_admin_da_obra($u, (int)$obra['id']) ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);

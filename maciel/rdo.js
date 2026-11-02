@@ -24,7 +24,7 @@ const rdoDiaTxt = d => `${diaSemanaLonga(d)}, ${fdA(d)}`;
 function diaSemanaLonga(s) { return ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'][dow(s)] || ''; }
 // RDO validado pelo administrador = travado (clima, observações, fotos e comentários). Só o administrador valida e retira a validação.
 const rdoValidacao = d => (M.rdo_validados || {})[d] || null;
-const rdoEhAdmin = () => !!(D && D.usuario && D.usuario.perfil === 'admin');
+const rdoEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || D.usuario.admin_obra));
 const rdoPodeEditar = (d = rdoDia()) => !document.body.classList.contains('somente-leitura') && !rdoValidacao(d);
 const rdoTxtValidacao = v => `Validado por ${v.por || '—'} em ${fdA(String(v.em || '').slice(0, 10))} às ${String(v.em || '').slice(11, 16)}`;
 
