@@ -14,6 +14,13 @@ if (!$org && (int)$o['organizacao_id'] > 0) { $org = organizacao_ler((int)$o['or
 $empresa = $org ? $org['nome'] : global_ler('nome_sistema', 'Núcleo de Obras');
 $logo = $org ? '' : global_ler('logo', '');
 $cor = cor_segura(global_ler('cor_primaria', '#d97706'), '#d97706');
+$perfilEmp = null;
+if ($org) {   // identidade e dados da empresa cliente (Central › Configurações)
+    $idEmp = cfg_identidade_ler((int)$org['id']);
+    $logo = $idEmp['logo'];
+    if ($idEmp['cor'] !== '') { $cor = cor_segura($idEmp['cor'], $cor); }
+    $perfilEmp = cfg_perfil_ler((int)$org['id']);
+}
 $valida = date('d/m/Y', strtotime(($o['data_ref'] ?: date('Y-m-d')) . ' +' . (int)$o['validade_dias'] . ' days'));
 $etapas = [];
 foreach ($c['itens'] as $i => $it) { $e = trim((string)$it['etapa']) !== '' ? trim($it['etapa']) : 'Itens'; $etapas[$e][] = $it; }
@@ -40,7 +47,7 @@ table{width:100%;border-collapse:collapse;font-size:13px} th{background:#f2f4f7;
 <div class="barra"><span>Proposta <?= h($o['numero']) ?></span><span><a href="comercial.php?id=<?= (int)$o['id'] ?>">← Editar orçamento</a> <button onclick="window.print()">Imprimir / salvar PDF</button></span></div>
 <div class="folha">
   <div class="cab"><div><div class="titulo">PROPOSTA COMERCIAL</div><h1><?= h($o['titulo']) ?></h1><small><?= h($o['numero']) ?> · <?= h(central_dt($o['data_ref'])) ?></small></div>
-    <div style="text-align:right"><?php if ($logo): ?><img src="<?= h($logo) ?>" alt=""><?php endif; ?><div><b><?= h($empresa) ?></b></div></div></div>
+    <div style="text-align:right"><?php if ($logo): ?><img src="<?= h($logo) ?>" alt=""><?php endif; ?><div><b><?= h($empresa) ?></b></div><?php if ($perfilEmp): ?><small><?= h(implode(' · ', array_filter([$org['documento'] ? 'CNPJ ' . $org['documento'] : '', $perfilEmp['cidade'], $org['telefone'], $org['email'], $perfilEmp['site']]))) ?></small><?php endif; ?></div></div>
   <div class="dados"><div><span>Cliente</span><b><?= h($o['cliente']) ?></b></div><div><span>Contato</span><?= h($o['contato'] ?: '—') ?><?= $o['telefone'] ? ' · ' . h($o['telefone']) : '' ?></div>
     <div><span>Local da obra</span><?= h($o['local_obra'] ?: '—') ?></div><div><span>E-mail</span><?= h($o['email'] ?: '—') ?></div>
     <div><span>Validade da proposta</span><?= h($valida) ?> (<?= (int)$o['validade_dias'] ?> dias)</div><div><span>Prazo de execução</span><?= $o['prazo_dias'] ? (int)$o['prazo_dias'] . ' dias' : 'a combinar' ?></div></div>
@@ -59,5 +66,6 @@ table{width:100%;border-collapse:collapse;font-size:13px} th{background:#f2f4f7;
   <?php foreach (['pagamento' => 'Condições de pagamento', 'exclusoes' => 'Itens não incluídos', 'observacoes' => 'Observações'] as $k => $t): if (trim((string)$o[$k]) === '') { continue; } ?>
     <h2><?= h($t) ?></h2><div class="txt"><?= $texto($o[$k]) ?></div>
   <?php endforeach; ?>
-  <div class="ass"><div><?= h($empresa) ?></div><div><?= h($o['cliente']) ?> — de acordo</div></div>
+  <div class="ass"><div><?= h($empresa) ?><?php if ($perfilEmp && ($perfilEmp['resp_tecnico'] || $perfilEmp['crea'])): ?><br><small><?= h(trim($perfilEmp['resp_tecnico'] . ($perfilEmp['crea'] ? ' · ' . $perfilEmp['crea'] : ''), ' ·')) ?></small><?php endif; ?></div><div><?= h($o['cliente']) ?> — de acordo</div></div>
+  <?php if ($perfilEmp && trim($perfilEmp['rodape']) !== ''): ?><div class="txt" style="margin-top:34px;padding-top:10px;border-top:1px solid #e4e7ec;font-size:11px;color:#667085;text-align:center"><?= $texto($perfilEmp['rodape']) ?></div><?php endif; ?>
 </div></body></html>

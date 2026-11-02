@@ -27,6 +27,7 @@ try { $com = com_resumo($eu); } catch (Throwable $e) { $com = ['qtd' => 0, 'aber
 // Pessoal
 try { $pes = pessoal_consolidar($eu, $ym); } catch (Throwable $e) { $pes = null; }
 
+$orgCfg = usuario_organizacao_id($eu)[0];
 central_topo('Central da empresa', 'inicio', $eu);
 ?>
 <main class="ce-main">
@@ -55,6 +56,10 @@ central_topo('Central da empresa', 'inicio', $eu);
         <div class="ce-kpi"><span>Folha do mês</span><b><?= $pes && $pes['tot']['total'] !== null ? h(central_rs($pes['tot']['total'])) : '—' ?></b></div>
         <div class="ce-kpi"><span>Efetivo médio no DP</span><b><?= $pes ? h(number_format($pes['tot']['efetivo_media'], 1, ',', '.')) : '—' ?></b></div></div>
       <a class="btn primario" href="pessoal.php">Abrir pessoal →</a></article>
+    <article class="ce-card"><div class="ce-ico">⚙️</div><div><h2>Configurações</h2><small>Tema do sistema, logo dos relatórios oficiais, dados e textos padrão da empresa e usuários.</small></div>
+      <div class="ce-kpis"><div class="ce-kpi"><span>Logo dos relatórios</span><b><?= $orgCfg && cfg_identidade_ler($orgCfg)['logo'] !== '' ? 'Enviado' : ($orgCfg ? 'Pendente' : '—') ?></b></div>
+        <div class="ce-kpi"><span>Usuários da empresa</span><b><?= $orgCfg ? (int)organizacao_usuarios_em_uso($orgCfg) : '—' ?></b></div></div>
+      <a class="btn primario" href="config_empresa.php">Abrir configurações →</a></article>
   </section>
   <?php if (($eu['perfil'] ?? '') === 'admin'): ?>
   <section class="ce-cards" style="margin-top:18px">

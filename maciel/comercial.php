@@ -69,6 +69,8 @@ $okMsg = ['salvo' => 'Orçamento salvo.', 'status' => 'Situação atualizada.', 
     'obra' => 'Obra criada a partir da proposta. Ela está na aba Obras, sem produção, estoque ou medições.'][$_GET['ok'] ?? ''] ?? '';
 if ($okMsg) { $msg = $okMsg; }
 $csrf = token_csrf();
+$orgPad = com_org($eu);
+$padEmp = cfg_perfil_ler($orgPad);   // padrões da empresa (Central › Configurações): validade, BDI e textos da proposta
 central_topo('Painel comercial', 'comercial', $eu, 'Painel comercial');
 
 // ---------------------------------------------------------------- editor
@@ -77,7 +79,7 @@ if ($id > 0 || $novo) {
     if ($id > 0 && !$o) { echo '<main class="ce-main"><div class="ce-vazio">Orçamento não encontrado. <a href="comercial.php">Voltar</a></div></main></div></body></html>'; exit; }
     if (!$o) {
         $o = ['id' => 0, 'numero' => '(novo)', 'titulo' => '', 'cliente' => '', 'contato' => '', 'email' => '', 'telefone' => '', 'local_obra' => '', 'status' => 'rascunho',
-            'data_ref' => date('Y-m-d'), 'validade_dias' => 30, 'prazo_dias' => '', 'bdi_pct' => 25, 'desconto_pct' => 0, 'escopo' => '', 'exclusoes' => '', 'pagamento' => '', 'observacoes' => '', 'obra_id' => null];
+            'data_ref' => date('Y-m-d'), 'validade_dias' => $padEmp['validade_dias'], 'prazo_dias' => '', 'bdi_pct' => $padEmp['bdi_pct'], 'desconto_pct' => 0, 'escopo' => '', 'exclusoes' => $padEmp['exclusoes_padrao'], 'pagamento' => $padEmp['pagamento_padrao'], 'observacoes' => $padEmp['obs_padrao'], 'obra_id' => null];
         $itens = [['etapa' => '', 'codigo' => '', 'descricao' => '', 'unidade' => '', 'quantidade' => '', 'custo_unit' => '', 'origem' => 'manual']];
     } else {
         $itens = com_itens($id) ?: [['etapa' => '', 'codigo' => '', 'descricao' => '', 'unidade' => '', 'quantidade' => '', 'custo_unit' => '', 'origem' => 'manual']];

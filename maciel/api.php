@@ -527,6 +527,13 @@ function identidade_mapa(array $u)
             $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
         }
     }
+    // Identidade da empresa cliente (Configurações da Central): serve de padrão quando o relatório não é de uma empresa terceirizada com identidade própria
+    list($orgId) = usuario_organizacao_id($u);
+    if ($orgId) {
+        $o = organizacao_ler($orgId);
+        $d = cfg_identidade_ler($orgId);
+        if ($o && ($d['logo'] !== '' || $d['cor'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
+    }
     return (object)$out;
 }
 function acao_identidade(array $corpo, array $usuario)

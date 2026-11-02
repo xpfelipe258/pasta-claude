@@ -183,7 +183,9 @@ async function tplIdentidadeCarregar() {
 function tplIdentidade(empresa) {
   const k = String(empresa || window.USUARIO_EMPRESA || '').trim().toUpperCase();
   const d = k && TPL_IDENT.dados && TPL_IDENT.dados[k];
-  return d && (d.logo || d.cor) ? { nome: k, logo: d.logo || '', cor: d.cor || '' } : null;
+  if (d && (d.logo || d.cor)) return { nome: k, logo: d.logo || '', cor: d.cor || '' };
+  const o = TPL_IDENT.dados && TPL_IDENT.dados.__ORG__;   // identidade da empresa cliente (Central › Configurações), padrão de todos os relatórios dela
+  return o && (o.logo || o.cor) ? { nome: o.nome || 'EMPRESA', logo: o.logo || '', cor: o.cor || '' } : null;
 }
 function tplEscurecer(hex, f = 0.55) {
   const n = parseInt(String(hex).slice(1), 16);

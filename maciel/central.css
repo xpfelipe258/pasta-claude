@@ -38,3 +38,21 @@
 @media (max-width:720px) { .ce-abas { padding:8px 12px 0; overflow-x:auto; flex-wrap:nowrap; } .ce-abas a { white-space:nowrap; padding:10px 13px; } .ce-main { padding:20px 14px 60px; } .ce-hero h1 { font-size:1.35rem; } }
 .ce-sub { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px; } .ce-sub a { padding:8px 15px; border-radius:999px; background:#fff; border:1px solid var(--portal-line,#e4e7ec); color:#475467; font-weight:700; font-size:.86rem; text-decoration:none; }
 .ce-sub a:hover { background:#f2f4f7; } .ce-sub a.on { background:var(--marca,#d97706); border-color:var(--marca,#d97706); color:#fff; }
+
+/* Configurações da empresa: tema, menu e identidade dos relatórios */
+.cfg-temas { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
+.cfg-tema, .cfg-menu { position:relative; display:flex; flex-direction:column; gap:4px; padding:12px; border:2px solid var(--portal-line,#e4e7ec); border-radius:14px; background:#fff; cursor:pointer; }
+.cfg-tema input, .cfg-menu input { position:absolute; opacity:0; pointer-events:none; }
+.cfg-tema.sel, .cfg-menu.sel { border-color:var(--marca,#d97706); box-shadow:0 0 0 3px color-mix(in srgb,var(--marca,#d97706) 18%,transparent); }
+.cfg-tema b, .cfg-menu b { color:#101828; } .cfg-tema small, .cfg-menu small { color:#667085; line-height:1.35; }
+.cfg-prev { height:54px; border-radius:9px; border:1px solid #d0d5dd; position:relative; overflow:hidden; margin-bottom:4px; }
+.cfg-prev i { position:absolute; left:10px; bottom:9px; width:42px; height:8px; border-radius:99px; }
+.cfg-menus { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; max-width:560px; }
+.cfg-ident { display:flex; flex-wrap:wrap; gap:22px; align-items:flex-start; }
+.cfg-capa { width:320px; max-width:100%; border-radius:14px; padding:16px 18px; color:#fff; background:linear-gradient(135deg,var(--tv,#d97706),#101828); display:flex; flex-direction:column; gap:12px; }
+.cfg-capa small { font-size:.68rem; letter-spacing:.1em; opacity:.8; } .cfg-capa b { font-size:1.15rem; } .cfg-capa > span { opacity:.85; font-size:.84rem; }
+.cfg-capa-marcas { display:flex; justify-content:space-between; gap:10px; }
+.cfg-chip { background:#fff; color:#475467; border-radius:4px 12px 4px 12px; min-width:110px; height:58px; display:grid; place-items:center; padding:6px 10px; }
+.cfg-chip img { max-height:44px; max-width:150px; display:block; } .cfg-chip i { font-size:.78rem; color:#98a2b3; } .cfg-rot { font-weight:900; color:#c8102e; letter-spacing:.04em; }
+.cfg-menus .cfg-menu { width:auto; height:auto; min-height:78px; overflow:visible; justify-self:stretch; align-self:stretch; box-sizing:border-box; }
+.cfg-temas .cfg-tema { width:auto; height:auto; overflow:visible; }

@@ -24,16 +24,23 @@ function central_exigir()
 function central_rs($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
 function central_dt($d) { return $d ? date('d/m/Y', strtotime($d)) : '—'; }
 
+/** Abas da Central, na ordem em que aparecem. Configurações vale para quem administra a empresa ou obras; Controle do sistema, só para o administrador geral. */
+function central_lista_abas(array $eu)
+{
+    $abas = ['inicio' => ['Início', 'central.php'], 'obras' => ['Obras', 'obras.php?lista=1']];
+    if (dashobras_obras_do_usuario($eu)) { $abas['financeiro'] = ['Painel financeiro', 'dashboard_obras.php']; }
+    $abas['comercial'] = ['Painel comercial', 'comercial.php'];
+    $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
+    $abas['config'] = ['Configurações', 'config_empresa.php'];
+    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }
+    return $abas;
+}
+
 /** Topo do portal + abas da Central. $ativo: inicio | obras | financeiro | comercial | pessoal. */
 function central_topo($titulo, $ativo, array $eu, $sub = 'Central da empresa')
 {
     $logo = global_ler('logo', '');
-    $tem = dashobras_obras_do_usuario($eu) ? true : false;
-    $abas = ['inicio' => ['Início', 'central.php'], 'obras' => ['Obras', 'obras.php?lista=1']];
-    if ($tem) { $abas['financeiro'] = ['Painel financeiro', 'dashboard_obras.php']; }
-    $abas['comercial'] = ['Painel comercial', 'comercial.php'];
-    $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
-    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }   // só o administrador geral
+    $abas = central_lista_abas($eu);
     pagina_inicio($titulo);
     echo '<link rel="stylesheet" href="central.css?v=' . @filemtime(dirname(__DIR__) . '/central.css') . '">';
     echo '<div class="portal-shell"><header class="portal-topo"><div class="portal-brand">';
@@ -51,12 +58,7 @@ function central_topo($titulo, $ativo, array $eu, $sub = 'Central da empresa')
 function central_abas($ativo, array $eu)
 {
     if (!central_pode($eu)) { return ''; }
-    $tem = dashobras_obras_do_usuario($eu) ? true : false;
-    $abas = ['inicio' => ['Início', 'central.php'], 'obras' => ['Obras', 'obras.php?lista=1']];
-    if ($tem) { $abas['financeiro'] = ['Painel financeiro', 'dashboard_obras.php']; }
-    $abas['comercial'] = ['Painel comercial', 'comercial.php'];
-    $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
-    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }
+    $abas = central_lista_abas($eu);
     $s = '<link rel="stylesheet" href="central.css?v=' . @filemtime(dirname(__DIR__) . '/central.css') . '"><nav class="ce-abas" aria-label="Painéis da empresa">';
     foreach ($abas as $k => $a) {
         $s .= '<a href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';
@@ -328,4 +330,112 @@ function pessoal_consolidar(array $u, $ym)
         foreach (['remuneracao', 'encargos', 'provisoes', 'beneficios', 'total'] as $g) { $res['tot'][$g] = null; }
     }
     return $res;
+}
+
+// ===================================================================== CONFIGURAÇÕES DA EMPRESA (aba Configurações da Central)
+// Cada empresa cliente edita: dados cadastrais e textos padrão (usados nas propostas e relatórios), tema do sistema (preferência do próprio usuário),
+// logo e cor dos relatórios oficiais e, pelo menu da aba, os usuários da empresa. Tudo fica em config_global (sem mudar o esquema do banco).
+
+/** Campos extras do perfil da empresa (os básicos nome, CNPJ, contato, e-mail e telefone ficam na tabela organizacoes). */
+function cfg_perfil_campos()
+{
+    return ['razao' => 'Razão social', 'endereco' => 'Endereço', 'cidade' => 'Cidade / UF', 'site' => 'Site', 'resp_tecnico' => 'Responsável técnico', 'crea' => 'CREA / registro',
+        'rodape' => 'Rodapé dos relatórios e propostas', 'pagamento_padrao' => 'Condições de pagamento padrão', 'exclusoes_padrao' => 'Itens não incluídos (padrão)', 'obs_padrao' => 'Observações padrão da proposta'];
+}
+
+function cfg_perfil_ler($orgId)
+{
+    $t = cfg_json_ler('org_perfil');
+    $p = is_array($t[(string)(int)$orgId] ?? null) ? $t[(string)(int)$orgId] : [];
+    $o = ['validade_dias' => 30, 'bdi_pct' => 25];
+    foreach (cfg_perfil_campos() as $k => $_) { $o[$k] = (string)($p[$k] ?? ''); }
+    $o['validade_dias'] = max(1, min(365, (int)($p['validade_dias'] ?? 30)));
+    $o['bdi_pct'] = isset($p['bdi_pct']) ? (float)$p['bdi_pct'] : 25.0;
+    return $o;
+}
+
+function cfg_perfil_salvar($orgId, array $post, array $u)
+{
+    $nome = trim((string)($post['nome'] ?? ''));
+    if (mb_strlen($nome) < 2 || mb_strlen($nome) > 120) { throw new InvalidArgumentException('Informe o nome da empresa (2 a 120 caracteres).'); }
+    $email = trim((string)($post['email'] ?? ''));
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) { throw new InvalidArgumentException('E-mail da empresa inválido.'); }
+    $site = trim((string)($post['site'] ?? ''));
+    if ($site !== '' && !preg_match('#^(https?://)?[\w.-]+\.[a-z]{2,}(/\S*)?$#i', $site)) { throw new InvalidArgumentException('Site inválido (ex.: www.suaempresa.com.br).'); }
+    $bdi = com_num($post['bdi_pct'] ?? 25);
+    if ($bdi < 0 || $bdi > 200) { throw new InvalidArgumentException('BDI padrão deve estar entre 0% e 200%.'); }
+    q_global('UPDATE organizacoes SET nome = ?, documento = ?, contato = ?, email = ?, telefone = ?, atualizado_em = ? WHERE id = ?', [
+        $nome, mb_substr(trim((string)($post['documento'] ?? '')), 0, 30) ?: null, mb_substr(trim((string)($post['contato'] ?? '')), 0, 120) ?: null,
+        $email ?: null, mb_substr(trim((string)($post['telefone'] ?? '')), 0, 30) ?: null, agora(), (int)$orgId]);
+    $t = cfg_json_ler('org_perfil');
+    $p = [];
+    foreach (cfg_perfil_campos() as $k => $_) {
+        $max = in_array($k, ['rodape', 'pagamento_padrao', 'exclusoes_padrao', 'obs_padrao'], true) ? 2000 : 200;
+        $p[$k] = mb_substr(trim((string)($post[$k] ?? '')), 0, $max);
+    }
+    $p['validade_dias'] = max(1, min(365, (int)com_num($post['validade_dias'] ?? 30)));
+    $p['bdi_pct'] = $bdi;
+    $t[(string)(int)$orgId] = $p;
+    global_gravar('org_perfil', json_encode($t, JSON_UNESCAPED_UNICODE));
+    registrar_global('empresa_perfil_salvo', ['empresa' => $nome, 'por' => $u['login'] ?? '']);
+}
+
+/** Confere a imagem enviada e a devolve como data URI. Reduz com GD (até 480×160) quando disponível; sem GD exige até 400 KB. */
+function cfg_logo_do_upload($campo)
+{
+    if (empty($_FILES[$campo]['tmp_name']) || ($_FILES[$campo]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) { return ''; }
+    if (($_FILES[$campo]['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK || $_FILES[$campo]['size'] > 3 * 1024 * 1024) { throw new InvalidArgumentException('O logo deve ter no máximo 3 MB.'); }
+    $bin = file_get_contents($_FILES[$campo]['tmp_name']);
+    $info = @getimagesizefromstring($bin);
+    if (!$info || !in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true) || $info[0] < 20 || $info[1] < 10 || $info[0] > 6000 || $info[1] > 6000) {
+        throw new InvalidArgumentException('Envie o logo em PNG, JPG ou WEBP.');
+    }
+    $mimes = [IMAGETYPE_PNG => 'image/png', IMAGETYPE_JPEG => 'image/jpeg', IMAGETYPE_WEBP => 'image/webp'];
+    if (function_exists('imagecreatefromstring') && function_exists('imagepng')) {
+        $img = @imagecreatefromstring($bin);
+        if ($img) {
+            $w = imagesx($img); $h = imagesy($img);
+            $f = min(1, 480 / $w, 160 / $h);
+            $nw = max(1, (int)round($w * $f)); $nh = max(1, (int)round($h * $f));
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagealphablending($dst, false); imagesavealpha($dst, true);
+            imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 255, 255, 255, 127));
+            imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            ob_start(); imagepng($dst, null, 7); $png = ob_get_clean();
+            if ($png !== '' && strlen($png) <= 400 * 1024) { return 'data:image/png;base64,' . base64_encode($png); }
+        }
+    }
+    if (strlen($bin) > 400 * 1024) { throw new InvalidArgumentException('O logo passa de 400 KB. Use uma imagem menor (até 480 × 160 px).'); }
+    return 'data:' . $mimes[$info[2]] . ';base64,' . base64_encode($bin);
+}
+
+function cfg_identidade_salvar($orgId, array $post, array $u, $removerLogo)
+{
+    $cor = trim((string)($post['cor'] ?? ''));
+    if (!empty($post['cor_padrao'])) { $cor = ''; }
+    if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) { throw new InvalidArgumentException('Cor inválida (use o formato #rrggbb).'); }
+    $atual = cfg_identidade_ler($orgId);
+    $logo = $removerLogo ? '' : $atual['logo'];
+    $novo = cfg_logo_do_upload('logo');
+    if ($novo !== '') { $logo = $novo; }
+    $t = cfg_json_ler('identidade_organizacoes');
+    if ($logo === '' && $cor === '') { unset($t[(string)(int)$orgId]); }
+    else { $t[(string)(int)$orgId] = ['logo' => $logo, 'cor' => $cor, 'por' => $u['nome'] ?? '', 'em' => agora()]; }
+    global_gravar('identidade_organizacoes', json_encode($t, JSON_UNESCAPED_UNICODE));
+    registrar_global('empresa_identidade_salva', ['org' => (int)$orgId, 'por' => $u['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+}
+
+/** Barra de seções da aba Configurações. $ativo: empresa | aparencia | logos | usuarios. */
+function cfg_sub($ativo, array $eu, $org = 0)
+{
+    $q = ($eu['perfil'] ?? '') === 'admin' && $org ? '?org=' . (int)$org : '';
+    $e = $q === '' ? '?' : $q . '&';
+    $itens = ['aparencia' => ['Tema do sistema', 'config_empresa.php' . $e . 'v=aparencia']];
+    if ($org) {   // sem empresa cliente só existe o tema pessoal
+        $itens = ['empresa' => ['Dados da empresa', 'config_empresa.php' . $q], 'aparencia' => $itens['aparencia'], 'logos' => ['Logos e relatórios oficiais', 'config_empresa.php' . $e . 'v=logos'],
+            'usuarios' => ['Usuários da empresa', 'empresa_usuarios.php' . $q]];
+    }
+    $s = '<nav class="ce-sub" aria-label="Seções das configurações">';
+    foreach ($itens as $k => $a) { $s .= '<a href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>'; }
+    return $s . '</nav>';
 }
