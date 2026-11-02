@@ -2,6 +2,7 @@
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
 require __DIR__ . '/inc/dash_obras.php';
+require_once __DIR__ . '/inc/central.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
@@ -17,9 +18,9 @@ $msg = '';
 $erro = '';
 // Plano do usuário: quantas obras já criou, quantas pode criar e se a assinatura está em dia (a regra só vale com "Exigir plano" ligado)
 list($planoOk, $planoMsg, $planoInfo) = plano_verificar_criacao($eu);
-// Quem administra duas ou mais obras começa pelo painel financeiro e de avanço delas (a Central continua em obras.php?lista=1).
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['lista']) && usuario_abre_painel_obras($eu)) {
-    header('Location: dashboard_obras.php');
+// Quem administra a empresa ou obras começa pela Central da empresa (Obras, Financeiro, Comercial e Pessoal); a lista de obras fica em obras.php?lista=1.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['lista']) && central_pode($eu)) {
+    header('Location: central.php');
     exit;
 }
 
@@ -35,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             definir_obra_atual($id);
             registrar_global('obra_aberta', ['obra_id' => $id]);
-            header('Location: index.php');
+            $destinos = ['pessoal' => 'index.php?aba=dp&reg=colaboradores'];   // atalhos dos painéis da Central (lista fechada)
+            header('Location: ' . ($destinos[$_POST['destino'] ?? ''] ?? 'index.php'));
             exit;
         }
         if (in_array($acao, ['identidade', 'permissoes'], true) && !$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
@@ -273,6 +275,7 @@ pagina_inicio('Central de obras');
     </div>
     <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Comercial</a><?php endif; ?><?php if (!empty($planoInfo['admin_empresa'])): ?><a class="btn ghost" href="empresa_usuarios.php">Usuários da empresa</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
+  <?= central_abas('obras', $eu) ?>
   <main class="portal-main">
     <section class="hero-obras">
       <div><span class="eyebrow">PORTFÓLIO OPERACIONAL</span><h1>Suas obras, uma visão central.</h1><p>Escolha uma obra para abrir o ambiente operacional completo. Cada projeto mantém seus dados totalmente separados.</p></div>

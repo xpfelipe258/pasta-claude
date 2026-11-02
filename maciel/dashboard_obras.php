@@ -3,6 +3,7 @@
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
 require __DIR__ . '/inc/dash_obras.php';
+require_once __DIR__ . '/inc/central.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 $eu = exigir_login_pagina();
@@ -122,6 +123,7 @@ pagina_inicio('Painel das obras');
     </div>
     <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><a class="btn ghost" href="obras.php?lista=1">Central de obras</a><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
+  <?= central_abas('financeiro', $eu) ?>
   <main class="dp-shell">
     <section class="dp-hero">
       <div><span class="eyebrow">PAINEL FINANCEIRO E DE AVANÇO</span><h1><?= count($resumos) === 1 ? 'Sua obra' : 'Suas obras' ?> até <?= h(dt_p($ate)) ?></h1>
