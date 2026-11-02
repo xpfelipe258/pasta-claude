@@ -68,3 +68,11 @@
 @media (max-width:720px) { .ce-sin-filtros { grid-template-columns:1fr 1fr; } }
 .ce-hero .btn, .ce-sub a { text-decoration:none; } .ce-tab td b > a { color:#101828; text-decoration:none; } .ce-tab td b > a:hover { color:var(--marca,#d97706); text-decoration:underline; }
 .ce-bloco > h2 + .ce-form, .ce-bloco > h2 + .ce-mes { margin-top:12px; }
+
+/* Avisos das telas da Central: o style.css define .toast como balão fixo e invisível (opacity 0); aqui viram faixas visíveis no fluxo da página */
+main.ce-main .toast, .ce-main .toast { position: static; opacity: 1; transform: none; pointer-events: auto; max-width: none; margin: 16px 0; padding: 13px 16px; border-radius: 12px; box-shadow: none; font-weight: 600; transition: none; }
+.ce-main .toast.ok-faixa { background: #ecfdf3; color: #067647; border: 1px solid #abefc6; }
+.ce-main .toast.erro-form { background: #fef3f2; color: #b42318; border: 1px solid #fda29b; }
+/* Erros de formulário: texto vermelho embaixo do campo + campo destacado */
+.campo-erro { display: block; margin-top: 5px; color: #b42318; font-size: 13px; font-weight: 600; line-height: 1.3; }
+.ce-form input.tem-erro, .ce-form select.tem-erro, .ce-form textarea.tem-erro { border-color: #d92d20 !important; background: #fffbfa; box-shadow: 0 0 0 3px rgba(217,45,32,.14); }

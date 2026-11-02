@@ -79,6 +79,17 @@ function rhp_obras_permitidas(array $u)
     return $r;
 }
 
+/** Erros de validação do formulário, por campo (campo => mensagem). */
+class RhpValidacao extends InvalidArgumentException
+{
+    public $campos;
+    public function __construct(array $campos)
+    {
+        $this->campos = $campos;
+        parent::__construct(count($campos) === 1 ? reset($campos) : 'Corrija os ' . count($campos) . ' campos marcados em vermelho.');
+    }
+}
+
 function rhp_data($v, $rot)
 {
     $v = trim((string)$v);
@@ -103,40 +114,61 @@ function rhp_salvar(array $post, array $u, $id = 0)
     $ctx = rhp_contexto($u);
     $atual = $id ? rhp_obter($id, $u) : null;
     if ($id && !$atual) { throw new InvalidArgumentException('Colaborador não encontrado.'); }
+    $erros = [];   // campo => o que falta/está errado (mostrado em vermelho embaixo de cada campo)
+    $data = function ($campo, $rot) use ($post, &$erros) {
+        try { return rhp_data($post[$campo] ?? '', $rot); } catch (InvalidArgumentException $e) { $erros[$campo] = $rot . ' inválida: use o formato dd/mm/aaaa com uma data que exista.'; return null; }
+    };
     $nome = trim(preg_replace('/\s+/u', ' ', (string)($post['nome'] ?? '')));
-    if (mb_strlen($nome) < 3) { throw new InvalidArgumentException('Informe o nome completo do colaborador.'); }
+    if ($nome === '') { $erros['nome'] = 'Falta preencher o nome completo do colaborador.'; }
+    elseif (mb_strlen($nome) < 3) { $erros['nome'] = 'O nome está curto demais: informe o nome completo (mínimo 3 letras).'; }
     $cpf = sesmt_cpf_digitos($post['cpf'] ?? '');
     if ($cpf !== '') {
-        if (!sesmt_cpf_valido($cpf)) { throw new InvalidArgumentException('CPF inválido.'); }
-        list($w, $p) = rhp_escopo($u);
-        $dup = q_global("SELECT nome FROM rh_pessoas WHERE cpf = ? AND id <> ? AND $w", array_merge([$cpf, (int)$id], $p))->fetchColumn();
-        if ($dup) { throw new InvalidArgumentException('Já existe um colaborador com este CPF (' . $dup . ').'); }
+        if (!sesmt_cpf_valido($cpf)) { $erros['cpf'] = (strlen($cpf) !== 11 ? 'CPF incompleto: tem ' . strlen($cpf) . ' números e precisa ter 11.' : 'CPF inválido: os números digitados não formam um CPF válido, confira.'); }
+        else {
+            list($w, $p) = rhp_escopo($u);
+            $dup = q_global("SELECT nome FROM rh_pessoas WHERE cpf = ? AND id <> ? AND $w", array_merge([$cpf, (int)$id], $p))->fetchColumn();
+            if ($dup) { $erros['cpf'] = 'Já existe um colaborador com este CPF (' . $dup . ').'; }
+        }
     }
     $status = (string)($post['status'] ?? 'Contratado');
-    if (!in_array($status, rhp_status_lista(), true)) { throw new InvalidArgumentException('Situação inválida.'); }
+    if (!in_array($status, rhp_status_lista(), true)) { $erros['status'] = 'Escolha uma situação da lista.'; }
     $email = trim((string)($post['email'] ?? ''));
-    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) { throw new InvalidArgumentException('E-mail inválido.'); }
-    $adm = rhp_data($post['admissao'] ?? '', 'Data de admissão');
-    $des = rhp_data($post['desligamento'] ?? '', 'Data de desligamento');
-    if ($adm && $des && $des < $adm) { throw new InvalidArgumentException('O desligamento não pode ser antes da admissão.'); }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) { $erros['email'] = 'E-mail inválido: use o formato nome@empresa.com.'; }
+    $adm = $data('admissao', 'Data de admissão');
+    $des = $data('desligamento', 'Data de desligamento');
+    $nasc = $data('nascimento', 'Nascimento');
+    if ($adm && $des && $des < $adm) { $erros['desligamento'] = 'O desligamento não pode ser antes da admissão.'; }
     // empresa cliente: a do usuário; o administrador do sistema informa qual
     $org = $atual ? (int)$atual['organizacao_id'] : ($ctx['todas'] ? (int)($post['org'] ?? 0) : $ctx['org']);
-    if ($ctx['todas'] && !$atual && $org <= 0) { throw new InvalidArgumentException('Escolha a empresa cliente do colaborador.'); }
+    if ($ctx['todas'] && !$atual && $org <= 0) { $erros['org'] = 'Falta escolher a empresa cliente do colaborador.'; }
     // alocação
     $obraId = (int)($post['obra_id'] ?? 0);
     $obras = rhp_obras_permitidas($u);
-    if ($obraId > 0 && !isset($obras[$obraId])) { throw new InvalidArgumentException('Obra inválida para este usuário.'); }
+    if ($obraId > 0 && !isset($obras[$obraId])) { $erros['obra_id'] = 'Obra inválida para este usuário: escolha uma da lista.'; }
     $alocadoEm = $atual ? ($atual['alocado_em'] ?? null) : null;
     $obraAntes = $atual ? (int)($atual['obra_id'] ?? 0) : 0;
-    if ($obraId !== $obraAntes) { $alocadoEm = $obraId > 0 ? (rhp_data($post['alocado_em'] ?? '', 'Data da alocação') ?: planos_hoje()) : null; }
-    elseif ($obraId > 0 && !empty($post['alocado_em'])) { $alocadoEm = rhp_data($post['alocado_em'], 'Data da alocação'); }
-    $orgNome = $org > 0 ? (string)(organizacao_ler($org)['nome'] ?? '') : '';
-    $empresa = trim((string)($post['empresa'] ?? '')) !== '' ? mb_substr(trim($post['empresa']), 0, 120) : $orgNome;
+    if ($obraId !== $obraAntes) { $alocadoEm = $obraId > 0 ? ($data('alocado_em', 'Data da alocação') ?: planos_hoje()) : null; }
+    elseif ($obraId > 0 && !empty($post['alocado_em'])) { $alocadoEm = $data('alocado_em', 'Data da alocação'); }
     $adicional = (string)($post['adicional'] ?? 'Nenhum');
     if (!in_array($adicional, ['Nenhum', 'Insalubridade 10%', 'Insalubridade 20%', 'Insalubridade 40%', 'Periculosidade 30%'], true)) { $adicional = 'Nenhum'; }
+    $sal = null;
+    if ($ver) {
+        $salTxt = trim((string)($post['salario'] ?? ''));
+        $sal = rhp_valor($salTxt);
+        if ($salTxt === '') { $erros['salario'] = 'Falta informar o salário (ou o valor combinado) do colaborador.'; }
+        elseif ($sal === null) { $erros['salario'] = 'Salário inválido: digite só números, por exemplo 3.500,00.'; }
+        elseif ($sal <= 0) { $erros['salario'] = 'O salário precisa ser maior que zero.'; }
+        foreach (['vale_transporte' => 'Vale-transporte', 'alimentacao' => 'Alimentação', 'outros_beneficios' => 'Outros benefícios'] as $c_ => $r_) {
+            $t_ = trim((string)($post[$c_] ?? ''));
+            if ($t_ !== '' && rhp_valor($t_) === null) { $erros[$c_] = $r_ . ' inválido: digite só números, por exemplo 250,00.'; }
+        }
+    }
+    if ($erros) { throw new RhpValidacao($erros); }
+    $orgNome = $org > 0 ? (string)(organizacao_ler($org)['nome'] ?? '') : '';
+    $empresa = trim((string)($post['empresa'] ?? '')) !== '' ? mb_substr(trim($post['empresa']), 0, 120) : $orgNome;
     $dados = [
         'nome' => mb_substr($nome, 0, 160), 'cpf' => $cpf ?: null, 'rg' => mb_substr(trim((string)($post['rg'] ?? '')), 0, 30) ?: null,
-        'nascimento' => rhp_data($post['nascimento'] ?? '', 'Nascimento'), 'sexo' => in_array($post['sexo'] ?? '', ['Masculino', 'Feminino', 'Outro'], true) ? $post['sexo'] : null,
+        'nascimento' => $nasc, 'sexo' => in_array($post['sexo'] ?? '', ['Masculino', 'Feminino', 'Outro'], true) ? $post['sexo'] : null,
         'celular' => mb_substr(trim((string)($post['celular'] ?? '')), 0, 30) ?: null, 'email' => $email ?: null, 'endereco' => mb_substr(trim((string)($post['endereco'] ?? '')), 0, 255) ?: null,
         'funcao' => mb_substr(trim((string)($post['funcao'] ?? '')), 0, 100) ?: null, 'setor' => mb_substr(trim((string)($post['setor'] ?? '')), 0, 60) ?: null,
         'empresa' => $empresa ?: null, 'status' => $status, 'admissao' => $adm, 'desligamento' => $des, 'obra_id' => $obraId > 0 ? $obraId : null, 'alocado_em' => $alocadoEm,
@@ -144,8 +176,6 @@ function rhp_salvar(array $post, array $u, $id = 0)
         'obs' => mb_substr(trim((string)($post['obs'] ?? '')), 0, 4000) ?: null,
     ];
     if ($ver) {
-        $sal = rhp_valor($post['salario'] ?? '');
-        if ($sal === null || $sal <= 0) { throw new InvalidArgumentException('Informe o salário (ou o valor combinado) do colaborador.'); }
         $dados += ['tipo_salario' => ($post['tipo_salario'] ?? 'Mensal') === 'Hora' ? 'Hora' : 'Mensal', 'salario' => $sal, 'adicional' => $adicional,
             'vale_transporte' => rhp_valor($post['vale_transporte'] ?? ''), 'alimentacao' => rhp_valor($post['alimentacao'] ?? ''), 'outros_beneficios' => rhp_valor($post['outros_beneficios'] ?? '')];
     }

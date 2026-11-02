@@ -12,7 +12,7 @@ $ctx = rhp_contexto($eu);
 $obras = rhp_obras_permitidas($eu);
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 $novo = isset($_GET['novo']) && $id === 0;
-$msg = ''; $erro = '';
+$msg = ''; $erro = ''; $erros = [];
 $volta = 'pessoal.php?v=colaboradores';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['rh_aviso'] = 'Documento removido.';
             header('Location: colaborador.php?id=' . $id . '#docs'); exit;
         }
-    } catch (InvalidArgumentException $e) { $erro = $e->getMessage(); }
+    } catch (RhpValidacao $e) { $erro = $e->getMessage(); $erros = $e->campos; }
+    catch (InvalidArgumentException $e) { $erro = $e->getMessage(); }
     catch (Throwable $e) { $erro = 'Falha: ' . $e->getMessage(); }
 }
 if (!empty($_SESSION['rh_aviso'])) { $msg = $_SESSION['rh_aviso']; unset($_SESSION['rh_aviso']); }
@@ -53,6 +54,8 @@ $v = $p ?: ['nome' => '', 'cpf' => '', 'rg' => '', 'nascimento' => '', 'sexo' =>
     'outros_beneficios' => '', 'ctps' => '', 'serie' => '', 'obs' => '', 'organizacao_id' => $ctx['org']];
 if ($erro && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar') { $v = array_merge($v, $_POST); }   // devolve o que foi digitado
 $csrf = token_csrf();
+$fe = function ($c) use ($erros) { return isset($erros[$c]) ? '<span class="campo-erro">' . h($erros[$c]) . '</span>' : ''; };   // texto vermelho embaixo do campo
+$ce = function ($c) use ($erros) { return isset($erros[$c]) ? ' class="tem-erro" aria-invalid="true"' : ''; };
 $fm = function ($x) { return $x === '' || $x === null ? '' : number_format((float)$x, 2, ',', '.'); };
 $hoje = planos_hoje();
 $custo = ($p && $ver) ? rhp_custo($p, substr($hoje, 0, 7)) : null;
@@ -66,48 +69,48 @@ central_topo($p ? $p['nome'] : 'Novo colaborador', 'pessoal', $eu, 'Painel pesso
     <p><?php if ($p): ?><span class="ce-tag <?= $p['status'] === 'Demitido' ? 'verm' : 'verde' ?>"><?= h($p['status']) ?></span> · <?= $obraNome ? 'Alocado em <b>' . h($obraNome) . '</b>' . ($p['alocado_em'] ? ' desde ' . h(central_dt($p['alocado_em'])) : '') : '<b>Sem obra</b> (quadro da empresa)' ?><?php else: ?>Cadastre a pessoa na empresa e, se já souber, aloque numa obra. Dá para deixar sem obra e alocar depois.<?php endif; ?></p></div>
     <a class="btn ghost" href="<?= h($volta) ?>">← Colaboradores</a></section>
   <?php if ($msg): ?><div class="toast ok-faixa"><?= h($msg) ?></div><?php endif; ?>
-  <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
+  <?php if ($erro): ?><div class="toast erro-form" id="rhErro" role="alert"><b>Não foi possível salvar.</b> <?= h($erro) ?></div><?php endif; ?>
 
-  <form method="post" autocomplete="off"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?= (int)$id ?>">
+  <form method="post" autocomplete="off" novalidate><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="salvar"><input type="hidden" name="id" value="<?= (int)$id ?>">
     <section class="ce-bloco"><h2>Dados pessoais</h2>
       <div class="ce-form">
-        <label>Nome completo *<input name="nome" required maxlength="160" value="<?= h($v['nome']) ?>"></label>
-        <label>CPF<input name="cpf" maxlength="14" inputmode="numeric" placeholder="000.000.000-00" value="<?= h(sesmt_cpf_exibir((string)$v['cpf'], false)) ?>"></label>
-        <label>RG<input name="rg" maxlength="30" value="<?= h($v['rg']) ?>"></label>
-        <label>Nascimento<input type="date" name="nascimento" value="<?= h($v['nascimento']) ?>"></label>
-        <label>Sexo<select name="sexo"><option value="">—</option><?php foreach (['Masculino', 'Feminino', 'Outro'] as $s_): ?><option <?= $v['sexo'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select></label>
-        <label>Celular<input name="celular" maxlength="30" value="<?= h($v['celular']) ?>"></label>
-        <label>E-mail<input name="email" type="email" maxlength="150" value="<?= h($v['email']) ?>"></label>
-        <label class="full">Endereço<input name="endereco" maxlength="255" value="<?= h($v['endereco']) ?>"></label>
-        <label>CTPS<input name="ctps" maxlength="30" value="<?= h($v['ctps']) ?>"></label>
-        <label>Série<input name="serie" maxlength="20" value="<?= h($v['serie']) ?>"></label>
+        <label>Nome completo *<input <?= $ce('nome') ?> name="nome" required maxlength="160" value="<?= h($v['nome']) ?>"><?= $fe('nome') ?></label>
+        <label>CPF<input <?= $ce('cpf') ?> name="cpf" maxlength="14" inputmode="numeric" placeholder="000.000.000-00" value="<?= h(sesmt_cpf_exibir((string)$v['cpf'], false)) ?>"><?= $fe('cpf') ?></label>
+        <label>RG<input <?= $ce('rg') ?> name="rg" maxlength="30" value="<?= h($v['rg']) ?>"><?= $fe('rg') ?></label>
+        <label>Nascimento<input <?= $ce('nascimento') ?> type="date" name="nascimento" value="<?= h($v['nascimento']) ?>"><?= $fe('nascimento') ?></label>
+        <label>Sexo<select <?= $ce('sexo') ?> name="sexo"><option value="">—</option><?php foreach (['Masculino', 'Feminino', 'Outro'] as $s_): ?><option <?= $v['sexo'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select><?= $fe('sexo') ?></label>
+        <label>Celular<input <?= $ce('celular') ?> name="celular" maxlength="30" value="<?= h($v['celular']) ?>"><?= $fe('celular') ?></label>
+        <label>E-mail<input <?= $ce('email') ?> name="email" type="email" maxlength="150" value="<?= h($v['email']) ?>"><?= $fe('email') ?></label>
+        <label class="full">Endereço<input <?= $ce('endereco') ?> name="endereco" maxlength="255" value="<?= h($v['endereco']) ?>"><?= $fe('endereco') ?></label>
+        <label>CTPS<input <?= $ce('ctps') ?> name="ctps" maxlength="30" value="<?= h($v['ctps']) ?>"><?= $fe('ctps') ?></label>
+        <label>Série<input <?= $ce('serie') ?> name="serie" maxlength="20" value="<?= h($v['serie']) ?>"><?= $fe('serie') ?></label>
       </div></section>
 
     <section class="ce-bloco"><h2>Contrato e alocação</h2>
       <p>A <b>alocação</b> diz em qual obra a pessoa trabalha. Deixe <b>“Sem obra”</b> para quem é da empresa mas não está em nenhuma obra agora — ele continua na folha do Painel pessoal, na linha “Sem obra”.</p>
       <div class="ce-form">
-        <?php if ($ctx['todas'] && !$p): ?><label>Empresa cliente *<select name="org" required><option value="">Escolha…</option><?php foreach ($orgsTodas as $o_): ?><option value="<?= (int)$o_['id'] ?>" <?= (int)($v['organizacao_id'] ?? 0) === (int)$o_['id'] ? 'selected' : '' ?>><?= h($o_['nome']) ?></option><?php endforeach; ?></select></label><?php endif; ?>
-        <label>Função<input name="funcao" maxlength="100" list="dlFuncao" value="<?= h($v['funcao']) ?>"></label>
+        <?php if ($ctx['todas'] && !$p): ?><label>Empresa cliente *<select <?= $ce('org') ?> name="org" required><option value="">Escolha…</option><?php foreach ($orgsTodas as $o_): ?><option value="<?= (int)$o_['id'] ?>" <?= (int)($v['organizacao_id'] ?? 0) === (int)$o_['id'] ? 'selected' : '' ?>><?= h($o_['nome']) ?></option><?php endforeach; ?></select><?= $fe('org') ?></label><?php endif; ?>
+        <label>Função<input <?= $ce('funcao') ?> name="funcao" maxlength="100" list="dlFuncao" value="<?= h($v['funcao']) ?>"><?= $fe('funcao') ?></label>
         <datalist id="dlFuncao"><?php foreach (['Montador', 'Soldador', 'Ajudante', 'Encarregado', 'Mestre de obras', 'Engenheiro', 'Técnico em segurança', 'Almoxarife', 'Auxiliar administrativo', 'Operador de equipamento', 'Projetista'] as $f_): ?><option value="<?= h($f_) ?>"><?php endforeach; ?></datalist>
-        <label>Setor<select name="setor"><option value="">—</option><?php foreach (['Operacional', 'Administrativo', 'Projetos', 'SMS', 'Financeiro', 'Comercial'] as $s_): ?><option <?= $v['setor'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select></label>
-        <label>Vínculo / situação<select name="status"><?php foreach (rhp_status_lista() as $s_): ?><option <?= $v['status'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select></label>
-        <label>Empresa empregadora<input name="empresa" maxlength="120" placeholder="vazio = a sua empresa" value="<?= h($v['empresa']) ?>"></label>
-        <label>Data de admissão<input type="date" name="admissao" value="<?= h($v['admissao']) ?>"></label>
-        <label>Data de desligamento<input type="date" name="desligamento" value="<?= h($v['desligamento']) ?>"></label>
-        <label>Alocado na obra<select name="obra_id"><option value="0">Sem obra (quadro da empresa)</option><?php foreach ($obras as $oid_ => $on_): ?><option value="<?= (int)$oid_ ?>" <?= (int)($v['obra_id'] ?? 0) === (int)$oid_ ? 'selected' : '' ?>><?= h($on_) ?></option><?php endforeach; ?></select></label>
-        <label>Alocado desde<input type="date" name="alocado_em" value="<?= h($v['alocado_em']) ?>"></label>
+        <label>Setor<select <?= $ce('setor') ?> name="setor"><option value="">—</option><?php foreach (['Operacional', 'Administrativo', 'Projetos', 'SMS', 'Financeiro', 'Comercial'] as $s_): ?><option <?= $v['setor'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select><?= $fe('setor') ?></label>
+        <label>Vínculo / situação<select <?= $ce('status') ?> name="status"><?php foreach (rhp_status_lista() as $s_): ?><option <?= $v['status'] === $s_ ? 'selected' : '' ?>><?= h($s_) ?></option><?php endforeach; ?></select><?= $fe('status') ?></label>
+        <label>Empresa empregadora<input <?= $ce('empresa') ?> name="empresa" maxlength="120" placeholder="vazio = a sua empresa" value="<?= h($v['empresa']) ?>"><?= $fe('empresa') ?></label>
+        <label>Data de admissão<input <?= $ce('admissao') ?> type="date" name="admissao" value="<?= h($v['admissao']) ?>"><?= $fe('admissao') ?></label>
+        <label>Data de desligamento<input <?= $ce('desligamento') ?> type="date" name="desligamento" value="<?= h($v['desligamento']) ?>"><?= $fe('desligamento') ?></label>
+        <label>Alocado na obra<select <?= $ce('obra_id') ?> name="obra_id"><option value="0">Sem obra (quadro da empresa)</option><?php foreach ($obras as $oid_ => $on_): ?><option value="<?= (int)$oid_ ?>" <?= (int)($v['obra_id'] ?? 0) === (int)$oid_ ? 'selected' : '' ?>><?= h($on_) ?></option><?php endforeach; ?></select><?= $fe('obra_id') ?></label>
+        <label>Alocado desde<input <?= $ce('alocado_em') ?> type="date" name="alocado_em" value="<?= h($v['alocado_em']) ?>"><?= $fe('alocado_em') ?></label>
       </div></section>
 
     <?php if ($ver): ?>
     <section class="ce-bloco"><h2>Remuneração</h2>
       <p>Alimenta a folha do Painel pessoal e o Contas a pagar. Estimativa gerencial: encargos e provisões seguem as premissas de RH da obra (ou as padrão, para quem está sem obra).</p>
       <div class="ce-form">
-        <label>Tipo de salário<select name="tipo_salario"><option <?= $v['tipo_salario'] === 'Mensal' ? 'selected' : '' ?>>Mensal</option><option <?= $v['tipo_salario'] === 'Hora' ? 'selected' : '' ?>>Hora</option></select></label>
-        <label>Salário (R$) *<input name="salario" inputmode="decimal" value="<?= h($fm($v['salario'])) ?>"></label>
-        <label>Adicional<select name="adicional"><?php foreach (['Nenhum', 'Insalubridade 10%', 'Insalubridade 20%', 'Insalubridade 40%', 'Periculosidade 30%'] as $a_): ?><option <?= ($v['adicional'] ?? 'Nenhum') === $a_ ? 'selected' : '' ?>><?= h($a_) ?></option><?php endforeach; ?></select></label>
-        <label>Vale-transporte mensal (R$)<input name="vale_transporte" inputmode="decimal" value="<?= h($fm($v['vale_transporte'])) ?>"></label>
-        <label>Alimentação mensal (R$)<input name="alimentacao" inputmode="decimal" value="<?= h($fm($v['alimentacao'])) ?>"></label>
-        <label>Outros benefícios (R$)<input name="outros_beneficios" inputmode="decimal" value="<?= h($fm($v['outros_beneficios'])) ?>"></label>
+        <label>Tipo de salário<select <?= $ce('tipo_salario') ?> name="tipo_salario"><option <?= $v['tipo_salario'] === 'Mensal' ? 'selected' : '' ?>>Mensal</option><option <?= $v['tipo_salario'] === 'Hora' ? 'selected' : '' ?>>Hora</option></select><?= $fe('tipo_salario') ?></label>
+        <label>Salário (R$) *<input <?= $ce('salario') ?> name="salario" inputmode="decimal" value="<?= h($fm($v['salario'])) ?>"><?= $fe('salario') ?></label>
+        <label>Adicional<select <?= $ce('adicional') ?> name="adicional"><?php foreach (['Nenhum', 'Insalubridade 10%', 'Insalubridade 20%', 'Insalubridade 40%', 'Periculosidade 30%'] as $a_): ?><option <?= ($v['adicional'] ?? 'Nenhum') === $a_ ? 'selected' : '' ?>><?= h($a_) ?></option><?php endforeach; ?></select><?= $fe('adicional') ?></label>
+        <label>Vale-transporte mensal (R$)<input <?= $ce('vale_transporte') ?> name="vale_transporte" inputmode="decimal" value="<?= h($fm($v['vale_transporte'])) ?>"><?= $fe('vale_transporte') ?></label>
+        <label>Alimentação mensal (R$)<input <?= $ce('alimentacao') ?> name="alimentacao" inputmode="decimal" value="<?= h($fm($v['alimentacao'])) ?>"><?= $fe('alimentacao') ?></label>
+        <label>Outros benefícios (R$)<input <?= $ce('outros_beneficios') ?> name="outros_beneficios" inputmode="decimal" value="<?= h($fm($v['outros_beneficios'])) ?>"><?= $fe('outros_beneficios') ?></label>
       </div>
       <?php if ($custo && !$custo['sem_salario']): ?>
       <div class="ce-tot" style="margin-top:14px"><div><small>Remuneração bruta</small><b><?= h(central_rs($custo['bruto'])) ?></b></div><div><small>Encargos + provisões</small><b><?= h(central_rs($custo['encargos'] + $custo['provisoes'])) ?></b></div>
@@ -151,5 +154,6 @@ central_topo($p ? $p['nome'] : 'Novo colaborador', 'pessoal', $eu, 'Painel pesso
       <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="excluir"><input type="hidden" name="id" value="<?= (int)$id ?>"><button class="btn ghost" style="color:#b42318">Excluir colaborador</button></form></section>
   <?php endif; ?>
 </main></div>
-<script>var s=document.getElementById('dTipo');if(s){s.addEventListener('change',function(){var b=document.getElementById('dOutroBox');b.hidden=s.value!=='__outro';var i=b.querySelector('input');i.required=s.value==='__outro';});}</script>
+<script>(function(){var e=document.querySelector('.tem-erro')||document.getElementById('rhErro');if(e){e.scrollIntoView({block:'center'});if(e.focus&&e.tagName!=='DIV'){e.focus({preventScroll:true});}}})();
+var s=document.getElementById('dTipo');if(s){s.addEventListener('change',function(){var b=document.getElementById('dOutroBox');b.hidden=s.value!=='__outro';var i=b.querySelector('input');i.required=s.value==='__outro';});}</script>
 </body></html>
