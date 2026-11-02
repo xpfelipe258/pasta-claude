@@ -199,11 +199,12 @@ function importacao_publicar($obraId, array $op)
     if (!$p || !empty($p['erros'])) {
         throw new InvalidArgumentException('A obra ainda não tem um pacote de leitura válido.');
     }
-    $obra = q_global("SELECT * FROM obras WHERE id = ? AND status = 'rascunho'", [(int)$obraId])->fetch();
+    $obra = q_global("SELECT * FROM obras WHERE id = ? AND status IN ('rascunho', 'ativa')", [(int)$obraId])->fetch();
     if (!$obra) {
-        throw new InvalidArgumentException('Obra não está em rascunho.');
+        throw new InvalidArgumentException('Obra não encontrada.');
     }
     $sigla = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($op['sigla'] ?? '')));
+    if ($sigla === '' && empty($p['bm']['itens'])) { $sigla = 'OBRA'; }   // sem orçamento não há catálogo com prefixo
     $nomeEmpresa = trim((string)($op['empresa'] ?? '')) ?: $sigla;
     if (strlen($sigla) < 2 || strlen($sigla) > 10) {
         throw new InvalidArgumentException('Informe a sigla da empresa executora (2 a 10 letras ou números).');
@@ -568,10 +569,7 @@ function importacao_ler_documentos($obraId, $nomeObra = '')
     try {
         // Todos os tipos aceitam ZIP; cada leitor recebe apenas a extensão que entende.
         $arquivosIfc = importacao_expandir_documentos($docs['ifc'] ?? [], ['ifc'], $tmp, 'ifc', $limpar);
-        if (!$arquivosIfc) {
-            throw new RuntimeException('Nenhum IFC para ler.');
-        }
-        $leituras = [];
+        $leituras = [];   // IFC é opcional: sem ele a obra nasce sem lista de material e sem mapa (dá para enviar depois)
         foreach ($arquivosIfc as list($nome, $caminho)) {
             $leituras[] = ifc_ler_arquivo($caminho, $nome);
             gc_collect_cycles();
@@ -687,15 +685,24 @@ function importacao_atualizar_mapa($obraId)
 }
 
 // Um clique: lê os documentos, guarda o pacote (relatório) e cria a obra.
+function importacao_obra_ja_gerada($obraId)
+{
+    return (($v = q_global('SELECT importacao FROM obras WHERE id = ?', [(int)$obraId])->fetchColumn()) === 'publicada')
+        || (int)q_global('SELECT COUNT(*) FROM bm_atividades WHERE obra_id = ?', [(int)$obraId])->fetchColumn() > 0;
+}
+
 function importacao_gerar($obraId, array $op)
 {
-    $obra = q_global("SELECT nome FROM obras WHERE id = ? AND status = 'rascunho'", [(int)$obraId])->fetch();
+    $obra = q_global("SELECT nome, status FROM obras WHERE id = ? AND status IN ('rascunho', 'ativa')", [(int)$obraId])->fetch();
     if (!$obra) {
-        throw new InvalidArgumentException('Obra não está em rascunho.');
+        throw new InvalidArgumentException('Obra não encontrada.');
+    }
+    if ($obra['status'] === 'ativa' && importacao_obra_ja_gerada($obraId)) {
+        throw new InvalidArgumentException('Esta obra já foi gerada. Os documentos novos ficam guardados; para atualizar a planta use o botão de atualizar pelo IFC em Apontar montagem.');
     }
     $sit = importacao_situacao($obraId);
     if (!$sit['pronta']) {
-        throw new InvalidArgumentException('Faltam documentos obrigatórios ou há arquivo recusado.');
+        throw new InvalidArgumentException('Há arquivo recusado ou ainda em validação: remova ou aguarde.');
     }
     $pacote = importacao_ler_documentos($obraId, (string)$obra['nome']);
     if (!empty($pacote['erros'])) {

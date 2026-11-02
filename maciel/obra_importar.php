@@ -76,12 +76,13 @@ if ($acao === 'callback_pacote') {
 // ---- daqui em diante: só administrador logado
 $obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
 $eu = exigir_admin_da_obra($obraId);   // administrador do sistema ou quem criou esta obra
-$obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status = 'rascunho'", [$obraId])->fetch() : null;
+$obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status IN ('rascunho', 'ativa')", [$obraId])->fetch() : null;   // rascunho = obra nova; ativa = enviar documentos depois (editar a obra)
+$ehRascunho = $obra && $obra['status'] === 'rascunho';
 if (!$obra) {
     header('Location: obras.php');
     exit;
 }
-if (in_array($obra['importacao'] ?? '', ['lendo', 'revisao', 'erro_leitura'], true) && ($acao === '' || $acao === 'estado')) {
+if ($ehRascunho && in_array($obra['importacao'] ?? '', ['lendo', 'revisao', 'erro_leitura'], true) && ($acao === '' || $acao === 'estado')) {
     if ($acao === '') {
         header('Location: obra_revisao.php?obra=' . $obraId);
         exit;
@@ -180,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'enviar') {
         $sit = importacao_situacao($obraId);
         if (!$sit['pronta']) {
-            resp_json(400, ['erro' => 'Faltam documentos obrigatórios ou há arquivo recusado.']);
+            resp_json(400, ['erro' => 'Há arquivo recusado ou ainda em validação.']);
         }
         q_global("UPDATE obras SET importacao = 'aguardando_leitura' WHERE id = ?", [$obraId]);
         registrar_global('obra_importacao_enviada', ['obra_id' => $obraId]);
@@ -203,6 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'ler_agora') {
         $r = importacao_despachar_leitura($obraId);
         resp_json($r['ok'] ? 200 : 502, $r + ['destino' => 'obra_revisao.php?obra=' . $obraId]);
+    }
+    if (in_array($acao, ['publicar_vazia', 'descartar'], true) && !$ehRascunho) {
+        resp_json(400, ['erro' => 'Esta obra já está publicada.']);
     }
     if ($acao === 'publicar_vazia') {   // transitório: libera a obra sem a leitura automática (configuração manual, como era antes)
         q_global("UPDATE obras SET status = 'ativa', importacao = NULL WHERE id = ?", [$obraId]);
@@ -230,24 +234,24 @@ pagina_inicio('Importar obra');
 ?>
 <div class="portal-shell">
   <header class="portal-topo">
-    <div class="portal-brand"><span class="brand-mark">NO</span><div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Importação de obra nova</small></div></div>
+    <div class="portal-brand"><span class="brand-mark">NO</span><div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small><?= $ehRascunho ? "Importação de obra nova" : "Documentos da obra" ?></small></div></div>
     <div class="portal-user"><a class="btn ghost" href="obras.php">← Central de obras</a></div>
   </header>
   <main class="portal-main imp-main">
     <section class="hero-obras">
-      <div><span class="eyebrow">NOVA OBRA · PASSO 2 DE 2</span><h1><?= h($obra['nome']) ?></h1>
-        <p>Envie IFC, fixadores, orçamento e projetos. Todos aceitam arquivo .zip; o cronograma é opcional e pode ser incluído depois. Com os documentos obrigatórios válidos, "Gerar obra" cria a lista de material, a baixa, o BM e o mapa.</p></div>
-      <div class="hero-stat"><strong id="impContagem">0/4</strong><span>documentos obrigatórios completos</span></div>
+      <div><span class="eyebrow"><?= $ehRascunho ? 'NOVA OBRA · PASSO 2 DE 2' : 'DOCUMENTOS DA OBRA' ?></span><h1><?= h($obra['nome']) ?></h1>
+        <p><?= $ehRascunho ? 'Todos os documentos são opcionais: envie o que já tiver (IFC, fixadores, orçamento, projetos, cronograma; todos aceitam .zip) e clique em "Gerar obra". O que não for enviado agora pode ser incluído depois, editando a obra.' : 'Envie agora ou quando conseguir: IFC, lista de fixadores, orçamento, projetos e cronograma. Os arquivos ficam guardados na obra. Se a obra ainda não foi gerada, "Gerar obra" cria a lista de material, a baixa, o BM e o mapa a partir deles.' ?></p></div>
+      <div class="hero-stat"><strong id="impContagem">0/5</strong><span>tipos de documento enviados</span></div>
     </section>
     <div id="impAviso"></div>
     <div id="impCartoes" class="imp-grid"></div>
     <section class="imp-rodape bloco">
       <div id="impStatus" class="nota"></div>
       <div class="imp-botoes">
-        <button class="btn ghost" id="impDescartar" type="button">Descartar este rascunho</button>
-        <button class="btn" id="impVazia" type="button" title="Libera a obra sem leitura automática. Uso temporário até a leitura automática estar validada.">Publicar sem leitura automática (temporário)</button>
-        <input id="impSigla" maxlength="10" placeholder="Sigla da empresa (ex.: CMM)" style="text-transform:uppercase;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;width:210px" title="Prefixo dos códigos do catálogo do BM (ex.: CMM-3.1.1-01)">
-        <button class="btn primario" id="impEnviar" type="button" disabled>Gerar obra →</button>
+        <?php if ($ehRascunho): ?><button class="btn ghost" id="impDescartar" type="button">Descartar este rascunho</button>
+        <button class="btn" id="impVazia" type="button" title="Cria a obra vazia, sem ler documento nenhum. Você pode enviar os documentos depois.">Criar obra sem documentos</button><?php endif; ?>
+        <input id="impSigla" maxlength="10" placeholder="Sigla da empresa (ex.: CMM) — vazio se não houver orçamento" style="text-transform:uppercase;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;width:210px" title="Prefixo dos códigos do catálogo do BM (ex.: CMM-3.1.1-01). Só é preciso quando há orçamento.">
+        <button class="btn primario" id="impEnviar" type="button" disabled><?= $ehRascunho ? 'Gerar obra →' : 'Gerar a obra com estes documentos →' ?></button>
       </div>
     </section>
   </main>
@@ -316,7 +320,7 @@ pagina_inicio('Importar obra');
     var h = '';
     Object.keys(ESTADO.tipos).forEach(function (k) {
       var t = ESTADO.tipos[k], u = uploads[k];
-      var selo = t.ok ? '<span class="imp-selo ok">' + (t.opcional ? 'Opcional' : 'Completo') + '</span>' : (t.pendente ? '<span class="imp-selo pend">Validando</span>' : '<span class="imp-selo">Obrigatório</span>');
+      var selo = t.ok ? '<span class="imp-selo ok">' + (t.enviado ? 'Enviado' : 'Opcional') + '</span>' : (t.pendente ? '<span class="imp-selo pend">Validando</span>' : '<span class="imp-selo">Recusado</span>');
       h += '<article class="imp-card ' + (t.ok ? 'ok' : '') + '" data-tipo="' + k + '"><h3>' + esc(t.rotulo) + selo + '</h3><p class="nota">' + esc(t.ajuda) + '</p>' +
         '<ul class="imp-gera">' + t.gera.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
         '<div class="imp-docs">' + t.documentos.map(function (d) { return docHtml(d, ESTADO.servico); }).join('') + '</div>' +
@@ -329,7 +333,7 @@ pagina_inicio('Importar obra');
     envio.disabled = !ESTADO.pronta || bloqueado || Object.keys(uploads).length > 0;
     var av = '';
     document.getElementById('impAviso').innerHTML = av;
-    document.getElementById('impStatus').textContent = ESTADO.pronta ? 'Documentos obrigatórios completos. O cronograma pode ser enviado agora ou depois.' : 'Faltam ' + (ESTADO.total - ESTADO.completos) + ' documento(s) obrigatório(s).';
+    document.getElementById('impStatus').textContent = !ESTADO.pronta ? 'Há arquivo recusado ou em validação: remova ou aguarde para gerar a obra.' : (ESTADO.completos ? ESTADO.completos + ' tipo(s) de documento enviado(s). Os que faltam podem ser enviados depois.' : 'Nenhum documento enviado: a obra será criada vazia e os documentos podem entrar depois.');
   }
   function atualizar() { return fetch('obra_importar.php?acao=estado&obra=' + OBRA, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { ESTADO = j; desenhar(); }); }
   async function enviarArquivo(tipo, arq) {
@@ -369,7 +373,7 @@ pagina_inicio('Importar obra');
   });
   document.getElementById('impEnviar').addEventListener('click', function () {
     var sigla = document.getElementById('impSigla').value.trim();
-    if (sigla.length < 2) { alert('Informe a sigla da empresa executora (ex.: CMM): ela vira o prefixo do catálogo do BM.'); document.getElementById('impSigla').focus(); return; }
+    if (sigla.length < 2 && ESTADO.tipos.orcamento.enviado) { alert('Informe a sigla da empresa executora (ex.: CMM): ela vira o prefixo do catálogo do BM.'); document.getElementById('impSigla').focus(); return; }
     var b = this; b.disabled = true; b.textContent = 'Lendo os documentos e gerando a obra…';
     document.getElementById('impStatus').textContent = 'Lendo IFC, orçamento, projetos e fixadores' + (ESTADO.tipos.cronograma.documentos.length ? ', cronograma' : '') + ' e criando a obra. Pode levar alguns segundos.';
     post('gerar', { sigla: sigla }).then(function (j) {
@@ -377,11 +381,12 @@ pagina_inicio('Importar obra');
       location.href = j.destino;
     }).catch(function () { alert('Falha de comunicação ao gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; });
   });
-  document.getElementById('impDescartar').addEventListener('click', function () {
+  var bDesc = document.getElementById('impDescartar'), bVaz = document.getElementById('impVazia');
+  if (bDesc) bDesc.addEventListener('click', function () {
     if (confirm('Descartar este rascunho e apagar os documentos enviados?')) post('descartar').then(function (j) { if (j.destino) location.href = j.destino; });
   });
-  document.getElementById('impVazia').addEventListener('click', function () {
-    if (confirm('Publicar a obra SEM a leitura automática? Ela abre vazia, para configuração manual. Os documentos enviados ficam guardados.')) post('publicar_vazia').then(function (j) { if (j.destino) location.href = j.destino; });
+  if (bVaz) bVaz.addEventListener('click', function () {
+    if (confirm('Criar a obra SEM ler documentos? Ela abre vazia, para configuração manual. Os documentos enviados ficam guardados e você pode enviar outros depois.')) post('publicar_vazia').then(function (j) { if (j.destino) location.href = j.destino; });
   });
   desenhar();
   setInterval(function () { if (!document.hidden && ESTADO.servico && Object.keys(ESTADO.tipos).some(function (k) { return ESTADO.tipos[k].pendente; })) atualizar(); }, 4000);

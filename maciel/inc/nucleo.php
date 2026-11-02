@@ -1276,7 +1276,7 @@ function pagina_inicio($titulo, $app = false)
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
-    echo '<!doctype html><html lang="pt-BR"' . tema_attr() . ($app ? menu_attr() : '') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<!doctype html><html lang="pt-BR"' . ($app ? tema_attr() . menu_attr() : ' data-theme="light"') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     echo icones_html();
     echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
