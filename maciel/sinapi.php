@@ -15,9 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acao = (string)($_POST['acao'] ?? '');
         if ($acao === 'importar') {
             if (empty($_FILES['planilha']['tmp_name']) || ($_FILES['planilha']['error'] ?? 0) !== UPLOAD_ERR_OK) {
-                throw new InvalidArgumentException('Envie a planilha .xlsx da Caixa (se o arquivo é grande, o servidor pode ter recusado: tente enviar só uma planilha por vez).');
+                throw new InvalidArgumentException('Envie o arquivo da Caixa (.xlsx, .zip ou .pdf). Se ele é grande, o servidor pode ter recusado o envio (limite atual: ' . ini_get('upload_max_filesize') . '): envie um estado por vez ou só a planilha.');
             }
-            if (!preg_match('/\.xlsx$/i', (string)$_FILES['planilha']['name'])) { throw new InvalidArgumentException('O arquivo precisa ser .xlsx (SINAPI_Referência_AAAA_MM.xlsx).'); }
+            if (!preg_match('/\.(xlsx|zip|pdf)$/i', (string)$_FILES['planilha']['name'])) { throw new InvalidArgumentException('O arquivo precisa ser .xlsx, .zip ou .pdf (ex.: SINAPI_Referência_AAAA_MM.xlsx ou o ZIP/PDF do estado).'); }
             $ref = trim((string)($_POST['ref'] ?? ''));
             $resumo = sinapi_importar($_FILES['planilha']['tmp_name'], (string)$_FILES['planilha']['name'], $ref, strtoupper((string)($_POST['uf'] ?? '')), (array)($_POST['regime'] ?? []), $eu);
             registrar_global('sinapi_importado', ['ref' => $ref, 'uf' => $_POST['uf'] ?? '', 'por' => $eu['login'] ?? '']);
@@ -44,9 +44,10 @@ central_topo('Tabela SINAPI', 'comercial', $eu, 'Painel comercial');
   <?php if ($resumo): ?><section class="ce-bloco"><h2>Resultado</h2><ul><?php foreach ($resumo as $l): ?><li><?= h($l) ?></li><?php endforeach; ?></ul></section><?php endif; ?>
 
   <section class="ce-bloco"><h2>Importar planilha da Caixa</h2>
-    <p><b>Onde baixar:</b> no site da Caixa, em <i>SINAPI › Relatórios mensais</i>, baixe o arquivo <b>“SINAPI_Referência_AAAA_MM.xlsx”</b> do mês (traz as abas ISD/ICD/ISE de insumos e CSD/CCD/CSE de composições, com todos os estados). Importe <b>um estado por vez</b> — o do seu orçamento. O envio e a leitura levam alguns minutos.</p>
+    <p><b>Onde baixar:</b> no site da Caixa, em <i>SINAPI › Relatórios mensais</i>. Aceito <b>três formatos</b>: a planilha <b>“SINAPI_Referência_AAAA_MM.xlsx”</b> (abas ISD/ICD/ISE de insumos e CSD/CCD/CSE de composições, todos os estados), um <b>ZIP</b> da Caixa (leio as planilhas e os PDFs que estiverem dentro dele) ou o <b>PDF</b> do relatório de um estado. Importe <b>um estado por vez</b> — o do seu orçamento. O envio e a leitura levam alguns minutos.</p>
+    <p style="color:#667085;font-size:13px"><b>PDF:</b> só funciona com PDF de texto (o da Caixa); PDF escaneado em imagem não tem o que ler. O regime (com ou sem desoneração) e se é de insumos ou composições são descobertos pelo nome do arquivo ou pelo cabeçalho; se não der, vale o regime que você marcar (marque só um). Depois de importar, confira a quantidade de itens e o preço de alguns deles. A planilha .xlsx é sempre a fonte mais segura.</p>
     <form method="post" enctype="multipart/form-data" class="ce-form"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="importar">
-      <label class="full">Planilha (.xlsx)<input type="file" name="planilha" accept=".xlsx" required></label>
+      <label class="full">Arquivo da Caixa (.xlsx, .zip ou .pdf)<input type="file" name="planilha" accept=".xlsx,.zip,.pdf" required></label>
       <label>Mês de referência<input type="month" name="ref" required value="<?= h(date('Y-m', strtotime('first day of last month'))) ?>"></label>
       <label>Estado (UF)<select name="uf"><?php foreach ($ufs as $u_): ?><option <?= $u_ === 'MG' ? 'selected' : '' ?>><?= h($u_) ?></option><?php endforeach; ?></select></label>
       <label class="full">Regimes a importar<span style="display:flex;gap:16px;flex-wrap:wrap;font-weight:400"><?php foreach (sinapi_regimes() as $k => $r): ?><label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="regime[]" value="<?= h($k) ?>" <?= $k === 'SD' ? 'checked' : '' ?> style="width:auto"> <?= h($r) ?></label><?php endforeach; ?></span></label>

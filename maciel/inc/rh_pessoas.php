@@ -41,6 +41,10 @@ function garantir_rh_pessoas()
     bd()->exec("CREATE TABLE IF NOT EXISTS rh_documentos (id $pk, organizacao_id INT NOT NULL DEFAULT 0, origem VARCHAR(1) NOT NULL DEFAULT 'p', pessoa_id INT NOT NULL, obra_id INT NULL,
         tipo VARCHAR(80) NOT NULL, titulo VARCHAR(160) NULL, validade DATE NULL, arquivo VARCHAR(80) NOT NULL, arquivo_nome VARCHAR(200) NOT NULL, mime VARCHAR(80) NULL,
         tamanho INT NOT NULL DEFAULT 0, enviado_por VARCHAR(100) NULL, enviado_em VARCHAR(19) NULL)$fim");
+    if ((int)global_ler('rh_esquema', 0) < 2) {   // cidade e estado do colaborador (endereço completo)
+        foreach (['cidade VARCHAR(100) NULL', 'uf VARCHAR(2) NULL'] as $col_) { try { bd()->exec('ALTER TABLE rh_pessoas ADD COLUMN ' . $col_); } catch (Throwable $e) { /* já existe */ } }
+        global_gravar('rh_esquema', '2');
+    }
     try { bd()->exec('CREATE INDEX idx_rh_pessoas_org ON rh_pessoas (organizacao_id, obra_id)'); } catch (Throwable $e) { /* já existe */ }
     try { bd()->exec('CREATE INDEX idx_rh_doc_pessoa ON rh_documentos (origem, pessoa_id)'); } catch (Throwable $e) { /* já existe */ }
     $ok = true;
@@ -106,6 +110,54 @@ function rhp_valor($v)
     return $n === null ? null : round((float)$n, 2);
 }
 
+// ---------------------------------------------------------------- listas de função e de setor (escolha na lista + cadastro de nova)
+
+function rhp_ufs()
+{
+    return ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'];
+}
+
+function rhp_listas_padrao()
+{
+    return [
+        'funcao' => ['Montador', 'Soldador', 'Ajudante', 'Encarregado', 'Mestre de obras', 'Engenheiro', 'Técnico em segurança', 'Almoxarife', 'Auxiliar administrativo', 'Operador de equipamento', 'Projetista'],
+        'setor' => ['Operacional', 'Administrativo', 'Projetos', 'SMS', 'Financeiro', 'Comercial'],
+    ];
+}
+
+/** Opções de função ou setor: as padrão + as cadastradas pela empresa + as já usadas nos colaboradores. $org = 0 junta as de todas as empresas (administrador do sistema). */
+function rhp_opcoes($campo, $org = 0)
+{
+    $campo = $campo === 'setor' ? 'setor' : 'funcao';
+    $padrao = rhp_listas_padrao();
+    $tudo = $padrao[$campo];
+    $custom = cfg_json_ler('rh_listas');
+    foreach ($custom as $o => $l) {
+        if ($org > 0 && (int)$o !== (int)$org) { continue; }
+        foreach ((array)($l[$campo] ?? []) as $v) { $tudo[] = (string)$v; }
+    }
+    garantir_rh_pessoas();
+    $sql = "SELECT DISTINCT $campo FROM rh_pessoas WHERE $campo IS NOT NULL AND $campo <> ''" . ($org > 0 ? ' AND organizacao_id = ?' : '');
+    foreach (q_global($sql, $org > 0 ? [(int)$org] : [])->fetchAll(PDO::FETCH_COLUMN) as $v) { $tudo[] = (string)$v; }
+    $out = [];
+    foreach ($tudo as $v) { $v = trim($v); if ($v !== '' && !isset($out[mb_strtolower($v)])) { $out[mb_strtolower($v)] = $v; } }
+    $v = array_values($out);
+    usort($v, function ($a, $b) { return strcasecmp($a, $b); });
+    return $v;
+}
+
+/** Guarda uma função/setor novo na lista da empresa. Devolve o nome gravado (se já existe, devolve o nome que já estava na lista). */
+function rhp_opcao_adicionar($campo, $org, $valor)
+{
+    $campo = $campo === 'setor' ? 'setor' : 'funcao';
+    $valor = trim(preg_replace('/\s+/u', ' ', (string)$valor));
+    foreach (rhp_opcoes($campo, (int)$org) as $o) { if (mb_strtolower($o) === mb_strtolower($valor)) { return $o; } }
+    $t = cfg_json_ler('rh_listas');
+    $t[(string)(int)$org][$campo][] = $valor;
+    global_gravar('rh_listas', json_encode($t, JSON_UNESCAPED_UNICODE));
+    return $valor;
+}
+
 /** Valida o formulário e grava (novo ou edição). Salário e benefícios só mudam para quem pode ver salários. Devolve o id. */
 function rhp_salvar(array $post, array $u, $id = 0)
 {
@@ -149,6 +201,25 @@ function rhp_salvar(array $post, array $u, $id = 0)
     $obraAntes = $atual ? (int)($atual['obra_id'] ?? 0) : 0;
     if ($obraId !== $obraAntes) { $alocadoEm = $obraId > 0 ? ($data('alocado_em', 'Data da alocação') ?: planos_hoje()) : null; }
     elseif ($obraId > 0 && !empty($post['alocado_em'])) { $alocadoEm = $data('alocado_em', 'Data da alocação'); }
+    // função e setor: escolhidos na lista ou cadastrados na hora ("__nova")
+    $rotulos = ['funcao' => 'função', 'setor' => 'setor'];
+    $novo = ['funcao' => 'a nova função', 'setor' => 'o novo setor'];
+    $escolha = [];
+    foreach ($rotulos as $c_ => $r_) {
+        $v_ = trim((string)($post[$c_] ?? ''));
+        if ($v_ === '__nova') {
+            $novo_ = trim(preg_replace('/\s+/u', ' ', (string)($post[$c_ . '_nova'] ?? '')));
+            if ($novo_ === '') { $erros[$c_] = 'Falta digitar o nome d' . $novo[$c_] . '.'; }
+            elseif (mb_strlen($novo_) < 2 || mb_strlen($novo_) > 60) { $erros[$c_] = 'O nome d' . $novo[$c_] . ' deve ter de 2 a 60 letras.'; }
+            else { $escolha[$c_] = ['novo' => $novo_]; }
+        } else { $escolha[$c_] = ['valor' => mb_substr($v_, 0, 100)]; }
+    }
+    $cidade = trim(preg_replace('/\s+/u', ' ', (string)($post['cidade'] ?? '')));
+    if (mb_strlen($cidade) > 100) { $erros['cidade'] = 'A cidade passou de 100 letras.'; }
+    $uf = strtoupper(trim((string)($post['uf'] ?? '')));
+    if ($uf !== '' && !in_array($uf, rhp_ufs(), true)) { $erros['uf'] = 'Escolha um estado da lista.'; }
+    if (($cidade !== '' && $uf === '') && !isset($erros['uf'])) { $erros['uf'] = 'Falta escolher o estado da cidade ' . $cidade . '.'; }
+    if (($uf !== '' && $cidade === '') && !isset($erros['cidade'])) { $erros['cidade'] = 'Falta informar a cidade do estado ' . $uf . '.'; }
     $adicional = (string)($post['adicional'] ?? 'Nenhum');
     if (!in_array($adicional, ['Nenhum', 'Insalubridade 10%', 'Insalubridade 20%', 'Insalubridade 40%', 'Periculosidade 30%'], true)) { $adicional = 'Nenhum'; }
     $sal = null;
@@ -164,13 +235,17 @@ function rhp_salvar(array $post, array $u, $id = 0)
         }
     }
     if ($erros) { throw new RhpValidacao($erros); }
+    foreach ($escolha as $c_ => $e_) {   // só grava na lista depois que o resto do formulário está certo
+        $escolha[$c_] = isset($e_['novo']) ? rhp_opcao_adicionar($c_, $org, $e_['novo']) : $e_['valor'];
+    }
     $orgNome = $org > 0 ? (string)(organizacao_ler($org)['nome'] ?? '') : '';
     $empresa = trim((string)($post['empresa'] ?? '')) !== '' ? mb_substr(trim($post['empresa']), 0, 120) : $orgNome;
     $dados = [
         'nome' => mb_substr($nome, 0, 160), 'cpf' => $cpf ?: null, 'rg' => mb_substr(trim((string)($post['rg'] ?? '')), 0, 30) ?: null,
         'nascimento' => $nasc, 'sexo' => in_array($post['sexo'] ?? '', ['Masculino', 'Feminino', 'Outro'], true) ? $post['sexo'] : null,
         'celular' => mb_substr(trim((string)($post['celular'] ?? '')), 0, 30) ?: null, 'email' => $email ?: null, 'endereco' => mb_substr(trim((string)($post['endereco'] ?? '')), 0, 255) ?: null,
-        'funcao' => mb_substr(trim((string)($post['funcao'] ?? '')), 0, 100) ?: null, 'setor' => mb_substr(trim((string)($post['setor'] ?? '')), 0, 60) ?: null,
+        'cidade' => $cidade !== '' ? $cidade : null, 'uf' => $uf !== '' ? $uf : null,
+        'funcao' => ($escolha['funcao'] ?? '') !== '' ? mb_substr($escolha['funcao'], 0, 100) : null, 'setor' => ($escolha['setor'] ?? '') !== '' ? mb_substr($escolha['setor'], 0, 60) : null,
         'empresa' => $empresa ?: null, 'status' => $status, 'admissao' => $adm, 'desligamento' => $des, 'obra_id' => $obraId > 0 ? $obraId : null, 'alocado_em' => $alocadoEm,
         'ctps' => mb_substr(trim((string)($post['ctps'] ?? '')), 0, 30) ?: null, 'serie' => mb_substr(trim((string)($post['serie'] ?? '')), 0, 20) ?: null,
         'obs' => mb_substr(trim((string)($post['obs'] ?? '')), 0, 4000) ?: null,

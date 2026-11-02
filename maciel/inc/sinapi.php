@@ -93,7 +93,146 @@ function sinapi_extrair_aba(array $linhas, $uf)
     return $out;
 }
 
-/** Importa a planilha oficial para um estado e vários regimes. Devolve linhas de resumo (texto). */
+/** Regime (SD/CD/SE) pelo texto (nome do arquivo ou cabeçalho do PDF); null se não der para saber. */
+function sinapi_regime_do_texto($t)
+{
+    $n = preg_replace('/[^A-Z0-9]/', '', sinapi_norm($t));
+    if (preg_match('/NAODESONERAD|SEMDESONERAC|SEMDESON|NDESONERAD/', $n)) { return 'SD'; }
+    if (preg_match('/SEMENCARGOS|SEMENCARGO/', $n)) { return 'SE'; }
+    if (preg_match('/DESONERAD|COMDESONERAC|COMDESON/', $n)) { return 'CD'; }
+    return null;
+}
+
+/** Insumo (I) ou composição (C) pelo texto; null se não der para saber. */
+function sinapi_tipo_do_texto($t)
+{
+    $n = sinapi_norm($t);
+    $i = preg_match('/INSUMO/', $n); $c = preg_match('/COMPOSIC/', $n);
+    if ($i && !$c) { return 'I'; }
+    if ($c && !$i) { return 'C'; }
+    return null;
+}
+
+/**
+ * Lê o texto de um PDF do SINAPI (relatório por estado) e devolve as linhas {codigo, descricao, unidade, classe, preco}.
+ * Linha de item = código (3 a 8 números) + descrição + unidade + [origem do preço: C, CR ou AS] + preço (1.234,56). A descrição pode quebrar em várias linhas.
+ * Quando há mais de uma coluna de preço, vale a primeira. Devolve também quantas linhas não foram entendidas.
+ */
+function sinapi_ler_texto_pdf($texto)
+{
+    $preco = '(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2,4}';
+    $un = '[A-Z][A-Z0-9²³]{0,5}(?:\/[A-Z0-9²³]{1,5})?|%';
+    $reCompleta = '/^(\d{3,8})\s+(.+?)\s+(' . $un . ')\s+(?:(?:CR|AS|C)\s+)?(' . $preco . ')(?:\s+[\d.,%\-]+)*\s*$/u';
+    $reCodigo = '/^(\d{3,8})\s+(\S.*)$/u';
+    $reCauda = '/(?:^|\s)(' . $un . ')\s+(?:(?:CR|AS|C)\s+)?(' . $preco . ')(?:\s+[\d.,%\-]+)*\s*$/u';
+    $lixo = '/^(POWERED|PAGINA|P[ÁA]GINA|SINAPI|CAIXA|REFER[ÊE]NCIA|C[ÓO]DIGO|DESCRI|UNIDADE|ORIGEM|PRE[ÇC]O|MEDIANO|DATA|UF\b|LOCAL|TABELA|RELAT[ÓO]RIO|INSUMOS?\b|COMPOSI|CUSTO|M[ÊE]S|COLETA|FONTE|\d+\s*(\/|DE)\s*\d+$)/iu';
+    $itens = []; $descartadas = 0;
+    $fecha = function ($cod, $desc, $un_, $pr) use (&$itens) {
+        $p = sinapi_preco($pr);
+        if ($p === null) { return false; }
+        $itens[] = ['codigo' => $cod, 'descricao' => mb_substr(trim(preg_replace('/\s+/u', ' ', $desc)), 0, 500), 'unidade' => mb_substr($un_, 0, 14), 'classe' => '', 'preco' => $p];
+        return count($itens) - 1;
+    };
+    // 1) divide em blocos (linhas em branco separam as linhas da tabela; a descrição quebrada fica toda no mesmo bloco)
+    $blocos = []; $atual = [];
+    foreach (preg_split('/\R/u', (string)$texto) as $linha) {
+        $l = trim(preg_replace('/\s+/u', ' ', $linha));
+        if ($l === '') { if ($atual) { $blocos[] = $atual; $atual = []; } continue; }
+        if (preg_match($lixo, $l) && !preg_match('/^\d{3,8}\s/', $l)) { continue; }   // cabeçalho/rodapé
+        $atual[] = $l;
+    }
+    if ($atual) { $blocos[] = $atual; }
+    // 2) lê cada bloco
+    $ultimo = null;
+    foreach ($blocos as $bl) {
+        $cods = [];
+        foreach ($bl as $i => $l) { if (preg_match('/^\d{3,8}(\s|$)/', $l)) { $cods[] = $i; } }
+        if (count($cods) === 1) {
+            // uma linha da tabela (talvez com a descrição quebrada em cima e embaixo do código): junta tudo e acha unidade + preço no fim de alguma das linhas
+            $i = $cods[0];
+            preg_match('/^(\d{3,8})\s*(.*)$/u', $bl[$i], $m);
+            $cod = $m[1]; $bl[$i] = $m[2];
+            $un_ = null; $pr = null;
+            foreach (array_merge([$i], array_keys($bl)) as $j) {
+                if (isset($bl[$j]) && preg_match($reCauda, $bl[$j], $mc)) { $un_ = $mc[1]; $pr = $mc[2]; $bl[$j] = trim(substr($bl[$j], 0, strlen($bl[$j]) - strlen($mc[0]))); break; }
+            }
+            if ($un_ === null) { $descartadas++; $ultimo = null; continue; }
+            $k = $fecha($cod, implode(' ', array_filter($bl, 'strlen')), $un_, $pr); $ultimo = $k === false ? null : $k;
+            continue;
+        }
+        if (!$cods) {   // texto solto: continuação da descrição do item anterior (quebra de página)
+            $txt = implode(' ', $bl);
+            if ($ultimo !== null && !preg_match('/\d,\d{2}/', $txt) && mb_strlen($txt) <= 110) { $itens[$ultimo]['descricao'] = mb_substr($itens[$ultimo]['descricao'] . ' ' . $txt, 0, 500); }
+            continue;
+        }
+        // várias linhas da tabela coladas (sem espaço entre elas): linha a linha
+        $pend = null; $ultimo = null;
+        foreach ($bl as $l) {
+            if (preg_match($reCompleta, $l, $m)) {
+                if ($pend) { $descartadas++; $pend = null; }
+                $k = $fecha($m[1], $m[2], $m[3], $m[4]); $ultimo = $k === false ? null : $k; continue;
+            }
+            if (preg_match($reCodigo, $l, $m) && preg_match('/[A-Za-zÀ-ú]{3,}/u', $m[2])) {
+                if ($pend) { $descartadas++; }
+                $pend = ['cod' => $m[1], 'desc' => $m[2]]; $ultimo = null; continue;
+            }
+            if ($pend) {
+                if (preg_match($reCauda, $l, $m)) {
+                    $resto = trim(substr($l, 0, strlen($l) - strlen($m[0])));
+                    $k = $fecha($pend['cod'], $pend['desc'] . ' ' . $resto, $m[1], $m[2]); $ultimo = $k === false ? null : $k; $pend = null;
+                } else { $pend['desc'] .= ' ' . $l; }
+                continue;
+            }
+            if ($ultimo !== null && !preg_match('/\d,\d{2}/', $l) && mb_strlen($l) <= 110) { $itens[$ultimo]['descricao'] = mb_substr($itens[$ultimo]['descricao'] . ' ' . $l, 0, 500); }
+        }
+        if ($pend) { $descartadas++; }
+    }
+    return ['itens' => $itens, 'descartadas' => $descartadas];
+}
+
+/** Espalha o arquivo enviado em uma lista de arquivos para ler: .xlsx, .pdf e, dentro de .zip, o que houver (até 2 níveis). Devolve [lista, pasta temporária]. */
+function sinapi_expandir($caminho, $nome, $pasta, $nivel = 0, array &$avisos = [])
+{
+    $ext = strtolower(pathinfo($nome, PATHINFO_EXTENSION));
+    $lista = [];
+    if ($ext === 'pdf') { return [['caminho' => $caminho, 'nome' => $nome, 'tipo' => 'pdf']]; }
+    if (!class_exists('ZipArchive')) { throw new RuntimeException('O servidor não tem a extensão ZIP do PHP.'); }
+    $zip = new ZipArchive();
+    if ($zip->open($caminho) !== true) {
+        if ($nivel > 0) { $avisos[] = '"' . $nome . '" dentro do ZIP está corrompido ou não é um arquivo válido: ignorado.'; return []; }
+        throw new InvalidArgumentException('Não consegui abrir "' . $nome . '": o arquivo está corrompido ou não é ZIP/XLSX/PDF.');
+    }
+    if ($zip->locateName('xl/workbook.xml') !== false) { $zip->close(); return [['caminho' => $caminho, 'nome' => $nome, 'tipo' => 'xlsx']]; }   // .xlsx também é um ZIP
+    if ($nivel >= 2) { $zip->close(); return []; }
+    $total = 0;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $st = $zip->statIndex($i);
+        $en = (string)$st['name'];
+        if (substr($en, -1) === '/' || strpos($en, '__MACOSX') !== false) { continue; }
+        $e = strtolower(pathinfo($en, PATHINFO_EXTENSION));
+        if (!in_array($e, ['xlsx', 'pdf', 'zip'], true)) { continue; }
+        if ($st['size'] > 400 * 1024 * 1024 || ($total += $st['size']) > 900 * 1024 * 1024) { throw new InvalidArgumentException('O ZIP é grande demais para importar de uma vez (limite 900 MB descompactado): envie por partes.'); }
+        $dest = $pasta . '/' . bin2hex(random_bytes(6)) . '.' . $e;   // nome aleatório: nunca usa o caminho que veio dentro do ZIP
+        $in = $zip->getStream($en);
+        if (!$in) { continue; }
+        $out = fopen($dest, 'wb'); stream_copy_to_stream($in, $out); fclose($out); fclose($in);
+        foreach (sinapi_expandir($dest, basename($en), $pasta, $nivel + 1, $avisos) as $x) { $lista[] = $x; }
+    }
+    $zip->close();
+    return $lista;
+}
+
+function sinapi_remover_pasta($pasta)
+{
+    foreach (glob($pasta . '/*') ?: [] as $f) { @unlink($f); }
+    @rmdir($pasta);
+}
+
+/**
+ * Importa o arquivo da Caixa (.xlsx, .zip com xlsx/pdf, ou .pdf) para um estado. Planilha: vários regimes de uma vez (abas ISD/ICD/ISE e CSD/CCD/CSE).
+ * PDF: um relatório por estado; regime e tipo (insumo/composição) vêm do nome do arquivo ou do cabeçalho; sem isso vale o regime marcado (se for só um).
+ * Devolve linhas de resumo (texto).
+ */
 function sinapi_importar($caminho, $nomeArquivo, $ref, $uf, array $regimes, array $u)
 {
     garantir_sinapi();
@@ -101,37 +240,81 @@ function sinapi_importar($caminho, $nomeArquivo, $ref, $uf, array $regimes, arra
     if (!in_array($uf, sinapi_ufs(), true)) { throw new InvalidArgumentException('Estado inválido.'); }
     $regimes = array_values(array_intersect($regimes, array_keys(sinapi_regimes())));
     if (!$regimes) { throw new InvalidArgumentException('Escolha ao menos um regime (sem desoneração, com desoneração ou sem encargos).'); }
-    @set_time_limit(600);
-    @ini_set('memory_limit', '512M');
-    $resumo = [];
+    @set_time_limit(900);
+    @ini_set('memory_limit', '768M');
+    require_once __DIR__ . '/pdf_texto.php';
+    $pasta = sys_get_temp_dir() . '/sinapi_' . bin2hex(random_bytes(6));
+    if (!@mkdir($pasta, 0700)) { throw new RuntimeException('Não consegui criar a pasta temporária do servidor para ler o arquivo.'); }
+    $resumo = []; $acc = []; $aviso = [];
+    try {
+        $arquivos = sinapi_expandir($caminho, $nomeArquivo, $pasta, 0, $aviso);
+        if (!$arquivos) { throw new InvalidArgumentException('Não achei planilha (.xlsx) nem PDF dentro do arquivo enviado.'); }
+        $semDados = 0;
+        foreach ($arquivos as $arq) {
+            if ($arq['tipo'] === 'xlsx') {
+                $achou = false;
+                foreach ($regimes as $rg) {
+                    foreach (['I' => 'I' . $rg, 'C' => 'C' . $rg] as $tipo => $nomeAba) {
+                        try { $folhas = xlsx_ler($arq['caminho'], 40000, 120, [$nomeAba]); }
+                        catch (RuntimeException $e) { $aviso[] = '"' . $arq['nome'] . '": ' . $e->getMessage(); break 2; }
+                        if (!$folhas) { continue; }
+                        try { $itens = sinapi_extrair_aba($folhas[0]['linhas'], $uf); }
+                        catch (RuntimeException $e) { $aviso[] = $arq['nome'] . ' › aba ' . $nomeAba . ': ' . $e->getMessage() . '.'; continue; }
+                        $achou = true;
+                        foreach ($itens as $it) { $acc[$rg][$tipo][] = $it; }
+                        unset($folhas, $itens);
+                    }
+                }
+                if (!$achou) { $semDados++; $aviso[] = '"' . $arq['nome'] . '": sem as abas de insumos/composições (ISD, ICD, ISE, CSD, CCD, CSE): ignorado.'; }
+            } else {
+                $textos = pdf_textos($arq['caminho']);
+                if (!$textos) { $aviso[] = '"' . $arq['nome'] . '": o PDF não tem texto selecionável (é imagem/escaneado). Envie o PDF original da Caixa ou a planilha .xlsx.'; continue; }
+                $texto = $textos[0]; $r = null;
+                foreach ($textos as $tx) { $rr = sinapi_ler_texto_pdf($tx); if ($r === null || count($rr['itens']) > count($r['itens'])) { $r = $rr; $texto = $tx; } }
+                $cab = mb_substr($texto, 0, 4000);
+                $rg = sinapi_regime_do_texto($arq['nome']) ?: sinapi_regime_do_texto($cab);
+                if ($rg === null) {
+                    if (count($regimes) !== 1) { throw new InvalidArgumentException('Não consegui descobrir o regime (com ou sem desoneração) do PDF "' . $arq['nome'] . '". Marque apenas UM regime e envie de novo.'); }
+                    $rg = $regimes[0];
+                }
+                $tipo = sinapi_tipo_do_texto($arq['nome']) ?: sinapi_tipo_do_texto($cab);
+                if ($tipo === null) { $tipo = 'I'; $aviso[] = '"' . $arq['nome'] . '": não deu para saber se é de insumos ou de composições: tratei como INSUMOS.'; }
+                if (preg_match('/\b(?:UF|ESTADO)\s*[:\-]?\s*([A-Z]{2})\b/', mb_strtoupper($cab), $mu) && in_array($mu[1], sinapi_ufs(), true) && $mu[1] !== $uf) {
+                    throw new InvalidArgumentException('O PDF "' . $arq['nome'] . '" parece ser do estado ' . $mu[1] . ', mas você escolheu ' . $uf . '. Corrija o estado e envie de novo.');
+                }
+                if (!$r['itens']) { $aviso[] = '"' . $arq['nome'] . '": não reconheci linhas de itens (código, descrição, unidade e preço). Se o PDF está em outro formato, envie a planilha .xlsx.'; continue; }
+                foreach ($r['itens'] as $it) { $acc[$rg][$tipo][] = $it; }
+                $aviso[] = 'PDF "' . $arq['nome'] . '": ' . number_format(count($r['itens']), 0, ',', '.') . ' linhas lidas como ' . ($tipo === 'I' ? 'insumos' : 'composições') . ' (' . sinapi_regimes()[$rg] . ')' . ($r['descartadas'] ? '; ' . $r['descartadas'] . ' linha(s) sem preço ignorada(s)' : '') . '. Confira a quantidade e o preço de alguns itens.';
+            }
+        }
+    } finally { sinapi_remover_pasta($pasta); }
     $ins = bd()->prepare('INSERT INTO sinapi_itens (ref, uf, regime, tipo, codigo, descricao, busca, unidade, classe, preco) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    foreach ($regimes as $rg) {
-        $abas = ['I' => 'I' . $rg, 'C' => 'C' . $rg];   // ISD/ICD/ISE = insumos; CSD/CCD/CSE = composições
+    foreach ($acc as $rg => $porTipo) {
         $qtd = ['I' => 0, 'C' => 0];
-        foreach ($abas as $tipo => $nomeAba) {
-            $folhas = xlsx_ler($caminho, 40000, 120, [$nomeAba]);
-            if (!$folhas) { $resumo[] = "Aba $nomeAba não encontrada: ignorada."; continue; }
-            try { $itens = sinapi_extrair_aba($folhas[0]['linhas'], $uf); }
-            catch (RuntimeException $e) { $resumo[] = "Aba $nomeAba: " . $e->getMessage() . '.'; continue; }
+        foreach ($porTipo as $tipo => $itens) {
+            $vistos = [];
             bd()->beginTransaction();
             try {
                 q_global('DELETE FROM sinapi_itens WHERE ref = ? AND uf = ? AND regime = ? AND tipo = ?', [$ref, $uf, $rg, $tipo]);
                 foreach ($itens as $it) {
+                    if (isset($vistos[$it['codigo']])) { continue; }   // mesmo código lido duas vezes (ex.: planilha e PDF): vale o primeiro
+                    $vistos[$it['codigo']] = true;
                     $ins->execute([$ref, $uf, $rg, $tipo, $it['codigo'], $it['descricao'], sinapi_norm($it['descricao']), $it['unidade'], $it['classe'], $it['preco']]);
                 }
                 bd()->commit();
             } catch (Throwable $e) { bd()->rollBack(); throw $e; }
-            $qtd[$tipo] = count($itens);
-            unset($folhas, $itens);
+            $qtd[$tipo] = count($vistos);
         }
-        if ($qtd['I'] + $qtd['C'] > 0) {
-            q_global('DELETE FROM sinapi_cargas WHERE ref = ? AND uf = ? AND regime = ?', [$ref, $uf, $rg]);
-            q_global('INSERT INTO sinapi_cargas (ref, uf, regime, insumos, composicoes, arquivo, por, em) VALUES (?,?,?,?,?,?,?,?)',
-                [$ref, $uf, $rg, $qtd['I'], $qtd['C'], mb_substr($nomeArquivo, 0, 200), $u['login'] ?? '', agora()]);
-        }
-        $resumo[] = sinapi_regimes()[$rg] . ': ' . number_format($qtd['I'], 0, ',', '.') . ' insumos e ' . number_format($qtd['C'], 0, ',', '.') . ' composições de ' . $uf . ' (' . substr($ref, 5) . '/' . substr($ref, 0, 4) . ').';
+        // a carga registra o total que ficou no banco (um PDF de insumos não apaga as composições já importadas)
+        $tot = ['I' => 0, 'C' => 0];
+        foreach (q_global('SELECT tipo, COUNT(*) FROM sinapi_itens WHERE ref = ? AND uf = ? AND regime = ? GROUP BY tipo', [$ref, $uf, $rg])->fetchAll(PDO::FETCH_NUM) as $row) { $tot[$row[0]] = (int)$row[1]; }
+        q_global('DELETE FROM sinapi_cargas WHERE ref = ? AND uf = ? AND regime = ?', [$ref, $uf, $rg]);
+        q_global('INSERT INTO sinapi_cargas (ref, uf, regime, insumos, composicoes, arquivo, por, em) VALUES (?,?,?,?,?,?,?,?)',
+            [$ref, $uf, $rg, $tot['I'], $tot['C'], mb_substr($nomeArquivo, 0, 200), $u['login'] ?? '', agora()]);
+        $resumo[] = sinapi_regimes()[$rg] . ': ' . number_format($qtd['I'], 0, ',', '.') . ' insumos e ' . number_format($qtd['C'], 0, ',', '.') . ' composições de ' . $uf . ' (' . substr($ref, 5) . '/' . substr($ref, 0, 4) . ') importados agora.';
     }
-    return $resumo;
+    if (!$acc) { throw new InvalidArgumentException('Nada foi importado. ' . implode(' ', $aviso)); }
+    return array_merge($resumo, $aviso);
 }
 
 /** Grupos de busca para estrutura metálica: qualquer palavra do grupo basta (OR); o texto digitado restringe (E). */
