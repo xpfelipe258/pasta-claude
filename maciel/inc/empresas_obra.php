@@ -18,6 +18,16 @@ function eo_coluna($i)
     return $s;
 }
 
+/** Número digitado em pt-BR: 2.000 = dois mil, 1.234,56 = mil duzentos e trinta e quatro vírgula cinquenta e seis, 2,5 = dois e meio. */
+function eo_numero($v)
+{
+    $t = trim((string)$v);
+    if ($t === '') { return null; }
+    if (strpos($t, ',') !== false) { return numero(str_replace('.', '', $t)); }
+    if (preg_match('/^\d{1,3}(\.\d{3})+$/', $t)) { return numero(str_replace('.', '', $t)); }
+    return numero($t);
+}
+
 function eo_maiusculas($t)
 {
     return mb_strtoupper(trim((string)$t), 'UTF-8');
@@ -108,7 +118,7 @@ function eo_servico_criar($empresaId, $nome, $frente = null, $escopo = null, $id
         $i++;
     }
     $ordem = (float)q('SELECT COALESCE(MAX(ordem), -1) + 1 FROM servicos WHERE empresa_id = ?', [(int)$empresaId])->fetchColumn();
-    $escopo = ($escopo === null || $escopo === '') ? null : numero($escopo);
+    $escopo = ($escopo === null || $escopo === '') ? null : eo_numero($escopo);
     q('INSERT INTO servicos (empresa_id, col, nome, frente, id_crono, escopo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [(int)$empresaId, eo_coluna($i), $nome, ($frente !== null && trim((string)$frente) !== '') ? trim((string)$frente) : null, $idCrono, $escopo, $ordem]);
     return eo_coluna($i);
@@ -138,7 +148,7 @@ function eo_servico_salvar($servicoId, $nome, $frente, $escopo)
         }
     }
     q('UPDATE servicos SET nome = ?, frente = ?, escopo = ? WHERE id = ?',
-        [$nome, trim((string)$frente) !== '' ? trim((string)$frente) : null, ($escopo === null || $escopo === '') ? null : numero($escopo), $s['id']]);
+        [$nome, trim((string)$frente) !== '' ? trim((string)$frente) : null, ($escopo === null || $escopo === '') ? null : eo_numero($escopo), $s['id']]);
 }
 
 function eo_servico_excluir($servicoId)
@@ -182,11 +192,13 @@ function eo_criar_empresa(array $d, $arquivoTmp = null)
             throw new InvalidArgumentException('Escolha a empresa da qual o catálogo será copiado.');
         }
         foreach (q('SELECT * FROM servicos WHERE empresa_id = ? ORDER BY ordem, id', [$origem['id']])->fetchAll() as $s) {
+            if (preg_match('/^ADITIVO\s/u', (string)$s['frente'])) { continue; }   // aditivo é do contrato da empresa de origem: não vai para a cópia
             eo_servico_criar($empresaId, $s['nome'], $s['frente'], $s['escopo'], $s['id_crono']);
             $resumo['servicos']++;
         }
         $prefOrigem = null;
         foreach (q('SELECT * FROM bm_atividades WHERE empresa = ? ORDER BY codigo', [$origem['nome']])->fetchAll() as $a) {
+            if (preg_match('/^ADT\d+$/', (string)$a['item'])) { continue; }
             $cod = (string)$a['codigo'];
             $novo = preg_match('/^[A-Za-z0-9]+-(\d.*)$/', $cod, $m) ? $prefixo . '-' . $m[1] : $prefixo . '-' . $cod;
             if (q('SELECT 1 FROM bm_atividades WHERE codigo = ?', [$novo])->fetchColumn()) {
@@ -291,4 +303,124 @@ function eo_transacao(callable $f)
         $pdo->rollBack();
         throw $e;
     }
+}
+
+// ====================================================================================================================
+// ADITIVOS DE CONTRATO. Cada aditivo vira um ITEM NOVO no catálogo da empresa (ADT01, ADT02…) com as atividades dele: nada do que
+// já existe é alterado (itens, pesos, quantidades e valores originais ficam como estão), então o BM fechado, a medição em
+// aberto, os lançamentos e os apontamentos continuam valendo, e o aditivo aparece SEPARADO em Lançamentos, na Medição (BM) e
+// nos relatórios. Aumento de quantidade de uma atividade existente = atividade nova "… — aditivo" ligada à original.
+// ====================================================================================================================
+
+function eo_aditivos_ler()
+{
+    $j = json_decode((string)sistema_ler('aditivos', '[]'), true);
+    return is_array($j) ? $j : [];
+}
+
+function eo_aditivo_registrar(array $reg)
+{
+    $lista = eo_aditivos_ler();
+    $reg['id'] = $lista ? max(array_column($lista, 'id')) + 1 : 1;
+    $u = usuario_atual();
+    $reg['por'] = $u['nome'] ?? '';
+    $reg['em'] = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i');
+    $lista[] = $reg;
+    sistema_gravar('aditivos', json_encode($lista, JSON_UNESCAPED_UNICODE));
+    return $reg;
+}
+
+function eo_data_ref($v)
+{
+    $v = trim((string)$v);
+    if ($v === '') {
+        return (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) || !checkdate((int)substr($v, 5, 2), (int)substr($v, 8, 2), (int)substr($v, 0, 4))) {
+        throw new InvalidArgumentException('Informe a data do aditivo.');
+    }
+    return $v;
+}
+
+function eo_dinheiro($v, $campo, $obrigatorio = false)
+{
+    if ($v === null || trim((string)$v) === '') {
+        if ($obrigatorio) { throw new InvalidArgumentException('Informe ' . $campo . '.'); }
+        return null;
+    }
+    $n = eo_numero($v);
+    if ($n === null || $n < 0 || $n > 1e10) {
+        throw new InvalidArgumentException('Valor inválido em ' . $campo . ' (use 1.234,56).');
+    }
+    return round($n, 2);
+}
+
+/** Prefixo dos códigos já usados pela empresa (ex.: EJ-3.1.1-01 → EJ); sem catálogo, deriva do nome. */
+function eo_prefixo_da_empresa(array $emp)
+{
+    foreach (q('SELECT codigo FROM bm_atividades WHERE empresa = ? ORDER BY id', [$emp['nome']])->fetchAll(PDO::FETCH_COLUMN) as $cod) {
+        if (preg_match('/^([A-Za-z0-9]+)-\d/', (string)$cod, $m)) { return $m[1]; }
+        if (preg_match('/^([A-Za-z]+)-/', (string)$cod, $m)) { return $m[1]; }
+    }
+    return eo_prefixo('', $emp['nome']);
+}
+
+/**
+ * Registra um aditivo da empresa: item novo ADTnn com 1 ou mais atividades.
+ * $d: data, motivo, valor_cliente (R$ total do aditivo para o cliente; vazio = igual ao valor da empresa), criar_colunas,
+ *     linhas = lista de {atividade, unidade, qtd, valor (R$), origem (código da atividade original que ele complementa, opcional)}.
+ */
+function eo_aditivo($empresaId, array $d)
+{
+    $emp = eo_empresa($empresaId);
+    $data = eo_data_ref($d['data'] ?? '');
+    $motivo = mb_substr(trim((string)($d['motivo'] ?? '')), 0, 120);
+    if ($motivo === '') { throw new InvalidArgumentException('Informe o motivo do aditivo (ex.: Aditivo 02 — marquise da portaria).'); }
+    $linhas = [];
+    foreach ((array)($d['linhas'] ?? []) as $l) {
+        $nome = trim((string)($l['atividade'] ?? ''));
+        $qtdTxt = trim((string)($l['qtd'] ?? ''));
+        $valTxt = trim((string)($l['valor'] ?? ''));
+        if ($nome === '' && $qtdTxt === '' && $valTxt === '') { continue; }   // linha em branco
+        $un = trim((string)($l['unidade'] ?? ''));
+        $qtd = eo_numero($qtdTxt);
+        if ($nome === '' || mb_strlen($nome) > 150) { throw new InvalidArgumentException('Informe o nome de cada atividade do aditivo (até 150 caracteres).'); }
+        if ($un === '' || mb_strlen($un) > 12) { throw new InvalidArgumentException('Informe a unidade da atividade “' . $nome . '” (un, m², m, kg…).'); }
+        if ($qtd === null || $qtd <= 0) { throw new InvalidArgumentException('Informe a quantidade da atividade “' . $nome . '” (maior que zero).'); }
+        $valor = eo_dinheiro($valTxt, 'o valor da atividade “' . $nome . '” (R$)', true);
+        if ($valor <= 0) { throw new InvalidArgumentException('O valor da atividade “' . $nome . '” deve ser maior que zero.'); }
+        $origem = trim((string)($l['origem'] ?? ''));
+        if ($origem !== '' && !q('SELECT 1 FROM bm_atividades WHERE codigo = ? AND empresa = ?', [$origem, $emp['nome']])->fetchColumn()) { throw new InvalidArgumentException('A atividade original ' . $origem . ' não existe no catálogo de ' . $emp['nome'] . '.'); }
+        $linhas[] = ['nome' => $nome, 'un' => $un, 'qtd' => $qtd, 'valor' => $valor, 'origem' => $origem];
+    }
+    if (!$linhas) { throw new InvalidArgumentException('Inclua ao menos uma atividade no aditivo.'); }
+    $total = round(array_sum(array_column($linhas, 'valor')), 2);
+    $totalQ = eo_dinheiro($d['valor_cliente'] ?? '', 'o valor para o cliente');
+    $totalQ = $totalQ === null ? $total : $totalQ;
+    // item do aditivo: ADT01, ADT02… (um por aditivo da empresa)
+    $n = 1;
+    do { $item = 'ADT' . sprintf('%02d', $n++); } while (q('SELECT 1 FROM bm_atividades WHERE empresa = ? AND item = ?', [$emp['nome'], $item])->fetchColumn());
+    $itemDesc = 'ADITIVO ' . substr($item, 3) . ' — ' . $motivo;
+    $prefixo = eo_prefixo_da_empresa($emp);
+    $numGlobal = count(eo_aditivos_ler()) + 1;
+    $dataBr = implode('/', array_reverse(explode('-', $data)));
+    $codigos = [];
+    foreach ($linhas as $k => $l) {
+        $codigo = $prefixo . '-' . $item . '-' . sprintf('%02d', $k + 1);
+        if (q('SELECT 1 FROM bm_atividades WHERE codigo = ?', [$codigo])->fetchColumn()) { throw new InvalidArgumentException('O código ' . $codigo . ' já existe no catálogo.'); }
+        $controle = null;
+        if (!empty($d['criar_colunas'])) {
+            $nomeServ = $l['nome'];
+            if (q('SELECT 1 FROM servicos WHERE empresa_id = ? AND nome = ?', [$emp['id'], $nomeServ])->fetchColumn()) { $nomeServ .= ' (' . $item . ')'; }
+            eo_servico_criar($emp['id'], $nomeServ, 'ADITIVO ' . substr($item, 3), $l['qtd'], $item);
+            $controle = $nomeServ;
+        }
+        $peso = round($l['valor'] / $total, 8);
+        $obs = 'ADITIVO nº ' . $numGlobal . ' (' . $dataBr . '): ' . $motivo . ($l['origem'] !== '' ? ' — complementa ' . $l['origem'] : '');
+        q('INSERT INTO bm_atividades (codigo, empresa, item, item_desc, atividade, unidade, qtd, peso, valor_qpc, valor_rotula, controle, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$codigo, $emp['nome'], $item, $itemDesc, $l['nome'], $l['un'], $l['qtd'], $peso, $totalQ, $total, $controle, mb_substr($obs, 0, 500)]);
+        $codigos[] = ['codigo' => $codigo, 'atividade' => $l['nome'], 'unidade' => $l['un'], 'qtd' => $l['qtd'], 'valor' => $l['valor'], 'origem' => $l['origem']];
+    }
+    $reg = eo_aditivo_registrar(['data' => $data, 'empresa' => $emp['nome'], 'item' => $item, 'motivo' => $motivo, 'valor' => $total, 'valor_cliente' => $totalQ, 'atividades' => $codigos]);
+    return ['aditivo' => $reg['id'], 'item' => $item, 'valor' => $total, 'atividades' => count($codigos), 'colunas' => !empty($d['criar_colunas'])];
 }

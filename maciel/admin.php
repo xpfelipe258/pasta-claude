@@ -129,38 +129,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q('UPDATE usuarios SET ativo = 1 - ativo WHERE id = ?', [$id]);
             registrar_alteracao('usuario_alternado', ['id' => $id]);
             $msg = 'Situação do usuário alterada.';
-        } elseif (strncmp($acao, 'eo_', 3) === 0) {   // empresas da obra e catálogo de serviços
-            if (obra_empresa_info() !== null) { throw new InvalidArgumentException('Cadastre empresas e catálogos na obra principal.'); }
-            $arq = (!empty($_FILES['planilha']['tmp_name']) && is_uploaded_file($_FILES['planilha']['tmp_name'])) ? $_FILES['planilha']['tmp_name'] : null;
-            if ($arq && ($_FILES['planilha']['size'] ?? 0) > 15 * 1024 * 1024) { throw new InvalidArgumentException('A planilha passa de 15 MB.'); }
-            if ($acao === 'eo_criar') {
-                $r = eo_transacao(function () use ($arq) { return eo_criar_empresa($_POST, $arq); });
-                registrar_alteracao('empresa_criada', $r);
-                $msg = 'Empresa ' . $r['empresa'] . ' cadastrada: ' . $r['servicos'] . ' serviço(s) de produção, ' . $r['atividades'] . ' atividade(s) no catálogo e ' . $r['periodos'] . ' corte(s) de BM.' . ($r['avisos'] ? ' ' . implode(' ', $r['avisos']) : '');
-            } elseif ($acao === 'eo_servico_novo') {
-                $col = eo_transacao(function () { return eo_servico_criar((int)($_POST['empresa_id'] ?? 0), $_POST['nome'] ?? '', $_POST['frente'] ?? null, $_POST['escopo'] ?? null); });
-                registrar_alteracao('servico_criado', ['empresa_id' => (int)($_POST['empresa_id'] ?? 0), 'nome' => $_POST['nome'] ?? '']);
-                $msg = 'Serviço cadastrado na coluna ' . $col . ' da grade de Lançamentos.';
-            } elseif ($acao === 'eo_servico_salvar') {
-                eo_transacao(function () { eo_servico_salvar((int)($_POST['servico_id'] ?? 0), $_POST['nome'] ?? '', $_POST['frente'] ?? '', $_POST['escopo'] ?? null); });
-                registrar_alteracao('servico_alterado', ['id' => (int)($_POST['servico_id'] ?? 0)]);
-                $msg = 'Serviço atualizado.';
-            } elseif ($acao === 'eo_servico_excluir') {
-                eo_transacao(function () { eo_servico_excluir((int)($_POST['servico_id'] ?? 0)); });
-                registrar_alteracao('servico_excluido', ['id' => (int)($_POST['servico_id'] ?? 0)]);
-                $msg = 'Serviço excluído.';
-            } elseif ($acao === 'eo_importar') {
-                $emp = eo_empresa((int)($_POST['empresa_id'] ?? 0));
-                $r = eo_transacao(function () use ($emp, $arq) { return eo_importar_catalogo((int)$emp['id'], $emp['nome'], eo_prefixo($_POST['prefixo'] ?? '', $emp['nome']), $arq, !empty($_POST['criar_colunas']), !empty($_POST['importar_cortes'])); });
-                registrar_alteracao('catalogo_importado', ['empresa' => $emp['nome'], 'atividades' => $r['atividades']]);
-                $msg = $r['atividades'] . ' atividade(s) acrescentadas ao catálogo de ' . $emp['nome'] . ($r['servicos'] ? ', com ' . $r['servicos'] . ' coluna(s) de produção' : '') . '.' . ($r['avisos'] ? ' ' . implode(' ', array_slice($r['avisos'], 0, 4)) : '');
-            } elseif ($acao === 'eo_excluir') {
-                $emp = eo_empresa((int)($_POST['empresa_id'] ?? 0));
-                if (eo_maiusculas($_POST['confirmar'] ?? '') !== eo_maiusculas($emp['nome'])) { throw new InvalidArgumentException('Digite o nome da empresa para confirmar a exclusão.'); }
-                eo_transacao(function () use ($emp) { eo_excluir_empresa((int)$emp['id']); });
-                registrar_alteracao('empresa_excluida', ['empresa' => $emp['nome']]);
-                $msg = 'Empresa ' . $emp['nome'] . ' excluída (ainda não tinha lançamentos).';
-            }
         } elseif ($acao === 'empresa_criar_obra') {   // obra própria da empresa (cópia isolada) + usuário dela
             $loginN = trim((string)($_POST['login'] ?? ''));
             if ($loginN === '' || strlen((string)($_POST['senha'] ?? '')) < 8) { throw new InvalidArgumentException('Informe o login e uma senha com pelo menos 8 caracteres.'); }
@@ -373,86 +341,8 @@ pagina_inicio('Administração');
 
   <?php if (!$ehObraEmpresa): ?>
   <section class="bloco" id="empresasObra">
-    <div class="bloco-cab"><div><h2>Empresas e catálogo de serviços</h2><span class="nota">Cadastre uma empresa nova com o catálogo dela — no início da obra ou com a obra em andamento. A empresa ganha a aba em <b>Lançamentos</b>, o catálogo em <b>Medição (BM)</b> e passa a valer em Painel, Dashboard cliente, BM e relatórios. Nada do que as outras empresas já lançaram muda.</span></div></div>
-    <div class="tabela-rolagem"><table>
-      <thead><tr><th>Empresa</th><th>Serviços (colunas de produção)</th><th>Atividades do catálogo</th><th>Valor do catálogo</th><th>Lançamentos</th><th>Ações</th></tr></thead>
-      <tbody>
-      <?php foreach ($empresasObra as $eo): ?>
-      <tr>
-        <td><b><?= h($eo['nome']) ?></b></td>
-        <td class="num"><?= (int)$eo['servicos'] ?></td>
-        <td class="num"><?= (int)$eo['atividades'] ?></td>
-        <td class="num">R$ <?= number_format((float)$eo['valor'], 2, ',', '.') ?></td>
-        <td class="num"><?= (int)$eo['lancamentos'] ?></td>
-        <td><div class="acoes-usuario">
-          <details class="acesso-editar"><summary>Importar atividades (planilha)</summary>
-            <form method="post" enctype="multipart/form-data" class="access-checks access-checks-col">
-              <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="eo_importar"><input type="hidden" name="empresa_id" value="<?= (int)$eo['id'] ?>">
-              <p class="nota">Planilha de orçamento/medição da <?= h($eo['nome']) ?> (a mesma usada na importação da obra). Atividades com código repetido são ignoradas.</p>
-              <input type="file" name="planilha" accept=".xlsx" required><input name="prefixo" placeholder="Prefixo dos códigos (ex.: <?= h(eo_prefixo('', $eo['nome'])) ?>)" maxlength="10">
-              <label class="check"><input type="checkbox" name="criar_colunas" value="1" checked>Criar uma coluna de produção para cada atividade</label>
-              <label class="check"><input type="checkbox" name="importar_cortes" value="1" checked>Importar também as datas de corte dos BMs</label>
-              <button class="btn primario">Importar</button>
-            </form>
-          </details>
-          <a class="btn" href="index.php?aba=bm" title="Editar atividade por atividade (quantidade, peso, valor, coluna de produção)">Catálogo no BM</a>
-          <details class="acesso-editar"><summary>Excluir empresa</summary>
-            <form method="post" class="access-checks access-checks-col">
-              <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="eo_excluir"><input type="hidden" name="empresa_id" value="<?= (int)$eo['id'] ?>">
-              <p class="nota">Só é possível enquanto a empresa não tem nenhum lançamento. Apaga serviços, catálogo e cortes. Digite o nome <b><?= h($eo['nome']) ?></b>:</p>
-              <input name="confirmar" placeholder="<?= h($eo['nome']) ?>" autocomplete="off" required><button class="btn perigo">Excluir</button>
-            </form>
-          </details>
-        </div></td>
-      </tr>
-      <tr class="eo-servicos"><td colspan="6" style="padding-top:0">
-          <details class="acesso-editar"><summary>Serviços da grade de <?= h($eo['nome']) ?> (<?= (int)$eo['servicos'] ?>) — nome, frente e escopo</summary>
-            <div class="access-checks access-checks-col" style="width:100%;max-width:980px">
-              <?php foreach ($eo['lista_servicos'] as $sv): ?>
-              <form method="post" class="inline" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="servico_id" value="<?= (int)$sv['id'] ?>">
-                <span class="nota" title="Coluna na grade de Lançamentos"><?= h($sv['col']) ?></span>
-                <input name="nome" value="<?= h($sv['nome']) ?>" required maxlength="120" style="flex:2;min-width:160px">
-                <input name="frente" value="<?= h((string)$sv['frente']) ?>" placeholder="Frente" maxlength="120" style="flex:1;min-width:100px">
-                <input name="escopo" value="<?= h($sv['escopo'] === null ? '' : (string)$sv['escopo']) ?>" placeholder="Escopo (qtd)" inputmode="decimal" style="width:90px">
-                <button class="btn" name="acao" value="eo_servico_salvar">Salvar</button>
-                <button class="btn perigo" name="acao" value="eo_servico_excluir" onclick="return confirm('Excluir o serviço <?= h(addslashes($sv['nome'])) ?>? Só é possível enquanto não tiver produção lançada.')">Excluir</button>
-              </form>
-              <?php endforeach; ?>
-              <?php if (!$eo['lista_servicos']): ?><span class="nota">Nenhum serviço ainda. Cadastre abaixo ou importe a planilha do catálogo.</span><?php endif; ?>
-              <form method="post" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-                <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="eo_servico_novo"><input type="hidden" name="empresa_id" value="<?= (int)$eo['id'] ?>">
-                <input name="nome" placeholder="+ Novo serviço" required maxlength="120" style="flex:2;min-width:160px"><input name="frente" placeholder="Frente" maxlength="120" style="flex:1;min-width:100px"><input name="escopo" placeholder="Escopo (qtd)" inputmode="decimal" style="width:90px">
-                <button class="btn primario">Adicionar</button>
-              </form>
-            </div>
-          </details>
-      </td></tr>
-      <?php endforeach; ?>
-      <?php if (!$empresasObra): ?><tr><td colspan="6"><span class="nota">Nenhuma empresa cadastrada nesta obra.</span></td></tr><?php endif; ?>
-      </tbody>
-    </table></div>
-
-    <details class="acesso-editar" style="margin-top:14px" <?= $empresasObra ? '' : 'open' ?>><summary><b>+ Nova empresa com catálogo de serviços</b></summary>
-      <form method="post" enctype="multipart/form-data" class="access-checks access-checks-col" id="formNovaEmpresa" style="max-width:640px">
-        <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="eo_criar">
-        <input name="nome" placeholder="Nome da empresa (aparece nas abas e no BM)" required maxlength="30" autocomplete="off">
-        <input name="prefixo" placeholder="Prefixo dos códigos do catálogo (opcional, ex.: ABC → ABC-3.1.1-01)" maxlength="10" autocomplete="off">
-        <b>Como montar o catálogo?</b>
-        <label class="check"><input type="radio" name="modo" value="planilha" checked>Importar a planilha de orçamento/medição da empresa (.xlsx)</label>
-        <input type="file" name="planilha" accept=".xlsx">
-        <label class="check" style="margin-left:22px"><input type="checkbox" name="criar_colunas" value="1" checked>Criar uma coluna de produção para cada atividade</label>
-        <label class="check" style="margin-left:22px"><input type="checkbox" name="importar_cortes" value="1" checked>Importar as datas de corte dos BMs</label>
-        <?php if ($empresasObra): ?>
-        <label class="check"><input type="radio" name="modo" value="copiar">Copiar serviços e catálogo de outra empresa desta obra (e ajustar depois)</label>
-        <select name="origem" style="margin-left:22px"><?php foreach ($empresasObra as $eo): ?><option value="<?= (int)$eo['id'] ?>"><?= h($eo['nome']) ?></option><?php endforeach; ?></select>
-        <label class="check" style="margin-left:22px"><input type="checkbox" name="copiar_cortes" value="1" checked>Copiar também as datas de corte dos BMs</label>
-        <?php endif; ?>
-        <label class="check"><input type="radio" name="modo" value="vazia">Só a empresa — cadastro os serviços e as atividades depois, à mão</label>
-        <button class="btn primario">Cadastrar empresa</button>
-        <span class="nota">A planilha usa o mesmo formato da importação da obra: itens do BM (3.1.1…), atividades com quantidade, unidade, % de valor e peso. Valores em R$ ficam com centavos.</span>
-      </form>
-    </details>
+    <div class="bloco-cab"><div><h2>Empresas e catálogo de serviços</h2><span class="nota">Cadastre empresas novas, serviços da grade, catálogo de atividades e <b>aditivos de contrato</b> desta obra (<?= count($empresasObra) ?> empresa(s) hoje).</span></div>
+      <a class="btn primario" href="obra_empresas.php?obra=<?= (int)obra_atual_id() ?>">Abrir empresas, catálogo e aditivos</a></div>
   </section>
   <?php endif; ?>
 
