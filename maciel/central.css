@@ -66,3 +66,5 @@
 .ce-sin-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; } .ce-sin-chips button { border:1px solid #d0d5dd; background:#fff; border-radius:999px; padding:6px 13px; font:inherit; font-size:.82rem; font-weight:700; color:#475467; cursor:pointer; }
 .ce-sin-chips button.on { background:var(--marca,#d97706); border-color:var(--marca,#d97706); color:#fff; }
 @media (max-width:720px) { .ce-sin-filtros { grid-template-columns:1fr 1fr; } }
+.ce-hero .btn, .ce-sub a { text-decoration:none; } .ce-tab td b > a { color:#101828; text-decoration:none; } .ce-tab td b > a:hover { color:var(--marca,#d97706); text-decoration:underline; }
+.ce-bloco > h2 + .ce-form, .ce-bloco > h2 + .ce-mes { margin-top:12px; }

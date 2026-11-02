@@ -33,6 +33,9 @@ foreach ($resumos as &$r) {
 }
 unset($r);
 $pctGeral = $tot['contrato'] > 0 ? $tot['medido'] / $tot['contrato'] * 100 : 0;
+$ymRes = substr($ate, 0, 7);
+try { $resultado = fin_resultado_geral($eu, $ymRes, $resumos, $tot); } catch (Throwable $e) { $resultado = null; }
+$mesesP = ['01' => 'janeiro', '02' => 'fevereiro', '03' => 'março', '04' => 'abril', '05' => 'maio', '06' => 'junho', '07' => 'julho', '08' => 'agosto', '09' => 'setembro', '10' => 'outubro', '11' => 'novembro', '12' => 'dezembro'];
 $ordem = $resumos; usort($ordem, function ($a, $b) { return ($a['desvio'] ?? 999) <=> ($b['desvio'] ?? 999); });   // as que mais precisam de atenção primeiro (tabela)
 
 function rs_p($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
@@ -72,7 +75,7 @@ pagina_inicio('Painel das obras');
 .dp-hero p { margin:0; color:var(--portal-muted,#667085); max-width:680px; }
 .dp-data { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
 .dp-data label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; font-weight:700; color:var(--portal-muted,#667085); text-transform:uppercase; letter-spacing:.05em; }
-.dp-data .btn { text-decoration:none; } .dp-data input { padding:10px 12px; border:1px solid var(--portal-line,#e4e7ec); border-radius:10px; font:inherit; background:#fff; }
+.dp-data .btn, .dp-hero .btn { text-decoration:none; } .dp-data input { padding:10px 12px; border:1px solid var(--portal-line,#e4e7ec); border-radius:10px; font:inherit; background:#fff; }
 .dp-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:22px; }
 .dp-kpi { background:#fff; border:1px solid var(--portal-line,#e4e7ec); border-radius:16px; padding:16px 18px; box-shadow:0 10px 28px rgba(16,24,40,.06); border-top:4px solid var(--portal-primary,#d97706); }
 .dp-kpi small { display:block; color:var(--portal-muted,#667085); font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
@@ -128,7 +131,10 @@ pagina_inicio('Painel das obras');
     <section class="dp-hero">
       <div><span class="eyebrow">PAINEL FINANCEIRO E DE AVANÇO</span><h1><?= count($resumos) === 1 ? 'Sua obra' : 'Suas obras' ?> até <?= h(dt_p($ate)) ?></h1>
         <p>O que <?= count($resumos) === 1 ? 'a obra' : 'cada obra' ?> já mediu e quanto <?= count($resumos) === 1 ? 'ela' : 'ela' ?> avançou, comparado ao ritmo previsto pelo prazo. Valores em R$ do contrato de medição (RÓTULA), com centavos.</p></div>
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-end">
+      <span style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primario" href="contas_avulsas.php?t=receber&amp;novo=1">+ Conta a receber</a><a class="btn primario" href="contas_avulsas.php?t=pagar&amp;novo=1">+ Conta a pagar</a><a class="btn ghost" href="contas_avulsas.php?t=receber">Ver lançamentos</a></span>
       <form class="dp-data" method="get"><label>Posição até<input type="date" name="ate" value="<?= h($ate) ?>" max="<?= h($hoje) ?>"></label><button class="btn">Atualizar</button><?php if ($ate !== $hoje): ?><a class="btn ghost" href="dashboard_obras.php">Hoje</a><?php endif; ?></form>
+      </div>
     </section>
 
     <section class="dp-kpis">
@@ -138,6 +144,27 @@ pagina_inicio('Painel das obras');
       <div class="dp-kpi azul"><small>Medido neste mês</small><b><?= h(rs_p($tot['no_mes'])) ?></b><span>de <?= h(date('01/m', strtotime($ate))) ?> a <?= h(date('d/m', strtotime($ate))) ?></span></div>
       <div class="dp-kpi <?= $tot['saldo'] > 0 ? '' : 'verde' ?>"><small>Saldo a medir</small><b><?= h(rs_p($tot['saldo'])) ?></b><span>contrato − medido acumulado</span></div>
     </section>
+
+    <?php if ($resultado): $R = $resultado; $folhaOk = $R['folha'] !== null; ?>
+    <section class="dp-tabela-box" style="margin-bottom:22px" id="resultado">
+      <h3>Resultado geral de <?= h($mesesP[substr($ymRes, 5, 2)] . ' de ' . substr($ymRes, 0, 4)) ?></h3>
+      <p>O que as obras medem no mês, menos impostos, folha e outros descontos, mais as contas a receber e menos as contas a pagar lançadas fora das obras.</p>
+      <table class="dp-tabela" style="min-width:0"><tbody>
+        <tr><td><b>Medição das obras no mês</b><small style="color:#667085">soma do “medido neste mês” de cada obra</small></td><td class="dp-pos">+ <?= h(rs_p($R['medido'])) ?></td></tr>
+        <tr><td><b>(−) Impostos</b><small style="color:#667085">percentual cadastrado em cada obra × medido do mês (estimado, antes dos descontos do BM)</small></td><td class="dp-neg">− <?= h(rs_p($R['impostos'])) ?></td></tr>
+        <tr><td><b>(−) Folha salarial</b><small style="color:#667085">colaboradores das obras e da empresa (Painel pessoal)</small></td><td class="dp-neg"><?= $folhaOk ? '− ' . h(rs_p($R['folha'])) : '<span style="color:#667085;font-weight:400">sem acesso ao Financeiro</span>' ?></td></tr>
+        <tr><td><b>(−) Outros descontos das obras</b><small style="color:#667085">contas fixas lançadas em Contas a pagar de cada obra</small></td><td class="dp-neg">− <?= h(rs_p($R['outros'])) ?></td></tr>
+        <tr><td><b>(+) Contas a receber — fora das obras</b><small style="color:#667085">vencem no mês · já recebido: <?= h(rs_p($R['receber']['realizado'])) ?> · <a href="contas_avulsas.php?t=receber">ver</a></small></td><td class="dp-pos">+ <?= h(rs_p($R['receber']['previsto'])) ?></td></tr>
+        <tr><td><b>(−) Contas a pagar — fora das obras</b><small style="color:#667085">vencem no mês · já pago: <?= h(rs_p($R['pagar']['realizado'])) ?> · <a href="contas_avulsas.php?t=pagar">ver</a></small></td><td class="dp-neg">− <?= h(rs_p($R['pagar']['previsto'])) ?></td></tr>
+      </tbody><tfoot><tr><td>Resultado do mês</td><td class="<?= $R['resultado'] < 0 ? 'dp-neg' : 'dp-pos' ?>" style="font-size:1.1rem"><?= $R['resultado'] < 0 ? '− ' : '' ?><?= h(rs_p(abs($R['resultado']))) ?></td></tr></tfoot></table>
+      <div class="dp-kpis" style="margin:16px 0 0">
+        <div class="dp-kpi verde"><small>A receber em aberto</small><b><?= h(rs_p($R['receber']['aberto'])) ?></b><span><?= (int)$R['receber']['n_aberto'] ?> conta(s) · vencido: <?= h(rs_p($R['receber']['vencido'])) ?></span></div>
+        <div class="dp-kpi vermelho"><small>A pagar em aberto</small><b><?= h(rs_p($R['pagar']['aberto'])) ?></b><span><?= (int)$R['pagar']['n_aberto'] ?> conta(s) · vencido: <?= h(rs_p($R['pagar']['vencido'])) ?></span></div>
+      </div>
+      <?php if ($R['linhas']): ?><details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Impostos e contas das obras que entraram no cálculo</summary>
+        <table class="dp-tabela" style="min-width:0;margin-top:8px"><thead><tr><th>Obra</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead><tbody><?php foreach ($R['linhas'] as $l): ?><tr><td><?= h($l['obra']) ?></td><td><?= h($l['tipo']) ?></td><td><?= h($l['descricao']) ?></td><td><?= h(rs_p($l['valor'])) ?></td></tr><?php endforeach; ?></tbody></table></details><?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <div class="dp-grid">
     <?php foreach ($resumos as $r): $semMed = $r['sem_medicao']; ?>

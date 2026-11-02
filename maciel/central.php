@@ -63,8 +63,8 @@ central_topo('Central da empresa', 'inicio', $eu);
   </section>
   <?php if (($eu['perfil'] ?? '') === 'admin'): ?>
   <section class="ce-cards" style="margin-top:18px">
-    <article class="ce-card" style="border-color:var(--marca,#d97706)"><div class="ce-ico">🛡️</div><div><h2>Controle do sistema</h2><small>Só você, administrador geral, vê este painel: empresas clientes e receita, todas as obras e usuários, regras de plano, manutenção, auditoria e dados técnicos.</small></div>
-      <a class="btn primario" href="sistema.php">Abrir controle do sistema →</a></article>
+    <article class="ce-card" style="border-color:var(--marca,#d97706)"><div class="ce-ico">🛡️</div><div><h2>Painel administrativo</h2><small>Só você, administrador geral, vê este painel: vendas do sistema (empresas clientes, planos, pagamentos e receita) e a administração geral (todas as obras e usuários, regras de plano, manutenção, auditoria e dados técnicos). O Painel comercial ao lado é o mesmo dos clientes.</small></div>
+      <a class="btn primario" href="sistema.php">Abrir painel administrativo →</a></article>
   </section>
   <?php endif; ?>
 </main></div>

@@ -5,6 +5,8 @@
 
 require_once __DIR__ . '/dash_obras.php';
 require_once __DIR__ . '/sinapi.php';
+require_once __DIR__ . '/rh_pessoas.php';
+require_once __DIR__ . '/fin_avulsas.php';
 
 /** Quem entra na Central: administrador do sistema, administrador de empresa cliente e quem administra ao menos uma obra. */
 function central_pode(array $u)
@@ -25,7 +27,7 @@ function central_exigir()
 function central_rs($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
 function central_dt($d) { return $d ? date('d/m/Y', strtotime($d)) : '—'; }
 
-/** Abas da Central, na ordem em que aparecem. Configurações vale para quem administra a empresa ou obras; Controle do sistema, só para o administrador geral. */
+/** Abas da Central, na ordem em que aparecem. Configurações vale para quem administra a empresa ou obras; Painel administrativo (vendas e administração geral), só para o administrador geral; o Painel comercial (orçamentos) é o mesmo dos clientes. */
 function central_lista_abas(array $eu)
 {
     $abas = ['inicio' => ['Início', 'central.php'], 'obras' => ['Obras', 'obras.php?lista=1']];
@@ -33,7 +35,7 @@ function central_lista_abas(array $eu)
     $abas['comercial'] = ['Painel comercial', 'comercial.php'];
     $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
     $abas['config'] = ['Configurações', 'config_empresa.php'];
-    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }
+    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Painel administrativo', 'sistema.php']; }
     return $abas;
 }
 
@@ -319,6 +321,31 @@ function pessoal_consolidar(array $u, $ym)
         foreach (['remuneracao', 'encargos', 'provisoes', 'beneficios', 'total'] as $g) { $res['tot'][$g] += $linha[$g]; }
         $res['tot']['efetivo_media'] += $linha['efetivo']['media']; $res['tot']['efetivo_pico'] += $linha['efetivo']['pico'];
     }
+    // colaboradores do cadastro da EMPRESA (Painel pessoal › Colaboradores): entram na linha da obra onde estão alocados ou em "Sem obra"
+    $porObra = [];
+    foreach ($res['obras'] as $i => $o) { $porObra[(int)$o['id']] = $i; }
+    $semObra = ['id' => 0, 'nome' => 'Sem obra (quadro da empresa)', 'n' => 0, 'remuneracao' => 0.0, 'encargos' => 0.0, 'provisoes' => 0.0, 'beneficios' => 0.0, 'total' => 0.0, 'sem_salario' => 0,
+        'efetivo' => ['dias' => 0, 'media' => 0.0, 'pico' => 0], 'erro' => false, 'sem_obra' => true];
+    foreach (rhp_listar($u) as $pessoa) {
+        $k = rhp_custo($pessoa, $ym);
+        if (!$k['ativo']) { continue; }
+        $oid = (int)($pessoa['obra_id'] ?? 0);
+        $alvo = null;
+        if ($oid > 0 && isset($porObra[$oid])) { $alvo = &$res['obras'][$porObra[$oid]]; } else { $alvo = &$semObra; }
+        $alvo['n']++;
+        if ($k['sem_salario']) { $alvo['sem_salario']++; $res['tot']['sem_salario']++; }
+        $res['tot']['n']++;
+        foreach (['remuneracao', 'encargos', 'provisoes', 'beneficios', 'total'] as $g) { $alvo[$g] += $k[$g]; $res['tot'][$g] += $k[$g]; }
+        unset($alvo);
+        $emp = trim((string)$pessoa['empresa']) !== '' ? mb_strtoupper(trim($pessoa['empresa']), 'UTF-8') : 'SEM EMPRESA';
+        if (!isset($res['empresas'][$emp])) { $res['empresas'][$emp] = ['n' => 0, 'total' => 0.0, 'obras' => []]; }
+        $res['empresas'][$emp]['n']++; $res['empresas'][$emp]['total'] += $k['total'];
+        $res['empresas'][$emp]['obras'][$oid > 0 ? ($pessoa['obra_nome'] ?: 'Obra') : 'Sem obra'] = true;
+        $res['colaboradores'][] = ['id' => (int)$pessoa['id'], 'pessoa_id' => (int)$pessoa['id'], 'origem' => 'p', 'nome' => $pessoa['nome'], 'empresa' => $pessoa['empresa'], 'funcao' => $pessoa['funcao'], 'status' => $pessoa['status'],
+            'vinculo' => rh_rotulo_vinculo($k['vinculo']), 'sem_salario' => $k['sem_salario'], 'fracao' => round($k['fracao'], 4), 'obra_id' => $oid, 'obra' => $oid > 0 ? ($pessoa['obra_nome'] ?: 'Obra') : 'Sem obra',
+            'bruto' => $k['bruto'], 'encargos' => $k['encargos'], 'provisoes' => $k['provisoes'], 'beneficios' => $k['beneficios'], 'total' => $k['total'], 'fator' => $k['fator']];
+    }
+    if ($semObra['n'] > 0) { $res['obras'][] = $semObra; }
     foreach (['remuneracao', 'encargos', 'provisoes', 'beneficios', 'total'] as $g) { $res['tot'][$g] = round($res['tot'][$g], 2); }
     uasort($res['empresas'], function ($a, $b) { return $b['total'] <=> $a['total']; });
     if (!$ver) {   // sem a área Financeiro, nenhum valor de remuneração sai do servidor

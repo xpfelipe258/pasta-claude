@@ -1,5 +1,5 @@
 <?php
-// Controle do sistema (só o administrador geral): visão da plataforma, empresas clientes, todas as obras, todos os usuários,
+// Painel administrativo (só o administrador geral): visão da plataforma, empresas clientes, todas as obras, todos os usuários,
 // configurações globais, modo de manutenção, auditoria e informações técnicas. A Central da empresa (cliente) não muda.
 require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
@@ -73,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $csrf = token_csrf();
-central_topo('Controle do sistema', 'sistema', $eu, 'Controle do sistema · administrador geral');
-echo '<main class="ce-main"><section class="ce-hero"><div><span class="ce-eyebrow">ADMINISTRADOR GERAL</span><h1>Controle do sistema</h1><p>Tudo o que você precisa para operar a plataforma: empresas clientes, obras, usuários, regras, manutenção e auditoria. O que o cliente vê na Central dele não muda.</p></div></section>';
+central_topo('Painel administrativo', 'sistema', $eu, 'Painel administrativo · administrador geral');
+echo '<main class="ce-main"><section class="ce-hero"><div><span class="ce-eyebrow">ADMINISTRADOR GERAL</span><h1>Painel administrativo</h1><p>Vendas e administração geral da plataforma: empresas clientes, planos e pagamentos, todas as obras e usuários, regras, manutenção e auditoria. O que o cliente vê na Central dele não muda — e o seu Painel comercial (orçamentos e propostas) é o mesmo dos clientes.</p></div><span style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn primario" href="admin_planos.php">Vendas: planos, empresas e pagamentos →</a><a class="btn" href="comercial.php">Painel comercial →</a></span></section>';
 echo '<nav class="ce-sub">';
 foreach ($abas as $k => $t) { echo '<a href="sistema.php?v=' . $k . '"' . ($k === $v ? ' class="on"' : '') . '>' . h($t) . '</a>'; }
 echo '</nav>';
