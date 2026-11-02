@@ -702,6 +702,20 @@ function global_ler($chave, $padrao = null)
     return $v === false ? $padrao : $v;
 }
 
+/** Modo de manutenção (ligado pelo administrador geral em sistema.php): {ativo, mensagem, desde}. Ligado = só administradores entram. */
+function manutencao_info()
+{
+    static $c = null;
+    if ($c === null) {
+        $c = ['ativo' => 0, 'mensagem' => '', 'desde' => ''];
+        try {
+            $j = json_decode((string)global_ler('manutencao', ''), true);
+            if (is_array($j)) { $c = $j + $c; }
+        } catch (Throwable $e) { /* banco ainda sem a tabela de configuração */ }
+    }
+    return $c;
+}
+
 function global_gravar($chave, $valor)
 {
     q_global('DELETE FROM config_global WHERE chave = ?', [$chave]);
@@ -1145,6 +1159,10 @@ function usuario_atual()
             }
         }
         $u = $linha ?: null;
+        if ($u && ($u['perfil'] ?? '') !== 'admin' && !empty(manutencao_info()['ativo'])) {   // manutenção: só administrador continua logado
+            $u = null;
+            $_SESSION = [];
+        }
     }
     return $u;
 }

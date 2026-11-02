@@ -33,6 +33,7 @@ function central_topo($titulo, $ativo, array $eu, $sub = 'Central da empresa')
     if ($tem) { $abas['financeiro'] = ['Painel financeiro', 'dashboard_obras.php']; }
     $abas['comercial'] = ['Painel comercial', 'comercial.php'];
     $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
+    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }   // só o administrador geral
     pagina_inicio($titulo);
     echo '<link rel="stylesheet" href="central.css?v=' . @filemtime(dirname(__DIR__) . '/central.css') . '">';
     echo '<div class="portal-shell"><header class="portal-topo"><div class="portal-brand">';
@@ -55,6 +56,7 @@ function central_abas($ativo, array $eu)
     if ($tem) { $abas['financeiro'] = ['Painel financeiro', 'dashboard_obras.php']; }
     $abas['comercial'] = ['Painel comercial', 'comercial.php'];
     $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
+    if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Controle do sistema', 'sistema.php']; }
     $s = '<link rel="stylesheet" href="central.css?v=' . @filemtime(dirname(__DIR__) . '/central.css') . '"><nav class="ce-abas" aria-label="Painéis da empresa">';
     foreach ($abas as $k => $a) {
         $s .= '<a href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';

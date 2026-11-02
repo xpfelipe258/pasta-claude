@@ -36,3 +36,5 @@
 .ce-vazio { padding:28px; text-align:center; color:#667085; border:1px dashed #d0d5dd; border-radius:12px; }
 .ce-btn-peq { padding:6px 12px; font-size:.82rem; min-height:0; }
 @media (max-width:720px) { .ce-abas { padding:8px 12px 0; overflow-x:auto; flex-wrap:nowrap; } .ce-abas a { white-space:nowrap; padding:10px 13px; } .ce-main { padding:20px 14px 60px; } .ce-hero h1 { font-size:1.35rem; } }
+.ce-sub { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px; } .ce-sub a { padding:8px 15px; border-radius:999px; background:#fff; border:1px solid var(--portal-line,#e4e7ec); color:#475467; font-weight:700; font-size:.86rem; text-decoration:none; }
+.ce-sub a:hover { background:#f2f4f7; } .ce-sub a.on { background:var(--marca,#d97706); border-color:var(--marca,#d97706); color:#fff; }

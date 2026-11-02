@@ -11,7 +11,9 @@ $erro = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $u = q('SELECT * FROM usuarios WHERE login = ? AND ativo = 1', [trim($_POST['login'] ?? '')])->fetch();
-    if ($u && password_verify($_POST['senha'] ?? '', $u['senha'])) {
+    if ($u && password_verify($_POST['senha'] ?? '', $u['senha']) && $u['perfil'] !== 'admin' && !empty(manutencao_info()['ativo'])) {
+        $erro = trim((string)manutencao_info()['mensagem']) !== '' ? manutencao_info()['mensagem'] : 'O sistema está em manutenção. Tente novamente em instantes.';
+    } elseif ($u && password_verify($_POST['senha'] ?? '', $u['senha'])) {
         if (!session_regenerate_id(true)) {
             http_response_code(500);
             exit('Não foi possível renovar a sessão. Tente novamente.');
@@ -24,8 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: obras.php');
         exit;
     }
-    sleep(1);
-    $erro = 'Usuário ou senha incorretos.';
+    if ($erro === '') {
+        sleep(1);
+        $erro = 'Usuário ou senha incorretos.';
+    }
 }
 pagina_inicio('Entrar');
 $logo = global_ler('logo', '');
@@ -42,6 +46,7 @@ $logo = global_ler('logo', '');
     <input type="hidden" name="csrf" value="<?= h(token_csrf()) ?>">
     <label>Usuário<div class="input-wrap"><span>●</span><input name="login" autocomplete="username" placeholder="Seu usuário" required autofocus></div></label>
     <label>Senha<div class="input-wrap"><span>◆</span><input name="senha" type="password" autocomplete="current-password" placeholder="Sua senha" required></div></label>
+    <?php if (!empty(manutencao_info()['ativo']) && $erro === ''): ?><p class="erro-form">🔧 <?= h(trim((string)manutencao_info()['mensagem']) !== '' ? manutencao_info()['mensagem'] : 'O sistema está em manutenção. Tente novamente em instantes.') ?></p><?php endif; ?>
     <?php if ($erro): ?><p class="erro-form"><?= h($erro) ?></p><?php endif; ?>
     <button class="btn primario login-button" type="submit">Entrar no sistema <span>→</span></button>
     <div class="login-links"><a href="redefinir_senha.php">Esqueci minha senha</a></div>

@@ -56,5 +56,11 @@ central_topo('Central da empresa', 'inicio', $eu);
         <div class="ce-kpi"><span>Efetivo médio no DP</span><b><?= $pes ? h(number_format($pes['tot']['efetivo_media'], 1, ',', '.')) : '—' ?></b></div></div>
       <a class="btn primario" href="pessoal.php">Abrir pessoal →</a></article>
   </section>
+  <?php if (($eu['perfil'] ?? '') === 'admin'): ?>
+  <section class="ce-cards" style="margin-top:18px">
+    <article class="ce-card" style="border-color:var(--marca,#d97706)"><div class="ce-ico">🛡️</div><div><h2>Controle do sistema</h2><small>Só você, administrador geral, vê este painel: empresas clientes e receita, todas as obras e usuários, regras de plano, manutenção, auditoria e dados técnicos.</small></div>
+      <a class="btn primario" href="sistema.php">Abrir controle do sistema →</a></article>
+  </section>
+  <?php endif; ?>
 </main></div>
 </body></html>
