@@ -380,9 +380,9 @@ function organizacao_ligar_usuario_obra($uid, $obraId, $admin = 0)
 {
     $linha = q_global('SELECT admin_obra FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$uid, (int)$obraId])->fetch();
     if (!$linha) {
-        q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, ?)', [(int)$uid, (int)$obraId, $admin ? 1 : 0]);
+        q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra, nivel) VALUES (?, ?, ?, ?)', [(int)$uid, (int)$obraId, $admin ? 1 : 0, $admin ? 'admin' : null]);
     } elseif ($admin && !(int)$linha['admin_obra']) {
-        q_global('UPDATE usuarios_obras SET admin_obra = 1 WHERE usuario_id = ? AND obra_id = ?', [(int)$uid, (int)$obraId]);
+        q_global("UPDATE usuarios_obras SET admin_obra = 1, nivel = 'admin' WHERE usuario_id = ? AND obra_id = ?", [(int)$uid, (int)$obraId]);
     }
 }
 

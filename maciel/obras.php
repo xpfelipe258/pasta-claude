@@ -65,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (['obra_nome' => $nome, 'data_inicio' => $ini, 'data_fim' => $fim, 'versao' => '0', 'modificado' => date('c'), 'dados_legados' => '0'] as $k => $v) {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$id, $k, $v]);
             }
-            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 1)', [(int)$eu['id'], $id]);   // quem cria é o administrador da obra
+            obra_ligar_usuario((int)$eu['id'], $id, 'admin');   // quem cria é o administrador da obra (e fica registrado como criador: ninguém tira esse papel dele)
+            q_global('UPDATE obras SET criador_id = ? WHERE id = ?', [(int)$eu['id'], $id]);
             if (!empty($planoInfo['org_id'])) { organizacao_vincular_obra((int)$planoInfo['org_id'], $id); }   // obra da empresa cliente: conta no plano dela e os administradores da empresa a controlam
             $minhasAdm[] = $id;
             if ($comImportacao) {
@@ -143,10 +144,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($acao === 'permissoes') {
             $uid = (int)($_POST['usuario_id'] ?? 0);
             $eramAdm = obras_que_administra(['id' => $uid]);   // quem é administrador de uma obra continua sendo
+            $niveis = []; foreach (q_global('SELECT obra_id, nivel FROM usuarios_obras WHERE usuario_id = ?', [$uid])->fetchAll() as $ln) { $niveis[(int)$ln['obra_id']] = $ln['nivel']; }
             q_global('DELETE FROM usuarios_obras WHERE usuario_id=?', [$uid]);
             $marcadas = array_unique(array_merge(array_map('intval', (array)($_POST['obras'] ?? [])), $eramAdm));
             foreach ($marcadas as $oid) {
-                q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, ?)', [$uid, (int)$oid, in_array((int)$oid, $eramAdm, true) ? 1 : 0]);
+                $adm = in_array((int)$oid, $eramAdm, true);
+                q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra, nivel) VALUES (?, ?, ?, ?)', [$uid, (int)$oid, $adm ? 1 : 0, $adm ? 'admin' : ($niveis[(int)$oid] ?? null)]);
             }
             registrar_global('permissoes_obras', ['usuario_id' => $uid]);
             $msg = 'Acesso do usuário às obras atualizado.';

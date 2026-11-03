@@ -60,7 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (['obra_nome' => $o['titulo'], 'data_inicio' => $ini, 'data_fim' => $fim, 'versao' => '0', 'modificado' => date('c'), 'dados_legados' => '0'] as $k => $v) {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$obraId, $k, $v]);
             }
-            q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, 1)', [(int)$eu['id'], $obraId]);
+            obra_ligar_usuario((int)$eu['id'], $obraId, 'admin');
+            q_global('UPDATE obras SET criador_id = ? WHERE id = ?', [(int)$eu['id'], $obraId]);
             if (!empty($planoInfo['org_id'])) { organizacao_vincular_obra((int)$planoInfo['org_id'], $obraId); }
             q_global('UPDATE com_orcamentos SET obra_id = ?, atualizado_em = ? WHERE id = ?', [$obraId, agora(), $oid]);
             registrar_global('obra_criada', ['obra_id' => $obraId, 'nome' => $o['titulo'], 'orcamento' => $o['numero']]);

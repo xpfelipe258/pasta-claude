@@ -149,7 +149,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 33;   // 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 34;   // 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -556,6 +556,37 @@ function garantir_usuarios_obras_admin(PDO $pdo, $driver)
 {
     if (!in_array('admin_obra', colunas_tabela($pdo, $driver, 'usuarios_obras'), true)) {
         $pdo->exec('ALTER TABLE usuarios_obras ADD COLUMN admin_obra INT NOT NULL DEFAULT 0');
+    }
+    if (!in_array('nivel', colunas_tabela($pdo, $driver, 'usuarios_obras'), true)) {   // nível do usuário NESTA obra: admin, editor ou leitor
+        $pdo->exec('ALTER TABLE usuarios_obras ADD COLUMN nivel VARCHAR(10) NULL');
+        $pdo->exec("UPDATE usuarios_obras SET nivel = 'admin' WHERE admin_obra = 1");
+    }
+    if (!in_array('criador_id', colunas_tabela($pdo, $driver, 'obras'), true)) {   // quem criou a obra (sempre administrador dela)
+        $pdo->exec('ALTER TABLE obras ADD COLUMN criador_id INT NULL');
+    }
+}
+
+// Nível do usuário NA OBRA: 'admin' (administrador da obra), 'editor' ou 'leitor'. Sem nível gravado, vale o perfil do cadastro.
+function usuario_nivel_na_obra(array $u, $obraId = null)
+{
+    if (usuario_admin_da_obra($u, $obraId)) { return 'admin'; }
+    $obraId = (int)($obraId ?? obra_atual_id());
+    try {
+        $n = q_global('SELECT nivel FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], $obraId])->fetchColumn();
+    } catch (Throwable $e) { $n = null; }
+    if (in_array($n, ['editor', 'leitor'], true)) { return $n; }
+    return ($u['perfil'] ?? '') === 'leitura' ? 'leitor' : 'editor';
+}
+
+// Liga o usuário à obra com o nível dado (admin mantém admin_obra = 1). Idempotente.
+function obra_ligar_usuario($uid, $obraId, $nivel)
+{
+    $nivel = in_array($nivel, ['admin', 'editor', 'leitor'], true) ? $nivel : 'editor';
+    $adm = $nivel === 'admin' ? 1 : 0;
+    if (q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$uid, (int)$obraId])->fetchColumn()) {
+        q_global('UPDATE usuarios_obras SET admin_obra = ?, nivel = ? WHERE usuario_id = ? AND obra_id = ?', [$adm, $nivel, (int)$uid, (int)$obraId]);
+    } else {
+        q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra, nivel) VALUES (?, ?, ?, ?)', [(int)$uid, (int)$obraId, $adm, $nivel]);
     }
 }
 
@@ -1261,6 +1292,15 @@ function usuario_atual()
         if ($u && trim((string)($u['empresa'] ?? '')) === '' && ($ef = empresa_do_vinculo_obra_propria($u)) !== '') {   // conta ligada só à obra própria de uma terceirizada = usuário dessa empresa
             $u['empresa'] = $ef;
             $u['empresa_por_obra'] = 1;
+        }
+        if ($u && ($u['perfil'] ?? '') !== 'admin' && ($oidN = obra_atual_id()) > 0) {   // o nível NA OBRA manda: leitor só consulta; editor/administrador da obra lançam
+            try {
+                $ln = q_global('SELECT nivel, admin_obra FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], $oidN])->fetch();
+                if ($ln) {
+                    if (($ln['nivel'] ?? '') === 'leitor' && !(int)$ln['admin_obra']) { $u['perfil'] = 'leitura'; }
+                    elseif (in_array($ln['nivel'] ?? '', ['editor', 'admin'], true) || (int)$ln['admin_obra']) { $u['perfil'] = 'editor'; }
+                }
+            } catch (Throwable $e) { /* banco ainda sem a coluna nivel */ }
         }
         if ($u && ($u['perfil'] ?? '') !== 'admin' && !empty(manutencao_info()['ativo'])) {   // manutenção: só administrador continua logado
             $u = null;
