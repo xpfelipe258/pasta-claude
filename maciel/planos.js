@@ -258,8 +258,8 @@ async function plCarregar(forcar) {
     PL.dados = r.ok ? await r.json() : { planos: [] };
   } catch { PL.dados = { planos: [] }; }
   if (!Array.isArray(PL.dados.planos)) PL.dados = { planos: [] };
-  if (window.USUARIO_EMPRESA) {   // usuário de empresa só vê os planos que têm atividade da própria empresa (os itens ficam inteiros, para salvar sem perder as outras)
-    const minha = normEmp(window.USUARIO_EMPRESA);
+  if (window.USUARIO_RESTRITO) {   // usuário de empresa só vê os planos que têm atividade da própria empresa (os itens ficam inteiros, para salvar sem perder as outras)
+    const minha = normEmp(window.USUARIO_RESTRITO);
     const doItem = it => [it.empresa, it.quem, ...(it.divisao || []).map(d => d.empresa)].some(t => String(t || '').split(/[,;\/+]|\be\b/i).map(normEmp).includes(minha));
     PL.dados.planos = PL.dados.planos.filter(p => (p.itens || []).some(doItem));
   }

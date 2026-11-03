@@ -5,6 +5,7 @@ require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
 require __DIR__ . '/inc/central.php';
 require __DIR__ . '/inc/sistema_ctl.php';
+require __DIR__ . '/inc/usuarios_papeis.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 $eu = exigir_admin();
@@ -51,6 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q_global('UPDATE usuarios SET ativo = ? WHERE id = ?', [$novo, (int)$alvo['id']]);
             registrar_global($novo ? 'usuario_reativado' : 'usuario_desativado', ['usuario' => $alvo['login']]);
             $msg = 'Usuário “' . $alvo['login'] . '” ' . ($novo ? 'reativado.' : 'desativado: não entra mais.');
+        } elseif ($acao === 'usr_salvar') {
+            bd()->beginTransaction();
+            try { $msg = upap_salvar($_POST, $eu); bd()->commit(); } catch (Throwable $e) { if (bd()->inTransaction()) { bd()->rollBack(); } throw $e; }
+        } elseif ($acao === 'usr_senha_nova') {
+            $alvo = q_global('SELECT * FROM usuarios WHERE id = ?', [(int)($_POST['uid'] ?? 0)])->fetch();
+            if (!$alvo) { throw new InvalidArgumentException('Usuário não encontrado.'); }
+            if (strlen((string)($_POST['senha'] ?? '')) < 8) { throw new InvalidArgumentException('A nova senha precisa ter pelo menos 8 caracteres.'); }
+            q_global('UPDATE usuarios SET senha = ? WHERE id = ?', [password_hash($_POST['senha'], PASSWORD_DEFAULT), (int)$alvo['id']]);
+            registrar_global('senha_redefinida_admin', ['usuario' => $alvo['login']]);
+            $msg = 'Senha de ' . $alvo['login'] . ' redefinida.';
         } elseif ($acao === 'usuario_senha') {
             $alvo = q_global('SELECT * FROM usuarios WHERE id = ?', [(int)($_POST['uid'] ?? 0)])->fetch();
             if (!$alvo) { throw new InvalidArgumentException('Usuário não encontrado.'); }
@@ -165,21 +176,91 @@ if ($v === 'obras') {
 
 // ============================================================ USUÁRIOS
 if ($v === 'usuarios') {
-    $orgs = []; foreach (q_global('SELECT id, nome FROM organizacoes')->fetchAll() as $o) { $orgs[(int)$o['id']] = $o['nome']; }
+    $orgs = []; foreach (q_global('SELECT id, nome FROM organizacoes ORDER BY nome')->fetchAll() as $o) { $orgs[(int)$o['id']] = $o['nome']; }
     $ac = sis_ultimos_acessos();
-    $us = q_global('SELECT * FROM usuarios ORDER BY ativo DESC, (perfil = \'admin\') DESC, nome')->fetchAll();
-    $perfis = ['admin' => 'Administrador', 'editor' => 'Editor', 'leitura' => 'Leitura'];
+    $papeis = papeis_catalogo();
+    $filtro = isset($_GET['papel']) && isset($papeis[$_GET['papel']]) ? $_GET['papel'] : '';
+    $todos = q_global('SELECT * FROM usuarios ORDER BY ativo DESC, (perfil = \'admin\') DESC, nome')->fetchAll();
+    $us = [];
+    $conta = array_fill_keys(array_keys($papeis), 0);
+    foreach ($todos as $u) { $u['_papel'] = usuario_papel($u); $conta[$u['_papel']]++; if (!$filtro || $filtro === $u['_papel']) { $us[] = $u; } }
+    $obrasT = upap_obras(); $nomeObra = []; foreach ($obrasT as $o) { $nomeObra[(int)$o['id']] = $o['nome']; }
+    $obrasPorU = []; foreach (q_global('SELECT usuario_id, obra_id FROM usuarios_obras')->fetchAll() as $r) { $obrasPorU[(int)$r['usuario_id']][] = (int)$r['obra_id']; }
+    $modsPorU = []; foreach (q_global('SELECT usuario_id, modulo FROM usuarios_modulos WHERE permitido = 1')->fetchAll() as $r) { $modsPorU[(int)$r['usuario_id']][] = $r['modulo']; }
+    $rotMod = planos_modulos_rotulos();
+    $terc = upap_empresas_terceirizadas();
+    $cor = ['admin_geral' => 'azul', 'admin_empresa' => 'azul', 'editor_empresa' => 'verde', 'editor_sistema' => 'amar', 'editor_obra' => '', 'leitor' => ''];
     ?>
-  <section class="ce-bloco"><h2>Todos os usuários (<?= count($us) ?>)</h2><p>De todas as empresas e obras. Aqui você ativa/desativa acessos e envia o link de nova senha. Perfis, áreas e abas de cada usuário continuam em Administração › Usuários (dentro de uma obra) e, para as empresas, em “Usuários” de cada empresa.</p>
-    <table class="ce-tab"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Empresa</th><th>E-mail</th><th>Último acesso</th><th>Situação</th><th></th></tr></thead><tbody>
-    <?php foreach ($us as $u): $a = $ac[$u['login']] ?? null; ?>
-      <tr><td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><span class="ce-tag <?= $u['perfil'] === 'admin' ? 'azul' : '' ?>"><?= h($perfis[$u['perfil']] ?? $u['perfil']) ?></span><?= !empty($u['admin_organizacao']) ? ' <span class="ce-tag verde">adm. da empresa</span>' : '' ?></td>
-        <td><?= h($orgs[(int)($u['organizacao_id'] ?? 0)] ?? ($u['empresa'] ?: '—')) ?></td><td><?= h($u['email'] ?: '—') ?></td><td><?= $a ? h(date('d/m/Y H:i', strtotime($a))) : '—' ?></td>
+  <link rel="stylesheet" href="planos.css?v=<?= (int)@filemtime(__DIR__ . '/planos.css') ?>">
+  <section class="ce-bloco"><h2>Papéis de usuário</h2>
+    <p>Cada pessoa tem um papel que define o que ela vê e o que pode alterar. Só o administrador geral (você, ou quem você incluir) cria e muda papéis.</p>
+    <table class="ce-tab"><thead><tr><th>Papel</th><th>O que faz</th><th>Usuários</th></tr></thead><tbody>
+    <?php foreach ($papeis as $k => $pp): ?><tr><td><span class="ce-tag <?= $cor[$k] ?>"><?= h($pp[0]) ?></span></td><td><?= h($pp[1]) ?></td><td><a href="sistema.php?v=usuarios&papel=<?= h($k) ?>"><?= (int)$conta[$k] ?></a></td></tr><?php endforeach; ?>
+    </tbody></table></section>
+  <section class="ce-bloco"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Todos os usuários (<?= count($us) ?><?= $filtro ? ' · ' . h($papeis[$filtro][0]) : '' ?>)</h2>
+      <div><?php if ($filtro): ?><a class="btn ghost" href="sistema.php?v=usuarios">Ver todos</a> <?php endif; ?><button class="btn primario" id="btnNovoUsr">+ Novo usuário</button></div></div>
+    <p>Administração dentro de cada obra (usuários só daquela obra) continua em Administração › Usuários e, para empresas clientes, em Configurações › Usuários da empresa.</p>
+    <table class="ce-tab"><thead><tr><th>Nome</th><th>Login</th><th>Papel</th><th>Empresa</th><th>Obras</th><th>Áreas</th><th>Último acesso</th><th>Situação</th><th></th></tr></thead><tbody>
+    <?php foreach ($us as $u): $a = $ac[$u['login']] ?? null; $pap = $u['_papel']; $minhasO = $obrasPorU[(int)$u['id']] ?? []; $minhasM = $modsPorU[(int)$u['id']] ?? [];
+        $d = ['id' => (int)$u['id'], 'nome' => $u['nome'], 'login' => $u['login'], 'email' => $u['email'], 'papel' => $pap, 'org' => (int)($u['organizacao_id'] ?? 0), 'empresa' => $u['empresa'], 'obras' => $minhasO, 'modulos' => $minhasM, 'eu' => (int)((int)$u['id'] === (int)$eu['id'])]; ?>
+      <tr><td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td>
+        <td><span class="ce-tag <?= $cor[$pap] ?>"><?= h($papeis[$pap][0]) ?></span></td>
+        <td><?= h($orgs[(int)($u['organizacao_id'] ?? 0)] ?? ($u['empresa'] ?: '—')) ?></td>
+        <td><?php if (in_array($pap, ['admin_geral', 'editor_sistema'], true)): ?>todas<?php elseif ($pap === 'admin_empresa'): ?>da empresa<?php else: ?><?= $minhasO ? h(implode(', ', array_values(array_filter(array_map(function ($i) use ($nomeObra) { return $nomeObra[$i] ?? null; }, $minhasO))))) : '<small>nenhuma</small>' ?><?php endif; ?></td>
+        <td><?php if ($pap === 'admin_geral'): ?>todas<?php elseif ($pap === 'admin_empresa'): ?>todas do plano<?php elseif ($pap === 'editor_sistema'): ?>vê todas · altera: <?= $minhasM ? h(implode(', ', array_map(function ($m) use ($rotMod) { return $rotMod[$m] ?? $m; }, $minhasM))) : '<small>nenhuma (só consulta)</small>' ?><?php else: ?><?= $minhasM ? h(implode(', ', array_map(function ($m) use ($rotMod) { return $rotMod[$m] ?? $m; }, $minhasM))) : '<small>todas (anterior)</small>' ?><?php endif; ?></td>
+        <td><?= $a ? h(date('d/m/Y H:i', strtotime($a))) : '—' ?></td>
         <td><span class="ce-tag <?= $u['ativo'] ? 'verde' : 'verm' ?>"><?= $u['ativo'] ? 'ativo' : 'desativado' ?></span></td>
-        <td class="d" style="white-space:nowrap">
-          <?= $u['ativo'] ? $form('usuario_ativo', ['uid' => $u['id'], 'ativo' => 0], 'Desativar', 'btn ghost', 'Desativar ' . $u['login'] . '? Ele não entra mais até ser reativado.') : $form('usuario_ativo', ['uid' => $u['id'], 'ativo' => 1], 'Reativar') ?>
-          <?= $u['ativo'] && trim((string)$u['email']) !== '' ? $form('usuario_senha', ['uid' => $u['id']], 'Enviar link de senha', 'btn ghost', 'Enviar o link de redefinição de senha para o e-mail de ' . $u['login'] . '?') : '' ?></td></tr>
+        <td class="d" style="white-space:nowrap"><button class="btn ce-btn-peq" data-editar='<?= h(json_encode($d, JSON_UNESCAPED_UNICODE)) ?>'>Editar</button>
+          <button class="btn ghost ce-btn-peq" data-senha="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>">Nova senha</button>
+          <?= $u['ativo'] ? $form('usuario_ativo', ['uid' => $u['id'], 'ativo' => 0], 'Desativar', 'btn ghost', 'Desativar ' . $u['login'] . '? Ele não entra mais até ser reativado.') : $form('usuario_ativo', ['uid' => $u['id'], 'ativo' => 1], 'Reativar', 'btn ghost') ?>
+          <?= $u['ativo'] && trim((string)$u['email']) !== '' ? $form('usuario_senha', ['uid' => $u['id']], 'Link de senha', 'btn ghost', 'Enviar o link de redefinição de senha para o e-mail de ' . $u['login'] . '?') : '' ?></td></tr>
     <?php endforeach; ?></tbody></table></section>
+
+<dialog class="pl-dlg" id="dlgUsr"><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="usr_salvar"><input type="hidden" name="id" value="0">
+  <h3 id="dlgUsrTit">Novo usuário</h3>
+  <div class="pl-form"><label>Nome<input name="nome" required maxlength="80" autocomplete="off"></label><label>Login<input name="login" required maxlength="50" autocomplete="off"></label>
+    <label>E-mail<input name="email" type="email" autocomplete="off" placeholder="para recuperar a senha"></label>
+    <label id="lblSenha">Senha inicial (mín. 8)<input name="senha" type="password" minlength="8" autocomplete="new-password"></label>
+    <label style="grid-column:1/-1">Papel<select name="papel"><?php foreach ($papeis as $k => $pp): ?><option value="<?= h($k) ?>"><?= h($pp[0]) ?></option><?php endforeach; ?></select></label>
+    <p class="pl-nota" id="notaPapel" style="grid-column:1/-1;margin:0"></p>
+    <label id="lblOrg">Empresa cliente (organização)<select name="organizacao_id"><option value="0">— nenhuma —</option><?php foreach ($orgs as $oid => $on): ?><option value="<?= (int)$oid ?>"><?= h($on) ?></option><?php endforeach; ?></select></label>
+    <label id="lblEmp">Empresa terceirizada (EJ, CMM…)<input name="empresa" list="listaTerc" autocomplete="off" placeholder="só se não for de uma empresa cliente"><datalist id="listaTerc"><?php foreach ($terc as $t): ?><option value="<?= h($t) ?>"><?php endforeach; ?></datalist></label>
+    <fieldset class="pl-fs" id="fsObras"><legend>Obras em que entra</legend><div class="pl-mods"><?php foreach ($obrasT as $o): ?><label class="pl-check"><input type="checkbox" name="obras[]" value="<?= (int)$o['id'] ?>"> <?= h($o['nome']) ?></label><?php endforeach; ?></div></fieldset>
+    <fieldset class="pl-fs" id="fsMods"><legend id="lgMods">Áreas do sistema</legend><div class="pl-mods"><?php foreach (modulos_sistema() as $m): ?><label class="pl-check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>"> <?= h($rotMod[$m] ?? $m) ?></label><?php endforeach; ?></div></fieldset></div>
+  <div class="pl-fim"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn primario" id="btnSalvarUsr">Criar usuário</button></div></form></dialog>
+<dialog class="pl-dlg" id="dlgSenha"><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="usr_senha_nova"><input type="hidden" name="uid" value="0">
+  <h3 id="dlgSenhaTit">Nova senha</h3>
+  <div class="pl-form"><label style="grid-column:1/-1">Nova senha (mín. 8 caracteres)<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label></div>
+  <div class="pl-fim"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn primario">Redefinir senha</button></div></form></dialog>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var dlg = $('#dlgUsr'), f = dlg.querySelector('form');
+  var NOTAS = <?= json_encode(array_map(function ($p) { return $p[1]; }, $papeis), JSON_UNESCAPED_UNICODE) ?>;
+  function sync() {
+    var p = f.papel.value, org = p === 'admin_empresa' || p === 'editor_empresa', emp = p === 'editor_empresa';
+    $('#notaPapel').textContent = NOTAS[p] || '';
+    $('#lblOrg').hidden = !org; $('#lblEmp').hidden = !emp;
+    $('#fsObras').hidden = ['admin_geral', 'admin_empresa', 'editor_sistema'].indexOf(p) >= 0;
+    $('#fsMods').hidden = ['admin_geral', 'admin_empresa'].indexOf(p) >= 0;
+    $('#lgMods').textContent = p === 'editor_sistema' ? 'Áreas que ele pode ALTERAR (nas demais só consulta)' : 'Áreas do sistema que pode usar';
+  }
+  f.papel.addEventListener('change', sync);
+  document.querySelectorAll('[data-fechar]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
+  $('#btnNovoUsr').addEventListener('click', function () {
+    f.reset(); f.id.value = 0; $('#dlgUsrTit').textContent = 'Novo usuário'; $('#btnSalvarUsr').textContent = 'Criar usuário'; f.senha.required = true; $('#lblSenha').hidden = false; f.papel.disabled = false; sync(); dlg.showModal();
+  });
+  document.querySelectorAll('[data-editar]').forEach(function (b) { b.addEventListener('click', function () {
+    var d = JSON.parse(b.dataset.editar); f.reset(); f.id.value = d.id; $('#dlgUsrTit').textContent = 'Editar — ' + d.nome; $('#btnSalvarUsr').textContent = 'Salvar usuário';
+    f.nome.value = d.nome; f.login.value = d.login; f.email.value = d.email || ''; f.papel.value = d.papel; f.organizacao_id.value = d.org || 0; f.empresa.value = d.empresa || '';
+    f.senha.required = false; $('#lblSenha').hidden = true; f.papel.disabled = false;
+    f.querySelectorAll('[name="obras[]"]').forEach(function (c) { c.checked = d.obras.indexOf(parseInt(c.value, 10)) >= 0; });
+    f.querySelectorAll('[name="modulos[]"]').forEach(function (c) { c.checked = d.modulos.indexOf(c.value) >= 0; });
+    sync(); dlg.showModal(); }); });
+  document.querySelectorAll('[data-senha]').forEach(function (b) { b.addEventListener('click', function () {
+    var g = $('#dlgSenha form'); g.reset(); g.uid.value = b.dataset.senha; $('#dlgSenhaTit').textContent = 'Nova senha — ' + b.dataset.nome; $('#dlgSenha').showModal(); }); });
+})();
+</script>
     <?php
 }
 

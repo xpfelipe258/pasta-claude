@@ -364,7 +364,7 @@ function sesmt_filtro_empresa($reg, $emp, array &$params)
 
 function sesmt_pode_ver(array $u)
 {
-    if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u)) {
+    if (($u['perfil'] ?? '') === 'admin' || usuario_admin_da_obra($u) || usuario_papel($u) === 'editor_sistema') {   // editor do sistema vê tudo
         return true;
     }
     // usuário de empresa usa o SESMT só da empresa dele (colaboradores e ocorrências), sem precisar de liberação
@@ -377,7 +377,7 @@ function sesmt_pode_ver(array $u)
 
 function sesmt_pode_editar(array $u)
 {
-    return sesmt_pode_ver($u) && in_array($u['perfil'] ?? '', ['admin', 'editor'], true);
+    return sesmt_pode_ver($u) && in_array($u['perfil'] ?? '', ['admin', 'editor'], true) && (usuario_papel($u) !== 'editor_sistema' || usuario_pode_editar_modulo($u, 'sesmt'));
 }
 
 /** Libera ou bloqueia o SESMT para um usuário sem perder os demais menus (usuário sem configuração enxerga tudo). */

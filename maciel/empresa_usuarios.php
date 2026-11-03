@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $eMeu = (int)$alvo['id'] === (int)$eu['id'];
             $admin = $eMeu ? (int)$alvo['admin_organizacao'] === 1 : !empty($_POST['admin_empresa']);   // ninguém tira o próprio papel de administrador
             $perfil = $admin ? 'editor' : (in_array($_POST['perfil'] ?? '', ['editor', 'leitura'], true) ? $_POST['perfil'] : 'editor');
-            q_global('UPDATE usuarios SET nome = ?, login = ?, email = ?, perfil = ?, admin_organizacao = ? WHERE id = ?', [$nome, $login, texto_ou_nulo($email), $perfil, $admin ? 1 : 0, (int)$alvo['id']]);
+            q_global('UPDATE usuarios SET nome = ?, login = ?, email = ?, perfil = ?, admin_organizacao = ?, papel = ? WHERE id = ?', [$nome, $login, texto_ou_nulo($email), $perfil, $admin ? 1 : 0, $admin ? 'admin_empresa' : ($perfil === 'leitura' ? 'leitor' : 'editor_empresa'), (int)$alvo['id']]);
             if ((int)$alvo['admin_organizacao'] === 1 && !$admin && $idsObras) {   // deixou de ser administrador: perde o controle total das obras
                 q_global('UPDATE usuarios_obras SET admin_obra = 0 WHERE usuario_id = ? AND obra_id IN (' . implode(',', $idsObras) . ')', [(int)$alvo['id']]);
             }
@@ -184,7 +184,7 @@ pagina_inicio('Usuários da empresa');
           $nomesO = array_values(array_filter(array_map(function ($i) use ($nomeObra) { return $nomeObra[$i] ?? null; }, $minhasO)));
           $d = ['id' => (int)$u['id'], 'nome' => $u['nome'], 'login' => $u['login'], 'email' => $u['email'], 'perfil' => $u['perfil'], 'admin' => $adm ? 1 : 0, 'obras' => array_values(array_intersect($minhasO, $idsObras)), 'modulos' => $minhasM, 'eu' => (int)$u['id'] === (int)$eu['id'] ? 1 : 0]; ?>
         <tr><td><b><?= h($u['nome']) ?></b><small><?= h($u['login']) ?><?= $u['email'] ? ' · ' . h($u['email']) : '' ?></small></td>
-          <td><?= $adm ? '<span class="pl-chip azul">Administrador da empresa</span>' : '<span class="pl-chip ' . ($u['perfil'] === 'leitura' ? 'cinza' : 'verde') . '">' . ($u['perfil'] === 'leitura' ? 'Somente leitura' : 'Editor') . '</span>' ?></td>
+          <td><?= $adm ? '<span class="pl-chip azul">Administrador da empresa</span>' : '<span class="pl-chip ' . ($u['perfil'] === 'leitura' ? 'cinza' : 'verde') . '">' . ($u['perfil'] === 'leitura' ? 'Somente leitura' : 'Editor da empresa') . '</span>' ?></td>
           <td><?= $adm ? 'Todas as obras' : ($nomesO ? h(implode(', ', $nomesO)) : '<small>nenhuma</small>') ?></td>
           <td><?= $adm ? 'Todas do plano' : ($minhasM ? h(implode(', ', array_map(function ($m) use ($rotulos) { return $rotulos[$m] ?? $m; }, $minhasM))) : '<small>nenhuma</small>') ?></td>
           <td><span class="pl-chip <?= (int)$u['ativo'] ? 'verde' : 'cinza' ?>"><?= (int)$u['ativo'] ? 'Ativo' : 'Inativo' ?></span></td>

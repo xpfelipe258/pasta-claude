@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     nc_resp(405, ['erro' => 'Método não permitido.']);
 }
 conferir_csrf();
-if (($u['perfil'] ?? '') === 'leitura' || !usuario_pode_modulo($u, 'qualidade')) {
+if (usuario_so_leitura($u, 'qualidade') || !usuario_pode_modulo($u, 'qualidade')) {
     nc_resp(403, ['erro' => 'Seu usuário não pode alterar as não conformidades.']);
 }
 $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');

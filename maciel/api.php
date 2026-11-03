@@ -47,7 +47,7 @@ try {
                 'arquivo' => obra_info()['nome'] . ' · sistema online',
                 'obra' => obra_ficha(),
                 'modificado' => sistema_ler('modificado', date('c')),
-                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'modulos' => modulos_usuario($usuario)],
+                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'empresa_restrita' => usuario_empresa_restrita($usuario), 'papel' => usuario_papel($usuario), 'modulos_edicao' => modulos_edicao_usuario($usuario), 'modulos' => modulos_usuario($usuario)],
                 'recursos' => ['importar_mensal' => false, 'exportar' => false, 'online' => true],
                 'modelo' => montar_modelo(),
             ]);
@@ -238,6 +238,12 @@ try {
     ];
     if (isset($moduloRota[$rota]) && !usuario_pode_modulo($usuario, $moduloRota[$rota])) {
         responder_json(403, ['erro' => 'Seu usuário não possui acesso ao módulo ' . strtoupper($moduloRota[$rota]) . '.']);
+    }
+    if (usuario_papel($usuario) === 'editor_sistema') {   // editor do sistema: vê tudo, altera só as áreas que o administrador geral liberou
+        $modEd = $moduloRota[$rota] ?? papel_modulo_da_rota($rota, $corpo);
+        if ($modEd === null || !usuario_pode_editar_modulo($usuario, $modEd)) {
+            responder_json(403, ['erro' => 'Seu papel (Editor do sistema) só altera as áreas liberadas pelo administrador geral' . ($modEd ? ' — ' . strtoupper($modEd) . ' está liberada só para consulta.' : '.')]);
+        }
     }
     $acoes = [
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
@@ -985,6 +991,9 @@ function garantir_coluna_impacto_setor()
     if (!in_array('setor', colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {
         $pdo->exec("ALTER TABLE impactos ADD COLUMN setor VARCHAR(100) NULL");
     }
+    if (!in_array('registrado_por_empresa', colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {   // empresa de quem registrou o impacto (cada empresa só vê o que registrou)
+        $pdo->exec("ALTER TABLE impactos ADD COLUMN registrado_por_empresa VARCHAR(100) NULL");
+    }
     foreach (impactos_colunas_solucao() as $col => $tipo) {
         if (!in_array($col, colunas_tabela($pdo, $c['driver'], 'impactos'), true)) {
             $pdo->exec("ALTER TABLE impactos ADD COLUMN $col $tipo");
@@ -1000,6 +1009,11 @@ function acao_impacto(array $corpo)
     $atual = $id !== null ? q('SELECT * FROM impactos WHERE id = ?', [$id])->fetch() : null;
     if ($id !== null && !$atual) {
         throw new ErroValidacao('Impacto não encontrado.');
+    }
+    $minhaEmpImp = isset($GLOBALS['usuario']) && is_array($GLOBALS['usuario']) ? usuario_empresa_restrita($GLOBALS['usuario']) : '';
+    if ($minhaEmpImp !== '' && $atual) {   // empresa só mexe no impacto que ela mesma registrou
+        $regImp = trim((string)($atual['registrado_por_empresa'] ?? ''));
+        if ($regImp !== '' && oe_norm($regImp) !== oe_norm($minhaEmpImp)) { throw new ErroValidacao('Este impacto foi registrado por outra empresa.'); }
     }
     if (!empty($corpo['excluir'])) {
         q('DELETE FROM impactos WHERE id = ?', [$id]);
@@ -1034,6 +1048,9 @@ function acao_impacto(array $corpo)
                 $vals['solucionado_em'] = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
             }
         }
+    }
+    if ($id === null) {   // registro novo: guarda de qual empresa veio (vazio = gestão)
+        $vals['registrado_por_empresa'] = texto_ou_nulo($minhaEmpImp !== '' ? $minhaEmpImp : trim((string)($GLOBALS['usuario']['empresa'] ?? '')));
     }
     return gravar_linha('impactos', $id, $vals);
 }

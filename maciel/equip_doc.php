@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ed_resp(405, ['erro' => 'Método não permitido.']);
 }
 conferir_csrf();
-if (($u['perfil'] ?? '') === 'leitura') {
+if (usuario_so_leitura($u, 'consumo')) {
     ed_resp(403, ['erro' => 'Seu usuário é somente leitura.']);
 }
 $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');

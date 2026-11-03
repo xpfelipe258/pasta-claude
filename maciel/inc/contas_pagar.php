@@ -157,7 +157,7 @@ function acao_contas_pagar(array $corpo, array $usuario)
     if (!usuario_pode_modulo($usuario, 'financeiro')) {
         throw new ErroValidacao('Seu usuário não possui acesso ao módulo FINANCEIRO.');
     }
-    if (($usuario['perfil'] ?? '') === 'leitura') {
+    if (usuario_so_leitura($usuario, 'financeiro')) {
         throw new ErroValidacao('Seu usuário é somente leitura.');
     }
     $acao = (string)($corpo['acao'] ?? '');
