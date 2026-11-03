@@ -148,6 +148,7 @@ function montar_modelo()
             'linha' => (int)$i['id'], 'data' => $i['data'], 'servico' => nome_servico_padrao($i['servico']), 'empresas' => $i['empresas'] ?? '', 'motivo' => nome_servico_padrao($i['motivo']),
             'solucionado' => $i['solucionado'], 'tempo' => $i['tempo'], 'quando' => nome_servico_padrao($i['quando']), 'paralisacao' => nome_servico_padrao($i['paralisacao']),
             'setor' => $i['setor'] ?? '',
+            'registrado_por_empresa' => $i['registrado_por_empresa'] ?? '',
             'solucao' => $i['solucao'] ?? '', 'solucionado_por' => $i['solucionado_por'] ?? '', 'solucionado_em' => $i['solucionado_em'] ?? '',
         ];
     }
@@ -163,7 +164,7 @@ function montar_modelo()
         }
     }
     $uQual = function_exists('usuario_atual') ? usuario_atual() : null;
-    $empQual = trim((string)($uQual['empresa'] ?? ''));
+    $empQual = $uQual ? usuario_empresa_restrita($uQual) : '';
     if ($empQual !== '') {
         // a NC pode ter mais de uma empresa ('CMM|EJ'): a empresa vê a NC se estiver na lista, mas só a resposta e as fotos "depois" da própria empresa
         $tabelas['nao_conformidades'] = array_values(array_filter($tabelas['nao_conformidades'] ?? [], function ($n) use ($empQual) { return in_array($empQual, nc_empresas_da($n['empresa'] ?? ''), true); }));
@@ -191,8 +192,8 @@ function montar_modelo()
     // Usuário de empresa só enxerga o que é da própria empresa: serviços, metas, produção, efetivo, medição (BM) e impactos das outras empresas nem chegam ao navegador
     // (o estoque e o mapa de montagem continuam inteiros, porque o saldo e o que já foi montado dependem de todas)
     $uEmp = function_exists('usuario_atual') ? usuario_atual() : null;
-    $minhaEmp = trim((string)($uEmp['empresa'] ?? ''));
-    if ($minhaEmp !== '' && ($uEmp['perfil'] ?? '') !== 'admin') {
+    $minhaEmp = $uEmp ? usuario_empresa_restrita($uEmp) : '';
+    if ($minhaEmp !== '') {
         $meuN = oe_norm($minhaEmp);
         $minha = function ($v) use ($meuN) { return oe_norm($v) === $meuN; };
         $empresas = array_values(array_filter($empresas, function ($e) use ($minha) { return $minha($e['nome']); }));
@@ -202,11 +203,12 @@ function montar_modelo()
         }
         $metas = array_values(array_filter($metas, function ($m) use ($minha) { return $minha($m['empresa']); }));
         $cliente = array_values(array_filter($cliente, function ($c) use ($meusServ) { return isset($meusServ[oe_norm($c['servico']) . '|' . oe_norm($c['frente'])]); }));
+        // impactos: cada empresa só vê o que ela mesma registrou; o que a gestão registrou antes de existir esse controle só aparece se for só dela
         $impactos = array_values(array_filter($impactos, function ($i) use ($meuN) {
-            $lista = trim((string)($i['empresas'] ?? ''));
-            if ($lista === '') { return false; }
-            if (stripos($lista, 'todas') !== false) { return true; }
-            return strpos(' ' . oe_norm($lista) . ' ', ' ' . $meuN . ' ') !== false;
+            $reg = trim((string)($i['registrado_por_empresa'] ?? ''));
+            if ($reg !== '') { return oe_norm($reg) === $meuN; }
+            $lista = array_filter(array_map('oe_norm', preg_split('/[\/;,+|]+/', (string)($i['empresas'] ?? ''))));
+            return count($lista) === 1 && reset($lista) === $meuN;
         }));
         foreach (['movimentos', 'estoque_eventos'] as $tf) {   // lançamentos de estoque: some só o que é de outra empresa (sem empresa informada é geral e fica)
             if (isset($tabelas[$tf])) { $tabelas[$tf] = array_values(array_filter($tabelas[$tf], function ($l) use ($minha) { return trim((string)($l['empresa'] ?? '')) === '' || $minha($l['empresa']); })); }

@@ -62,9 +62,9 @@ function bmEquipDetalheHtml(emp, p, dd) {
 // ---------------------------------------------------------------- resumo do período: o que foi gasto e o ganho produtivo
 function bmResumoPeriodoHtml(emp, p, r, tot, cc) {
   const dd = r.ded, ini = p.ini === '0000-01-01' ? bmPrimeiraData(emp) : p.ini, fim = p.fim;
-  const ganho = tot.per, equip = dd.equip, comb = dd.comb, gasto = equip + comb, resultado = ganho - gasto;
+  const ganho = Math.round((tot.per || 0) * 100) / 100, equip = dd.equip, comb = dd.comb, gasto = equip + comb, resultado = ganho - gasto;
   const du = Math.max(1, contarDiasUteis(add(ini, -1), fim));
-  const pctGasto = ganho > 0 ? gasto / ganho * 100 : null;
+  const pctGasto = ganho >= 0.01 ? gasto / ganho * 100 : null;
   const card = (rot, val, sub, cls) => `<div class="tile" style="--c:${cls}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const dados = relEquipDados(emp, ini, fim, 'todos');
   const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
@@ -152,7 +152,7 @@ function bmProjecaoPainelHtml(emp) {
       ${card('Ganho projetado', rs(g.proj), g.plan != null ? `planejado no período: ${rs(g.plan)} (${g.plan ? nf(g.proj / g.plan * 100, 0) : '—'}% do planejado)` : 'no ritmo atual', 'var(--verde)')}
       ${card('Gasto projetado', rs(gasto), `equipamentos ${c.equip != null ? rs(c.equip) : '—'} + combustível ${c.comb != null ? rs(c.comb) : '—'}`, 'var(--vermelho)')}
       ${card('Resultado projetado', rs(resultado), 'ganho projetado − gasto projetado', resultado < 0 ? 'var(--vermelho)' : 'var(--acento)')}
-      ${card('Gasto por R$ ganho', g.proj > 0 ? nf(gasto / g.proj * 100, 1) + '%' : '—', g.proj > 0 ? 'projetado' : 'sem ganho projetado (sem produção recente)', 'var(--fg3)')}
+      ${card('Gasto por R$ ganho', g.proj >= 0.01 ? nf(gasto / g.proj * 100, 1) + '%' : '—', g.proj >= 0.01 ? 'projetado' : 'sem ganho projetado (sem produção recente)', 'var(--fg3)')}
     </div>
     <div class="tabela-rolagem"><table><thead><tr><th>Atividade / item</th>${g.plan != null ? '<th class="n">Planejado (R$)</th>' : ''}<th class="n">Ganho projetado (R$)</th></tr></thead><tbody>${linhas.join('') || `<tr><td colspan="${g.plan != null ? 3 : 2}" class="vazio">Sem produção projetada (nenhuma atividade com ritmo recente).</td></tr>`}</tbody></table></div>
     <p class="nota">Custos: equipamentos = ${c.base === 'unidade' ? `R$ por unidade produzida nos últimos BMs = ${rs(c.porUn)} × ${nf(c.unidades, 1)} unid. projetadas nas atividades de içamento/montagem` : `R$ por dia útil dos últimos BMs (o mais recente pesa mais) = ${c.diaEquip != null ? rs(c.diaEquip) : '—'} × ${g.duJan} dia(s)`}; combustível = ${c.ab.sem ? 'sem registros de abastecimento' : `${rs(c.ab.custoSemana)}/semana (média inteligente dos últimos abastecimentos: ${nf(c.ab.litrosSemana, 0)} L/semana a R$ ${nf(c.ab.preco, 2)}/L)`}. É uma estimativa para decisão, não um lançamento.</p>`;

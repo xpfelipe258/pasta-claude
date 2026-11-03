@@ -1169,12 +1169,45 @@ function usuario_atual()
             }
         }
         $u = $linha ?: null;
+        if ($u && trim((string)($u['empresa'] ?? '')) === '' && ($ef = empresa_do_vinculo_obra_propria($u)) !== '') {   // conta ligada só à obra própria de uma terceirizada = usuário dessa empresa
+            $u['empresa'] = $ef;
+            $u['empresa_por_obra'] = 1;
+        }
         if ($u && ($u['perfil'] ?? '') !== 'admin' && !empty(manutencao_info()['ativo'])) {   // manutenção: só administrador continua logado
             $u = null;
             $_SESSION = [];
         }
     }
     return $u;
+}
+
+// Conta sem a empresa preenchida no cadastro, mas que trabalha na OBRA PRÓPRIA de uma terceirizada: vale como usuário dessa empresa.
+// Perfil comum: sempre (só enxerga essa obra). Administrador: só se estiver ligado a essa obra e não à obra principal (o administrador da plataforma não é restringido).
+function empresa_do_vinculo_obra_propria(array $u)
+{
+    try {
+        $obraId = obra_atual_id();
+        if ($obraId <= 0 || !function_exists('obra_empresa_info')) { return ''; }
+        $info = obra_empresa_info($obraId);
+        if (!$info) { return ''; }
+        if (($u['perfil'] ?? '') !== 'admin') { return trim((string)$info['empresa']); }
+        $liga = function ($o) use ($u) { return $o > 0 && (bool)q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [(int)$u['id'], (int)$o])->fetchColumn(); };
+        return ($liga($obraId) && !$liga((int)$info['origem_id'])) ? trim((string)$info['empresa']) : '';
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+// Empresa a que a visão do usuário fica restrita (só os dados dela), ou '' quando ele enxerga tudo.
+// Obra criada pela própria empresa (ela administra a obra): vê tudo, inclusive das terceirizadas que incluir. Obra da gestão (Rótula) e obra própria da empresa: só o dela.
+function usuario_empresa_restrita(array $u)
+{
+    $e = trim((string)($u['empresa'] ?? ''));
+    if ($e === '') { return ''; }
+    if (!empty($u['empresa_por_obra'])) { return $e; }
+    if (($u['perfil'] ?? '') === 'admin') { return ''; }
+    if (function_exists('obra_empresa_info') && obra_empresa_info()) { return $e; }
+    return usuario_admin_da_obra($u) ? '' : $e;
 }
 
 function exigir_login_pagina()
