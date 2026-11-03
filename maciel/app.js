@@ -489,10 +489,11 @@ async function verificarVersao() {
 ['keydown', 'input', 'pointerdown', 'paste'].forEach(ev => document.addEventListener(ev, () => { ultimaInteracao = Date.now(); }, true));
 
 function preencherListas() {
-  const serv = new Set(), emps = new Set(['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM']);
+  const minhaE = window.USUARIO_EMPRESA ? normEmp(window.USUARIO_EMPRESA) : '';   // usuário de empresa só vê o nome da própria empresa nas listas
+  const serv = new Set(), emps = new Set(minhaE ? [minhaE] : ['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM']);
   M.empresas.forEach(e => { emps.add(e.nome); e.servicos.forEach(s => serv.add(s.nome)); });
   M.impactos.forEach(i => i.servico && serv.add(String(i.servico).toUpperCase()));
-  T.usos.forEach(u => u.empresa && emps.add(u.empresa));
+  if (!minhaE) T.usos.forEach(u => u.empresa && emps.add(u.empresa));
   $('#listaServicos').innerHTML = [...serv].sort().map(n => `<option value="${esc(n)}">`).join('');
   $('#listaSetores').innerHTML = [...new Set([...SETORES_IMPACTO, ...M.impactos.map(i => String(i.setor || '').trim()).filter(Boolean)])].map(n => `<option value="${esc(n)}">`).join('');
   $('#listaEmpresas').innerHTML = [...emps].sort().map(n => `<option value="${esc(n)}">`).join('');
@@ -1375,7 +1376,8 @@ function bmPorCodigos(codigos, servico, empresaNome, ini, fim) {
 }
 // Fechamento lateral (estrutura): % de avanço de cada empresa (média das atividades pelo peso) e média das duas empresas
 function pctFechLat(ate, empresaNome = null) {
-  const porEmp = ['EJ', 'CMM'].map(nome => {
+  const minhaE = window.USUARIO_EMPRESA ? normEmp(window.USUARIO_EMPRESA) : '';   // empresa: só a própria entra na média
+  const porEmp = ['EJ', 'CMM'].filter(n => !minhaE || n === minhaE).map(nome => {
     const ats = bmTab('bm_atividades').filter(a => normEmp(a.empresa) === nome && ganNorm(a.item_desc) === 'FECHAMENTO LATERAL');
     const sp = soma0(ats, a => a.peso || 0);
     return { nome, pct: sp ? soma0(ats, a => (a.peso || 0) * (a.qtd ? Math.min(1, Math.max(0, bmRealizado(a, ate) / a.qtd)) : 0)) / sp : 0 };
@@ -1873,7 +1875,8 @@ function ganBmResumo(it, ate) {
       o.ds.push(...ganBmDatasAtividade(a, ate));
       porEmpresa.set(a.empresa, o);
     });
-    const nomes = ['EJ', 'CMM'];
+    const minhaE = window.USUARIO_EMPRESA ? normEmp(window.USUARIO_EMPRESA) : '';
+    const nomes = ['EJ', 'CMM'].filter(n => !minhaE || n === minhaE);
     const pcts = nomes.map(n => { const o = porEmpresa.get(n); return o && o.somaPesos ? o.pct / o.somaPesos : 0; });
     const pct = Math.min(1, Math.max(0, soma0(pcts, x => x) / nomes.length));
     const ds = [];
@@ -2639,7 +2642,7 @@ function renderEstoqueIfc() {
     }).join('') + '</tbody>';
 
   // últimos apontamentos de montagem (editar/excluir em Produção > Apontar montagem)
-  const evs = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 20);
+  const evs = [...(T.apontamentos || [])].filter(a => !window.USUARIO_EMPRESA || normEmp(a.empresa) === normEmp(window.USUARIO_EMPRESA)).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha).slice(0, 20);
   tabEv.innerHTML = `<thead><tr><th>Data</th><th>Tipo</th><th>Rua/Eixo</th><th>Letra/Faixa</th><th class="n">Qtd</th><th>Empresa</th></tr></thead><tbody>` +
     (evs.length ? evs.map(e => `<tr><td>${fdA(e.data)}</td><td>${(e.tipo || '').toUpperCase() === 'JOIST' ? 'Joist içada' : 'Viga montada'}</td>
       <td>${esc(e.rua || e.eixo || '')}</td><td>${esc(e.letra || '')}${e.faixa ? ' · ' + esc(e.faixa) : ''}</td>
@@ -3384,7 +3387,8 @@ function relConsEmpresas() {   // colunas do consumo = empresas da obra (EJ, CMM
   const cf = estConsumoComCadastros(), l = (cf.empresas && cf.empresas.length ? [...cf.empresas] : ['EJ', 'CMM']).filter(Boolean);
   const ga = (M?.empresas || []).find(e => ganNorm(e.nome) === 'GLOBO ACOS');
   if (ga && !l.some(n => ganNorm(n) === 'GLOBO ACOS')) l.push(ga.nome);
-  return l;
+  const minhaE = window.USUARIO_EMPRESA ? normEmp(window.USUARIO_EMPRESA) : '';   // usuário de empresa só vê a coluna da própria empresa
+  return minhaE ? l.filter(n => normEmp(n) === minhaE) : l;
 }
 const consCorEmp = e => `var(${COR_EMP[e] || '--fg'})`;
 function relConsTotalItem(m, sems) { let t = 0; sems.forEach(s => { const d = m.consumo_semanas[s]; if (d) relConsEmpresas().forEach(e => { t += Number(d[e]) || 0; }); }); return t; }
@@ -3572,6 +3576,8 @@ async function recarregarEstoquePlanilha() {
 
 function renderEstConsumo() {
   if (!EP) return;
+  const tituloCons = [...document.querySelectorAll('#aba-estcons h2')].find(h => /^Consumo por semana/.test(h.textContent));
+  if (tituloCons) tituloCons.textContent = window.USUARIO_EMPRESA ? 'Consumo por semana (' + normEmp(window.USUARIO_EMPRESA) + ')' : 'Consumo por semana (EJ + CMM)';
   const cf = estConsumoComCadastros();
   const sems = cf.semanas;
   const f = ($('#estConsFiltro')?.value || '').toUpperCase();
@@ -3580,7 +3586,7 @@ function renderEstConsumo() {
     return true;
   });
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
-  const totCons = soma0(cf.itens, m => m.total_consumo);
+  const totCons = soma0(cf.itens, m => window.USUARIO_EMPRESA ? relConsTotalItem(m, sems) : m.total_consumo);
   $('#estConsTiles').innerHTML =
     tile('Fixadores', cf.itens.length, `${vis.length} visíveis`, 'var(--fg)') +
     tile('Semanas', sems.length, 'períodos registrados', 'var(--acento)') +
@@ -3600,7 +3606,7 @@ function renderEstConsumo() {
     (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.produto)}</td>` +
       sems.map(s => emps.map(e => celulaConsumo(m, s, e)).join('')).join('') +
       (ed ? emps.map(e => inp(m, e)).join('') : '') +
-      `<td class="n"><b>${nf(m.total_consumo)}</b></td></tr>`).join('')
+      `<td class="n"><b>${nf(window.USUARIO_EMPRESA ? relConsTotalItem(m, sems) : m.total_consumo)}</b></td></tr>`).join('')
     : `<tr><td colspan="${2 + sems.length * nE + (ed ? nE : 0) + 1}" class="vazio">Nenhum item encontrado.</td></tr>`) + '</tbody>';
   cxC.scrollLeft = sxC;
   edBarra('cons');
@@ -4740,6 +4746,7 @@ function renderApont() {
 const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', TELHAFECH: 'Telha fech.', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
 function apHistPassa(a) {
   const f = apEst.histFiltro;
+  if (window.USUARIO_EMPRESA && normEmp(a.empresa) !== normEmp(window.USUARIO_EMPRESA)) return false;   // empresa só vê os próprios apontamentos na lista
   if (f.emp && a.empresa !== f.emp) return false;
   if (f.tipo && apHistTipoRot(a) !== f.tipo) return false;
   if (f.prod && ((a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização') !== f.prod) return false;
@@ -4768,7 +4775,7 @@ function apHistFiltrar() {   // refaz só a lista (sem redesenhar o mapa); a bar
   apHistRender(ctx, true);
 }
 function apHistRender(ctx, manterFiltros) {
-  const todasSemFiltro = [...(T.apontamentos || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
+  const todasSemFiltro = [...(T.apontamentos || [])].filter(a => !window.USUARIO_EMPRESA || normEmp(a.empresa) === normEmp(window.USUARIO_EMPRESA)).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || b.linha - a.linha);
   const histTodas = todasSemFiltro.filter(apHistPassa);   // os filtros valem para todo o histórico, não só para as 40 linhas mostradas
   apEst.histTotal = histTodas.length;
   const hist = apEst.histTodos ? histTodas : histTodas.slice(0, 40);
@@ -6408,7 +6415,7 @@ function fornecedorDeSetor(txt) {
   const m = String(txt || '').trim().match(/^fornecedor\s*(?:[—–-]\s*(.*))?$/i);
   return m ? { isForn: true, nome: (m[1] || '').trim() } : { isForn: false, nome: '' };
 }
-function fornecedoresImpacto() { return [...new Set([...(M?.empresas || []).map(e => e.nome), 'CMM', 'EJ', 'GLOBO AÇOS'])]; }
+function fornecedoresImpacto() { return window.USUARIO_EMPRESA ? [...new Set((M?.empresas || []).map(e => e.nome))] : [...new Set([...(M?.empresas || []).map(e => e.nome), 'CMM', 'EJ', 'GLOBO AÇOS'])]; }
 function atualizarFornecedorImpacto(f) {
   const box = $('#impFornecedorBox'); if (!box) return;
   const fz = fornecedorDeSetor(f.elements.setor.value);
