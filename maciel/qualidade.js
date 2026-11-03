@@ -66,11 +66,17 @@ function qualSelSit(n) {
 async function qualMudarSituacao(linha, sit) {
   const n = qualTodas().find(x => x.linha === linha);
   if (!n || n.situacao === sit) return;
+  const d = document.getElementById('dlgNC'), naFicha = !!(d && d.open && d._id === linha);   // mudou a situação de dentro da ficha: ela continua aberta para seguir editando
+  const digitado = naFicha ? ((d.querySelector('#qualResposta') || {}).value || '') : null;
   try {
     const j = await postar(API + 'qualidade', { acao: 'situacao', id: linha, campos: { situacao: sit } });
-    const d = document.getElementById('dlgNC'); if (d && d.open) d.close();
     await carregar(); toast(`${j.codigo}: situação alterada para ${QUAL_SIT[sit]}.`);
-  } catch (e) { toast(e.message, true); renderQualidade(); }
+    if (naFicha) {
+      qualAbrir(linha);
+      const ta = d.querySelector('#qualResposta');
+      if (ta && !ta.disabled && digitado !== null && digitado !== ta.value) ta.value = digitado;   // o que já estava digitado não se perde
+    }
+  } catch (e) { toast(e.message, true); if (naFicha) qualAbrir(linha); else renderQualidade(); }
 }
 
 // Contador do menu: empresa = o que ela precisa responder; administrador = o que espera a validação; demais da gestão = respostas atrasadas.
@@ -279,7 +285,7 @@ function qualAbrir(id) {
     </fieldset>
     ${n ? `<fieldset class="qual-sec depois"><legend>DEPOIS — resposta da empresa</legend>
       ${qualAberta(n) && !perm.responder ? `<p class="nota">Aguardando a resposta de ${esc(n.empresa)} até ${n.prazo ? fdA(n.prazo) : '—'}.</p>` : ''}
-      ${perm.responder || perm.situacao || n.acao ? `<label class="qual-larga">Resposta / ação corretiva realizada${perm.responder ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea name="resposta" id="qualResposta" rows="4" placeholder="O que foi feito para corrigir e evitar que se repita" ${perm.responder || perm.situacao ? '' : 'disabled'}>${esc(n.acao || '')}</textarea></label>` : ''}
+      ${perm.responder || perm.situacao || n.acao ? `<label class="qual-larga">Descrição do que foi feito e corrigido (resposta)${perm.responder ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea name="resposta" id="qualResposta" rows="4" placeholder="Descreva o que foi feito e corrigido e o que evita que se repita. Aparece no relatório." ${perm.responder || perm.situacao ? '' : 'disabled'}>${esc(n.acao || '')}</textarea></label>` : ''}
       ${n.respondida_em ? `<p class="nota">Respondida por ${esc(n.respondida_por || '—')} em ${fdA(String(n.respondida_em).slice(0, 10))} às ${String(n.respondida_em).slice(11, 16)}${qualRespondidaAtraso(n) ? ' — <b style="color:var(--vermelho)">fora do prazo</b>' : ' — dentro do prazo'}</p>` : ''}
       ${n.situacao === 'concluida' ? `<p class="nota">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}.</p>` : ''}
       <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)</h4>${perm.fotoDepois ? `<label class="btn qual-up">+ Anexar fotos<input type="file" id="qualArqDepois" accept="image/*" multiple hidden></label>` : ''}</div>
@@ -297,7 +303,7 @@ function qualAbrir(id) {
       ${perm.editar ? `<button type="submit" class="btn qual-ok" id="qualSalvar">${n ? 'Salvar' : 'Registrar'}</button>` : ''}</div>
   </form>`;
   qualDesenharFotos();
-  d.showModal();
+  if (!d.open) d.showModal();
   d.querySelector(perm.responder ? '#qualResposta' : 'input[name=titulo]')?.focus();
 }
 function qualDesenharFotos() {
@@ -329,6 +335,8 @@ async function qualSalvar(form) {
   const btn = form.querySelector('#qualSalvar'); btn.disabled = true;
   try {
     const j = await postar(API + 'qualidade', { acao: 'salvar', id: d._id, campos });
+    const atual = d._id ? qualTodas().find(x => x.linha === d._id) : null, txt = String(campos.resposta || '').trim();
+    if (atual && qualPermissoes(atual).situacao && txt && txt !== (atual.acao || '').trim()) await postar(API + 'qualidade', { acao: 'resposta', id: d._id, campos: { resposta: txt } });   // o texto da resposta digitado também é salvo
     let enviadas = 0;
     for (const p of QUAL.fotosPend) {
       try { qualMsg(`Enviando foto ${enviadas + 1} de ${QUAL.fotosPend.length}…`); await qualEnviarFoto(j.id, p.arq, 'antes'); enviadas++; }
@@ -425,13 +433,13 @@ async function qualHtml(f) {
           <div class="nc-rot">Descrição</div><div class="nc-txt">${esc(n.descricao || n.titulo || '—')}</div>
           ${comFotos ? fotosHtml(n, 'antes') : ''}</div>
         <div class="nc-lado depois"><h4>Depois — resposta da empresa</h4>
-          ${n.acao ? `<div class="nc-rot">Ação corretiva realizada</div><div class="nc-txt">${esc(n.acao)}</div>` : `<div class="nc-vazio">${qualAberta(n) ? 'Aguardando a resposta da empresa' + (n.prazo ? ' até ' + fdA(n.prazo) : '') + '.' : 'Sem resposta registrada.'}</div>`}
+          ${n.acao ? `<div class="nc-rot">Descrição do que foi feito e corrigido</div><div class="nc-txt">${esc(n.acao)}</div>` : `<div class="nc-vazio">${qualAberta(n) ? 'Aguardando a resposta da empresa' + (n.prazo ? ' até ' + fdA(n.prazo) : '') + '.' : 'Sem resposta registrada.'}</div>`}
           ${n.respondida_em ? `<div class="nc-rot">Respondida</div><div class="nc-txt">${esc(n.respondida_por || '—')} em ${fdA(String(n.respondida_em).slice(0, 10))}${qualRespondidaAtraso(n) ? ' — <b>fora do prazo</b>' : ' — dentro do prazo'}</div>` : ''}
           ${comFotos ? fotosHtml(n, 'depois') : ''}
           ${n.situacao === 'concluida' ? `<div class="nc-rot">Validação</div><div class="nc-txt">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}</div>` : ''}
           ${n.devolucao && qualAberta(n) ? `<div class="nc-rot">Devolução</div><div class="nc-txt">${esc(n.devolucao)}</div>` : ''}</div>
       </div></div>`;
-  const tabela = l => `<table><thead><tr><th>Código</th><th>Registrada</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo p/ responder</th><th>Respondida</th><th>Resposta da empresa</th></tr></thead><tbody>${l.map(n =>
+  const tabela = l => `<table><thead><tr><th>Código</th><th>Registrada</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo p/ responder</th><th>Respondida</th><th>O que foi feito e corrigido</th></tr></thead><tbody>${l.map(n =>
     `<tr><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.titulo || '')}</td><td>${esc(n.local || '')}</td><td>${selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td><td>${qualSeloSit(n)}</td><td>${n.prazo ? fdA(n.prazo) : '—'}${qualAtrasada(n) ? ' ' + selo('ATRASADA', 'vermelho') : ''}</td><td>${n.respondida_em ? fdA(String(n.respondida_em).slice(0, 10)) + (qualRespondidaAtraso(n) ? ' ' + selo('COM ATRASO', 'vermelho') : '') : '—'}</td><td>${n.acao ? `<div class="nc-txt">${esc(n.acao)}</div>${n.respondida_por ? `<span class="nota">${esc(n.respondida_por)}</span>` : ''}` : '<span class="nota">sem resposta</span>'}</td></tr>`).join('')}</tbody></table>`;
   const sitNome = k => k === 'pendente' ? 'pendentes' : k === 'atrasada' ? 'resposta atrasada' : (QUAL_SIT[k] || k).toLowerCase();
   const filtroTxt = [empresaUnica ? `Empresa: ${empresaUnica}` : 'Todas as empresas', f.sit ? sitNome(f.sit) : '', f.ini ? `de ${fdA(f.ini)}` : '', f.fim ? `até ${fdA(f.fim)}` : ''].filter(Boolean).join(' · ');
