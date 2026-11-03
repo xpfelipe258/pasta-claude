@@ -2,6 +2,8 @@
 // Usuários da empresa: o administrador da empresa cliente cadastra e gerencia os usuários dela, dentro dos limites do plano contratado
 // (quantidade de usuários, obras e áreas liberadas). O administrador do sistema também abre esta página (empresa_usuarios.php?org=ID) a partir do Comercial.
 require __DIR__ . '/inc/nucleo.php';
+require_once __DIR__ . '/inc/modelo.php';
+require_once __DIR__ . '/inc/central.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 $eu = exigir_login_pagina();
@@ -150,6 +152,8 @@ pagina_inicio('Usuários da empresa');
     </div>
     <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if ($sistema): ?><a class="btn ghost" href="admin_planos.php">← Comercial</a><?php endif; ?><a class="btn ghost" href="obras.php?lista=1">Central de obras</a><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
+  <?= central_abas('config', $eu) ?>
+  <div style="max-width:1280px;margin:18px auto 0;padding:0 28px"><?= cfg_sub('usuarios', $eu, $orgId) ?></div>
   <main class="pl-shell">
     <section class="pl-hero"><span class="eyebrow">EMPRESA</span><h1>Usuários de <?= h($org['nome']) ?></h1>
       <p>Cadastre aqui as pessoas da sua empresa, escolha em quais obras cada uma entra e quais áreas do sistema pode usar. O que cada pessoa pode fazer respeita o plano contratado.</p></section>

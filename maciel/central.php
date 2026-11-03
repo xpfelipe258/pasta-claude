@@ -27,6 +27,8 @@ try { $com = com_resumo($eu); } catch (Throwable $e) { $com = ['qtd' => 0, 'aber
 // Pessoal
 try { $pes = pessoal_consolidar($eu, $ym); } catch (Throwable $e) { $pes = null; }
 
+$orgCfg = usuario_organizacao_id($eu)[0];
+$orgPlano = ($eu['perfil'] ?? '') !== 'admin' && usuario_admin_organizacao($eu) && $orgCfg ? organizacao_ler($orgCfg) : null;
 central_topo('Central da empresa', 'inicio', $eu);
 ?>
 <main class="ce-main">
@@ -55,6 +57,24 @@ central_topo('Central da empresa', 'inicio', $eu);
         <div class="ce-kpi"><span>Folha do mês</span><b><?= $pes && $pes['tot']['total'] !== null ? h(central_rs($pes['tot']['total'])) : '—' ?></b></div>
         <div class="ce-kpi"><span>Efetivo médio no DP</span><b><?= $pes ? h(number_format($pes['tot']['efetivo_media'], 1, ',', '.')) : '—' ?></b></div></div>
       <a class="btn primario" href="pessoal.php">Abrir pessoal →</a></article>
+    <article class="ce-card"><div class="ce-ico">⚙️</div><div><h2>Configurações</h2><small>Tema do sistema, logo dos relatórios oficiais, dados e textos padrão da empresa e usuários.</small></div>
+      <div class="ce-kpis"><div class="ce-kpi"><span>Logo dos relatórios</span><b><?= $orgCfg && cfg_identidade_ler($orgCfg)['logo'] !== '' ? 'Enviado' : ($orgCfg ? 'Pendente' : '—') ?></b></div>
+        <div class="ce-kpi"><span>Usuários da empresa</span><b><?= $orgCfg ? (int)organizacao_usuarios_em_uso($orgCfg) : '—' ?></b></div></div>
+      <a class="btn primario" href="config_empresa.php">Abrir configurações →</a></article>
+    <?php if ($orgPlano): $sitP = organizacao_situacao($orgPlano); $limO = organizacao_limite_obras($orgPlano); $limU = organizacao_limite_usuarios($orgPlano); ?>
+    <article class="ce-card"><div class="ce-ico">💳</div><div><h2>Painel administrativo</h2><small>O plano contratado, o informativo de pagamento, obras e usuários em uso (com os extras) e as limitações da contratação.</small></div>
+      <div class="ce-kpis"><div class="ce-kpi"><span>Plano</span><b><?= h($orgPlano['plano_nome'] ?: 'Sem plano') ?> · <?= h($sitP['rotulo']) ?></b></div>
+        <div class="ce-kpi"><span>Obras</span><b><?= (int)organizacao_obras_em_uso((int)$orgPlano['id']) ?> de <?= $limO === 0 ? 'ilimitadas' : $limO ?></b></div>
+        <div class="ce-kpi"><span>Usuários</span><b><?= (int)organizacao_usuarios_em_uso((int)$orgPlano['id']) ?> de <?= $limU === 0 ? 'ilimitados' : $limU ?></b></div>
+        <div class="ce-kpi"><span>Vencimento</span><b><?= h(central_dt($orgPlano['vencimento'])) ?></b></div></div>
+      <a class="btn primario" href="plano.php">Abrir plano e pagamentos →</a></article>
+    <?php endif; ?>
   </section>
+  <?php if (($eu['perfil'] ?? '') === 'admin'): ?>
+  <section class="ce-cards" style="margin-top:18px">
+    <article class="ce-card" style="border-color:var(--marca,#d97706)"><div class="ce-ico">🛡️</div><div><h2>Painel administrativo</h2><small>Só você, administrador geral, vê este painel: vendas do sistema (empresas clientes, planos, pagamentos e receita) e a administração geral (todas as obras e usuários, regras de plano, manutenção, auditoria e dados técnicos). O Painel comercial ao lado é o mesmo dos clientes.</small></div>
+      <a class="btn primario" href="sistema.php">Abrir painel administrativo →</a></article>
+  </section>
+  <?php endif; ?>
 </main></div>
 </body></html>

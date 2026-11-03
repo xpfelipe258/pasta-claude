@@ -583,3 +583,18 @@ function planos_indicadores()
     $ind['recebido_mes'] = round((float)q_global('SELECT COALESCE(SUM(valor), 0) FROM organizacoes_pagamentos WHERE data_pagamento >= ? AND data_pagamento <= ?', [$mes . '-01', $mes . '-31'])->fetchColumn(), 2);
     return $ind;
 }
+
+// ---- Configurações da empresa cliente (lidas também pela API dos relatórios) ----
+function cfg_json_ler($chave)
+{
+    $d = json_decode((string)global_ler($chave, '{}'), true);
+    return is_array($d) ? $d : [];
+}
+
+/** Identidade visual da empresa nos relatórios oficiais: ['logo' => data URI, 'cor' => '#rrggbb', 'por', 'em']. */
+function cfg_identidade_ler($orgId)
+{
+    $t = cfg_json_ler('identidade_organizacoes');
+    $d = is_array($t[(string)(int)$orgId] ?? null) ? $t[(string)(int)$orgId] : [];
+    return ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'por' => (string)($d['por'] ?? ''), 'em' => (string)($d['em'] ?? '')];
+}

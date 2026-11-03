@@ -527,6 +527,13 @@ function identidade_mapa(array $u)
             $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
         }
     }
+    // Identidade da empresa cliente (Configurações da Central): serve de padrão quando o relatório não é de uma empresa terceirizada com identidade própria
+    list($orgId) = usuario_organizacao_id($u);
+    if ($orgId) {
+        $o = organizacao_ler($orgId);
+        $d = cfg_identidade_ler($orgId);
+        if ($o && ($d['logo'] !== '' || $d['cor'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
+    }
     return (object)$out;
 }
 function acao_identidade(array $corpo, array $usuario)
@@ -1428,6 +1435,9 @@ function acao_registro(array $corpo)
     if (in_array($tabela, ['nao_conformidades', 'nc_fotos'], true)) {
         throw new ErroValidacao('As não conformidades são gravadas pela área Qualidade.');
     }
+    if ($tabela === 'equipamento_docs') {
+        throw new ErroValidacao('Os documentos do equipamento são anexados na tela de edição do equipamento.');
+    }
     if (in_array($tabela, ['bm_fechamentos', 'bm_fech_atividades'], true)) {
         throw new ErroValidacao('O fechamento do BM é gravado por Medição (BM) > Fechar BM / Reabrir.');
     }
@@ -1473,6 +1483,9 @@ function acao_registro(array $corpo)
                 estoque_remover_fixador_cadastrado($matExcluir['codigo']);
             }
             return 1;
+        }
+        if ($tabela === 'equipamentos') {
+            equip_docs_apagar($id);   // ART, laudos e planos anexados somem junto com o equipamento
         }
         q("DELETE FROM $tabela WHERE id = ?", [$id]);
         return 1;

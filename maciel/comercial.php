@@ -11,6 +11,12 @@ $msg = ''; $erro = '';
 $id = (int)($_GET['id'] ?? 0);
 $novo = isset($_GET['novo']);
 
+if (isset($_GET['sinapi'])) {   // pesquisa na tabela SINAPI importada e no catálogo próprio de estrutura metálica
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(sinapi_buscar(['q' => $_GET['q'] ?? '', 'grupo' => $_GET['grupo'] ?? '', 'tipo' => $_GET['tipo'] ?? '', 'uf' => $_GET['uf'] ?? '', 'regime' => $_GET['regime'] ?? 'SD', 'ref' => $_GET['ref'] ?? '']), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $acao = $_POST['acao'] ?? '';
@@ -69,6 +75,8 @@ $okMsg = ['salvo' => 'Orçamento salvo.', 'status' => 'Situação atualizada.', 
     'obra' => 'Obra criada a partir da proposta. Ela está na aba Obras, sem produção, estoque ou medições.'][$_GET['ok'] ?? ''] ?? '';
 if ($okMsg) { $msg = $okMsg; }
 $csrf = token_csrf();
+$orgPad = com_org($eu);
+$padEmp = cfg_perfil_ler($orgPad);   // padrões da empresa (Central › Configurações): validade, BDI e textos da proposta
 central_topo('Painel comercial', 'comercial', $eu, 'Painel comercial');
 
 // ---------------------------------------------------------------- editor
@@ -77,7 +85,7 @@ if ($id > 0 || $novo) {
     if ($id > 0 && !$o) { echo '<main class="ce-main"><div class="ce-vazio">Orçamento não encontrado. <a href="comercial.php">Voltar</a></div></main></div></body></html>'; exit; }
     if (!$o) {
         $o = ['id' => 0, 'numero' => '(novo)', 'titulo' => '', 'cliente' => '', 'contato' => '', 'email' => '', 'telefone' => '', 'local_obra' => '', 'status' => 'rascunho',
-            'data_ref' => date('Y-m-d'), 'validade_dias' => 30, 'prazo_dias' => '', 'bdi_pct' => 25, 'desconto_pct' => 0, 'escopo' => '', 'exclusoes' => '', 'pagamento' => '', 'observacoes' => '', 'obra_id' => null];
+            'data_ref' => date('Y-m-d'), 'validade_dias' => $padEmp['validade_dias'], 'prazo_dias' => '', 'bdi_pct' => $padEmp['bdi_pct'], 'desconto_pct' => 0, 'escopo' => '', 'exclusoes' => $padEmp['exclusoes_padrao'], 'pagamento' => $padEmp['pagamento_padrao'], 'observacoes' => $padEmp['obs_padrao'], 'obra_id' => null];
         $itens = [['etapa' => '', 'codigo' => '', 'descricao' => '', 'unidade' => '', 'quantidade' => '', 'custo_unit' => '', 'origem' => 'manual']];
     } else {
         $itens = com_itens($id) ?: [['etapa' => '', 'codigo' => '', 'descricao' => '', 'unidade' => '', 'quantidade' => '', 'custo_unit' => '', 'origem' => 'manual']];
@@ -116,7 +124,7 @@ if ($id > 0 || $novo) {
         <label>BDI (%)<input name="bdi_pct" id="bdi" inputmode="decimal" value="<?= h(str_replace('.', ',', (string)$o['bdi_pct'])) ?>"></label>
         <label>Desconto comercial (%)<input name="desconto_pct" id="desc" inputmode="decimal" value="<?= h(str_replace('.', ',', (string)$o['desconto_pct'])) ?>"></label>
       </div></section>
-    <section class="ce-bloco"><h2>Itens do orçamento</h2><p>Informe o <b>custo unitário</b> (sem BDI). O preço de venda de cada item é calculado com o BDI e o desconto. A coluna Origem fica reservada para os itens vindos de tabela de preços (ex.: SINAPI).</p>
+    <section class="ce-bloco"><h2>Itens do orçamento</h2><p>Informe o <b>custo unitário</b> (sem BDI). O preço de venda de cada item é calculado com o BDI e o desconto. Para pegar itens e custos da <b>tabela SINAPI</b> (ou do catálogo de estrutura metálica), use o botão <b>Buscar</b>: o item entra na lista com o código e o custo da tabela, e você só informa a quantidade.</p>
       <table class="ce-itens" id="tItens"><thead><tr><th style="width:15%">Etapa</th><th style="width:9%">Código</th><th>Descrição *</th><th style="width:6%">Un</th><th style="width:9%">Quantidade</th><th style="width:11%">Custo unit. (R$)</th><th style="width:11%" class="d">Custo (R$)</th><th style="width:11%" class="d">Venda (R$)</th><th style="width:3%"></th></tr></thead><tbody>
       <?php foreach ($calc['itens'] as $it): ?>
         <tr><td><input name="etapa[]" value="<?= h($it['etapa']) ?>" list="dlEtapas"></td><td><input name="codigo[]" value="<?= h($it['codigo']) ?>"></td><td><input name="descricao[]" value="<?= h($it['descricao']) ?>"></td>
@@ -125,7 +133,7 @@ if ($id > 0 || $novo) {
           <td><input type="hidden" name="origem[]" value="<?= h($it['origem'] ?? 'manual') ?>"><button type="button" class="btn ghost ce-btn-peq" data-rem title="Remover linha">✕</button></td></tr>
       <?php endforeach; ?></tbody></table>
       <datalist id="dlEtapas"><?php foreach (array_keys($calc['etapas']) as $e): ?><option value="<?= h($e) ?>"><?php endforeach; ?></datalist>
-      <div class="ce-acoes"><button type="button" class="btn" id="bMais">+ Adicionar item</button></div>
+      <div class="ce-acoes"><button type="button" class="btn" id="bMais">+ Adicionar item</button><button type="button" class="btn primario" id="bSinapi">🔎 Buscar na tabela SINAPI e no catálogo de estrutura metálica</button></div>
       <div class="ce-tot"><div><small>Custo direto</small><b id="tDir"><?= h(central_rs($calc['direto'])) ?></b></div><div><small>BDI</small><b id="tBdi"><?= h(central_rs($calc['bdi_valor'])) ?></b></div>
         <div><small>Desconto</small><b id="tDesc">− <?= h(central_rs($calc['desconto_valor'])) ?></b></div><div class="gr"><small>Preço de venda</small><b id="tVenda"><?= h(central_rs($calc['total'])) ?></b></div>
         <div><small>Margem bruta</small><b id="tMarg"><?= h(central_rs($calc['margem'])) ?> · <?= h(number_format($calc['margem_pct'], 1, ',', '.')) ?>%</b></div></div></section>
@@ -134,8 +142,17 @@ if ($id > 0 || $novo) {
         <label class="full">Itens não incluídos (exclusões)<textarea name="exclusoes"><?= h($o['exclusoes']) ?></textarea></label>
         <label class="full">Condições de pagamento<textarea name="pagamento"><?= h($o['pagamento']) ?></textarea></label>
         <label class="full">Observações<textarea name="observacoes"><?= h($o['observacoes']) ?></textarea></label></div></section>
-    <div class="ce-acoes"><button class="btn primario">Salvar orçamento</button><?php if ($o['id']): ?><a class="btn" href="proposta.php?id=<?= (int)$o['id'] ?>" target="_blank" rel="noopener">Ver proposta (imprimir / PDF)</a><?php endif; ?></div>
+    <div class="ce-acoes"><button class="btn primario">Salvar orçamento</button><span class="ce-nota" id="avisoSujo" hidden>Há alterações não salvas — salve antes de gerar os PDFs.</span></div>
   </form>
+  <?php if ($o['id']): ?>
+  <section class="ce-bloco" style="margin-top:24px" id="docs"><h2>Documentos para gerar</h2>
+    <p>Depois de criar e ajustar o orçamento, gere os documentos. Eles usam o que está <b>salvo</b>, com o logo e os dados da sua empresa (Configurações).</p>
+    <div class="ce-acoes" style="margin-top:0">
+      <a class="btn primario" data-doc href="proposta_pdf.php?id=<?= (int)$o['id'] ?>&amp;tipo=proposta">⬇ Gerar proposta comercial (PDF)</a>
+      <a class="btn" data-doc href="proposta_pdf.php?id=<?= (int)$o['id'] ?>&amp;tipo=orcamento">⬇ PDF do orçamento (uso interno)</a>
+      <a class="btn ghost" href="proposta.php?id=<?= (int)$o['id'] ?>" target="_blank" rel="noopener">Ver proposta na tela / imprimir</a></div>
+    <p class="ce-nota" style="margin:10px 0 0"><b>Proposta</b> = o que vai para o cliente (só preço de venda). <b>Orçamento</b> = planilha interna com custo, BDI, desconto e margem — não envie ao cliente.</p></section>
+  <?php endif; ?>
   <?php if ($o['id']): ?>
   <section class="ce-bloco" style="margin-top:24px"><h2>Situação e próximos passos</h2><p>Mude a situação conforme a negociação. Quando o cliente aprovar, crie a obra com o valor do contrato.</p>
     <div class="ce-acoes" style="margin-top:0">
@@ -150,6 +167,17 @@ if ($id > 0 || $novo) {
     </div></section>
   <?php endif; ?>
 </main></div>
+<dialog id="dlgSin" class="ce-dlg"><form method="dialog" style="margin:0"><div class="ce-dlg-cab"><h2 style="margin:0">Tabela SINAPI e catálogo de estrutura metálica</h2><button class="btn ghost ce-btn-peq" value="x">Fechar</button></div></form>
+  <div class="ce-dlg-corpo">
+    <div class="ce-sin-filtros">
+      <label>Buscar<input id="sQ" placeholder="ex.: perfil I, telha trapezoidal, chumbador, 93358" autocomplete="off"></label>
+      <label>Estado<select id="sUf"><?php foreach (sinapi_ufs() as $u_): ?><option><?= h($u_) ?></option><?php endforeach; ?></select></label>
+      <label>Regime<select id="sRg"><?php foreach (sinapi_regimes() as $k_ => $r_): ?><option value="<?= h($k_) ?>"><?= h($r_) ?></option><?php endforeach; ?></select></label>
+      <label>Tipo<select id="sTp"><option value="">Tudo</option><option value="I">Insumos</option><option value="C">Composições</option><option value="P">Catálogo próprio (sem preço)</option></select></label></div>
+    <div class="ce-sin-chips" id="sChips"><button type="button" data-g="" class="on">Todos</button><?php foreach (sinapi_grupos() as $k_ => $g_): ?><button type="button" data-g="<?= h($k_) ?>"><?= h($g_[0]) ?></button><?php endforeach; ?></div>
+    <div id="sInfo" class="ce-nota"></div>
+    <div style="overflow:auto;max-height:52vh"><table class="ce-tab" id="sTab"><thead><tr><th>Origem</th><th>Código</th><th>Descrição</th><th>Un</th><th class="d">Custo unit. (R$)</th><th></th></tr></thead><tbody></tbody></table></div>
+  </div></dialog>
 <script>
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -175,6 +203,42 @@ if ($id > 0 || $novo) {
       if (tb.rows.length) nova.querySelector('[name="etapa[]"]').value = tb.rows[tb.rows.length - 1].querySelector('[name="etapa[]"]').value; nova.querySelector('.c-dir').textContent = '0,00'; nova.querySelector('.c-ven').textContent = '0,00'; tb.appendChild(nova); nova.querySelector('[name="descricao[]"]').focus(); }
     var rem = e.target.closest('[data-rem]'); if (rem) { var tb2 = $('#tItens tbody'); if (tb2.rows.length > 1) { rem.closest('tr').remove(); } else { rem.closest('tr').querySelectorAll('input:not([type=hidden])').forEach(function (i) { i.value = ''; }); } calc(); }
   });
+  // ---- pesquisa SINAPI / catálogo
+  var dlg = $('#dlgSin'), tmr = null, grupo = '';
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function buscar() {
+    var u = 'comercial.php?sinapi=1&q=' + encodeURIComponent($('#sQ').value) + '&grupo=' + grupo + '&tipo=' + $('#sTp').value + '&uf=' + ($('#sUf').dataset.tocado ? $('#sUf').value : '') + '&regime=' + $('#sRg').value;
+    fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      var tb = $('#sTab tbody'); tb.innerHTML = '';
+      if (j.uf && !$('#sUf').dataset.tocado) { $('#sUf').value = j.uf; }
+      $('#sInfo').innerHTML = (j.tem_tabela ? 'Tabela SINAPI <b>' + esc(j.ref.slice(5) + '/' + j.ref.slice(0, 4)) + '</b> · ' + esc(j.uf) + ' · ' : '<b>Tabela SINAPI ainda não importada</b> para este estado/regime' + (<?= ($eu['perfil'] ?? '') === 'admin' ? 'true' : 'false' ?> ? ' — <a href="sinapi.php">importar a planilha da Caixa</a>' : ' — peça ao administrador do sistema') + ' · ') + j.total + ' resultado(s)' + (j.itens.length < j.total ? ' (mostrando ' + j.itens.length + ')' : '');
+      j.itens.forEach(function (it, i) {
+        var tr = document.createElement('tr'), semPreco = it.preco == null;
+        tr.innerHTML = '<td><span class="ce-tag ' + (it.origem === 'sinapi' ? 'azul' : 'amarelo') + '">' + (it.origem === 'sinapi' ? (it.tipo === 'C' ? 'SINAPI comp.' : 'SINAPI insumo') : 'Catálogo próprio') + '</span></td><td>' + esc(it.codigo) + '</td><td>' + esc(it.descricao) + '</td><td>' + esc(it.unidade) + '</td><td class="d">' + (semPreco ? '<i>informe</i>' : fmt(it.preco)) + '</td><td><button type="button" class="btn ce-btn-peq">Adicionar</button></td>';
+        tr.querySelector('button').addEventListener('click', function () { adicionar(it); this.textContent = '✓ Adicionado'; });
+        tb.appendChild(tr);
+      });
+      if (!j.itens.length) tb.innerHTML = '<tr><td colspan="6" class="ce-vazio">Nada encontrado. Tente outra palavra ou outro grupo.</td></tr>';
+    });
+  }
+  function adicionar(it) {
+    var tb = $('#tItens tbody'), ult = tb.rows[tb.rows.length - 1], vazia = !ult.querySelector('[name="descricao[]"]').value.trim();
+    var tr = vazia ? ult : ult.cloneNode(true);
+    if (!vazia) { tr.querySelectorAll('input:not([type=hidden])').forEach(function (i) { i.value = ''; }); tr.querySelector('[name="etapa[]"]').value = ult.querySelector('[name="etapa[]"]').value; }
+    tr.querySelector('[name="codigo[]"]').value = (it.origem === 'sinapi' ? 'SINAPI ' : '') + it.codigo;
+    tr.querySelector('[name="descricao[]"]').value = it.descricao.slice(0, 255); tr.querySelector('[name="unidade[]"]').value = (it.unidade || '').slice(0, 12);
+    tr.querySelector('[name="custo[]"]').value = it.preco == null ? '' : fmt(it.preco); tr.querySelector('[name="origem[]"]').value = it.origem;
+    if (!vazia) { tr.querySelector('.c-dir').textContent = '0,00'; tr.querySelector('.c-ven').textContent = '0,00'; tb.appendChild(tr); }
+    tr.querySelector('[name="qtd[]"]').focus(); calc();
+  }
+  $('#bSinapi').addEventListener('click', function () { dlg.showModal(); $('#sQ').focus(); buscar(); });
+  ['#sUf', '#sRg', '#sTp'].forEach(function (s) { $(s).addEventListener('change', function () { if (s === '#sUf') this.dataset.tocado = '1'; buscar(); }); });
+  $('#sQ').addEventListener('input', function () { clearTimeout(tmr); tmr = setTimeout(buscar, 250); });
+  $('#sChips').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; grupo = b.dataset.g; this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); buscar(); });
+  // ---- aviso de alterações não salvas antes de gerar os PDFs
+  var sujo = false; document.addEventListener('input', function (e) { if (e.target.closest('#fOrc')) { sujo = true; var a = $('#avisoSujo'); if (a) a.hidden = false; } });
+  document.querySelectorAll('[data-doc]').forEach(function (a) { a.addEventListener('click', function (e) { if (sujo && !confirm('Há alterações não salvas: o PDF sai com a última versão SALVA. Gerar mesmo assim?')) e.preventDefault(); }); });
+  $('#fOrc').addEventListener('submit', function () { sujo = false; });
   calc();
 })();
 </script>
@@ -191,7 +255,7 @@ $cls = ['rascunho' => '', 'enviada' => 'azul', 'aprovada' => 'verde', 'perdida' 
 <main class="ce-main">
   <section class="ce-hero"><div><span class="ce-eyebrow">PAINEL COMERCIAL</span><h1>Orçamentos e propostas</h1>
     <p>Elabore o orçamento com custo direto, BDI e desconto, imprima a proposta comercial e, quando o cliente aprovar, crie a obra com o valor de contrato.</p></div>
-    <a class="btn primario" href="comercial.php?novo=1">+ Novo orçamento</a></section>
+    <span style="display:flex;gap:10px;flex-wrap:wrap"><?php if (($eu['perfil'] ?? '') === 'admin'): ?><a class="btn" href="sinapi.php">Tabela SINAPI</a><?php endif; ?><a class="btn primario" href="comercial.php?novo=1">+ Novo orçamento</a></span></section>
   <?php if ($msg): ?><div class="toast ok-faixa"><?= h($msg) ?></div><?php endif; ?>
   <?php if ($erro): ?><div class="toast erro-form"><?= h($erro) ?></div><?php endif; ?>
   <section class="ce-grid">
@@ -208,7 +272,7 @@ $cls = ['rascunho' => '', 'enviada' => 'azul', 'aprovada' => 'verde', 'perdida' 
       <tr><td><a href="comercial.php?id=<?= (int)$o['id'] ?>"><b><?= h($o['numero']) ?></b></a></td><td><?= h($o['titulo']) ?><br><small style="color:#667085"><?= h($o['cliente']) ?></small></td>
         <td><?= h(central_dt($o['data_ref'])) ?></td><td><span class="ce-tag <?= $cls[$o['status']] ?? '' ?>"><?= h($st[$o['status']] ?? $o['status']) ?></span><?= !empty($o['obra_id']) ? ' <span class="ce-tag verde">obra</span>' : '' ?></td>
         <td class="d"><?= h(central_rs($o['direto'])) ?></td><td class="d"><b><?= h(central_rs($o['total'])) ?></b></td><td class="d"><?= h(number_format($o['margem_pct'], 1, ',', '.')) ?>%</td>
-        <td class="d"><a class="btn ce-btn-peq" href="proposta.php?id=<?= (int)$o['id'] ?>" target="_blank" rel="noopener">Proposta</a></td></tr>
+        <td class="d"><a class="btn ce-btn-peq" href="proposta_pdf.php?id=<?= (int)$o['id'] ?>&amp;tipo=proposta" title="Baixar a proposta comercial em PDF">Proposta PDF</a> <a class="btn ghost ce-btn-peq" href="proposta_pdf.php?id=<?= (int)$o['id'] ?>&amp;tipo=orcamento" title="PDF interno com custo, BDI e margem">Orçamento PDF</a></td></tr>
     <?php endforeach; ?></tbody></table>
   <?php endif; ?></section>
 </main></div>
