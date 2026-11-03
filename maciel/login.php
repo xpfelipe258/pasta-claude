@@ -33,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 pagina_inicio('Entrar');
 $logo = global_ler('logo', '');
+$cadastroAberto = false;
+try { $cadastroAberto = !empty(planos_config()['cadastro_aberto']); } catch (Throwable $e) { /* banco sem as tabelas de planos */ }
 ?>
 <main class="login-premium">
   <section class="login-showcase">
@@ -42,6 +44,7 @@ $logo = global_ler('logo', '');
   </section>
   <section class="login-panel"><form method="post" class="login-form">
     <div class="mobile-logo"><?php if ($logo): ?><img src="<?= h($logo) ?>" alt="Logo"><?php endif; ?></div>
+    <?php if ($cadastroAberto): ?><nav class="login-abas" aria-label="Acesso"><a href="login.php" class="ativa" aria-current="page">Entrar</a><a href="cadastro.php">Cadastro</a></nav><?php endif; ?>
     <span class="eyebrow">ACESSO SEGURO</span><h2>Bem-vindo de volta</h2><p>Entre para acessar sua central de obras.</p>
     <input type="hidden" name="csrf" value="<?= h(token_csrf()) ?>">
     <label>Usuário<div class="input-wrap"><span>●</span><input name="login" autocomplete="username" placeholder="Seu usuário" required autofocus></div></label>
@@ -49,7 +52,7 @@ $logo = global_ler('logo', '');
     <?php if (!empty(manutencao_info()['ativo']) && $erro === ''): ?><p class="erro-form">🔧 <?= h(trim((string)manutencao_info()['mensagem']) !== '' ? manutencao_info()['mensagem'] : 'O sistema está em manutenção. Tente novamente em instantes.') ?></p><?php endif; ?>
     <?php if ($erro): ?><p class="erro-form"><?= h($erro) ?></p><?php endif; ?>
     <button class="btn primario login-button" type="submit">Entrar no sistema <span>→</span></button>
-    <div class="login-links"><a href="redefinir_senha.php">Esqueci minha senha</a></div>
+    <div class="login-links"><a href="redefinir_senha.php">Esqueci minha senha</a><?php if ($cadastroAberto): ?> · <a href="cadastro.php">Cadastrar minha empresa</a><?php endif; ?></div>
     <small class="login-security">Sessão protegida e acesso monitorado</small>
   </form></section>
 </main>

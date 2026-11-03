@@ -1693,3 +1693,12 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .eqdoc-chip { display: inline-block; padding: 2px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: .7rem; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
 .eqdoc-chip.f-verde { background: #dcfae6; color: #05603a; } .eqdoc-chip.f-amarelo { background: #fef0c7; color: #93370d; }
 .eqdoc-chip.f-vermelho { background: #fee4e2; color: #b42318; } .eqdoc-chip.f-cinza { background: #f2f4f7; color: #98a2b3; text-decoration: line-through; }
+
+/* Qualidade: NC com mais de uma empresa — escolha das empresas e uma resposta (texto + fotos) por empresa */
+.qual-emps { border: 1px solid var(--linha, #d0d5dd); border-radius: 8px; padding: 6px 12px 10px; margin: 0; min-width: 0; }
+.qual-emps legend { font-size: 12px; font-weight: 600; padding: 0 6px; }
+.qual-emps label.check { display: inline-flex; align-items: center; gap: 6px; margin: 4px 16px 0 0; font-weight: 600; }
+.qual-emps input[type=checkbox] { width: auto; margin: 0; }
+.qual-resp-emp { border: 1px solid var(--linha, #d0d5dd); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
+.qual-resp-tit { margin: 0 0 6px; font-size: 13px; }
+.qual-resp-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }

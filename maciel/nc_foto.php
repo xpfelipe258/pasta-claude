@@ -36,7 +36,7 @@ $admin = usuario_admin_da_obra($u);
 function nc_da_foto($ncId, $minhaEmp)
 {
     $nc = q('SELECT id, empresa, situacao FROM nao_conformidades WHERE id = ?', [(int)$ncId])->fetch();
-    if (!$nc || ($minhaEmp !== '' && $nc['empresa'] !== $minhaEmp)) {
+    if (!$nc || ($minhaEmp !== '' && !in_array($minhaEmp, nc_empresas_da($nc['empresa']), true))) {
         nc_resp(404, ['erro' => 'Não conformidade não encontrada.']);
     }
     return $nc;
@@ -47,15 +47,18 @@ function nc_da_foto($ncId, $minhaEmp)
 function nc_pode_foto(array $nc, $tipo, $minhaEmp, $admin)
 {
     if ($tipo === 'depois') {
-        return ($minhaEmp !== '' || $admin) && $nc['situacao'] === 'aberta';
+        return $admin || ($minhaEmp !== '' && in_array($nc['situacao'], ['aberta', 'andamento'], true));   // o administrador também anexa/ajusta a foto da correção depois de concluída
     }
     return $minhaEmp === '' && $nc['situacao'] !== 'concluida';
 }
 
 if ($acao === 'ver') {
-    $f = q('SELECT arquivo, nc_id FROM nc_fotos WHERE id = ?', [(int)($_GET['id'] ?? 0)])->fetch();
+    $f = q('SELECT arquivo, nc_id, tipo, empresa FROM nc_fotos WHERE id = ?', [(int)($_GET['id'] ?? 0)])->fetch();
     if ($f) {
         nc_da_foto($f['nc_id'], $minhaEmp);
+        if ($minhaEmp !== '' && ($f['tipo'] ?? '') === 'depois' && (string)($f['empresa'] ?? '') !== '' && $f['empresa'] !== $minhaEmp) {
+            nc_resp(404, ['erro' => 'Foto não encontrada.']);   // a foto da correção de outra empresa não é da empresa
+        }
     }
     $p = $f ? $dir . '/' . basename((string)$f['arquivo']) : '';
     if (!$f || !is_file($p)) {
@@ -118,9 +121,16 @@ if ($acao === 'enviar') {
     if (file_put_contents($dir . '/' . $arq, $bin) === false) {
         nc_resp(500, ['erro' => 'Não consegui gravar a foto no servidor.']);
     }
+    $empFoto = null;   // foto "depois" de NC com várias empresas: guarda de qual empresa é
+    if ($tipo === 'depois' && count(nc_empresas_da($nc['empresa'])) > 1) {
+        $empFoto = $minhaEmp !== '' ? $minhaEmp : mb_strtoupper(trim((string)($_GET['empresa'] ?? '')));
+        if (!in_array($empFoto, nc_empresas_da($nc['empresa']), true)) {
+            nc_resp(400, ['erro' => 'Informe de qual empresa é a foto da correção.']);
+        }
+    }
     $ordem = (float)q('SELECT COALESCE(MAX(ordem), 0) FROM nc_fotos WHERE nc_id = ?', [(int)$nc['id']])->fetchColumn() + 1;
     $nome = mb_substr(preg_replace('/[^\p{L}\p{N}._\- ]/u', '', (string)($_GET['nome'] ?? 'foto')), 0, 120);
-    q('INSERT INTO nc_fotos (nc_id, tipo, arquivo, nome, legenda, ordem, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [(int)$nc['id'], $tipo, $arq, $nome, null, $ordem, (string)$u['nome'], $agora]);
+    q('INSERT INTO nc_fotos (nc_id, tipo, arquivo, nome, legenda, ordem, por, em, empresa) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [(int)$nc['id'], $tipo, $arq, $nome, null, $ordem, (string)$u['nome'], $agora, $empFoto]);
     $id = (int)bd()->lastInsertId();
     qualidade_versao_subir();
     nc_resp(200, ['ok' => true, 'id' => $id]);
@@ -128,11 +138,14 @@ if ($acao === 'enviar') {
 
 if ($acao === 'legenda') {
     $id = (int)($_GET['id'] ?? 0);
-    $f = q('SELECT nc_id, tipo FROM nc_fotos WHERE id = ?', [$id])->fetch();
+    $f = q('SELECT nc_id, tipo, empresa FROM nc_fotos WHERE id = ?', [$id])->fetch();
     if (!$f) {
         nc_resp(404, ['erro' => 'Foto não encontrada.']);
     }
     $nc = nc_da_foto($f['nc_id'], $minhaEmp);
+    if ($minhaEmp !== '' && (string)($f['empresa'] ?? '') !== '' && $f['empresa'] !== $minhaEmp) {
+        nc_resp(403, ['erro' => 'Esta foto é de outra empresa.']);
+    }
     if (!nc_pode_foto($nc, $f['tipo'] === 'depois' ? 'depois' : 'antes', $minhaEmp, $admin)) {
         nc_resp(403, ['erro' => 'Esta foto não pode mais ser alterada.']);
     }
@@ -145,11 +158,14 @@ if ($acao === 'legenda') {
 
 if ($acao === 'excluir') {
     $id = (int)($_GET['id'] ?? 0);
-    $f = q('SELECT arquivo, nc_id, tipo FROM nc_fotos WHERE id = ?', [$id])->fetch();
+    $f = q('SELECT arquivo, nc_id, tipo, empresa FROM nc_fotos WHERE id = ?', [$id])->fetch();
     if (!$f) {
         nc_resp(404, ['erro' => 'Foto não encontrada.']);
     }
     $nc = nc_da_foto($f['nc_id'], $minhaEmp);
+    if ($minhaEmp !== '' && (string)($f['empresa'] ?? '') !== '' && $f['empresa'] !== $minhaEmp) {
+        nc_resp(403, ['erro' => 'Esta foto é de outra empresa.']);
+    }
     if (!nc_pode_foto($nc, $f['tipo'] === 'depois' ? 'depois' : 'antes', $minhaEmp, $admin)) {
         nc_resp(403, ['erro' => 'Esta foto não pode mais ser excluída.']);
     }
