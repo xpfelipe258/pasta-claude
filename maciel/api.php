@@ -524,7 +524,7 @@ function identidade_mapa(array $u)
     $meu = identidade_chave($u['empresa'] ?? '');
     foreach ($todas as $emp => $d) {
         if (tarefa_usuario_rotula($u) || identidade_chave($emp) === $meu) {
-            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
+            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'cor2' => (string)($d['cor2'] ?? '')];
         }
     }
     // Identidade da empresa cliente (Configurações da Central): serve de padrão quando o relatório não é de uma empresa terceirizada com identidade própria
@@ -532,7 +532,7 @@ function identidade_mapa(array $u)
     if ($orgId) {
         $o = organizacao_ler($orgId);
         $d = cfg_identidade_ler($orgId);
-        if ($o && ($d['logo'] !== '' || $d['cor'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
+        if ($o && ($d['logo'] !== '' || $d['cor'] !== '' || $d['cor2'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'cor2' => $d['cor2'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
     }
     return (object)$out;
 }
@@ -552,6 +552,10 @@ function acao_identidade(array $corpo, array $usuario)
         if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) {
             throw new ErroValidacao('Cor inválida (use o formato #rrggbb).');
         }
+        $cor2 = trim((string)($corpo['cor2'] ?? ''));
+        if ($cor2 !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor2)) {
+            throw new ErroValidacao('Cor secundária inválida (use o formato #rrggbb).');
+        }
         $logo = (string)($atual['logo'] ?? '');
         if (!empty($corpo['remover_logo'])) {
             $logo = '';
@@ -570,12 +574,12 @@ function acao_identidade(array $corpo, array $usuario)
             }
             $logo = (string)$corpo['logo'];
         }
-        if ($logo === '' && $cor === '') {
+        if ($logo === '' && $cor === '' && $cor2 === '') {
             unset($todas[$emp]);
         } else {
-            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
+            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'cor2' => $cor2, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
         }
-        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor, 'cor2' => $cor2]);
     }
     global_gravar('identidade_empresas', json_encode($todas, JSON_UNESCAPED_UNICODE));
     return ['ok' => true, 'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)]];

@@ -1711,3 +1711,10 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .qual-resp-emp { border: 1px solid var(--linha, #d0d5dd); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
 .qual-resp-tit { margin: 0 0 6px; font-size: 13px; }
 .qual-resp-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+.cfg-ident-faixas { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: .72rem; }
+.cfg-ident-faixas span { color: #fff; font-weight: 700; padding: 5px 22px 5px 10px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 100%, 0 100%); }
+.cfg-ident-faixas i { display: inline-block; height: 20px; border-left: 4px solid; }
+.cfg-ident-faixas u { text-decoration: none; border-bottom: 2px solid; font-weight: 700; padding: 2px 4px; }
+.cfg-campo-id { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.cfg-campo-id input[type=color] { width: 64px; height: 36px; padding: 2px; }
+.cfg-campo-id .cfg-check { display: flex; flex-direction: row; align-items: center; gap: 6px; font-weight: 400; }

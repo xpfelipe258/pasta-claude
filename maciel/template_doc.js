@@ -31,7 +31,7 @@ const TPL_SVG_QPC = `<svg viewBox="0 0 190 64" height="42" role="img" aria-label
 const tplLogo = k => TPL_LOGOS[k] ? `<img src="${TPL_LOGOS[k]}" alt="${k === 'rotula' ? 'Rótula' : 'QPC Engenharia'}" style="height:44px;display:block">` : (k === 'rotula' ? TPL_SVG_ROTULA : TPL_SVG_QPC);
 
 const TPL_CSS = `<style>
-:root{--tv:${TPL_COR.vermelho};--tve:${TPL_COR.vermelhoEsc};--ta:${TPL_COR.azul};--tae:${TPL_COR.azulEsc}}
+:root{--tv:${TPL_COR.vermelho};--tve:${TPL_COR.vermelhoEsc};--ta:${TPL_COR.azul};--tae:${TPL_COR.azulEsc};--tm:#7b2d6e;--tal:#2d6fb8}
 @page{margin:0}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:#eef1f6;margin:0;padding:0;max-width:none;font-size:12.5px}
@@ -41,7 +41,7 @@ body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:
 /* capa: faixa com corte diagonal, segunda faixa clara deslocada e sombra */
 .tpl-capa{position:relative;filter:drop-shadow(0 8px 10px rgba(10,44,87,.30));margin-bottom:22px}
 .tpl-capa-fundo{position:relative;color:#fff;padding:22px 34px 78px;clip-path:polygon(0 0,100% 0,100% 70%,62% 100%,0 100%);
-  background:linear-gradient(115deg,var(--tve) 0%,var(--tv) 36%,#7b2d6e 62%,var(--ta) 100%)}
+  background:linear-gradient(115deg,var(--tve) 0%,var(--tv) 36%,var(--tm) 62%,var(--ta) 100%)}
 .tpl-capa-fundo:before{content:"";position:absolute;inset:0;clip-path:polygon(58% 0,100% 0,100% 70%,70% 92%);background:linear-gradient(120deg,rgba(255,255,255,.14),rgba(255,255,255,0))}
 .tpl-capa-fundo:after{content:"";position:absolute;left:0;bottom:0;width:62%;height:10px;background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,0));clip-path:polygon(0 0,100% 0,96% 100%,0 100%)}
 .tpl-marcas{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
@@ -62,7 +62,7 @@ body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#14202b;background:
 .tpl-corpo .pag{max-width:none;padding:0 0 8px}
 h1{font-size:23px;margin:0 0 4px;color:var(--tae)}
 .tpl-corpo h2{font-size:14px;margin:26px 0 9px;padding:7px 28px 7px 14px;color:#fff;text-transform:uppercase;letter-spacing:.04em;border-radius:0;
-  background:linear-gradient(100deg,var(--tae),var(--ta) 70%,#2d6fb8);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 100%,0 100%);display:block;width:100%}
+  background:linear-gradient(100deg,var(--tae),var(--ta) 70%,var(--tal));clip-path:polygon(0 0,calc(100% - 18px) 0,100% 100%,0 100%);display:block;width:100%}
 .tpl-corpo h3{font-size:13px;margin:16px 0 6px;color:var(--ta);border-left:4px solid var(--tv);padding-left:8px}
 .sub-cab{color:#51606f;margin:0 0 14px}
 table{width:100%;border-collapse:separate;border-spacing:0;margin:6px 0 12px;font-size:11.5px;box-shadow:0 2px 8px rgba(10,44,87,.10);border-radius:6px}
@@ -118,7 +118,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
   const marcaGestao = ident && ident.logo
     ? `<span class="tpl-chip"><img src="${ident.logo}" alt="${esc(ident.nome)}" style="height:44px;max-width:240px;display:block"></span><div class="tpl-obra-leg">${esc(obraNome)}</div>`
     : `<span class="tpl-chip tpl-chip-obra">${esc(obraNome)}</span>`;
-  const corIdent = ident && ident.cor ? `<style>:root{--tv:${ident.cor};--tve:${tplEscurecer(ident.cor)}}</style>` : '';
+  const corIdent = tplCoresCss(ident);
   const base = typeof RE_CSS === 'string' ? RE_CSS : '';   // classes de conteúdo já usadas pelo relatório das empresas
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title><meta name="tpl-gestao" content="${esc(obraNome + ' · ' + gestaoNome)}">${base}${cssAntes}${TPL_CSS}${corIdent}${css}</head><body>
     ${barra || '<div class="topo-acoes"><button onclick="window.print()">Imprimir / salvar em PDF</button> <span class="nota">Gerado em ' + esc(quando) + ' (horário de Brasília)</span></div>'}
@@ -180,9 +180,20 @@ async function tplIdentidadeCarregar() {
 function tplIdentidade(empresa) {
   const k = String(empresa || window.USUARIO_EMPRESA || '').trim().toUpperCase();
   const d = k && TPL_IDENT.dados && TPL_IDENT.dados[k];
-  if (d && (d.logo || d.cor)) return { nome: k, logo: d.logo || '', cor: d.cor || '' };
+  if (d && (d.logo || d.cor || d.cor2)) return { nome: k, logo: d.logo || '', cor: d.cor || '', cor2: d.cor2 || '' };
   const o = TPL_IDENT.dados && TPL_IDENT.dados.__ORG__;   // identidade da empresa cliente (Central › Configurações), padrão de todos os relatórios dela
-  return o && (o.logo || o.cor) ? { nome: o.nome || 'EMPRESA', logo: o.logo || '', cor: o.cor || '' } : null;
+  return o && (o.logo || o.cor || o.cor2) ? { nome: o.nome || 'EMPRESA', logo: o.logo || '', cor: o.cor || '', cor2: o.cor2 || '' } : null;
+}
+// Mistura de duas cores #rrggbb (f = peso da segunda) e clareamento: usadas no degradê da capa e nos títulos quando a empresa define as cores
+function tplMisturar(a, b, f = 0.5) {
+  const x = parseInt(String(a).slice(1), 16), y = parseInt(String(b).slice(1), 16);
+  return '#' + [16, 8, 0].map(sh => Math.round(((x >> sh) & 255) * (1 - f) + ((y >> sh) & 255) * f).toString(16).padStart(2, '0')).join('');
+}
+// CSS das cores da empresa: principal (--tv: capa, detalhes, bordas) e secundária (--ta: títulos de seção, tabelas, rodapé); sem a escolha vale a cor padrão da Rótula
+function tplCoresCss(ident) {
+  if (!ident || (!ident.cor && !ident.cor2)) return '';
+  const v = ident.cor || TPL_COR.vermelho, a = ident.cor2 || TPL_COR.azul;
+  return `<style>:root{--tv:${v};--tve:${tplEscurecer(v)};--ta:${a};--tae:${tplEscurecer(a, 0.55)};--tm:${tplMisturar(v, a)};--tal:${tplMisturar(a, '#ffffff', 0.25)}}</style>`;
 }
 function tplEscurecer(hex, f = 0.55) {
   const n = parseInt(String(hex).slice(1), 16);

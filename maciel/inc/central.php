@@ -443,15 +443,18 @@ function cfg_identidade_salvar($orgId, array $post, array $u, $removerLogo)
     $cor = trim((string)($post['cor'] ?? ''));
     if (!empty($post['cor_padrao'])) { $cor = ''; }
     if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) { throw new InvalidArgumentException('Cor inválida (use o formato #rrggbb).'); }
+    $cor2 = trim((string)($post['cor2'] ?? ''));
+    if (!empty($post['cor2_padrao'])) { $cor2 = ''; }
+    if ($cor2 !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor2)) { throw new InvalidArgumentException('Cor secundária inválida (use o formato #rrggbb).'); }
     $atual = cfg_identidade_ler($orgId);
     $logo = $removerLogo ? '' : $atual['logo'];
     $novo = cfg_logo_do_upload('logo');
     if ($novo !== '') { $logo = $novo; }
     $t = cfg_json_ler('identidade_organizacoes');
-    if ($logo === '' && $cor === '') { unset($t[(string)(int)$orgId]); }
-    else { $t[(string)(int)$orgId] = ['logo' => $logo, 'cor' => $cor, 'por' => $u['nome'] ?? '', 'em' => agora()]; }
+    if ($logo === '' && $cor === '' && $cor2 === '') { unset($t[(string)(int)$orgId]); }
+    else { $t[(string)(int)$orgId] = ['logo' => $logo, 'cor' => $cor, 'cor2' => $cor2, 'por' => $u['nome'] ?? '', 'em' => agora()]; }
     global_gravar('identidade_organizacoes', json_encode($t, JSON_UNESCAPED_UNICODE));
-    registrar_global('empresa_identidade_salva', ['org' => (int)$orgId, 'por' => $u['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+    registrar_global('empresa_identidade_salva', ['org' => (int)$orgId, 'por' => $u['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor, 'cor2' => $cor2]);
 }
 
 /** Barra de seções da aba Configurações. $ativo: empresa | aparencia | logos | usuarios. */

@@ -49,7 +49,7 @@
 .cfg-prev i { position:absolute; left:10px; bottom:9px; width:42px; height:8px; border-radius:99px; }
 .cfg-menus { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; max-width:560px; }
 .cfg-ident { display:flex; flex-wrap:wrap; gap:22px; align-items:flex-start; }
-.cfg-capa { width:320px; max-width:100%; border-radius:14px; padding:16px 18px; color:#fff; background:linear-gradient(135deg,var(--tv,#d97706),#101828); display:flex; flex-direction:column; gap:12px; }
+.cfg-capa { width:320px; max-width:100%; border-radius:14px; padding:16px 18px; color:#fff; background:linear-gradient(135deg,var(--tv,#d97706),var(--ta,#101828)); display:flex; flex-direction:column; gap:12px; }
 .cfg-capa small { font-size:.68rem; letter-spacing:.1em; opacity:.8; } .cfg-capa b { font-size:1.15rem; } .cfg-capa > span { opacity:.85; font-size:.84rem; }
 .cfg-capa-marcas { display:flex; justify-content:space-between; gap:10px; }
 .cfg-chip { background:#fff; color:#475467; border-radius:4px 12px 4px 12px; min-width:110px; height:58px; display:grid; place-items:center; padding:6px 10px; }
