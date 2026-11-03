@@ -1483,7 +1483,7 @@ function url_base_sistema()
     return $scheme . '://' . $host . ($dir ? $dir : '');
 }
 
-function enviar_email_sistema($para, $assunto, $mensagem)
+function enviar_email_sistema($para, $assunto, $mensagem, $html = false)
 {
     $para = trim((string)$para);
     if (!filter_var($para, FILTER_VALIDATE_EMAIL)) { return false; }
@@ -1492,7 +1492,7 @@ function enviar_email_sistema($para, $assunto, $mensagem)
     $dom = preg_replace('/^www\./', '', $host);
     $headers = [
         'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Type: ' . ($html ? 'text/html' : 'text/plain') . '; charset=UTF-8',
         'From: ' . $nome . ' <no-reply@' . $dom . '>',
         'Reply-To: no-reply@' . $dom,
         'X-Mailer: PHP/' . phpversion(),
