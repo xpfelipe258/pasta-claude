@@ -237,11 +237,35 @@ async function qualEnviarFoto(ncId, arq, tipo, emp) {
   const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
   if (!r.ok) throw new Error(j.erro || 'falha no envio');
 }
-async function qualFotoDataUri(id) {   // a foto vai embutida no relatório (a visualização, a impressão e o PDF não dependem da sessão)
-  const r = await fetch(`${QUAL_FOTO}?acao=ver&id=${id}`);
-  if (!r.ok) throw new Error('foto indisponível');
-  const b = await r.blob();
-  return new Promise((ok, erro) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => erro(fr.error); fr.readAsDataURL(b); });
+async function qualFotoDataUri(id, tentativas = 4) {   // a foto vai embutida no relatório (a visualização, a impressão e o PDF não dependem da sessão); repete se o servidor recusar na hora
+  let ultimo = null;
+  for (let t = 0; t < tentativas; t++) {
+    try {
+      const r = await fetch(`${QUAL_FOTO}?acao=ver&id=${id}`, { cache: 'no-store' });
+      if (r.status === 404) throw new Error('foto não encontrada no servidor');   // arquivo ausente: repetir não adianta
+      if (!r.ok) throw new Error('servidor ocupado (' + r.status + ')');
+      const b = await r.blob();
+      if (!b.size) throw new Error('foto vazia');
+      return await new Promise((ok, erro) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => erro(fr.error); fr.readAsDataURL(b); });
+    } catch (e) {
+      ultimo = e;
+      if (/não encontrada/.test(e.message)) break;
+      await new Promise(ok => setTimeout(ok, 400 * (t + 1)));
+    }
+  }
+  throw ultimo || new Error('foto indisponível');
+}
+async function qualFotosEmLote(ids, max = 3) {   // poucas fotos por vez: dezenas de pedidos juntos fazem o servidor recusar alguns e a ficha sairia "sem foto"
+  const uris = new Map(), falhas = [], motivos = new Map();
+  let i = 0;
+  const trabalhador = async () => {
+    while (i < ids.length) {
+      const id = ids[i++];
+      try { uris.set(id, await qualFotoDataUri(id)); } catch (e) { uris.set(id, ''); motivos.set(id, e.message); falhas.push({ id, motivo: e.message }); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(max, ids.length) }, trabalhador));
+  return { uris, falhas, motivos };
 }
 
 // ---------------------------------------------------------------- janela da não conformidade
@@ -445,17 +469,19 @@ async function qualHtml(f) {
   const r = qualResumo(lista), emps = [...new Set(lista.map(rotulo))];
   const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const comFotos = f.fotos !== false;
-  const uris = new Map();
+  let uris = new Map(), motivos = new Map();
   if (comFotos) {
-    const fotos = lista.flatMap(n => qualFotosDe(n.linha));
-    await Promise.all(fotos.map(ft => qualFotoDataUri(ft.linha).then(u => uris.set(ft.linha, u)).catch(() => uris.set(ft.linha, ''))));
+    const ids = [...new Set(lista.flatMap(n => qualFotosDe(n.linha)).map(ft => ft.linha))];
+    const lote = await qualFotosEmLote(ids);
+    uris = lote.uris; motivos = lote.motivos;
+    if (lote.falhas.length) toast(`${lote.falhas.length} de ${ids.length} foto(s) não carregaram (${lote.falhas[0].motivo}). Gere o relatório de novo para tentar outra vez.`, true);
   }
   const selo = (t, cor) => `<span class="farol f-${cor}">${esc(t)}</span>`;
   const meta = (rot, val) => `<div><b>${rot}</b>${val}</div>`;
   const fotosHtml = (n, tipo, emp) => {
     const fts = qualFotosDe(n.linha, tipo, emp);
     if (!fts.length) return `<div class="nc-vazio">${tipo === 'antes' ? 'Sem foto do registro.' : 'Sem foto da correção.'}</div>`;
-    return `<div class="nc-fotos">${fts.map((ft, i) => `<figure><div class="nc-quadro">${uris.get(ft.linha) ? `<img src="${uris.get(ft.linha)}" alt="Foto ${i + 1}">` : '<span class="nota">foto indisponível</span>'}</div><figcaption><b>Foto ${i + 1} de ${fts.length}</b>${ft.legenda ? ' — ' + esc(ft.legenda) : ''}</figcaption></figure>`).join('')}</div>`;
+    return `<div class="nc-fotos">${fts.map((ft, i) => `<figure><div class="nc-quadro">${uris.get(ft.linha) ? `<img src="${uris.get(ft.linha)}" alt="Foto ${i + 1}">` : `<span class="nota">${/não encontrada/.test(motivos.get(ft.linha) || '') ? 'arquivo da foto não encontrado no servidor' : 'foto não carregou — gere o relatório de novo'}</span>`}</div><figcaption><b>Foto ${i + 1} de ${fts.length}</b>${ft.legenda ? ' — ' + esc(ft.legenda) : ''}</figcaption></figure>`).join('')}</div>`;
   };
   const ficha = n => { const ec = empresaUnica ? [empresaUnica] : qualEmps(n); return `<div class="nc-ficha"><h3>${esc(n.codigo || '')} — ${esc(n.titulo || '')}</h3>
       <div class="nc-meta">${meta(ec.length > 1 ? 'Empresas responsáveis' : 'Empresa responsável', esc(ec.join(' + ')))}${meta('Registrada em', fdA(n.data))}${meta('Local', esc(n.local || '—'))}${meta('Contato', esc(n.responsavel || '—'))}
@@ -494,7 +520,7 @@ async function qualHtml(f) {
 async function qualGerar(f, btn) {
   const rot = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Montando…'; }
-  try { reAbrirPrevia(await qualHtml(f), `Qualidade-${f.id ? 'NC-' + f.id : (f.emp || 'geral')}-${hoje()}.html`, f.id ? 'Relatório de não conformidade' : 'Relatório de não conformidades'); }
+  try { await Promise.resolve(carregar()).catch(() => {}); reAbrirPrevia(await qualHtml(f), `Qualidade-${f.id ? 'NC-' + f.id : (f.emp || 'geral')}-${hoje()}.html`, f.id ? 'Relatório de não conformidade' : 'Relatório de não conformidades'); }
   catch (e) { console.error(e); toast('Não foi possível gerar o relatório: ' + (e.message || e), true); }
   finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
