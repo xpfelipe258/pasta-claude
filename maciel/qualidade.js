@@ -9,22 +9,24 @@
 
 const QUAL = { emp: '', sit: '', grav: '', busca: '', fotosPend: [] };
 const QUAL_FOTO = 'nc_foto.php';
-const QUAL_SIT = { aberta: 'Aguardando resposta', respondida: 'Aguardando validação', concluida: 'Concluída' };
+const QUAL_SIT = { aberta: 'Aguardando resposta', andamento: 'Em andamento', respondida: 'Aguardando validação', concluida: 'Concluída' };
+const QUAL_SIT_MANUAL = ['aberta', 'andamento', 'concluida'];   // o administrador escolhe qualquer uma destas na hora; "Aguardando validação" só nasce quando a empresa responde
 const QUAL_GRAV = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
-const QUAL_COR_SIT = { aberta: 'vermelho', respondida: 'amarelo', concluida: 'verde' };
+const QUAL_COR_SIT = { aberta: 'vermelho', andamento: 'azul', respondida: 'amarelo', concluida: 'verde' };
 const QUAL_COR_GRAV = { baixa: 'verde', media: 'amarelo', alta: 'vermelho', critica: 'vermelho' };
 
 const qualSomenteLeitura = () => document.body.classList.contains('somente-leitura');
 const qualMinhaEmpresa = () => (window.USUARIO_EMPRESA || '').trim();
 const qualEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || D.usuario.admin_obra));
+const qualAberta = n => n.situacao === 'aberta' || n.situacao === 'andamento';   // com a empresa: aguardando resposta ou em andamento
 const qualTodas = () => (T.nao_conformidades || []).slice();
 const qualFotosDe = (id, tipo) => (T.nc_fotos || []).filter(f => f.nc_id === id && (!tipo || (f.tipo || 'antes') === tipo)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.linha - b.linha);
-const qualAtrasada = n => !!n.prazo && n.situacao === 'aberta' && n.prazo < hoje();   // prazo para responder venceu e a empresa ainda não respondeu
+const qualAtrasada = n => !!n.prazo && qualAberta(n) && n.prazo < hoje();   // prazo para responder venceu e a empresa ainda não respondeu
 const qualDiasPrazo = n => n.prazo ? diasEntre(hoje(), n.prazo) : null;
 const qualRespondidaAtraso = n => !!(n.prazo && n.respondida_em && String(n.respondida_em).slice(0, 10) > n.prazo);
 function qualPrazoTxt(n) {
   if (!n.prazo) return '—';
-  if (n.situacao !== 'aberta') return fdA(n.prazo);
+  if (!qualAberta(n)) return fdA(n.prazo);
   const d = qualDiasPrazo(n);
   return `${fdA(n.prazo)} <span class="nota">${d < 0 ? `(atrasada há ${-d} dia(s))` : d === 0 ? '(vence hoje)' : `(faltam ${d} dia(s))`}</span>`;
 }
@@ -46,17 +48,35 @@ function qualFiltradas() {
     .sort((a, b) => (b.data || '').localeCompare(a.data || '') || (b.codigo || '').localeCompare(a.codigo || '', 'pt', { numeric: true }));
 }
 const qualResumo = lista => ({
-  total: lista.length, aguardaResp: lista.filter(n => n.situacao === 'aberta').length, aguardaVal: lista.filter(n => n.situacao === 'respondida').length,
+  total: lista.length, aguardaResp: lista.filter(n => n.situacao === 'aberta').length, andam: lista.filter(n => n.situacao === 'andamento').length, aguardaVal: lista.filter(n => n.situacao === 'respondida').length,
   concl: lista.filter(n => n.situacao === 'concluida').length, atras: lista.filter(qualAtrasada).length,
   graves: lista.filter(n => n.situacao !== 'concluida' && (n.gravidade === 'alta' || n.gravidade === 'critica')).length,
 });
 const qualSelo = (txt, cor) => `<span class="farol f-${cor}">${esc(txt)}</span>`;
 const qualSeloSit = n => qualSelo(QUAL_SIT[n.situacao] || n.situacao || '—', QUAL_COR_SIT[n.situacao] || 'amarelo');
 
+
+// Seletor de situação (só administrador): muda na hora para Aguardando resposta, Em andamento ou Concluída.
+function qualSelSit(n) {
+  if (!qualPermissoes(n).situacao) return '';
+  const opts = QUAL_SIT_MANUAL.map(k => `<option value="${k}" ${n.situacao === k ? 'selected' : ''}>${QUAL_SIT[k]}</option>`);
+  if (!QUAL_SIT_MANUAL.includes(n.situacao)) opts.unshift(`<option value="${esc(n.situacao)}" selected disabled>${esc(QUAL_SIT[n.situacao] || n.situacao)}</option>`);
+  return `<select class="qual-sit-sel" data-qual-sit="${n.linha}" title="Mudar a situação desta não conformidade">${opts.join('')}</select>`;
+}
+async function qualMudarSituacao(linha, sit) {
+  const n = qualTodas().find(x => x.linha === linha);
+  if (!n || n.situacao === sit) return;
+  try {
+    const j = await postar(API + 'qualidade', { acao: 'situacao', id: linha, campos: { situacao: sit } });
+    const d = document.getElementById('dlgNC'); if (d && d.open) d.close();
+    await carregar(); toast(`${j.codigo}: situação alterada para ${QUAL_SIT[sit]}.`);
+  } catch (e) { toast(e.message, true); renderQualidade(); }
+}
+
 // Contador do menu: empresa = o que ela precisa responder; administrador = o que espera a validação; demais da gestão = respostas atrasadas.
 function qualPendencias() {
   const t = qualTodas();
-  if (qualMinhaEmpresa()) return t.filter(n => n.situacao === 'aberta');
+  if (qualMinhaEmpresa()) return t.filter(qualAberta);
   if (qualEhAdmin()) return t.filter(n => n.situacao === 'respondida');
   return t.filter(qualAtrasada);
 }
@@ -110,7 +130,7 @@ document.addEventListener('click', ev => {
 function qualAlertaHtml() {
   const minha = qualMinhaEmpresa(), t = qualTodas();
   if (minha) {
-    const lista = t.filter(n => n.situacao === 'aberta').sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999'));
+    const lista = t.filter(qualAberta).sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999'));
     if (!lista.length) return `<div class="qual-alerta ok"><b>✔ Nenhuma não conformidade aguardando a sua resposta.</b></div>`;
     return `<div class="qual-alerta"><b>⚠ ${lista.length} não conformidade(s) aguardando a resposta da ${esc(minha)}</b> — responda com texto e foto dentro do prazo.
       <ul>${lista.map(n => `<li><button class="btn qual-resp" data-qual-abrir="${n.linha}">Responder</button> <b>${esc(n.codigo)}</b> — ${esc(n.titulo)} <span class="nota">(${esc(n.local || '')})</span> · prazo ${qualPrazoTxt(n)}${n.devolucao ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</li>`).join('')}</ul></div>`;
@@ -145,6 +165,7 @@ function renderQualidade() {
     <div class="tiles">
       ${tile('Não conformidades', nf(r.total, 0), QUAL.emp ? esc(QUAL.emp) : 'todas as empresas', 'var(--acento)')}
       ${tile('Aguardando resposta', nf(r.aguardaResp, 0), 'com a empresa', r.aguardaResp ? 'var(--vermelho)' : 'var(--verde)')}
+      ${tile('Em andamento', nf(r.andam, 0), 'empresa tratando', r.andam ? 'var(--azul, #1e4fa8)' : 'var(--verde)')}
       ${tile('Aguardando validação', nf(r.aguardaVal, 0), 'com o administrador', r.aguardaVal ? 'var(--amarelo)' : 'var(--verde)')}
       ${tile('Concluídas', nf(r.concl, 0), r.total ? `${nf(r.concl / r.total * 100, 0)}% do total` : '—', 'var(--verde)')}
       ${tile('Resposta atrasada', nf(r.atras, 0), 'prazo venceu sem resposta', r.atras ? 'var(--vermelho)' : 'var(--verde)')}
@@ -164,12 +185,12 @@ function renderQualidade() {
       <div class="tabela-rolagem"><table id="tabQual"><thead><tr><th>Código</th><th>Registrada em</th><th>Empresa</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo para responder</th><th>Resposta</th><th class="n">Fotos</th><th></th></tr></thead><tbody>
         ${lista.length ? lista.map(n => {
           const antes = qualFotosDe(n.linha, 'antes').length, depois = qualFotosDe(n.linha, 'depois').length;
-          const acaoRot = n.situacao === 'aberta' && !gestao ? 'Responder' : n.situacao === 'respondida' && qualEhAdmin() ? 'Validar' : (ro || (gestao && n.situacao === 'concluida') || (!gestao && n.situacao !== 'aberta')) ? 'Abrir' : 'Editar';
+          const acaoRot = qualAberta(n) && !gestao ? 'Responder' : n.situacao === 'respondida' && qualEhAdmin() ? 'Validar' : (ro || (gestao && n.situacao === 'concluida') || (!gestao && !qualAberta(n))) ? 'Abrir' : 'Editar';
           return `<tr${qualAtrasada(n) ? ' class="qual-linha-atraso"' : ''}><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.empresa || '')}</td>
-            <td><a href="#" class="link" data-qual-abrir="${n.linha}"><b>${esc(n.titulo || '')}</b></a>${n.descricao ? `<div class="nota qual-desc">${esc(n.descricao)}</div>` : ''}${n.devolucao && n.situacao === 'aberta' ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</td>
+            <td><a href="#" class="link" data-qual-abrir="${n.linha}"><b>${esc(n.titulo || '')}</b></a>${n.descricao ? `<div class="nota qual-desc">${esc(n.descricao)}</div>` : ''}${n.devolucao && qualAberta(n) ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</td>
             <td>${esc(n.local || '')}</td>
             <td>${qualSelo(QUAL_GRAV[n.gravidade] || n.gravidade || '—', QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td>
-            <td>${qualSeloSit(n)}${n.situacao === 'concluida' && n.encerrada_em ? `<div class="nota">em ${fdA(n.encerrada_em)}${n.validada_por ? ' por ' + esc(n.validada_por) : ''}</div>` : ''}</td>
+            <td>${qualSeloSit(n)}${qualSelSit(n) ? `<div>${qualSelSit(n)}</div>` : ''}${n.situacao === 'concluida' && n.encerrada_em ? `<div class="nota">em ${fdA(n.encerrada_em)}${n.validada_por ? ' por ' + esc(n.validada_por) : ''}</div>` : ''}</td>
             <td>${qualPrazoTxt(n)}${qualAtrasada(n) ? ' <span class="farol f-vermelho">ATRASADA</span>' : ''}</td>
             <td>${n.respondida_em ? `${fdA(String(n.respondida_em).slice(0, 10))}${qualRespondidaAtraso(n) ? ' <span class="farol f-vermelho">COM ATRASO</span>' : ''}<div class="nota">${esc(n.respondida_por || '')}</div>` : (n.situacao === 'concluida' ? '—' : '<span class="nota">sem resposta</span>')}</td>
             <td class="n">${antes || depois ? `📷 ${antes} antes · ${depois} depois` : '—'}</td>
@@ -218,9 +239,10 @@ function qualPermissoes(n) {
   const emp = qualMinhaEmpresa(), ro = qualSomenteLeitura(), admin = qualEhAdmin(), sit = n ? n.situacao : 'aberta';
   return {
     editar: !ro && !emp && sit !== 'concluida',              // gestão edita o registro (antes)
-    responder: !ro && sit === 'aberta' && !!n && (!!emp || admin),   // empresa (ou admin) responde
+    responder: !ro && (sit === 'aberta' || sit === 'andamento') && !!n && (!!emp || admin),   // empresa (ou admin) responde
     decidir: !ro && admin && sit === 'respondida',          // admin valida ou devolve
     reabrir: !ro && admin && sit === 'concluida',
+    situacao: !ro && admin && !!n,                           // administrador muda a situação direto: aguardando resposta, em andamento ou concluída
     excluir: !ro && !!n && !emp && (admin || n.por === (D.usuario && D.usuario.nome)),
   };
 }
@@ -239,10 +261,10 @@ function qualAbrir(id) {
   d.innerHTML = `<form method="dialog" id="formNC" class="qual-form" autocomplete="off">
     <div class="qual-topo"><h3>${n ? `Não conformidade ${esc(n.codigo || '')}` : 'Nova não conformidade'}</h3>${n ? qualSeloSit(n) : ''}</div>
     ${n ? `<p class="nota">Registrada por ${esc(n.por || '—')}${n.em ? ' em ' + fdA(String(n.em).slice(0, 10)) + ' às ' + String(n.em).slice(11, 16) : ''} · empresa responsável: <b>${esc(n.empresa)}</b></p>` : ''}
-    ${n && n.devolucao && n.situacao === 'aberta' ? `<div class="qual-devol grande">↩ ${esc(n.devolucao)}</div>` : ''}
+    ${n && n.devolucao && qualAberta(n) ? `<div class="qual-devol grande">↩ ${esc(n.devolucao)}</div>` : ''}
     <fieldset class="qual-sec antes"><legend>ANTES — não conformidade encontrada</legend>
       <div class="qual-grade">
-        <label>Empresa responsável<select name="empresa" required ${perm.editar && (!n || n.situacao === 'aberta') ? '' : 'disabled'}><option value="">— escolha —</option>${empresas.map(e => `<option value="${esc(e)}" ${e === empSel ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
+        <label>Empresa responsável<select name="empresa" required ${perm.editar && (!n || qualAberta(n)) ? '' : 'disabled'}><option value="">— escolha —</option>${empresas.map(e => `<option value="${esc(e)}" ${e === empSel ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
         <label>Data do registro<input type="date" name="data" value="${v('data', hoje())}" ${ed} required></label>
         <label class="qual-larga">Não conformidade (resumo)<input name="titulo" maxlength="255" value="${v('titulo')}" placeholder="Ex.: Solda sem acabamento na viga VC-12" required ${ed}></label>
         <label class="qual-larga">Descrição detalhada<textarea name="descricao" rows="3" placeholder="O que foi encontrado, em que condição, requisito não atendido…" ${ed}>${v('descricao')}</textarea></label>
@@ -255,13 +277,14 @@ function qualAbrir(id) {
         <div id="qualFotosAntes" class="qual-fotos"></div></div>
     </fieldset>
     ${n ? `<fieldset class="qual-sec depois"><legend>DEPOIS — resposta da empresa</legend>
-      ${n.situacao === 'aberta' && !perm.responder ? `<p class="nota">Aguardando a resposta de ${esc(n.empresa)} até ${n.prazo ? fdA(n.prazo) : '—'}.</p>` : ''}
+      ${qualAberta(n) && !perm.responder ? `<p class="nota">Aguardando a resposta de ${esc(n.empresa)} até ${n.prazo ? fdA(n.prazo) : '—'}.</p>` : ''}
       ${perm.responder || n.acao ? `<label class="qual-larga">Resposta / ação corretiva realizada${perm.responder ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea name="resposta" id="qualResposta" rows="4" placeholder="O que foi feito para corrigir e evitar que se repita" ${perm.responder ? '' : 'disabled'}>${esc(n.acao || '')}</textarea></label>` : ''}
       ${n.respondida_em ? `<p class="nota">Respondida por ${esc(n.respondida_por || '—')} em ${fdA(String(n.respondida_em).slice(0, 10))} às ${String(n.respondida_em).slice(11, 16)}${qualRespondidaAtraso(n) ? ' — <b style="color:var(--vermelho)">fora do prazo</b>' : ' — dentro do prazo'}</p>` : ''}
       ${n.situacao === 'concluida' ? `<p class="nota">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}.</p>` : ''}
       <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)</h4>${perm.responder ? `<label class="btn qual-up">+ Anexar fotos<input type="file" id="qualArqDepois" accept="image/*" multiple hidden></label>` : ''}</div>
         <div id="qualFotosDepois" class="qual-fotos"></div></div>
     </fieldset>` : ''}
+    ${perm.situacao ? `<fieldset class="qual-sec"><legend>Situação (administrador)</legend><label>Mudar a situação para ${qualSelSit(n)}</label><p class="nota">Vale na hora e não envia e-mail. Concluída registra hoje e o seu nome como validação; as outras limpam a validação.</p></fieldset>` : ''}
     ${perm.decidir ? `<fieldset class="qual-sec"><legend>Validação do administrador</legend><label class="qual-larga">Motivo (obrigatório só para devolver)<textarea id="qualMotivo" rows="2" placeholder="O que ainda precisa ser corrigido"></textarea></label></fieldset>` : ''}
     <div class="qual-rodape"><span class="nota" id="qualMsg"></span>
       <button type="button" class="btn" id="qualFechar">Fechar</button>
@@ -400,11 +423,11 @@ async function qualHtml(f) {
           <div class="nc-rot">Descrição</div><div class="nc-txt">${esc(n.descricao || n.titulo || '—')}</div>
           ${comFotos ? fotosHtml(n, 'antes') : ''}</div>
         <div class="nc-lado depois"><h4>Depois — resposta da empresa</h4>
-          ${n.acao ? `<div class="nc-rot">Ação corretiva realizada</div><div class="nc-txt">${esc(n.acao)}</div>` : `<div class="nc-vazio">${n.situacao === 'aberta' ? 'Aguardando a resposta da empresa' + (n.prazo ? ' até ' + fdA(n.prazo) : '') + '.' : 'Sem resposta registrada.'}</div>`}
+          ${n.acao ? `<div class="nc-rot">Ação corretiva realizada</div><div class="nc-txt">${esc(n.acao)}</div>` : `<div class="nc-vazio">${qualAberta(n) ? 'Aguardando a resposta da empresa' + (n.prazo ? ' até ' + fdA(n.prazo) : '') + '.' : 'Sem resposta registrada.'}</div>`}
           ${n.respondida_em ? `<div class="nc-rot">Respondida</div><div class="nc-txt">${esc(n.respondida_por || '—')} em ${fdA(String(n.respondida_em).slice(0, 10))}${qualRespondidaAtraso(n) ? ' — <b>fora do prazo</b>' : ' — dentro do prazo'}</div>` : ''}
           ${comFotos ? fotosHtml(n, 'depois') : ''}
           ${n.situacao === 'concluida' ? `<div class="nc-rot">Validação</div><div class="nc-txt">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}</div>` : ''}
-          ${n.devolucao && n.situacao === 'aberta' ? `<div class="nc-rot">Devolução</div><div class="nc-txt">${esc(n.devolucao)}</div>` : ''}</div>
+          ${n.devolucao && qualAberta(n) ? `<div class="nc-rot">Devolução</div><div class="nc-txt">${esc(n.devolucao)}</div>` : ''}</div>
       </div></div>`;
   const tabela = l => `<table><thead><tr><th>Código</th><th>Registrada</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo p/ responder</th><th>Respondida</th></tr></thead><tbody>${l.map(n =>
     `<tr><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.titulo || '')}</td><td>${esc(n.local || '')}</td><td>${selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td><td>${qualSeloSit(n)}</td><td>${n.prazo ? fdA(n.prazo) : '—'}${qualAtrasada(n) ? ' ' + selo('ATRASADA', 'vermelho') : ''}</td><td>${n.respondida_em ? fdA(String(n.respondida_em).slice(0, 10)) + (qualRespondidaAtraso(n) ? ' ' + selo('COM ATRASO', 'vermelho') : '') : '—'}</td></tr>`).join('')}</tbody></table>`;
@@ -463,7 +486,8 @@ document.addEventListener('submit', ev => {
 });
 document.addEventListener('change', ev => {
   const t = ev.target;
-  if (t.id === 'qualSit') { QUAL.sit = t.value; renderQualidade(); }
+  if (t.dataset && t.dataset.qualSit) qualMudarSituacao(+t.dataset.qualSit, t.value);
+  else if (t.id === 'qualSit') { QUAL.sit = t.value; renderQualidade(); }
   else if (t.id === 'qualGrav') { QUAL.grav = t.value; renderQualidade(); }
   else if (t.id === 'qualArqAntes' || t.id === 'qualArqDepois') { const l = [...t.files], tipo = t.id === 'qualArqDepois' ? 'depois' : 'antes'; t.value = ''; if (l.length) qualAdicionarFotos(l, tipo); }
   else if (t.dataset && t.dataset.qualLeg) qualSalvarLegenda(t);

@@ -1222,7 +1222,7 @@ function qualidade_gravidades()
 }
 function qualidade_situacoes()
 {
-    return ['aberta' => 'Aguardando resposta', 'respondida' => 'Respondida — aguardando validação', 'concluida' => 'Concluída'];
+    return ['aberta' => 'Aguardando resposta', 'andamento' => 'Em andamento', 'respondida' => 'Respondida — aguardando validação', 'concluida' => 'Concluída'];
 }
 
 // Avisa por e-mail (depois de a resposta voltar para a tela) quem precisa agir: a empresa (nova/devolvida/concluída) ou o administrador (respondida).
@@ -1319,7 +1319,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         if ($minhaEmp === '' && !$admin) {
             throw new ErroValidacao('A resposta é dada pela empresa responsável.');
         }
-        if ($atual['situacao'] !== 'aberta') {
+        if (!in_array($atual['situacao'], ['aberta', 'andamento'], true)) {
             throw new ErroValidacao('Esta não conformidade não está aguardando resposta.');
         }
         $resp = mb_substr(trim((string)($corpo['campos']['resposta'] ?? '')), 0, 4000);
@@ -1332,6 +1332,22 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         gravar_linha('nao_conformidades', $id, ['acao' => $resp, 'situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
         qualidade_notificar($nc(1), 'respondida', $usuario);
         return ['id' => $id, 'codigo' => $atual['codigo']];
+    }
+
+    if ($acao === 'situacao') {   // o administrador muda a situação direto: aguardando resposta, em andamento ou concluída (sem e-mail)
+        if (!$admin) {
+            throw new ErroValidacao('Só o administrador muda a situação de uma não conformidade.');
+        }
+        $nova = (string)($corpo['campos']['situacao'] ?? '');
+        if (!in_array($nova, ['aberta', 'andamento', 'concluida'], true)) {
+            throw new ErroValidacao('Situação inválida.');
+        }
+        if ($nova === 'concluida') {
+            gravar_linha('nao_conformidades', $id, ['situacao' => 'concluida', 'encerrada_em' => $hoje, 'validada_por' => (string)$usuario['nome']]);
+        } else {
+            gravar_linha('nao_conformidades', $id, ['situacao' => $nova, 'encerrada_em' => null, 'validada_por' => null, 'respondida_em' => null, 'respondida_por' => null]);
+        }
+        return ['id' => $id, 'codigo' => $atual['codigo'], 'situacao' => $nova];
     }
 
     if (in_array($acao, ['validar', 'devolver', 'reabrir'], true)) {   // decisões do administrador
@@ -1379,7 +1395,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     $txt = function ($k, $max = 255) use ($c) {
         return mb_substr(trim((string)($c[$k] ?? '')), 0, $max);
     };
-    $empresa = $atual && $atual['situacao'] !== 'aberta' ? $atual['empresa'] : mb_strtoupper($txt('empresa'));
+    $empresa = $atual && !in_array($atual['situacao'], ['aberta', 'andamento'], true) ? $atual['empresa'] : mb_strtoupper($txt('empresa'));
     if ($empresa === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empresa])->fetch()) {
         throw new ErroValidacao('Escolha a empresa responsável pela não conformidade.');
     }

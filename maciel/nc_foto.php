@@ -47,7 +47,7 @@ function nc_da_foto($ncId, $minhaEmp)
 function nc_pode_foto(array $nc, $tipo, $minhaEmp, $admin)
 {
     if ($tipo === 'depois') {
-        return ($minhaEmp !== '' || $admin) && $nc['situacao'] === 'aberta';
+        return ($minhaEmp !== '' || $admin) && in_array($nc['situacao'], ['aberta', 'andamento'], true);
     }
     return $minhaEmp === '' && $nc['situacao'] !== 'concluida';
 }
