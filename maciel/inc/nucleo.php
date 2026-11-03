@@ -129,6 +129,8 @@ function tabelas_spec()
         'apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'tipo' => 'txt', 'rua' => 'txt', 'faixa' => 'txt',
             'eixo' => 'txt', 'letra' => 'txt', 'viga_id' => 'txt', 'qtd' => 'num', 'lanca_producao' => 'txt',
             'obs' => 'txt', 'slot' => 'num'],
+        // Documentos do equipamento (ART, laudos, plano de manutenção, plano de rigging...): o arquivo fica em dados_obras/{obra}/equipamentos e só sai por equip_doc.php
+        'equipamento_docs' => ['equip_id' => 'num', 'tipo' => 'txt', 'descricao' => 'txt', 'validade' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'tam' => 'num', 'por' => 'txt', 'em' => 'txt'],
         // Relatório diário de obra (RDO): observações do dia e fotos com legenda (o arquivo fica em dados_obras/{obra}/rdo, servido por rdo_foto.php)
         'rdo_dias' => ['data' => 'data', 'clima' => 'txt', 'clima_manha' => 'txt', 'clima_tarde' => 'txt', 'obs_cliente' => 'longo', 'obs_gestao' => 'longo', 'por' => 'txt'],
         'rdo_fotos' => ['data' => 'data', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
@@ -145,7 +147,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 30;   // 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 31;   // 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -1381,3 +1383,21 @@ require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa t
 require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
 require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
 require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)
+
+
+/** Pasta dos documentos dos equipamentos da obra (fora do alcance público; ver importacao_diretorio). */
+function equip_docs_dir($obraId)
+{
+    require_once __DIR__ . '/importacao.php';
+    return importacao_diretorio((int)$obraId) . '/equipamentos';
+}
+
+/** Apaga os documentos (registro e arquivo) de um equipamento da obra aberta; usado ao excluir o equipamento. */
+function equip_docs_apagar($equipId)
+{
+    $obraId = obra_atual_id();
+    foreach (q('SELECT arquivo FROM equipamento_docs WHERE equip_id = ?', [(int)$equipId])->fetchAll() as $d) {
+        if ($obraId) { @unlink(equip_docs_dir($obraId) . '/' . basename((string)$d['arquivo'])); }
+    }
+    q('DELETE FROM equipamento_docs WHERE equip_id = ?', [(int)$equipId]);
+}

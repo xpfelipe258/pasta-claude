@@ -1435,6 +1435,9 @@ function acao_registro(array $corpo)
     if (in_array($tabela, ['nao_conformidades', 'nc_fotos'], true)) {
         throw new ErroValidacao('As não conformidades são gravadas pela área Qualidade.');
     }
+    if ($tabela === 'equipamento_docs') {
+        throw new ErroValidacao('Os documentos do equipamento são anexados na tela de edição do equipamento.');
+    }
     if (in_array($tabela, ['bm_fechamentos', 'bm_fech_atividades'], true)) {
         throw new ErroValidacao('O fechamento do BM é gravado por Medição (BM) > Fechar BM / Reabrir.');
     }
@@ -1480,6 +1483,9 @@ function acao_registro(array $corpo)
                 estoque_remover_fixador_cadastrado($matExcluir['codigo']);
             }
             return 1;
+        }
+        if ($tabela === 'equipamentos') {
+            equip_docs_apagar($id);   // ART, laudos e planos anexados somem junto com o equipamento
         }
         q("DELETE FROM $tabela WHERE id = ?", [$id]);
         return 1;

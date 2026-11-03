@@ -1679,3 +1679,17 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .cp-premissas summary { cursor: pointer; font-weight: 700; }
 .cp-premissas ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 @media (max-width: 700px) { .cp-barra-col { display: none; } }
+
+/* Documentos do equipamento (ART, laudos, plano de manutenção, plano de rigging) */
+.eqdoc { grid-column: 1 / -1; border-top: 1px solid var(--linha, #e4e7ec); margin-top: 6px; padding-top: 12px; }
+.eqdoc h3 { margin: 0 0 4px; font-size: 1rem; }
+.eqdoc-tab { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: .86rem; }
+.eqdoc-tab th { text-align: left; font-size: .72rem; text-transform: uppercase; color: var(--muted, #667085); padding: 6px 6px; border-bottom: 1px solid var(--linha, #e4e7ec); }
+.eqdoc-tab td { padding: 7px 6px; border-bottom: 1px solid var(--linha, #eef0f3); vertical-align: top; }
+.eqdoc-novo { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 12px; align-items: end; }
+.eqdoc-novo label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; font-weight: 600; }
+.eqdoc-novo .eqdoc-arq { grid-column: 1 / -1; }
+.eqdoc-novo .nota { grid-column: 1 / -1; }
+.eqdoc-chip { display: inline-block; padding: 2px 7px; margin: 1px 3px 1px 0; border-radius: 999px; font-size: .7rem; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+.eqdoc-chip.f-verde { background: #dcfae6; color: #05603a; } .eqdoc-chip.f-amarelo { background: #fef0c7; color: #93370d; }
+.eqdoc-chip.f-vermelho { background: #fee4e2; color: #b42318; } .eqdoc-chip.f-cinza { background: #f2f4f7; color: #98a2b3; text-decoration: line-through; }

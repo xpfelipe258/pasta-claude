@@ -358,7 +358,7 @@ async function carregar() {
   if (!r.ok) throw new Error(j.erro || 'Falha ao ler a planilha');
   D = j; if (j.codigo && !CODIGO) CODIGO = j.codigo; M = j.modelo; T = M.tabelas || { materiais: [], movimentos: [], equipamentos: [], usos: [] };
   ['bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades',
-   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos'].forEach(k => T[k] ||= []);
+   'estoque_eventos', 'estoque_remessas', 'estoque_inventario', 'apontamentos', 'rdo_dias', 'rdo_fotos', 'nao_conformidades', 'nc_fotos', 'equipamento_docs'].forEach(k => T[k] ||= []);
   if (typeof PL !== 'undefined') PL._atv = null;   // lançamentos novos: refaz as atividades/realizado dos planos 5W2H
   saneDatasModelo();   // data digitada errada em Metas/Metas cliente não pode derrubar o Painel
   M.cliente = (M.cliente || []).filter(c => !ehGalpaoFase2(c.frente));   // a Fase 2 do galpão não é usada: o contrato total fica numa linha só, a da cobertura (Fase 1)
@@ -5319,10 +5319,10 @@ function renderEquip() {
     Object.entries(porEq).sort((a, b) => (b[1].eq + b[1].comb) - (a[1].eq + a[1].comb)).map(([n, o]) =>
       `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(o.n, 1)}</td><td class="n">${rs(o.eq)}</td><td class="n">${nf(o.l, 1)}</td><td class="n">${rs(o.comb)}</td><td class="n"><b>${rs(o.eq + o.comb)}</b></td></tr>`).join('') + '</tbody>';
 
-  $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Responsável</th><th>Situação</th><th></th></tr></thead><tbody>` +
-    (eqsCad.length ? eqsCad.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td>
+  $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Responsável</th><th>Situação</th><th>Documentos</th><th></th></tr></thead><tbody>` +
+    (eqsCad.length ? eqsCad.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td><td>${eqDocsResumoHtml(e.linha)}</td>
       <td><button class="link" data-editar-reg="equipamentos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
-      : '<tr><td colspan="7" class="vazio">Nenhum equipamento encontrado.</td></tr>') + '</tbody>';
+      : '<tr><td colspan="8" class="vazio">Nenhum equipamento encontrado.</td></tr>') + '</tbody>';
 
   $('#tabEqUso').innerHTML = `<thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">R$/L</th><th class="n">Combustível</th><th>Operador / obs.</th><th></th></tr></thead><tbody>` +
     (rtF.length ? [...rtF].sort((a, b) => b.data.localeCompare(a.data)).map(r => {
@@ -6148,12 +6148,88 @@ function abrirDialogo(tabela, linha, preset = {}) {
     }
     return `<label class="${cls || ''}"><span class="${obrig ? 'obrig' : ''}">${rot}</span>${inp}</label>`;
   }).join('');
+  if (tabela === 'equipamentos') $('#dlgCampos').insertAdjacentHTML('beforeend', eqDocsBloco(reg));   // ART, laudos, planos: anexos do equipamento
   $('#dlgExcluir').hidden = !reg;
   $('#dlgExcluir').dataset.confirmar = '';
   $('#dlgExcluir').textContent = (def.base || tabela) === 'materiais' ? 'Excluir material' : 'Excluir';
   if (tabela === 'movimentos' && !T.materiais.length) { toast('Cadastre um material antes de movimentar.', true); return; }
   dlg.showModal();
   patchDatas();
+}
+
+// ------------------------------------------------------------ DOCUMENTOS DO EQUIPAMENTO (ART, laudos, plano de manutenção, plano de rigging…)
+const EQ_DOC_TIPOS = ['ART', 'LAUDO', 'PLANO DE MANUTENÇÃO', 'PLANO DE RIGGING', 'CERTIFICADO / CALIBRAÇÃO', 'INSPEÇÃO / CHECKLIST', 'DOCUMENTO DO EQUIPAMENTO'];
+const EQ_DOC_CHAVES = [['ART', 'ART'], ['LAUDO', 'Laudo'], ['MANUT', 'Manutenção'], ['RIGGING', 'Rigging']];   // os quatro que o cadastro acompanha
+function eqDocChave(tipo) { const t = ganNorm(tipo || ''); return /(^|[^A-Z])ART([^A-Z]|$)/.test(t) ? 'ART' : t.includes('LAUDO') ? 'LAUDO' : t.includes('MANUT') ? 'MANUT' : t.includes('RIGGING') ? 'RIGGING' : ''; }
+function eqDocSituacao(d) {   // validade: vencido, vence em 30 dias ou em dia
+  if (!d.validade) return { cls: 'f-cinza', txt: 'sem validade', n: 0 };
+  const dias = Math.round((new Date(d.validade + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 86400000);
+  return dias < 0 ? { cls: 'f-vermelho', txt: `VENCIDO há ${-dias} dia(s)`, n: 2 } : dias <= 30 ? { cls: 'f-amarelo', txt: `vence em ${dias} dia(s)`, n: 1 } : { cls: 'f-verde', txt: `válido até ${fdA(d.validade)}`, n: 0 };
+}
+const eqDocsDe = equipId => (T.equipamento_docs || []).filter(d => d.equip_id === equipId).sort((a, b) => String(b.em || '').localeCompare(String(a.em || '')));
+function eqDocTam(b) { return b >= 1048576 ? nf(b / 1048576, 1) + ' MB' : nf(Math.max(1, b / 1024), 0) + ' KB'; }
+function eqDocsLista(equipId) {
+  const docs = eqDocsDe(equipId), leitura = D && D.usuario && D.usuario.perfil === 'leitura';
+  if (!docs.length) return '<p class="nota">Nenhum documento anexado ainda.</p>';
+  return `<table class="eqdoc-tab"><thead><tr><th>Tipo</th><th>Descrição / arquivo</th><th>Validade</th><th></th></tr></thead><tbody>${docs.map(d => { const st = eqDocSituacao(d); return `<tr><td><b>${esc(d.tipo)}</b></td>
+    <td>${esc(d.descricao || '')}${d.descricao ? '<br>' : ''}<span class="nota">${esc(d.nome)} · ${eqDocTam(d.tam || 0)} · ${esc(d.por || '')} ${d.em ? fdA(String(d.em).slice(0, 10)) : ''}</span></td>
+    <td><span class="farol ${st.cls}">${esc(st.txt)}</span></td>
+    <td class="acoes-linha"><a class="link" href="equip_doc.php?acao=ver&id=${d.linha}" target="_blank" rel="noopener">Abrir</a> · <a class="link" href="equip_doc.php?acao=ver&id=${d.linha}&baixar=1">Baixar</a>${leitura ? '' : ` · <button type="button" class="link" data-eqdoc-excluir="${d.linha}">Excluir</button>`}</td></tr>`; }).join('')}</tbody></table>`;
+}
+function eqDocsBloco(reg) {
+  const leitura = D && D.usuario && D.usuario.perfil === 'leitura';
+  if (!reg) return `<div class="eqdoc largo" id="eqDocs"><h3>Documentos do equipamento</h3><p class="nota">Salve o equipamento primeiro; depois, em <b>Editar</b>, anexe a ART, os laudos, o plano de manutenção e o plano de rigging.</p></div>`;
+  return `<div class="eqdoc largo" id="eqDocs" data-equip="${reg.linha}"><h3>Documentos do equipamento</h3>
+    <p class="nota">ART, laudos, plano de manutenção, plano de rigging e outros. PDF, imagem, Word, Excel, ZIP ou DWG, até 15 MB cada. O arquivo é gravado na hora, sem precisar clicar em Salvar.</p>
+    <div id="eqDocsLista">${eqDocsLista(reg.linha)}</div>
+    ${leitura ? '' : `<div class="eqdoc-novo"><label><span>Tipo</span><select id="eqDocTipo">${EQ_DOC_TIPOS.map(t => `<option>${esc(t)}</option>`).join('')}<option value="__outro">OUTRO (digitar)…</option></select></label>
+      <label id="eqDocTipoOutroBox" hidden><span>Qual documento?</span><input id="eqDocTipoOutro" type="text" maxlength="60" placeholder="ex.: Certificado de cabo de aço"></label>
+      <label><span>Descrição (opcional)</span><input id="eqDocDesc" type="text" maxlength="200" placeholder="ex.: ART nº 123 — içamento de joist"></label>
+      <label><span>Validade (opcional)</span><input id="eqDocVal" type="date"></label>
+      <label class="eqdoc-arq"><span>Arquivo</span><input id="eqDocArq" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip,.dwg,.dxf,.txt"></label>
+      <button type="button" class="btn primario" id="eqDocEnviar">Anexar documento</button><span class="nota" id="eqDocStatus"></span></div>`}</div>`;
+}
+async function eqDocEnviar() {
+  const box = $('#eqDocs'); if (!box) return;
+  const equip = +box.dataset.equip, arq = $('#eqDocArq').files[0], st = $('#eqDocStatus');
+  let tipo = $('#eqDocTipo').value; if (tipo === '__outro') tipo = $('#eqDocTipoOutro').value.trim();
+  if (!tipo) { toast('Digite o nome do documento.', true); return; }
+  if (!arq) { toast('Escolha o arquivo.', true); return; }
+  if (arq.size > 15 * 1048576) { toast('Arquivo maior que 15 MB.', true); return; }
+  try {
+    st.textContent = 'Enviando…';
+    const q = new URLSearchParams({ acao: 'enviar', equip, tipo, descricao: $('#eqDocDesc').value.trim(), validade: $('#eqDocVal').value, nome: arq.name });
+    const r = await fetch('equip_doc.php?' + q, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '', 'Content-Type': 'application/octet-stream' }, body: arq });
+    const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
+    if (!r.ok) throw new Error(j.erro || 'falha no envio');
+    await carregar();
+    const l = $('#eqDocsLista'); if (l) l.innerHTML = eqDocsLista(equip);
+    ['#eqDocArq', '#eqDocDesc', '#eqDocVal', '#eqDocTipoOutro'].forEach(s => { const e = $(s); if (e) e.value = ''; });
+    st.textContent = ''; toast(`${tipo} anexado ao equipamento.`);
+  } catch (e) { st.textContent = ''; toast(`Não foi possível anexar: ${e.message}`, true); }
+}
+async function eqDocExcluir(btn) {
+  if (!btn.dataset.confirmar) { btn.dataset.confirmar = '1'; btn.textContent = 'Confirmar exclusão'; return; }
+  try {
+    const r = await fetch(`equip_doc.php?acao=excluir&id=${btn.dataset.eqdocExcluir}`, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' } });
+    const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
+    if (!r.ok) throw new Error(j.erro || 'falha');
+    await carregar();
+    const box = $('#eqDocs'), l = $('#eqDocsLista'); if (box && l) l.innerHTML = eqDocsLista(+box.dataset.equip);
+    toast('Documento excluído.');
+  } catch (e) { toast(e.message, true); }
+}
+// resumo no cadastro: os quatro documentos principais (verde = em dia, amarelo = vence em 30 dias, vermelho = vencido, cinza = não anexado)
+function eqDocsResumoHtml(equipId) {
+  const docs = eqDocsDe(equipId); if (!docs.length) return '<span class="nota">nenhum documento</span>';
+  const chips = EQ_DOC_CHAVES.map(([k, rot]) => {
+    const ds = docs.filter(d => eqDocChave(d.tipo) === k);
+    if (!ds.length) return `<span class="eqdoc-chip f-cinza" title="${rot} não anexado">${rot}</span>`;
+    const pior = Math.max(...ds.map(d => eqDocSituacao(d).n)), cls = pior === 2 ? 'f-vermelho' : pior === 1 ? 'f-amarelo' : 'f-verde';
+    return `<span class="eqdoc-chip ${cls}" title="${ds.length} documento(s) de ${rot}${pior === 2 ? ' — há vencido' : pior === 1 ? ' — vence em até 30 dias' : ''}">${rot}${ds.length > 1 ? ' ×' + ds.length : ''}</span>`;
+  }).join('');
+  const outros = docs.filter(d => !eqDocChave(d.tipo)).length;
+  return chips + (outros ? `<span class="nota"> +${outros}</span>` : '');
 }
 
 function autoCustoUso(form) {
@@ -7555,6 +7631,12 @@ function ligarEventos() {
   $('#dlgForm').addEventListener('submit', salvarDialogo);
   $('#dlgFechar').onclick = $('#dlgCancelar').onclick = () => $('#dlg').close();
   $('#dlgExcluir').onclick = excluirDialogo;
+  $('#dlgCampos').addEventListener('click', ev => {   // documentos do equipamento
+    if (ev.target.closest('#eqDocEnviar')) { ev.preventDefault(); eqDocEnviar(); return; }
+    const x = ev.target.closest('[data-eqdoc-excluir]'); if (x) { ev.preventDefault(); eqDocExcluir(x); }
+  });
+  $('#dlgCampos').addEventListener('change', ev => { if (ev.target.id === 'eqDocTipo') { const o = $('#eqDocTipoOutroBox'); if (o) o.hidden = ev.target.value !== '__outro'; } });
+  $('#dlgCampos').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.closest('.eqdoc-novo')) ev.preventDefault(); });
   $('#dlg').addEventListener('close', () => setTimeout(() => { document.activeElement?.blur(); document.querySelectorAll('.tabela-rolagem').forEach(e => e.scrollLeft = 0); document.querySelectorAll('.scroll-topo').forEach(e => e.scrollLeft = 0); }));
   $('#dlgForm').addEventListener('input', ev => {
     if (ev.target.name === 'custo') ev.target.dataset.manual = ev.target.value ? '1' : '';
