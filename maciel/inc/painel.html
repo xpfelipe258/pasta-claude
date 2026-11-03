@@ -808,6 +808,28 @@
   </section>
 </main>
 
+<dialog id="dlgRdoEmail" class="rdo-em-dlg">
+  <form id="rdoEmailForm" method="dialog">
+    <div class="bloco-cab"><h2>Envio do RDO ao cliente</h2><button type="button" class="btn-icone" id="rdoEmFechar" aria-label="Fechar">×</button></div>
+    <p class="nota">Depois que o administrador valida o RDO, o sistema monta o <b>RDO do cliente</b> em PDF (o mesmo do botão “RDO para o cliente”, sem valores em R$) e envia por e-mail com o PDF em anexo.</p>
+    <div class="campos">
+      <label class="largo"><span class="obrig">E-mail(s) do cliente</span><textarea id="rdoEmDest" rows="3" placeholder="um e-mail por linha&#10;ex.: fiscal@cliente.com.br"></textarea></label>
+      <label class="largo rdo-em-chk"><input type="checkbox" id="rdoEmAuto"> <span><b>Enviar automaticamente quando eu validar o RDO</b><br><small>Sem isso, o envio é manual, pelo botão “Enviar ao cliente agora”.</small></span></label>
+      <label class="largo rdo-em-chk"><input type="checkbox" id="rdoEmCopia"> <span><b>Receber uma cópia no meu e-mail</b><br><small>Você aparece em cópia (Cc) e as respostas do cliente chegam a você.</small></span></label>
+      <label class="largo"><span>Assunto</span><input type="text" id="rdoEmAssunto" maxlength="160"></label>
+      <label class="largo"><span>Mensagem</span><textarea id="rdoEmMsg" rows="5" maxlength="2000"></textarea></label>
+    </div>
+    <p class="nota">No assunto e na mensagem, <code>{obra}</code> vira o nome da obra e <code>{data}</code> a data do RDO.</p>
+    <div id="rdoEmPrevia" class="rdo-em-previa"></div>
+    <div class="acoes">
+      <button type="button" class="btn" id="rdoEmVer">Ver como o cliente recebe</button>
+      <span class="espaco"></span>
+      <button type="button" class="btn" id="rdoEmCancelar">Cancelar</button>
+      <button type="submit" class="btn primario">Salvar configuração</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg">
   <form id="dlgForm" method="dialog">
     <div class="bloco-cab"><h2 id="dlgTit"></h2><button type="button" class="btn-icone" id="dlgFechar" aria-label="Fechar">×</button></div>

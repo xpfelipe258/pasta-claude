@@ -67,7 +67,7 @@ function relPdfCortes(H, altPag, duras, titulos) {
   return cortes;
 }
 
-async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
+async function relPdfGerar(html, nomeArq, titulo, aoProgredir, opcoes) {   // opcoes.blob = true: não baixa, devolve { total, blob } (usado no envio por e-mail)
   await relPdfLibs();
   if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
   const progresso = typeof aoProgredir === 'function' ? aoProgredir : () => {};
@@ -201,6 +201,7 @@ async function relPdfGerar(html, nomeArq, titulo, aoProgredir) {
       bloco.width = 1; bloco.height = 1;   // libera a memória do bloco
       i = fim;
     }
+    if (opcoes && opcoes.blob) return { total, blob: pdf.output('blob') };
     pdf.save(relPdfNome(nomeArq));
     return total;
   } finally {

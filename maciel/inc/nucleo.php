@@ -1380,6 +1380,7 @@ function imagem_upload_para_data_uri($campo, $atual = '')
 
 
 require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa terceirizada
+require_once __DIR__ . '/rdo_email.php';   // envio do RDO do cliente por e-mail
 require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
 require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
 require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)

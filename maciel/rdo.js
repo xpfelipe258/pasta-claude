@@ -162,6 +162,7 @@ function renderRdo() {
       ${rdoEhAdmin() ? (val ? `<button class="btn" data-rdo-retirar="${esc(dia)}">Retirar validação</button>` : `<button class="btn primario" data-rdo-validar="${esc(dia)}">Validar RDO</button>`)
         : `<span class="nota">${val ? 'Só o administrador retira a validação.' : 'Só o administrador valida o RDO.'}</span>`}
     </div>
+    ${rdoEnvioHtml(dia, val)}
     <div class="tiles">
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
@@ -514,6 +515,77 @@ async function rdoGerar(modo) {
   finally { btn.disabled = false; btn.textContent = rot; }
 }
 
+// ------------------------------------------------------------ ENVIO DO RDO AO CLIENTE POR E-MAIL (depois de validado)
+const rdoEmail = () => (M && M.rdo_email) || null;
+function rdoEmailEnvios(dia) { const e = rdoEmail(); return e && e.admin ? ((e.envios || {})[dia] || []) : []; }
+function rdoEnvioHtml(dia, val) {
+  const e = rdoEmail(), admin = rdoEhAdmin();
+  if (!e) return '';
+  const cfg = e.admin ? e.cfg : null, dest = cfg ? cfg.destinatarios : [], auto = e.admin ? cfg.auto : e.auto;
+  const env = rdoEmailEnvios(dia), ult = [...env].reverse().find(x => x.ok);
+  const status = !auto && !(dest && dest.length) ? '<b>Envio ao cliente não configurado</b> <span>Informe o e-mail do cliente para receber o RDO assim que for validado.</span>'
+    : auto ? `<b>✉ Envio automático LIGADO</b> <span>Ao validar o RDO, o relatório do cliente (PDF) é enviado para <b>${esc((dest || []).join(', ') || (e.n + ' destinatário(s)'))}</b>.</span>`
+    : `<b>Envio automático desligado</b> <span>O RDO só vai ao cliente quando você clicar em “Enviar ao cliente agora”. Destino: <b>${esc((dest || []).join(', '))}</b>.</span>`;
+  const hist = env.length ? `<ul class="rdo-envios">${[...env].reverse().slice(0, 4).map(x => `<li class="${x.ok ? 'ok' : 'falha'}">${x.ok ? '✔ Enviado' : '✖ Falhou'} em ${esc(fdA(String(x.em).slice(0, 10)))} às ${esc(String(x.em).slice(11, 16))} por ${esc(x.por || '')}${x.auto ? ' (automático)' : ''}${x.ok ? ` para ${esc((x.para || []).join(', '))}` : ''}${(x.falhas || []).length ? ` · não aceito: ${esc(x.falhas.join(', '))}` : ''}</li>`).join('')}</ul>` : '';
+  return `<div class="bloco rdo-envio">
+    <div class="rdo-valid-txt">${status}${hist}</div>
+    ${admin && e.admin ? `<div class="rdo-envio-botoes"><button class="btn" id="btnRdoEmailCfg">Configurar envio</button>
+      <button class="btn primario" id="btnRdoEmailEnviar" ${val ? '' : 'disabled title="Valide o RDO primeiro"'}>${ult ? 'Reenviar ao cliente' : 'Enviar ao cliente agora'}</button></div>`
+      : '<span class="nota">Só o administrador configura e envia.</span>'}
+  </div>`;
+}
+function rdoResumoDia(dia) {   // números que aparecem no e-mail (nada de valores em R$)
+  const info = rdoInfo(dia) || {}, prod = rdoProducao(dia), efet = rdoEfetivo(dia), maq = rdoMaquinas(dia);
+  return { atividades: rdoProducaoSomada(dia, prod).n, efetivo: soma0(efet, e => e.total), maquinas: rdoMaquinasControle(maq, dia).nUsadas, remessas: rdoRemessas(dia).length, fotos: rdoFotos(dia).length, clima: rdoClimaTxt(info) };
+}
+async function rdoEmailPost(acao, corpo, extra = '', tipo = 'application/json') {
+  const r = await fetch(`rdo_email.php?acao=${acao}${extra}`, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '', 'Content-Type': tipo }, body: corpo });
+  const j = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
+  if (!r.ok) throw new Error(j.erro || 'falha');
+  return j;
+}
+let RDO_EMAIL_ENVIANDO = false;
+async function rdoEnviarCliente(dia, auto) {
+  if (RDO_EMAIL_ENVIANDO) return;
+  RDO_EMAIL_ENVIANDO = true;
+  const btn = document.getElementById('btnRdoEmailEnviar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Montando o PDF…'; }
+  try {
+    toast(auto ? 'RDO validado. Montando o PDF e enviando ao cliente… (alguns segundos)' : 'Montando o PDF do RDO…');
+    const html = await rdoHtml(dia, 'cliente');
+    const g = await relPdfGerar(html, `RDO-cliente-${dia}.html`, `RDO do cliente · ${fdA(dia)}`, (n, t) => { const b = document.getElementById('btnRdoEmailEnviar'); if (b) b.textContent = `Montando o PDF… ${n}/${t}`; }, { blob: true });
+    const j = await rdoEmailPost('enviar', g.blob, `&data=${encodeURIComponent(dia)}&resumo=${encodeURIComponent(JSON.stringify(rdoResumoDia(dia)))}${auto ? '&auto=1' : ''}`, 'application/pdf');
+    await carregar();
+    toast(`RDO enviado ao cliente: ${j.enviados.join(', ')}${j.falhas.length ? ` (não aceito: ${j.falhas.join(', ')})` : ''}.`);
+  } catch (e) { console.error(e); toast('Não foi possível enviar o RDO ao cliente: ' + (e.message || e) + (auto ? ' Use “Enviar ao cliente agora” para tentar de novo.' : ''), true); }
+  finally { RDO_EMAIL_ENVIANDO = false; try { await carregar(); } catch (e) { /* tela já atualizada */ } }
+}
+function rdoEmailAbrirCfg() {
+  const e = rdoEmail(); if (!e || !e.admin) return;
+  const c = e.cfg, d = $('#dlgRdoEmail');
+  $('#rdoEmDest').value = (c.destinatarios || []).join('\n');
+  $('#rdoEmAuto').checked = !!c.auto; $('#rdoEmCopia').checked = !!c.copia;
+  $('#rdoEmAssunto').value = c.assunto; $('#rdoEmMsg').value = c.mensagem;
+  $('#rdoEmPrevia').innerHTML = '<p class="nota">Clique em “Ver como o cliente recebe” para visualizar o e-mail.</p>';
+  d.showModal();
+}
+async function rdoEmailSalvar(ev) {
+  if (ev) ev.preventDefault();
+  try {
+    await rdoEmailPost('config', JSON.stringify({ destinatarios: $('#rdoEmDest').value, auto: $('#rdoEmAuto').checked, copia: $('#rdoEmCopia').checked, assunto: $('#rdoEmAssunto').value, mensagem: $('#rdoEmMsg').value }));
+    $('#dlgRdoEmail').close(); await carregar(); toast('Envio do RDO ao cliente configurado.');
+  } catch (e) { toast(e.message, true); }
+}
+async function rdoEmailPrevia() {
+  const box = $('#rdoEmPrevia'); box.innerHTML = '<p class="nota">Montando…</p>';
+  try {
+    const j = await rdoEmailPost('previa', JSON.stringify({ data: rdoDia(), resumo: rdoResumoDia(rdoDia()), assunto: $('#rdoEmAssunto').value, mensagem: $('#rdoEmMsg').value }));
+    const dest = $('#rdoEmDest').value.split(/[\s,;]+/).filter(Boolean);
+    box.innerHTML = `<div class="rdo-em-cab"><div><b>Para:</b> ${esc(dest.join(', ') || '— informe o e-mail do cliente —')}</div><div><b>Assunto:</b> ${esc(j.assunto)}</div><div><b>Responder para:</b> ${esc(j.replyto || 'no-reply (seu usuário não tem e-mail cadastrado)')}</div><div><b>Anexo:</b> RDO-${esc(rdoDia())}.pdf</div></div><iframe class="rdo-em-frame" id="rdoEmFrame" title="Pré-visualização do e-mail"></iframe>`;
+    $('#rdoEmFrame').srcdoc = j.html;
+  } catch (e) { box.innerHTML = `<p class="nota" style="color:#b42318">${esc(e.message)}</p>`; }
+}
+
 async function rdoValidar(dia, retirar) {
   const msg = retirar ? `Retirar a validação do RDO de ${fdA(dia)}? O dia volta a aceitar envio e edição de informações.`
     : `Validar o RDO de ${fdA(dia)}? Clima, observações e fotos ficarão TRAVADOS (envio e edição) até o administrador retirar a validação.`;
@@ -523,15 +595,19 @@ async function rdoValidar(dia, retirar) {
     M.rdo_validados = j.rdo_validados || {};
     await carregar();
     toast(retirar ? 'Validação retirada: o RDO pode ser editado de novo.' : 'RDO validado e travado.');
+    const em = rdoEmail();
+    if (!retirar && em && em.admin && em.cfg.auto && (em.cfg.destinatarios || []).length) rdoEnviarCliente(dia, true);   // envio automático ao cliente depois da validação
   } catch (e) { toast(e.message, true); }
 }
 
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
+  const t = ev.target.closest && ev.target.closest('#btnRdoEmailCfg, #btnRdoEmailEnviar, #btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
   if (!t) return;
   if (t.dataset.rdoValidar) { rdoValidar(t.dataset.rdoValidar, false); return; }
   if (t.dataset.rdoRetirar) { rdoValidar(t.dataset.rdoRetirar, true); return; }
-  if (t.id === 'btnRdoCliente') rdoGerar('cliente');
+  if (t.id === 'btnRdoEmailCfg') rdoEmailAbrirCfg();
+  else if (t.id === 'btnRdoEmailEnviar') { if (confirm(`Enviar o RDO de ${fdA(rdoDia())} (PDF) para o e-mail do cliente agora?`)) rdoEnviarCliente(rdoDia(), false); }
+  else if (t.id === 'btnRdoCliente') rdoGerar('cliente');
   else if (t.id === 'btnRdoGestao') rdoGerar('gestao');
   else if (t.dataset.rdoDia) rdoIrParaDia(add(rdoDia(), +t.dataset.rdoDia));
   else if (t.dataset.rdoDel) rdoExcluirFoto(+t.dataset.rdoDel);
@@ -544,4 +620,10 @@ document.addEventListener('change', ev => {
 document.addEventListener('focusout', ev => {
   if (ev.target.id === 'rdoObsCli' || ev.target.id === 'rdoObsGes') rdoSalvarObs();
   else if (ev.target.dataset && ev.target.dataset.rdoLeg) rdoSalvarLegenda(ev.target);
+});
+
+document.addEventListener('submit', ev => { if (ev.target.id === 'rdoEmailForm') rdoEmailSalvar(ev); });
+document.addEventListener('click', ev => {
+  if (ev.target.closest('#rdoEmFechar, #rdoEmCancelar')) $('#dlgRdoEmail').close();
+  else if (ev.target.closest('#rdoEmVer')) rdoEmailPrevia();
 });
