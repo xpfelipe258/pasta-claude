@@ -35,6 +35,7 @@ function central_lista_abas(array $eu)
     $abas['comercial'] = ['Painel comercial', 'comercial.php'];
     $abas['pessoal'] = ['Painel pessoal (RH)', 'pessoal.php'];
     $abas['config'] = ['Configurações', 'config_empresa.php'];
+    if (($eu['perfil'] ?? '') !== 'admin' && usuario_admin_organizacao($eu)) { $abas['plano'] = ['Painel administrativo', 'plano.php']; }   // plano, pagamentos e limites da empresa assinante
     if (($eu['perfil'] ?? '') === 'admin') { $abas['sistema'] = ['Painel administrativo', 'sistema.php']; }
     return $abas;
 }
