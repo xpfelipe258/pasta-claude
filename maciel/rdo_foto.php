@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     rdo_resp(405, ['erro' => 'Método não permitido.']);
 }
 conferir_csrf();
-if (($u['perfil'] ?? '') === 'leitura' || !usuario_pode_modulo($u, 'producao')) {
+if (usuario_so_leitura($u, 'producao') || !usuario_pode_modulo($u, 'producao')) {
     rdo_resp(403, ['erro' => 'Seu usuário não pode alterar o relatório diário.']);
 }
 $agora = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');

@@ -149,7 +149,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 32;   // 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 33;   // 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -498,6 +498,9 @@ function criar_esquema(PDO $pdo, $driver)
     garantir_autenticacao_estendida($pdo, $driver);
     garantir_obras_detalhes($pdo, $driver);
     garantir_usuarios_obras_admin($pdo, $driver);
+    if (!in_array('papel', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // papel do usuário (administrador geral, da empresa, editor da empresa ou do sistema)
+        $pdo->exec("ALTER TABLE usuarios ADD COLUMN papel VARCHAR(20) NULL");
+    }
     garantir_organizacoes($pdo, $driver);   // planos por empresa: vínculo de usuários e obras com a empresa
     if (!in_array('importacao', colunas_tabela($pdo, $driver, 'obras'), true)) {   // fase da importação automática (rascunho, aguardando_leitura…); vazio = obra comum
         $pdo->exec("ALTER TABLE obras ADD COLUMN importacao VARCHAR(25) NULL");
@@ -939,6 +942,7 @@ function usuario_pode_criar_obra(array $u)
 {
     list($oid, $admOrg) = usuario_organizacao_id($u);
     if ($oid && !$admOrg) { return false; }   // numa empresa cliente, quem cria obras é o administrador da empresa
+    if (usuario_papel($u) === 'editor_sistema') { return false; }   // editor do sistema não cria obras
     return ($u['perfil'] ?? '') === 'admin' || (($u['perfil'] ?? '') === 'editor' && trim((string)($u['empresa'] ?? '')) === '');
 }
 
@@ -975,6 +979,9 @@ function obras_do_usuario(array $u)
     if ($u['perfil'] === 'admin') {
         return q_global("SELECT * FROM obras WHERE status <> 'excluida' ORDER BY status, nome")->fetchAll();
     }
+    if (usuario_papel($u) === 'editor_sistema') {   // editor do sistema: vê todas as obras ativas (o que altera depende das áreas liberadas)
+        return q_global("SELECT * FROM obras WHERE status = 'ativa' ORDER BY nome")->fetchAll();
+    }
     if (($minhas = obras_proprias_do_usuario($u)) !== null) { return $minhas; }
     return q_global("SELECT o.* FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
         WHERE uo.usuario_id = ? AND o.status = 'ativa' ORDER BY o.nome", [(int)$u['id']])->fetchAll();
@@ -983,6 +990,7 @@ function obras_do_usuario(array $u)
 function usuario_pode_obra(array $u, $obraId)
 {
     if ($u['perfil'] === 'admin') { return true; }
+    if (usuario_papel($u) === 'editor_sistema') { return (bool)q_global("SELECT 1 FROM obras WHERE id = ? AND status = 'ativa'", [(int)$obraId])->fetchColumn(); }
     if (($minhas = obras_proprias_do_usuario($u)) !== null) {
         foreach ($minhas as $o) { if ((int)$o['id'] === (int)$obraId) { return true; } }
         return false;
@@ -1031,6 +1039,7 @@ function modulos_usuario(array $u)
 {
     $todos = modulos_sistema();
     if (($u['perfil'] ?? '') === 'admin') { return $todos; }
+    if (usuario_papel($u) === 'editor_sistema') { return $todos; }   // vê todas as áreas; só altera as liberadas (modulos_edicao_usuario)
     $plano = organizacao_modulos_do_usuario($u);   // áreas que o plano da empresa libera (null = sem restrição)
     $limitar = function (array $mods) use ($plano) { return $plano === null ? $mods : array_values(array_intersect($mods, $plano)); };
     if (usuario_admin_da_obra($u) || usuario_admin_organizacao($u)) { return $limitar($todos); }   // o administrador da obra (e da empresa) tem todas as áreas que o plano libera
@@ -1043,6 +1052,86 @@ function modulos_usuario(array $u)
 function usuario_pode_modulo(array $u, $modulo)
 {
     return ($u['perfil'] ?? '') === 'admin' || in_array($modulo, modulos_usuario($u), true);
+}
+
+// ---------------------------------------------------------------- PAPÉIS DE USUÁRIO
+// admin_geral    = perfil administrador: controla todo o sistema (só ele inclui outros administradores gerais).
+// admin_empresa  = administrador da empresa cliente: altera o cadastro da própria empresa (dados, usuários) e as obras dela.
+// editor_empresa = usuário da empresa: altera só dentro da(s) obra(s) da empresa em que foi incluído, nas áreas liberadas.
+// editor_sistema = vê TODAS as obras e altera apenas as áreas que o administrador geral liberou (usuarios_modulos = áreas que ele pode alterar).
+// editor_obra / leitor = situações anteriores (editor ligado a obras específicas; somente leitura).
+function papeis_catalogo()
+{
+    return [
+        'admin_geral' => ['Administrador geral', 'Controla todo o sistema: empresas, obras e usuários. Só o administrador geral inclui outros administradores gerais.'],
+        'admin_empresa' => ['Administrador da empresa', 'Altera o cadastro da própria empresa (dados, logo, usuários) e as obras dela.'],
+        'editor_empresa' => ['Editor da empresa', 'Altera apenas dentro da(s) obra(s) da empresa em que foi incluído, nas áreas liberadas.'],
+        'editor_sistema' => ['Editor do sistema', 'Vê todas as obras e altera somente as áreas que o administrador geral liberar.'],
+        'editor_obra' => ['Editor de obras ligadas', 'Editor ligado a obras específicas, sem empresa (cadastro anterior aos papéis).'],
+        'leitor' => ['Somente leitura', 'Consulta; não altera nada.'],
+    ];
+}
+
+function usuario_papel(array $u)
+{
+    if (($u['perfil'] ?? '') === 'admin') { return 'admin_geral'; }
+    if (($u['perfil'] ?? '') === 'leitura') { return 'leitor'; }
+    if (!array_key_exists('papel', $u) && !empty($u['id'])) {
+        static $cache = [];
+        $k = (int)$u['id'];
+        if (!array_key_exists($k, $cache)) {
+            try { $cache[$k] = (string)q_global('SELECT papel FROM usuarios WHERE id = ?', [$k])->fetchColumn(); } catch (Throwable $e) { $cache[$k] = ''; }
+        }
+        $u['papel'] = $cache[$k];
+    }
+    $p = (string)($u['papel'] ?? '');
+    if (in_array($p, ['admin_empresa', 'editor_empresa', 'editor_sistema', 'editor_obra'], true)) {
+        if ($p === 'editor_sistema' && (trim((string)($u['empresa'] ?? '')) !== '' || (function_exists('usuario_organizacao_id') && usuario_organizacao_id($u)[0]))) { return 'editor_empresa'; }   // quem é de uma empresa nunca vale como editor do sistema
+        return $p;
+    }
+    if (function_exists('usuario_organizacao_id')) {
+        list($oid, $adm) = usuario_organizacao_id($u);
+        if ($oid) { return $adm ? 'admin_empresa' : 'editor_empresa'; }
+    }
+    if (trim((string)($u['empresa'] ?? '')) !== '') { return 'editor_empresa'; }
+    return 'editor_obra';
+}
+
+// Áreas que o usuário pode ALTERAR (o editor do sistema vê tudo, mas só altera o que o administrador geral marcou).
+function modulos_edicao_usuario(array $u)
+{
+    if (usuario_papel($u) !== 'editor_sistema') { return modulos_usuario($u); }
+    $rows = q_global('SELECT modulo FROM usuarios_modulos WHERE usuario_id=? AND permitido=1', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN);
+    return array_values(array_intersect(modulos_sistema(), $rows));
+}
+function usuario_pode_editar_modulo(array $u, $modulo)
+{
+    return ($u['perfil'] ?? '') === 'admin' || in_array($modulo, modulos_edicao_usuario($u), true);
+}
+// Leitura efetiva na área: perfil somente leitura ou editor do sistema sem a área liberada para alterar.
+function usuario_so_leitura(array $u, $modulo)
+{
+    return ($u['perfil'] ?? '') === 'leitura' || !usuario_pode_editar_modulo($u, $modulo);
+}
+// Área que uma rota de gravação da API altera (null = rota que o editor do sistema não usa).
+function papel_modulo_da_rota($rota, array $corpo)
+{
+    if ($rota === 'registro') {
+        $t = (string)($corpo['tabela'] ?? '');
+        if (strpos($t, 'bm_') === 0 || $t === 'medicoes') { return 'financeiro'; }
+        if (in_array($t, ['movimentos', 'materiais'], true) || strpos($t, 'estoque_') === 0) { return 'suprimentos'; }
+        if (in_array($t, ['usos', 'equipamentos', 'equipamento_docs'], true)) { return 'consumo'; }
+        if (in_array($t, ['impactos', 'dp_efetivo', 'metas'], true)) { return 'gestao'; }
+        if (in_array($t, ['nao_conformidades', 'nc_fotos', 'nc_respostas'], true)) { return 'qualidade'; }
+        if (in_array($t, ['empresas', 'servicos', 'producao', 'cliente', 'apontamentos', 'rdo_dias', 'rdo_fotos'], true)) { return 'producao'; }
+        return null;
+    }
+    foreach (['estoque' => 'suprimentos', 'bm/' => 'financeiro', 'projecao-config' => 'financeiro', 'equip' => 'consumo', 'impacto' => 'gestao', 'metas' => 'gestao', 'criar-meta' => 'gestao', 'qualidade' => 'qualidade',
+        'rdo' => 'producao', 'planos' => 'producao', 'planejamento' => 'producao', 'fluxo-config' => 'producao', 'referencia' => 'producao', 'cliente-contrato' => 'producao', 'apontamento' => 'producao',
+        'mapa-obra' => 'producao', 'producao' => 'producao', 'popular-' => 'producao', 'atualizar-datas' => 'producao', 'vinculos' => 'suprimentos', 'fixadores-atividade' => 'suprimentos', 'cadastro-faltantes' => 'suprimentos'] as $pre => $mod) {
+        if (strpos((string)$rota, $pre) === 0) { return $mod; }
+    }
+    return null;
 }
 
 // Catálogo de áreas > abas > sub-abas que o administrador pode mostrar ou ocultar por usuário (Administração › Usuários › acessos).

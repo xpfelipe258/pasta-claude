@@ -323,11 +323,11 @@ pagina_inicio('Administração');
       <button type="button" class="btn primario" id="btnNovoUsuario">+ Novo usuário</button>
     </div>
     <div class="tabela-rolagem"><table class="usuarios-tabela">
-      <thead><tr><th>Nome</th><th>Login</th><th>E-mail</th><th>Perfil</th><th>Empresa</th><th>Nível de acesso</th><th>Situação</th><th>Redefinir senha</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Login</th><th>E-mail</th><th>Papel</th><th>Empresa</th><th>Nível de acesso</th><th>Situação</th><th>Redefinir senha</th><th>Ações</th></tr></thead>
       <tbody>
       <?php foreach ($usuarios as $u): ?>
         <tr>
-          <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?= h(ucfirst($u['perfil'])) ?></td><td><?= h($u['empresa'] ?: 'Todas') ?></td>
+          <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?= h(papeis_catalogo()[usuario_papel($u)][0] ?? ucfirst($u['perfil'])) ?></td><td><?= h($u['empresa'] ?: 'Todas') ?></td>
           <?php $ocuU = ui_ocultos_usuario($u); $modsU = $modsPorUsuario[(int)$u['id']] ?? modulos_sistema(); $nOcu = count($ocuU['abas']) + count($ocuU['subs']); ?>
           <td><?php if ($u['perfil']==='admin'): ?><span class="farol f-verde">TODOS OS MÓDULOS</span><?php else: ?><span class="nota"><?= h(implode(', ', array_map('ucfirst', array_values(array_intersect(modulos_sistema(), $modsU))))) ?></span><?php if ($nOcu): ?><br><span class="nota">· <?= (int)count($ocuU['abas']) ?> aba(s) e <?= (int)count($ocuU['subs']) ?> sub-aba(s) ocultas</span><?php endif; ?><br><span class="nota">Altere em <b>Editar</b></span><?php endif; ?></td>
           <td><span class="farol f-<?= $u['ativo'] ? 'verde' : 'pendente' ?>"><?= $u['ativo'] ? 'ATIVO' : 'INATIVO' ?></span></td>

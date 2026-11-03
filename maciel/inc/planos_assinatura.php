@@ -409,8 +409,8 @@ function organizacao_usuario_inserir($orgId, array $e, $admin = false)
         return [0, ['Já existe um usuário com o login “' . $login . '”.']];
     }
     $perfil = $admin ? 'editor' : (in_array($e['perfil'] ?? '', ['editor', 'leitura'], true) ? $e['perfil'] : 'editor');
-    q_global('INSERT INTO usuarios (nome, login, senha, perfil, empresa, email, ativo, organizacao_id, admin_organizacao) VALUES (?, ?, ?, ?, NULL, ?, 1, ?, ?)',
-        [$nome, $login, password_hash($senha, PASSWORD_DEFAULT), $perfil, texto_ou_nulo($email), (int)$orgId, $admin ? 1 : 0]);
+    q_global('INSERT INTO usuarios (nome, login, senha, perfil, papel, empresa, email, ativo, organizacao_id, admin_organizacao) VALUES (?, ?, ?, ?, ?, NULL, ?, 1, ?, ?)',
+        [$nome, $login, password_hash($senha, PASSWORD_DEFAULT), $perfil, $admin ? 'admin_empresa' : ($perfil === 'leitura' ? 'leitor' : 'editor_empresa'), texto_ou_nulo($email), (int)$orgId, $admin ? 1 : 0]);
     $uid = (int)bd()->lastInsertId();
     if ($admin) {
         foreach (q_global('SELECT id FROM obras WHERE organizacao_id = ?', [(int)$orgId])->fetchAll(PDO::FETCH_COLUMN) as $obraId) {
