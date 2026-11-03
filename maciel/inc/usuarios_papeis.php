@@ -25,9 +25,14 @@ function upap_empresas_terceirizadas()
 /** Liga o usuário às obras marcadas (apaga as ligações anteriores). */
 function upap_ligar_obras($uid, array $obraIds, $admin = 0)
 {
+    $antes = [];
+    foreach (q_global('SELECT obra_id, admin_obra, nivel FROM usuarios_obras WHERE usuario_id = ?', [(int)$uid])->fetchAll() as $ln) { $antes[(int)$ln['obra_id']] = $ln; }
     q_global('DELETE FROM usuarios_obras WHERE usuario_id = ?', [(int)$uid]);
     foreach (array_unique(array_map('intval', $obraIds)) as $oid) {
-        if ($oid > 0) { q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra) VALUES (?, ?, ?)', [(int)$uid, $oid, $admin ? 1 : 0]); }
+        if ($oid <= 0) { continue; }
+        $a = $antes[$oid] ?? null;
+        $adm = $admin || ($a && (int)$a['admin_obra'] === 1);   // quem já administrava a obra continua administrando
+        q_global('INSERT INTO usuarios_obras (usuario_id, obra_id, admin_obra, nivel) VALUES (?, ?, ?, ?)', [(int)$uid, $oid, $adm ? 1 : 0, $adm ? 'admin' : ($a['nivel'] ?? null)]);
     }
 }
 
