@@ -5148,7 +5148,18 @@ function ratear(lista) {
       litrosR: (u.litros || 0) / partes.length,
     }));
   });
-  return out;
+  // usuário de empresa só enxerga o que é da própria empresa (as outras empresas, inclusive a parte delas num rateio, não aparecem)
+  const minha = eqMinhaEmpresa();
+  return minha ? out.filter(r => r.empAjust === minha) : out;
+}
+// empresa do usuário logado (normalizada) ou '' para a gestão/administrador
+function eqMinhaEmpresa() { return window.USUARIO_EMPRESA ? normEmp(window.USUARIO_EMPRESA) : ''; }
+// equipamentos do cadastro que a empresa do usuário pode ver: os dela (responsável) e os que ela usou/abasteceu
+function eqCadastroVisivel(lista) {
+  const minha = eqMinhaEmpresa();
+  if (!minha) return lista;
+  const usados = new Set(T.usos.filter(u => empresasDe(u.empresa).includes(minha)).map(u => ganNorm(u.equipamento)));
+  return lista.filter(e => empresasDe(e.responsavel).includes(minha) || usados.has(ganNorm(e.equipamento)));
 }
 
 function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
@@ -5265,6 +5276,8 @@ function gerarRelEquipPopup() {
 
 function renderEquip() {
   const us = usosPeriodo(), rt = ratear(us);
+  const notaRateio = document.querySelector('#aba-equip .barra-acoes > .nota');
+  if (notaRateio) notaRateio.hidden = !!eqMinhaEmpresa();   // a explicação do rateio entre empresas cita as outras empresas
   const relTipo = $('#relEquipTipo');
   if (relTipo) { const atual = relTipo.value || 'geral'; const opts = ['geral', ...new Set(rt.map(r => r.empAjust).filter(Boolean).sort())]; relTipo.innerHTML = opts.map(v => `<option value="${esc(v)}">${v === 'geral' ? 'Relatório geral' : 'Empresa: ' + esc(v)}</option>`).join(''); relTipo.value = opts.includes(atual) ? atual : 'geral'; }
 
@@ -5289,7 +5302,7 @@ function renderEquip() {
   if (nomeQ) rtF = rtF.filter(r => ganNorm(r.equipamento || '').includes(nomeQ));
   if (eqFiltroUso === 'abastecimento') rtF = rtF.filter(r => ganNorm(r.uso || '').includes('ABASTECIMENTO') || (r.litrosR || 0) > 0);
   if (eqFiltroUso === 'equipamento') rtF = rtF.filter(r => !ganNorm(r.uso || '').includes('ABASTECIMENTO') && ((r.custoR || 0) > 0 || !(r.litrosR || 0)));
-  const eqsCad = nomeQ ? T.equipamentos.filter(e => ganNorm(e.equipamento || '').includes(nomeQ)) : T.equipamentos;
+  const eqsCad = nomeQ ? eqCadastroVisivel(T.equipamentos).filter(e => ganNorm(e.equipamento || '').includes(nomeQ)) : eqCadastroVisivel(T.equipamentos);
   const ativo = eqFiltroEmp || nomeQ || eqFiltroUso !== 'todos';
   const cont = $('#eqFiltroContador');
   if (cont) cont.textContent = ativo ? `${rtF.length} registro(s) filtrado(s) de ${rt.length}` : '';
@@ -5301,7 +5314,7 @@ function renderEquip() {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   $('#eqTiles').innerHTML = tile('Custo total no período', rs(totEq + totComb), `Equipamentos ${rs(totEq)} · combustível ${rs(totComb)}`, 'var(--fg)') +
     tile('Combustível', nf(totL, 0) + ' L', `${rs(totComb)} · média ${totL ? 'R$ ' + nf(totComb / totL, 2) : '—'}/L`, 'var(--acento)') +
-    ['EJ', 'CMM', 'GLOBO AÇOS'].map(n => { const o = porEmp[n]; return tile(n, rs(o ? o.eq + o.comb : 0), o ? `${rs(o.eq)} equip. + ${rs(o.comb)} comb. · ${nf(o.l)} L` : 'sem registros no período', corEmp(n)); }).join('');
+    (eqMinhaEmpresa() ? [eqMinhaEmpresa()] : ['EJ', 'CMM', 'GLOBO AÇOS']).map(n => { const o = porEmp[n]; return tile(n, rs(o ? o.eq + o.comb : 0), o ? `${rs(o.eq)} equip. + ${rs(o.comb)} comb. · ${nf(o.l)} L` : 'sem registros no período', corEmp(n)); }).join('');
 
   const c = corte();
   $('#tabEqEmp').innerHTML = `<thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Combustível</th><th class="n">Litros</th><th class="n">Total</th><th class="n">% do custo</th><th class="n">Dias com uso</th><th class="n">Produção no período</th><th class="n">Custo por unidade produzida</th></tr></thead><tbody>` +
@@ -5320,14 +5333,14 @@ function renderEquip() {
       `<tr><td><b>${esc(n)}</b></td><td class="n">${nf(o.n, 1)}</td><td class="n">${rs(o.eq)}</td><td class="n">${nf(o.l, 1)}</td><td class="n">${rs(o.comb)}</td><td class="n"><b>${rs(o.eq + o.comb)}</b></td></tr>`).join('') + '</tbody>';
 
   $('#tabEqCad').innerHTML = `<thead><tr><th>Equipamento</th><th>Tipo</th><th>Cobrança</th><th class="n">Valor</th><th>Responsável</th><th>Situação</th><th>Documentos</th><th></th></tr></thead><tbody>` +
-    (eqsCad.length ? eqsCad.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${e.responsavel ? `<span class="farol f-amarelo">${esc(e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td><td>${eqDocsResumoHtml(e.linha)}</td>
+    (eqsCad.length ? eqsCad.map(e => `<tr><td><b>${esc(e.equipamento)}</b><br><span class="nota">${esc(e.locadora || '')}</span></td><td>${esc(e.tipo || '—')}</td><td>${esc(e.cobranca || '—')}</td><td class="n">${rs(e.valor)}</td><td>${(eqMinhaEmpresa() ? empresasDe(e.responsavel).includes(eqMinhaEmpresa()) : e.responsavel) ? `<span class="farol f-amarelo">${esc(eqMinhaEmpresa() ? eqMinhaEmpresa() : e.responsavel)}</span>` : '<span class="nota">—</span>'}</td><td>${esc(e.situacao || '')}</td><td>${eqDocsResumoHtml(e.linha)}</td>
       <td><button class="link" data-editar-reg="equipamentos" data-linha="${e.linha}">Editar</button></td></tr>`).join('')
       : '<tr><td colspan="8" class="vazio">Nenhum equipamento encontrado.</td></tr>') + '</tbody>';
 
   $('#tabEqUso').innerHTML = `<thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo</th><th class="n">Litros</th><th class="n">R$/L</th><th class="n">Combustível</th><th>Operador / obs.</th><th></th></tr></thead><tbody>` +
     (rtF.length ? [...rtF].sort((a, b) => b.data.localeCompare(a.data)).map(r => {
       const partes = r.rateioAuto && empresasDe(r.empresa).length <= 1 ? ['EJ','CMM'] : empresasDe(r.empresa), dividido = partes.length > 1;
-      return `<tr><td>${fdA(r.data)}</td><td>${esc(r.equipamento)}</td><td>${esc(r.empAjust)}${dividido ? `<br><span class="nota">rateio de ${esc(r.empresa)} ÷ ${partes.length}</span>` : ''}</td><td>${esc(r.uso)}</td><td class="n">${nf(r.quantidade, 1)}</td><td class="n">${r.custoR ? rs(r.custoR) : '—'}</td>
+      return `<tr><td>${fdA(r.data)}</td><td>${esc(r.equipamento)}</td><td>${esc(r.empAjust)}${dividido ? `<br><span class="nota">rateio ${eqMinhaEmpresa() ? '' : 'de ' + esc(r.empresa) + ' '}÷ ${partes.length}</span>` : ''}</td><td>${esc(r.uso)}</td><td class="n">${nf(r.quantidade, 1)}</td><td class="n">${r.custoR ? rs(r.custoR) : '—'}</td>
       <td class="n">${nf(r.litrosR, 1)}</td><td class="n">${r.preco_litro ? nf(r.preco_litro, 2) : '—'}</td><td class="n">${r.combR ? rs(r.combR) : '—'}</td><td class="sub">${esc([r.operador, r.obs].filter(Boolean).join(' · '))}</td>
       <td><button class="link" data-editar-reg="usos" data-linha="${r.linha}">Editar</button></td></tr>`;
     }).join('')
