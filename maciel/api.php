@@ -1315,6 +1315,18 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         return ['codigo' => $atual['codigo']];
     }
 
+    if ($acao === 'resposta') {   // o administrador registra/corrige o texto da resposta (ação corretiva) em qualquer situação, sem mudar a situação
+        if (!$admin) {
+            throw new ErroValidacao('Só o administrador registra a resposta direto na não conformidade.');
+        }
+        $resp = mb_substr(trim((string)($corpo['campos']['resposta'] ?? '')), 0, 4000);
+        if ($resp === '') {
+            throw new ErroValidacao('Escreva a resposta (ação corretiva realizada).');
+        }
+        gravar_linha('nao_conformidades', $id, ['acao' => $resp]);
+        return ['id' => $id, 'codigo' => $atual['codigo']];
+    }
+
     if ($acao === 'responder') {   // a empresa (ou o administrador por ela) responde: texto + ao menos uma foto "depois"
         if ($minhaEmp === '' && !$admin) {
             throw new ErroValidacao('A resposta é dada pela empresa responsável.');

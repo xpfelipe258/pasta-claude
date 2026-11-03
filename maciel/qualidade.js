@@ -242,6 +242,7 @@ function qualPermissoes(n) {
     responder: !ro && (sit === 'aberta' || sit === 'andamento') && !!n && (!!emp || admin),   // empresa (ou admin) responde
     decidir: !ro && admin && sit === 'respondida',          // admin valida ou devolve
     reabrir: !ro && admin && sit === 'concluida',
+    fotoDepois: !ro && (admin || (!!emp && (sit === 'aberta' || sit === 'andamento'))) && !!n,   // quem anexa a foto da correção
     situacao: !ro && admin && !!n,                           // administrador muda a situação direto: aguardando resposta, em andamento ou concluída
     excluir: !ro && !!n && !emp && (admin || n.por === (D.usuario && D.usuario.nome)),
   };
@@ -278,10 +279,10 @@ function qualAbrir(id) {
     </fieldset>
     ${n ? `<fieldset class="qual-sec depois"><legend>DEPOIS — resposta da empresa</legend>
       ${qualAberta(n) && !perm.responder ? `<p class="nota">Aguardando a resposta de ${esc(n.empresa)} até ${n.prazo ? fdA(n.prazo) : '—'}.</p>` : ''}
-      ${perm.responder || n.acao ? `<label class="qual-larga">Resposta / ação corretiva realizada${perm.responder ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea name="resposta" id="qualResposta" rows="4" placeholder="O que foi feito para corrigir e evitar que se repita" ${perm.responder ? '' : 'disabled'}>${esc(n.acao || '')}</textarea></label>` : ''}
+      ${perm.responder || perm.situacao || n.acao ? `<label class="qual-larga">Resposta / ação corretiva realizada${perm.responder ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea name="resposta" id="qualResposta" rows="4" placeholder="O que foi feito para corrigir e evitar que se repita" ${perm.responder || perm.situacao ? '' : 'disabled'}>${esc(n.acao || '')}</textarea></label>` : ''}
       ${n.respondida_em ? `<p class="nota">Respondida por ${esc(n.respondida_por || '—')} em ${fdA(String(n.respondida_em).slice(0, 10))} às ${String(n.respondida_em).slice(11, 16)}${qualRespondidaAtraso(n) ? ' — <b style="color:var(--vermelho)">fora do prazo</b>' : ' — dentro do prazo'}</p>` : ''}
       ${n.situacao === 'concluida' ? `<p class="nota">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}.</p>` : ''}
-      <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)</h4>${perm.responder ? `<label class="btn qual-up">+ Anexar fotos<input type="file" id="qualArqDepois" accept="image/*" multiple hidden></label>` : ''}</div>
+      <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)</h4>${perm.fotoDepois ? `<label class="btn qual-up">+ Anexar fotos<input type="file" id="qualArqDepois" accept="image/*" multiple hidden></label>` : ''}</div>
         <div id="qualFotosDepois" class="qual-fotos"></div></div>
     </fieldset>` : ''}
     ${perm.situacao ? `<fieldset class="qual-sec"><legend>Situação (administrador)</legend><label>Mudar a situação para ${qualSelSit(n)}</label><p class="nota">Vale na hora e não envia e-mail. Concluída registra hoje e o seu nome como validação; as outras limpam a validação.</p></fieldset>` : ''}
@@ -289,6 +290,7 @@ function qualAbrir(id) {
     <div class="qual-rodape"><span class="nota" id="qualMsg"></span>
       <button type="button" class="btn" id="qualFechar">Fechar</button>
       ${perm.excluir ? '<button type="button" class="btn qual-excluir" id="qualExcluir">Excluir</button>' : ''}
+      ${perm.situacao ? '<button type="button" class="btn qual-ok" id="qualSalvarResp">Salvar resposta</button>' : ''}
       ${perm.reabrir ? '<button type="button" class="btn" id="qualReabrir">Reabrir</button>' : ''}
       ${perm.decidir ? '<button type="button" class="btn" id="qualDevolver">Devolver para correção</button><button type="button" class="btn qual-ok" id="qualValidar">Validar e concluir</button>' : ''}
       ${perm.responder ? '<button type="button" class="btn qual-ok" id="qualResponder">Enviar resposta</button>' : ''}
@@ -312,7 +314,7 @@ function qualDesenharFotos() {
   }
   if (depois) {
     const salvas = n ? qualFotosDe(n.linha, 'depois') : [];
-    depois.innerHTML = salvas.map((f, i) => fig(f, i, salvas.length, perm.responder)).join('') || '<p class="nota">Nenhuma foto da correção anexada.</p>';
+    depois.innerHTML = salvas.map((f, i) => fig(f, i, salvas.length, perm.fotoDepois)).join('') || '<p class="nota">Nenhuma foto da correção anexada.</p>';
   }
 }
 function qualMsg(t) { const m = document.querySelector('#dlgNC #qualMsg'); if (m) m.textContent = t || ''; }
@@ -456,7 +458,7 @@ async function qualGerar(f, btn) {
 
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualValidar, #qualDevolver, #qualReabrir, [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
+  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, #qualValidar, #qualDevolver, #qualReabrir, [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
   if (!t) return;
   const d = document.getElementById('dlgNC');
   if (t.id === 'qualNova') qualAbrir(null);
@@ -464,6 +466,7 @@ document.addEventListener('click', ev => {
   else if (t.id === 'qualFechar') { QUAL.fotosPend.forEach(p => URL.revokeObjectURL(p.url)); QUAL.fotosPend = []; d.close(); }
   else if (t.id === 'qualExcluir') { const n = qualTodas().find(x => x.linha === d._id); if (n && confirm(`Excluir a não conformidade ${n.codigo} e as fotos dela? Não há lixeira.`)) qualAcao({ acao: 'excluir', id: n.linha }, () => `${n.codigo} excluída.`); }
   else if (t.id === 'qualResponder') qualAcao({ acao: 'responder', id: d._id, campos: { resposta: (d.querySelector('#qualResposta') || {}).value || '' } }, j => `${j.codigo}: resposta enviada — aguarda a validação do administrador.`);
+  else if (t.id === 'qualSalvarResp') qualAcao({ acao: 'resposta', id: d._id, campos: { resposta: (d.querySelector('#qualResposta') || {}).value || '' } }, j => `${j.codigo}: resposta salva.`);
   else if (t.id === 'qualValidar') qualAcao({ acao: 'validar', id: d._id }, j => `${j.codigo} validada e concluída.`);
   else if (t.id === 'qualDevolver') qualAcao({ acao: 'devolver', id: d._id, campos: { motivo: (d.querySelector('#qualMotivo') || {}).value || '' } }, j => `${j.codigo} devolvida para a empresa corrigir.`);
   else if (t.id === 'qualReabrir') { if (confirm('Reabrir esta não conformidade? Ela volta para a empresa responder de novo.')) qualAcao({ acao: 'reabrir', id: d._id }, j => `${j.codigo} reaberta.`); }

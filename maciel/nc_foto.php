@@ -47,7 +47,7 @@ function nc_da_foto($ncId, $minhaEmp)
 function nc_pode_foto(array $nc, $tipo, $minhaEmp, $admin)
 {
     if ($tipo === 'depois') {
-        return ($minhaEmp !== '' || $admin) && in_array($nc['situacao'], ['aberta', 'andamento'], true);
+        return $admin || ($minhaEmp !== '' && in_array($nc['situacao'], ['aberta', 'andamento'], true));   // o administrador também anexa/ajusta a foto da correção depois de concluída
     }
     return $minhaEmp === '' && $nc['situacao'] !== 'concluida';
 }
