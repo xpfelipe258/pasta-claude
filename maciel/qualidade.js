@@ -21,7 +21,7 @@ const qualEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || 
 const qualAberta = n => n.situacao === 'aberta' || n.situacao === 'andamento';   // com a empresa: aguardando resposta ou em andamento
 // Uma NC pode ter mais de uma empresa (empresa = 'CMM|EJ'): cada uma responde a sua parte (tabela nc_respostas); NC de uma empresa só usa as colunas da própria NC.
 const qualEmps = n => String(n.empresa || '').split('|').map(x => x.trim()).filter(Boolean);
-const qualMulti = n => qualEmps(n).length > 1;
+const qualMulti = n => !!n._multi || qualEmps(n).length > 1;   // '_multi': usuário de empresa recebe só o próprio nome, mas a NC continua compartilhada
 const qualEmpTxt = n => qualEmps(n).join(' + ');
 const qualDaEmpresa = (n, e) => qualEmps(n).includes(e);
 const qualRespDe = (n, emp) => qualMulti(n)
@@ -29,7 +29,7 @@ const qualRespDe = (n, emp) => qualMulti(n)
   : { acao: n.acao, respondida_em: n.respondida_em, respondida_por: n.respondida_por, devolucao: n.devolucao };
 const qualPendenteEmp = (n, emp) => qualAberta(n) && (!qualMulti(n) || !qualRespDe(n, emp).respondida_em);   // a empresa ainda precisa responder
 const qualRespAtraso = (n, r) => !!(n.prazo && r && r.respondida_em && String(r.respondida_em).slice(0, 10) > n.prazo);
-const qualTodas = () => (T.nao_conformidades || []).slice();
+const qualTodas = () => (T.nao_conformidades || []).filter(n => !qualMinhaEmpresa() || qualDaEmpresa(n, qualMinhaEmpresa()));   // empresa: só as NCs dela, sempre
 const qualFotosDe = (id, tipo, emp) => (T.nc_fotos || []).filter(f => f.nc_id === id && (!tipo || (f.tipo || 'antes') === tipo) && (!emp || !f.empresa || f.empresa === emp)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.linha - b.linha);
 const qualAtrasada = n => !!n.prazo && qualAberta(n) && n.prazo < hoje();   // prazo para responder venceu e a empresa ainda não respondeu
 const qualDiasPrazo = n => n.prazo ? diasEntre(hoje(), n.prazo) : null;
