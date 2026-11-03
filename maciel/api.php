@@ -121,7 +121,7 @@ try {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
             }
-            responder_json(200, ['dados' => identidade_mapa($usuario)]);
+            responder_json(200, ['dados' => identidade_mapa($usuario), 'obra_logo' => identidade_logo_da_obra()]);
         }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
@@ -498,6 +498,33 @@ function configuracoes_ler(array $usuario)
 
 // ---- Identidade visual dos relatórios por empresa (2026-10-26): logo + cor; o cliente continua sendo a Rótula.
 // Fica em config_global.identidade_empresas = { "EJ": { logo: "data:image/png;base64,…", cor: "#rrggbb", por, em } }.
+// Logo cadastrado na obra aberta (portal de obras › Editar dados da obra): vai no lado "Cliente" da capa dos relatórios, no lugar da Rótula.
+// Reduzido para até 480 × 160 px (quando o servidor tem GD) para não pesar em toda abertura; sem logo na obra devolve '' (a capa usa a Rótula).
+function identidade_logo_da_obra()
+{
+    try {
+        $logo = (string)q_global('SELECT logo FROM obras WHERE id = ?', [obra_atual_id()])->fetchColumn();
+    } catch (Throwable $e) {
+        return '';
+    }
+    if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', $logo, $m)) { return ''; }
+    if (function_exists('imagecreatefromstring') && function_exists('imagepng')) {
+        $bin = base64_decode($m[2], true);
+        $im = $bin !== false ? @imagecreatefromstring($bin) : false;
+        if ($im) {
+            $w = imagesx($im); $h = imagesy($im);
+            $f = min(1, 480 / max(1, $w), 160 / max(1, $h));
+            $nw = max(1, (int)round($w * $f)); $nh = max(1, (int)round($h * $f));
+            $novo = imagecreatetruecolor($nw, $nh);
+            imagealphablending($novo, false); imagesavealpha($novo, true);
+            imagefill($novo, 0, 0, imagecolorallocatealpha($novo, 255, 255, 255, 127));
+            imagecopyresampled($novo, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            ob_start(); imagepng($novo); $png = (string)ob_get_clean();
+            if ($png !== '') { return 'data:image/png;base64,' . base64_encode($png); }
+        }
+    }
+    return strlen($logo) <= 600 * 1024 ? $logo : '';
+}
 function identidade_todas()
 {
     $d = json_decode((string)global_ler('identidade_empresas', '{}'), true);
@@ -524,7 +551,7 @@ function identidade_mapa(array $u)
     $meu = identidade_chave($u['empresa'] ?? '');
     foreach ($todas as $emp => $d) {
         if (tarefa_usuario_rotula($u) || identidade_chave($emp) === $meu) {
-            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? '')];
+            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'cor2' => (string)($d['cor2'] ?? '')];
         }
     }
     // Identidade da empresa cliente (Configurações da Central): serve de padrão quando o relatório não é de uma empresa terceirizada com identidade própria
@@ -532,7 +559,7 @@ function identidade_mapa(array $u)
     if ($orgId) {
         $o = organizacao_ler($orgId);
         $d = cfg_identidade_ler($orgId);
-        if ($o && ($d['logo'] !== '' || $d['cor'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
+        if ($o && ($d['logo'] !== '' || $d['cor'] !== '' || $d['cor2'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'cor2' => $d['cor2'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
     }
     return (object)$out;
 }
@@ -552,6 +579,10 @@ function acao_identidade(array $corpo, array $usuario)
         if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) {
             throw new ErroValidacao('Cor inválida (use o formato #rrggbb).');
         }
+        $cor2 = trim((string)($corpo['cor2'] ?? ''));
+        if ($cor2 !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor2)) {
+            throw new ErroValidacao('Cor secundária inválida (use o formato #rrggbb).');
+        }
         $logo = (string)($atual['logo'] ?? '');
         if (!empty($corpo['remover_logo'])) {
             $logo = '';
@@ -570,12 +601,12 @@ function acao_identidade(array $corpo, array $usuario)
             }
             $logo = (string)$corpo['logo'];
         }
-        if ($logo === '' && $cor === '') {
+        if ($logo === '' && $cor === '' && $cor2 === '') {
             unset($todas[$emp]);
         } else {
-            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
+            $todas[$emp] = ['logo' => $logo, 'cor' => $cor, 'cor2' => $cor2, 'por' => $usuario['nome'] ?? '', 'em' => tarefa_agora_brt()];
         }
-        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor]);
+        registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor, 'cor2' => $cor2]);
     }
     global_gravar('identidade_empresas', json_encode($todas, JSON_UNESCAPED_UNICODE));
     return ['ok' => true, 'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)]];

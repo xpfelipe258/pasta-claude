@@ -598,5 +598,5 @@ function cfg_identidade_ler($orgId)
 {
     $t = cfg_json_ler('identidade_organizacoes');
     $d = is_array($t[(string)(int)$orgId] ?? null) ? $t[(string)(int)$orgId] : [];
-    return ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'por' => (string)($d['por'] ?? ''), 'em' => (string)($d['em'] ?? '')];
+    return ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'cor2' => (string)($d['cor2'] ?? ''), 'por' => (string)($d['por'] ?? ''), 'em' => (string)($d['em'] ?? '')];
 }

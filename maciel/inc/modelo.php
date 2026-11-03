@@ -188,6 +188,33 @@ function montar_modelo()
         $tabelas['estoque_remessas'] ?? [],
         $tabelas['estoque_inventario'] ?? [],
         $regras, $inv_ifc) : null;
+    // Usuário de empresa só enxerga o que é da própria empresa: serviços, metas, produção, efetivo, medição (BM) e impactos das outras empresas nem chegam ao navegador
+    // (o estoque e o mapa de montagem continuam inteiros, porque o saldo e o que já foi montado dependem de todas)
+    $uEmp = function_exists('usuario_atual') ? usuario_atual() : null;
+    $minhaEmp = trim((string)($uEmp['empresa'] ?? ''));
+    if ($minhaEmp !== '' && ($uEmp['perfil'] ?? '') !== 'admin') {
+        $meuN = oe_norm($minhaEmp);
+        $minha = function ($v) use ($meuN) { return oe_norm($v) === $meuN; };
+        $empresas = array_values(array_filter($empresas, function ($e) use ($minha) { return $minha($e['nome']); }));
+        $meusServ = [];
+        foreach ($empresas as $e) {
+            foreach ($e['servicos'] as $sv) { $meusServ[oe_norm($sv['nome']) . '|' . oe_norm($sv['frente'])] = true; }
+        }
+        $metas = array_values(array_filter($metas, function ($m) use ($minha) { return $minha($m['empresa']); }));
+        $cliente = array_values(array_filter($cliente, function ($c) use ($meusServ) { return isset($meusServ[oe_norm($c['servico']) . '|' . oe_norm($c['frente'])]); }));
+        $impactos = array_values(array_filter($impactos, function ($i) use ($meuN) {
+            $lista = trim((string)($i['empresas'] ?? ''));
+            if ($lista === '') { return false; }
+            if (stripos($lista, 'todas') !== false) { return true; }
+            return strpos(' ' . oe_norm($lista) . ' ', ' ' . $meuN . ' ') !== false;
+        }));
+        foreach (['movimentos', 'estoque_eventos'] as $tf) {   // lançamentos de estoque: some só o que é de outra empresa (sem empresa informada é geral e fica)
+            if (isset($tabelas[$tf])) { $tabelas[$tf] = array_values(array_filter($tabelas[$tf], function ($l) use ($minha) { return trim((string)($l['empresa'] ?? '')) === '' || $minha($l['empresa']); })); }
+        }
+        foreach (['dp_efetivo', 'bm_atividades', 'bm_periodos', 'bm_apontamentos', 'bm_deducoes', 'bm_fechamentos', 'bm_fech_atividades'] as $tf) {
+            if (isset($tabelas[$tf])) { $tabelas[$tf] = array_values(array_filter($tabelas[$tf], function ($l) use ($minha) { return $minha($l['empresa'] ?? ''); })); }
+        }
+    }
     return [
         'datas' => datas_obra(),
         'empresas' => $empresas,

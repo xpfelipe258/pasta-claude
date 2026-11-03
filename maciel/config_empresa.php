@@ -127,21 +127,23 @@ central_topo('Configurações', 'config', $eu, $org ? $org['nome'] : 'Central da
 
   <?php if ($v === 'logos' && $org): ?>
   <section class="ce-bloco"><h2>Logo e cor dos relatórios oficiais</h2>
-    <p>O logo vai na capa dos relatórios (lado “Gestão”, junto do nome da obra), nos PDFs e na proposta comercial; a cor substitui o destaque padrão. O cliente final continua sendo a Rótula nos relatórios de obra. Use PNG com fundo transparente, de preferência com proporção horizontal (até 480 × 160 px — imagens maiores são reduzidas).</p>
+    <p>O logo vai na capa dos relatórios (lado “Gestão”, junto do nome da obra), nos PDFs e na proposta comercial; as duas cores (principal e secundária) substituem as cores padrão de todo o layout do relatório. O logo do cliente, no outro lado da capa, vem do cadastro de cada obra; aqui vale só o logo da empresa. Use PNG com fundo transparente, de preferência com proporção horizontal (até 480 × 160 px — imagens maiores são reduzidas).</p>
     <div class="cfg-ident">
-      <div class="cfg-capa" style="--tv:<?= h($ident['cor'] ?: $corPadrao) ?>">
+      <div class="cfg-capa" style="--tv:<?= h($ident['cor'] ?: $corPadrao) ?>;--ta:<?= h($ident['cor2'] ?: '#101828') ?>">
         <small>PRÉVIA DA CAPA</small>
-        <div class="cfg-capa-marcas"><span class="cfg-chip"><?php if ($ident['logo']): ?><img src="<?= h($ident['logo']) ?>" alt="Logo da empresa"><?php else: ?><i>sem logo</i><?php endif; ?></span><span class="cfg-chip cfg-rot">RÓTULA</span></div>
+        <div class="cfg-capa-marcas"><span class="cfg-chip"><?php if ($ident['logo']): ?><img src="<?= h($ident['logo']) ?>" alt="Logo da empresa"><?php else: ?><i>sem logo</i><?php endif; ?></span></div>
         <b>Relatório de produção</b><span><?= h($org['nome']) ?></span></div>
       <form method="post" enctype="multipart/form-data" class="ce-form" style="flex:1;min-width:260px"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="identidade"><?php if ($sistema): ?><input type="hidden" name="org" value="<?= (int)$orgId ?>"><?php endif; ?>
         <label class="full">Logo (PNG, JPG ou WEBP)<input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>
-        <label>Cor de destaque da capa<input type="color" name="cor" value="<?= h($ident['cor'] ?: $corPadrao) ?>" style="height:44px;padding:3px"></label>
-        <label style="justify-content:flex-end;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="cor_padrao" value="1" <?= $ident['cor'] === '' ? 'checked' : '' ?> style="width:auto"> Usar a cor padrão da Rótula</label>
+        <label>Cor principal (destaques, capa)<input type="color" name="cor" value="<?= h($ident['cor'] ?: $corPadrao) ?>" style="height:44px;padding:3px"></label>
+        <label style="justify-content:flex-end;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="cor_padrao" value="1" <?= $ident['cor'] === '' ? 'checked' : '' ?> style="width:auto"> Usar a cor principal padrão</label>
+        <label>Cor secundária (títulos, tabelas, rodapé)<input type="color" name="cor2" value="<?= h($ident['cor2'] ?: '#0b4f9c') ?>" style="height:44px;padding:3px"></label>
+        <label style="justify-content:flex-end;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="cor2_padrao" value="1" <?= $ident['cor2'] === '' ? 'checked' : '' ?> style="width:auto"> Usar a cor secundária padrão</label>
         <?php if ($ident['logo']): ?><label class="full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="remover_logo" value="1" style="width:auto"> Remover o logo atual</label><?php endif; ?>
         <?php if ($ident['em']): ?><span class="ce-nota full">Última alteração: <?= h($ident['em']) ?><?= $ident['por'] ? ' por ' . h($ident['por']) : '' ?>.</span><?php endif; ?>
         <div class="ce-acoes full"><button class="btn primario" type="submit">Salvar identidade</button></div>
       </form>
-      <?php if ($ident['logo'] || $ident['cor']): ?>
+      <?php if ($ident['logo'] || $ident['cor'] || $ident['cor2']): ?>
       <form method="post" onsubmit="return confirm('Voltar os relatórios ao padrão (sem logo e sem cor própria)?')"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="identidade_remover"><?php if ($sistema): ?><input type="hidden" name="org" value="<?= (int)$orgId ?>"><?php endif; ?><button class="btn ghost" type="submit">Voltar ao padrão</button></form>
       <?php endif; ?>
     </div></section>
