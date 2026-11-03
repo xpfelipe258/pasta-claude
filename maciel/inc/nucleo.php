@@ -1308,7 +1308,7 @@ function pagina_inicio($titulo, $app = false)
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     echo icones_html();
     echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
-    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261003v7">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
+    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261103v8">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 
 

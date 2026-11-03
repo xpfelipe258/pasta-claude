@@ -75,6 +75,7 @@ function planos_config()
         'limite_sem_plano' => max(0, (int)($c['limite_sem_plano'] ?? 0)),  // obras que quem NÃO pertence a uma empresa pode criar quando o plano é exigido
         'tolerancia_dias' => max(0, min(60, (int)($c['tolerancia_dias'] ?? 5))),   // dias depois do vencimento em que a empresa ainda cria obras e usuários
         'dias_teste' => max(1, min(90, (int)($c['dias_teste'] ?? 14))),
+        'cadastro_aberto' => !array_key_exists('cadastro_aberto', $c) || !empty($c['cadastro_aberto']) ? 1 : 0,   // cadastro público de empresas (cadastro.php); padrão ligado
     ];
 }
 
@@ -85,6 +86,7 @@ function planos_config_salvar(array $e)
         'limite_sem_plano' => max(0, min(1000, (int)($e['limite_sem_plano'] ?? 0))),
         'tolerancia_dias' => max(0, min(60, (int)($e['tolerancia_dias'] ?? 5))),
         'dias_teste' => max(1, min(90, (int)($e['dias_teste'] ?? 14))),
+        'cadastro_aberto' => !empty($e['cadastro_aberto']) ? 1 : 0,
     ];
     global_gravar('planos_config', json_encode($c));
     return $c;

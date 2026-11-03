@@ -146,6 +146,7 @@ pagina_inicio('Comercial');
         <label>Obras de quem não tem empresa<input type="number" name="limite_sem_plano" min="0" max="1000" value="<?= (int)$cfg['limite_sem_plano'] ?>"></label>
         <label>Tolerância após o vencimento (dias)<input type="number" name="tolerancia_dias" min="0" max="60" value="<?= (int)$cfg['tolerancia_dias'] ?>"></label>
         <label>Dias do período de teste<input type="number" name="dias_teste" min="1" max="90" value="<?= (int)$cfg['dias_teste'] ?>"></label>
+        <label class="pl-check"><input type="checkbox" name="cadastro_aberto" value="1" <?= $cfg['cadastro_aberto'] ? 'checked' : '' ?>> Cadastro público aberto (aba “Cadastro” da tela de login: a empresa se cadastra sozinha, escolhe o plano e entra em teste)</label>
         <div><button class="btn primario">Salvar regra</button></div>
       </form>
     </section>

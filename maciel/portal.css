@@ -330,3 +330,9 @@ body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d
 /* Botões do cartão da obra: a cor da obra é escurecida para o texto branco ficar legível; os secundários usam a cor bem mais escura */
 .obra-card .largura { background: color-mix(in srgb, var(--obra-cor) 74%, #000) !important; color: #fff !important; }
 .obra-card > .btn.ghost.largura { background: transparent !important; color: color-mix(in srgb, var(--obra-cor) 45%, #000) !important; border: 1px solid color-mix(in srgb, var(--obra-cor) 60%, #000); }
+
+/* Abas Entrar | Cadastro da tela de login */
+.login-abas { display: inline-flex; padding: 4px; margin-bottom: 26px; border-radius: 999px; background: #e9edf2; }
+.login-abas a { padding: 9px 24px; border-radius: 999px; color: #344054; font-weight: 700; font-size: .9rem; text-decoration: none; }
+.login-abas a.ativa { background: #fff; color: #101828; box-shadow: 0 2px 8px rgba(16,24,40,.12); }
+.login-abas a:not(.ativa):hover { color: var(--portal-primary); }
