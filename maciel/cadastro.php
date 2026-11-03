@@ -83,11 +83,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $plano = q_global('SELECT nome FROM planos_assinatura WHERE id = ?', [$v['plano_id']])->fetchColumn();
             $link = url_base_sistema() . '/login.php';
             try {
-                enviar_email_sistema($v['email'], 'Bem-vindo ao ' . $sistema . ' — seu teste começou',
-                    "Olá, {$v['admin_nome']}.\n\nA empresa {$v['nome']} foi cadastrada no {$sistema} com o {$plano}.\nO período de teste vai até " . date('d/m/Y', strtotime($venc)) . ".\n\nSeu login de acesso: {$v['admin_login']}\nEntre em: {$link}\n\nPor lá você cria as obras e cadastra a equipe da empresa.");
+                require_once __DIR__ . '/inc/cadastro_emails.php';
+                $dadosEmail = [
+                    'sistema' => $sistema, 'empresa' => $v['nome'], 'admin_nome' => $v['admin_nome'],
+                    'documento' => $v['documento'], 'telefone' => $v['telefone'], 'email' => $v['email'],
+                    'login' => $v['admin_login'], 'plano' => $plano, 'ciclo' => $v['ciclo'],
+                    'vencimento' => date('d/m/Y', strtotime($venc)), 'link' => $link,
+                    'link_admin' => url_base_sistema() . '/admin_planos.php',
+                ];
+                enviar_email_sistema($v['email'], 'Boas-vindas ao ' . $sistema . ' — seu teste começou',
+                    cadastro_email_boas_vindas($dadosEmail), true);
                 foreach (q_global("SELECT email FROM usuarios WHERE perfil = 'admin' AND ativo = 1 AND email IS NOT NULL AND email <> ''")->fetchAll(PDO::FETCH_COLUMN) as $para) {
-                    enviar_email_sistema($para, 'Novo cadastro de empresa: ' . $v['nome'],
-                        "Uma empresa se cadastrou pela tela de login.\n\nEmpresa: {$v['nome']}\nCNPJ: " . ($v['documento'] ?: '—') . "\nResponsável: {$v['admin_nome']} ({$v['email']})\nTelefone: " . ($v['telefone'] ?: '—') . "\nPlano: {$plano} · ciclo " . strtolower($v['ciclo']) . "\nTeste até: " . date('d/m/Y', strtotime($venc)) . "\n\nAcompanhe em Comercial (admin_planos.php).");
+                    enviar_email_sistema($para, 'Novo cliente cadastrado: ' . $v['nome'],
+                        cadastro_email_aviso_admin($dadosEmail), true);
                 }
             } catch (Throwable $e) { /* sem e-mail configurado: segue */ }
             // Entra direto (a menos que o sistema esteja em manutenção).
