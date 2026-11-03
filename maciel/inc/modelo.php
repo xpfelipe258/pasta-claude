@@ -167,6 +167,12 @@ function montar_modelo()
     if ($empQual !== '') {
         // a NC pode ter mais de uma empresa ('CMM|EJ'): a empresa vê a NC se estiver na lista, mas só a resposta e as fotos "depois" da própria empresa
         $tabelas['nao_conformidades'] = array_values(array_filter($tabelas['nao_conformidades'] ?? [], function ($n) use ($empQual) { return in_array($empQual, nc_empresas_da($n['empresa'] ?? ''), true); }));
+        // a empresa só enxerga o próprio nome: o das outras empresas da mesma NC nem chega ao navegador ('_multi' avisa que a NC é compartilhada, para usar a resposta por empresa)
+        $tabelas['nao_conformidades'] = array_map(function ($n) use ($empQual) {
+            $n['_multi'] = count(nc_empresas_da($n['empresa'] ?? '')) > 1 ? 1 : 0;
+            $n['empresa'] = $empQual;
+            return $n;
+        }, $tabelas['nao_conformidades']);
         $idsQual = array_flip(array_map(function ($n) { return (int)$n['linha']; }, $tabelas['nao_conformidades']));
         $tabelas['nc_fotos'] = array_values(array_filter($tabelas['nc_fotos'] ?? [], function ($f) use ($idsQual, $empQual) {
             return isset($idsQual[(int)($f['nc_id'] ?? 0)]) && (($f['tipo'] ?? 'antes') !== 'depois' || ($f['empresa'] ?? '') === '' || $f['empresa'] === $empQual);

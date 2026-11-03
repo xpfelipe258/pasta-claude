@@ -12,7 +12,7 @@ body:has(.cad-shell) *, body:has(.cad-shell) *::before, body:has(.cad-shell) *::
 .cad-abas a { padding: 9px 20px; border-radius: 999px; color: #344054; font-weight: 700; font-size: .9rem; text-decoration: none; }
 .cad-abas a.ativa { background: #fff; color: #101828; box-shadow: 0 2px 8px rgba(16,24,40,.12); }
 
-.cad-hero { display: grid; grid-template-columns: 1fr 1.05fr; gap: 36px; align-items: center; padding: 38px; border-radius: 26px; color: #fff;
+.cad-hero { display: grid; grid-template-columns: 1fr minmax(0, 1.25fr); gap: 36px; align-items: center; padding: 38px; border-radius: 26px; color: #fff;
   background: radial-gradient(circle at 85% 10%, rgba(255,255,255,.14), transparent 28%), radial-gradient(circle at 15% 95%, color-mix(in srgb, var(--cad-p) 45%, transparent), transparent 38%), linear-gradient(145deg, var(--cad-d), #26334e 70%, color-mix(in srgb, var(--cad-d) 75%, var(--cad-p))); }
 .cad-eyebrow { display: block; margin-bottom: 14px; color: #ffd08a; font-size: .72rem; font-weight: 850; letter-spacing: .18em; }
 .cad-hero h1 { color: #fff !important; font-size: clamp(1.9rem, 3.6vw, 3.1rem) !important; font-weight: 760; line-height: 1.05; letter-spacing: -.04em !important; }
@@ -22,6 +22,10 @@ body:has(.cad-shell) *, body:has(.cad-shell) *::before, body:has(.cad-shell) *::
 .cad-btn.sec { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); box-shadow: none; }
 .cad-btn.grande { width: 100%; min-height: 56px; margin-top: 22px; font-size: 1.02rem; }
 .cad-btn:disabled { opacity: .6; cursor: wait; }
+.cad-video { display: flex; justify-content: center; }
+/* Computador: vídeo horizontal 16:9. Celular (até 900 px): vídeo vertical 9:16. */
+.cad-video .cad-v-cel { width: min(300px, 100%); aspect-ratio: 9 / 16; }
+.cad-video.tem-h .cad-v-cel { display: none; }   /* com a versão horizontal, o vertical só aparece no celular */
 .cad-video video, .cad-video-vazio { width: 100%; display: block; aspect-ratio: 16 / 9; border-radius: 16px; background: #0b1220; box-shadow: 0 22px 50px rgba(0,0,0,.35); }
 .cad-video-vazio { display: grid; place-items: center; color: rgba(255,255,255,.6); }
 
@@ -95,13 +99,9 @@ form.anual .cad-preco-alt .alt-m { display: none; }
 .cad-lightbox form { position: absolute; right: 22px; top: 22px; margin: 0; }
 .cad-fechar { width: 38px; height: 38px; border: 0; border-radius: 50%; background: rgba(16,24,40,.75); color: #fff; font-size: 1rem; cursor: pointer; }
 
-.cad-video2 { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: center; padding: 34px; border: 1px solid var(--cad-l); border-radius: 22px; background: #fff; box-shadow: 0 14px 36px rgba(16,24,40,.07); }
-.cad-video2 .cad-eyebrow { color: var(--cad-p); }
-.cad-video2 .cad-sub { margin-bottom: 22px; }
-.cad-video2 video { display: block; width: min(320px, 100%); aspect-ratio: 9 / 16; border-radius: 18px; background: #0b1220; box-shadow: 0 18px 44px rgba(16,24,40,.25); }
-
 @media (max-width: 900px) {
-  .cad-video2 { grid-template-columns: 1fr; padding: 22px 18px; justify-items: center; text-align: center; }
+  .cad-video .cad-v-pc { display: none; }
+  .cad-video.tem-h .cad-v-cel { display: block; }
   .cad-hero { grid-template-columns: 1fr; padding: 26px 20px; gap: 24px; }
   .cad-galeria { grid-template-columns: 1fr 1fr; }
   .cad-grade { grid-template-columns: 1fr; }
