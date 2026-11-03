@@ -120,6 +120,7 @@ $nomeSistema = global_ler('nome_sistema', 'Núcleo de Obras');
 $logo = global_ler('logo', '');
 $midia = 'assets/cadastro/';
 $temVideo = is_file(__DIR__ . '/' . $midia . 'video-comercial.mp4');
+$temVideo2 = is_file(__DIR__ . '/' . $midia . 'video-obras-gerais.mp4');
 $prints = [
     ['print-painel', 'Painel de gestão à vista', 'Farol por serviço, pontos de atenção e impactos da obra em uma tela.'],
     ['print-mapa', 'Mapa de montagem', 'Marque a peça no mapa: produção, medição e baixa de estoque se atualizam sozinhas.'],
@@ -155,6 +156,18 @@ echo '<link rel="stylesheet" href="cadastro.css?v=' . (int)@filemtime(__DIR__ . 
       <?php endif; ?>
     </div>
   </section>
+
+  <?php if ($temVideo2): ?>
+  <section class="cad-sec cad-video2" id="video-obras">
+    <div class="cad-video2-txt">
+      <span class="cad-eyebrow">VEJA EM 40 SEGUNDOS</span>
+      <h2>Do campo à gestão, tudo no mesmo sistema</h2>
+      <p class="cad-sub">Chega de planilhas soltas e dados que não conversam: registre a produção, acompanhe consumos e medição e tenha a obra sob controle em um só lugar.</p>
+      <a class="cad-btn" href="#cadastro">Quero testar</a>
+    </div>
+    <video controls preload="metadata" playsinline poster="<?= h($midia) ?>video-obras-gerais-capa.jpg"><source src="<?= h($midia) ?>video-obras-gerais.mp4" type="video/mp4">Seu navegador não reproduz vídeo.</video>
+  </section>
+  <?php endif; ?>
 
   <?php if ($prints): ?>
   <section class="cad-sec" id="prints">

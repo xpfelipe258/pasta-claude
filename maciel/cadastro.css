@@ -95,7 +95,13 @@ form.anual .cad-preco-alt .alt-m { display: none; }
 .cad-lightbox form { position: absolute; right: 22px; top: 22px; margin: 0; }
 .cad-fechar { width: 38px; height: 38px; border: 0; border-radius: 50%; background: rgba(16,24,40,.75); color: #fff; font-size: 1rem; cursor: pointer; }
 
+.cad-video2 { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: center; padding: 34px; border: 1px solid var(--cad-l); border-radius: 22px; background: #fff; box-shadow: 0 14px 36px rgba(16,24,40,.07); }
+.cad-video2 .cad-eyebrow { color: var(--cad-p); }
+.cad-video2 .cad-sub { margin-bottom: 22px; }
+.cad-video2 video { display: block; width: min(320px, 100%); aspect-ratio: 9 / 16; border-radius: 18px; background: #0b1220; box-shadow: 0 18px 44px rgba(16,24,40,.25); }
+
 @media (max-width: 900px) {
+  .cad-video2 { grid-template-columns: 1fr; padding: 22px 18px; justify-items: center; text-align: center; }
   .cad-hero { grid-template-columns: 1fr; padding: 26px 20px; gap: 24px; }
   .cad-galeria { grid-template-columns: 1fr 1fr; }
   .cad-grade { grid-template-columns: 1fr; }
