@@ -127,11 +127,11 @@ central_topo('Configurações', 'config', $eu, $org ? $org['nome'] : 'Central da
 
   <?php if ($v === 'logos' && $org): ?>
   <section class="ce-bloco"><h2>Logo e cor dos relatórios oficiais</h2>
-    <p>O logo vai na capa dos relatórios (lado “Gestão”, junto do nome da obra), nos PDFs e na proposta comercial; as duas cores (principal e secundária) substituem as cores padrão de todo o layout do relatório. O cliente final continua sendo a Rótula nos relatórios de obra. Use PNG com fundo transparente, de preferência com proporção horizontal (até 480 × 160 px — imagens maiores são reduzidas).</p>
+    <p>O logo vai na capa dos relatórios (lado “Gestão”, junto do nome da obra), nos PDFs e na proposta comercial; as duas cores (principal e secundária) substituem as cores padrão de todo o layout do relatório. O logo do cliente, no outro lado da capa, vem do cadastro de cada obra; aqui vale só o logo da empresa. Use PNG com fundo transparente, de preferência com proporção horizontal (até 480 × 160 px — imagens maiores são reduzidas).</p>
     <div class="cfg-ident">
       <div class="cfg-capa" style="--tv:<?= h($ident['cor'] ?: $corPadrao) ?>;--ta:<?= h($ident['cor2'] ?: '#101828') ?>">
         <small>PRÉVIA DA CAPA</small>
-        <div class="cfg-capa-marcas"><span class="cfg-chip"><?php if ($ident['logo']): ?><img src="<?= h($ident['logo']) ?>" alt="Logo da empresa"><?php else: ?><i>sem logo</i><?php endif; ?></span><span class="cfg-chip cfg-rot">RÓTULA</span></div>
+        <div class="cfg-capa-marcas"><span class="cfg-chip"><?php if ($ident['logo']): ?><img src="<?= h($ident['logo']) ?>" alt="Logo da empresa"><?php else: ?><i>sem logo</i><?php endif; ?></span></div>
         <b>Relatório de produção</b><span><?= h($org['nome']) ?></span></div>
       <form method="post" enctype="multipart/form-data" class="ce-form" style="flex:1;min-width:260px"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="identidade"><?php if ($sistema): ?><input type="hidden" name="org" value="<?= (int)$orgId ?>"><?php endif; ?>
         <label class="full">Logo (PNG, JPG ou WEBP)<input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>

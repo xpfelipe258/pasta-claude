@@ -120,7 +120,7 @@ function cfgIdentidadeHtml(c) {
   return `<section class="bloco cfg-bloco cfg-largo" id="cfgIdent">
     <div class="bloco-cab"><h2>${esc(tx('Identidade visual dos relatórios'))}</h2></div>
     <form id="cfgFormIdent" class="cfg-form" autocomplete="off">
-      <p class="nota">${esc(tx('O logo e as duas cores da empresa (principal e secundária) mudam todo o layout dos relatórios: capa, títulos de seção, tabelas e rodapé. O cliente continua sendo a RÓTULA.'))}</p>
+      <p class="nota">${esc(tx('O logo e as duas cores da empresa (principal e secundária) mudam todo o layout dos relatórios: capa, títulos de seção, tabelas e rodapé. No lado do cliente aparece o logo cadastrado na obra (sem logo na obra, a RÓTULA).'))}</p>
       ${emps.length > 1 ? `<label>${esc(tx('Empresa'))}<select name="empresa" id="cfgIdentEmp">${emps.map(e => `<option${e === emp ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : `<b>${esc(emp)}</b><input type="hidden" name="empresa" value="${esc(emp)}">`}
       <div class="cfg-ident-linha">
         <label>${esc(tx('Logo da empresa'))}<input type="file" id="cfgIdentArq" accept="image/png,image/jpeg,image/webp"><small>${esc(tx('PNG, JPG ou WEBP. A imagem é reduzida automaticamente (até 480 × 160 px). Fundo transparente fica melhor.'))}</small></label>
@@ -147,7 +147,7 @@ function cfgIdentPrevia() {
   box.style.setProperty('--prev', cor);
   box.innerHTML = `<div class="cfg-ident-capa" style="background:linear-gradient(115deg,${tplEscurecer(cor)} 0%,${cor} 40%,${tplMisturar(cor, cor2)} 68%,${cor2} 100%)">
       <div><small>${esc(tx('Gestão'))}</small><span class="cfg-ident-chip">${logo ? `<img src="${logo}" alt="">` : `<b>${esc(emp)}</b>`}</span></div>
-      <div style="text-align:right"><small>${esc(tx('Cliente'))}</small><span class="cfg-ident-chip"><b style="color:#0b4f9c">RÓTULA</b></span></div></div>
+      <div style="text-align:right"><small>${esc(tx('Cliente'))}</small><span class="cfg-ident-chip">${(typeof TPL_IDENT !== 'undefined' && TPL_IDENT.obraLogo) ? `<img src="${TPL_IDENT.obraLogo}" alt="">` : '<b style="color:#0b4f9c">RÓTULA</b>'}</span></div></div>
     <div class="cfg-ident-faixas"><span style="background:linear-gradient(100deg,${tplEscurecer(cor2, 0.55)},${cor2} 70%,${tplMisturar(cor2, '#ffffff', 0.25)})">${esc(tx('TÍTULO DE SEÇÃO'))}</span><i style="border-left-color:${cor}"></i><u style="border-bottom-color:${cor2}">${esc(tx('Cabeçalho de tabela'))}</u></div>`;
 }
 // reduz o logo no navegador (máx. 480 × 160) e devolve um data URI PNG/JPG pequeno

@@ -109,6 +109,11 @@ function tplFichaObra() {
   return `<section class="tpl-ficha">${campos.map(([k, v, c]) => `<div style="grid-column:span ${c}"><small>${esc(k)}</small><b>${esc(String(v))}</b></div>`).join('')}</section>`;
 }
 
+// Lado "Cliente" da capa: o logo da obra (cadastro da obra no portal) ou, sem ele, a Rótula
+function tplLogoCliente() {
+  const l = typeof TPL_IDENT !== 'undefined' && TPL_IDENT.obraLogo;
+  return l ? `<img src="${l}" alt="Cliente" style="height:44px;max-width:240px;display:block">` : tplLogo('rotula');
+}
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
 function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '', empresa = '' }) {
   const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -126,7 +131,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
       <header class="tpl-capa"><div class="tpl-capa-fundo">
         <div class="tpl-marcas">
           <div class="tpl-marca"><small>Gestão</small>${marcaGestao}</div>
-          <div class="tpl-marca" style="text-align:right"><small>Cliente</small><span class="tpl-chip">${tplLogo('rotula')}</span></div>
+          <div class="tpl-marca" style="text-align:right"><small>Cliente</small><span class="tpl-chip">${tplLogoCliente()}</span></div>
         </div>
         <div class="tpl-titulos"><h1>${esc(titulo)}</h1>${subtitulo ? `<p>${esc(subtitulo)}</p>` : ''}</div>
         ${meta ? `<div class="tpl-meta">${esc(meta)}</div>` : ''}
@@ -169,11 +174,11 @@ function tplAdaptarRelatorio(html, tituloPadrao = 'Relatório') {
   return tplDocumento({ titulo, subtitulo, corpo: doc.body.innerHTML, cssAntes });
 }
 // ---- Identidade visual da empresa (Configurações › Identidade visual dos relatórios): logo e cor da empresa no lado "Gestão" da capa; o cliente continua a Rótula.
-const TPL_IDENT = { dados: {} };
+const TPL_IDENT = { dados: {}, obraLogo: '' };   // obraLogo = logo cadastrado na obra aberta: aparece no lado "Cliente" da capa (sem ele, a Rótula)
 async function tplIdentidadeCarregar() {
   try {
     const r = await fetch(API + 'identidade', { cache: 'no-store' });
-    if (r.ok) TPL_IDENT.dados = (await r.json()).dados || {};
+    if (r.ok) { const j = await r.json(); TPL_IDENT.dados = j.dados || {}; TPL_IDENT.obraLogo = j.obra_logo || ''; }
   } catch { /* sem identidade: o relatório sai no padrão da Rótula */ }
 }
 // empresa explícita (relatório de uma empresa) ou, se o usuário é de uma empresa, a dele

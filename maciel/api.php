@@ -121,7 +121,7 @@ try {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
             }
-            responder_json(200, ['dados' => identidade_mapa($usuario)]);
+            responder_json(200, ['dados' => identidade_mapa($usuario), 'obra_logo' => identidade_logo_da_obra()]);
         }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
@@ -498,6 +498,33 @@ function configuracoes_ler(array $usuario)
 
 // ---- Identidade visual dos relatórios por empresa (2026-10-26): logo + cor; o cliente continua sendo a Rótula.
 // Fica em config_global.identidade_empresas = { "EJ": { logo: "data:image/png;base64,…", cor: "#rrggbb", por, em } }.
+// Logo cadastrado na obra aberta (portal de obras › Editar dados da obra): vai no lado "Cliente" da capa dos relatórios, no lugar da Rótula.
+// Reduzido para até 480 × 160 px (quando o servidor tem GD) para não pesar em toda abertura; sem logo na obra devolve '' (a capa usa a Rótula).
+function identidade_logo_da_obra()
+{
+    try {
+        $logo = (string)q_global('SELECT logo FROM obras WHERE id = ?', [obra_atual_id()])->fetchColumn();
+    } catch (Throwable $e) {
+        return '';
+    }
+    if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', $logo, $m)) { return ''; }
+    if (function_exists('imagecreatefromstring') && function_exists('imagepng')) {
+        $bin = base64_decode($m[2], true);
+        $im = $bin !== false ? @imagecreatefromstring($bin) : false;
+        if ($im) {
+            $w = imagesx($im); $h = imagesy($im);
+            $f = min(1, 480 / max(1, $w), 160 / max(1, $h));
+            $nw = max(1, (int)round($w * $f)); $nh = max(1, (int)round($h * $f));
+            $novo = imagecreatetruecolor($nw, $nh);
+            imagealphablending($novo, false); imagesavealpha($novo, true);
+            imagefill($novo, 0, 0, imagecolorallocatealpha($novo, 255, 255, 255, 127));
+            imagecopyresampled($novo, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            ob_start(); imagepng($novo); $png = (string)ob_get_clean();
+            if ($png !== '') { return 'data:image/png;base64,' . base64_encode($png); }
+        }
+    }
+    return strlen($logo) <= 600 * 1024 ? $logo : '';
+}
 function identidade_todas()
 {
     $d = json_decode((string)global_ler('identidade_empresas', '{}'), true);
