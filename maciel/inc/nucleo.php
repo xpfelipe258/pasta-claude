@@ -138,7 +138,9 @@ function tabelas_spec()
         'nao_conformidades' => ['codigo' => 'txt', 'data' => 'data', 'empresa' => 'txt', 'titulo' => 'txt', 'descricao' => 'longo', 'local' => 'txt', 'responsavel' => 'txt',
             'gravidade' => 'txt', 'situacao' => 'txt', 'prazo' => 'data', 'acao' => 'longo', 'encerrada_em' => 'data', 'por' => 'txt', 'em' => 'txt',
             'respondida_em' => 'txt', 'respondida_por' => 'txt', 'validada_por' => 'txt', 'devolucao' => 'longo'],
-        'nc_fotos' => ['nc_id' => 'num', 'tipo' => 'txt', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt'],
+        'nc_fotos' => ['nc_id' => 'num', 'tipo' => 'txt', 'arquivo' => 'txt', 'nome' => 'txt', 'legenda' => 'longo', 'ordem' => 'num', 'por' => 'txt', 'em' => 'txt', 'empresa' => 'txt'],
+        // NC com mais de uma empresa (nao_conformidades.empresa = 'CMM|EJ'): a resposta de cada empresa fica aqui (NC de uma empresa só continua usando as colunas da própria NC)
+        'nc_respostas' => ['nc_id' => 'num', 'empresa' => 'txt', 'acao' => 'longo', 'respondida_em' => 'txt', 'respondida_por' => 'txt', 'devolucao' => 'longo'],
         'cliente' => ['servico' => 'txt', 'qtd' => 'num', 'inicio_plan' => 'data', 'meta_dia' => 'num',
             'du_semana' => 'num', 'responsavel' => 'txt', 'obs' => 'txt', 'prazo' => 'data',
             'peso' => 'num', 'frente' => 'txt'],
@@ -147,7 +149,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 31;   // 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 32;   // 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -854,6 +856,12 @@ function obra_atual_id()
     }
     iniciar_sessao();
     return max(0, (int)($_SESSION['obra_id'] ?? 0));
+}
+
+// Empresas de uma não conformidade: 'CMM|EJ' -> ['CMM', 'EJ'] (uma empresa só continua sendo o nome simples).
+function nc_empresas_da($valor)
+{
+    return array_values(array_filter(array_map('trim', explode('|', (string)$valor)), function ($e) { return $e !== ''; }));
 }
 
 // Obra onde moram as não conformidades: a obra principal (a obra própria de uma empresa aponta para ela em origem_obra_id).

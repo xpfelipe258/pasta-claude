@@ -158,16 +158,20 @@ function montar_modelo()
     // Qualidade: as não conformidades moram na obra principal (a obra própria de uma empresa lê de lá); usuário de empresa só recebe as da própria empresa
     if (qualidade_obra_id() !== obra_atual_id()) {
         $specQ = tabelas_spec();
-        foreach (['nao_conformidades', 'nc_fotos'] as $nomeQ) {
+        foreach (['nao_conformidades', 'nc_fotos', 'nc_respostas'] as $nomeQ) {
             $tabelas[$nomeQ] = qualidade_na_obra(function () use ($nomeQ, $specQ) { return linhas_tabela($nomeQ, $specQ[$nomeQ]); });
         }
     }
     $uQual = function_exists('usuario_atual') ? usuario_atual() : null;
     $empQual = trim((string)($uQual['empresa'] ?? ''));
     if ($empQual !== '') {
-        $tabelas['nao_conformidades'] = array_values(array_filter($tabelas['nao_conformidades'] ?? [], function ($n) use ($empQual) { return ($n['empresa'] ?? '') === $empQual; }));
+        // a NC pode ter mais de uma empresa ('CMM|EJ'): a empresa vê a NC se estiver na lista, mas só a resposta e as fotos "depois" da própria empresa
+        $tabelas['nao_conformidades'] = array_values(array_filter($tabelas['nao_conformidades'] ?? [], function ($n) use ($empQual) { return in_array($empQual, nc_empresas_da($n['empresa'] ?? ''), true); }));
         $idsQual = array_flip(array_map(function ($n) { return (int)$n['linha']; }, $tabelas['nao_conformidades']));
-        $tabelas['nc_fotos'] = array_values(array_filter($tabelas['nc_fotos'] ?? [], function ($f) use ($idsQual) { return isset($idsQual[(int)($f['nc_id'] ?? 0)]); }));
+        $tabelas['nc_fotos'] = array_values(array_filter($tabelas['nc_fotos'] ?? [], function ($f) use ($idsQual, $empQual) {
+            return isset($idsQual[(int)($f['nc_id'] ?? 0)]) && (($f['tipo'] ?? 'antes') !== 'depois' || ($f['empresa'] ?? '') === '' || $f['empresa'] === $empQual);
+        }));
+        $tabelas['nc_respostas'] = array_values(array_filter($tabelas['nc_respostas'] ?? [], function ($r) use ($idsQual, $empQual) { return isset($idsQual[(int)($r['nc_id'] ?? 0)]) && ($r['empresa'] ?? '') === $empQual; }));
     }
     $inv_ifc = carregar_inventario_ifc();
     $regras = carregar_regras_baixa();

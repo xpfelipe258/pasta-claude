@@ -1232,7 +1232,8 @@ function qualidade_notificar(array $nc, $evento, array $autor)
     if ($evento === 'respondida') {
         $dest = q_global("SELECT id, nome, email, email_tarefas FROM usuarios WHERE ativo = 1 AND perfil = 'admin'")->fetchAll();
     } else {
-        $dest = q_global('SELECT id, nome, email, email_tarefas FROM usuarios WHERE ativo = 1 AND empresa = ?', [(string)$nc['empresa']])->fetchAll();
+        $emps = nc_empresas_da($nc['empresa']) ?: [''];
+        $dest = q_global('SELECT id, nome, email, email_tarefas FROM usuarios WHERE ativo = 1 AND empresa IN (' . implode(', ', array_fill(0, count($emps), '?')) . ')', $emps)->fetchAll();
     }
     $sistema = config() ? global_ler('nome_sistema', 'Núcleo de Obras') : 'Núcleo de Obras';
     $link = url_base_sistema() . '/index.php?aba=qualidade';
@@ -1243,7 +1244,7 @@ function qualidade_notificar(array $nc, $evento, array $autor)
         if ((int)$d['id'] === (int)$autor['id'] || ($d['email_tarefas'] ?? '') === '0' || !filter_var((string)$d['email'], FILTER_VALIDATE_EMAIL)) {
             continue;
         }
-        $linhas = ['Olá, ' . $d['nome'] . '.', '', sprintf($intros[$evento], $autor['nome']), '', 'Código: ' . $nc['codigo'], 'Empresa: ' . $nc['empresa'], 'Não conformidade: ' . $nc['titulo'], 'Local: ' . $nc['local']];
+        $linhas = ['Olá, ' . $d['nome'] . '.', '', sprintf($intros[$evento], $autor['nome']), '', 'Código: ' . $nc['codigo'], 'Empresa: ' . implode(' + ', nc_empresas_da($nc['empresa'])), 'Não conformidade: ' . $nc['titulo'], 'Local: ' . $nc['local']];
         if (!empty($nc['prazo'])) {
             $linhas[] = 'Prazo para responder: ' . tarefa_data_br($nc['prazo']);
         }
@@ -1291,7 +1292,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         if (!$atual) {
             throw new ErroValidacao('Não conformidade não encontrada. Recarregue a tela.');
         }
-        if ($minhaEmp !== '' && $atual['empresa'] !== $minhaEmp) {
+        if ($minhaEmp !== '' && !in_array($minhaEmp, nc_empresas_da($atual['empresa']), true)) {
             throw new ErroValidacao('Seu usuário só acessa as não conformidades da empresa ' . $minhaEmp . '.');
         }
     } elseif ($acao !== 'salvar') {
@@ -1299,6 +1300,38 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     }
     $nc = function ($v) use ($id) {   // linha atualizada, para o e-mail
         return q('SELECT * FROM nao_conformidades WHERE id = ?', [$id])->fetch();
+    };
+    $emps = $atual ? nc_empresas_da($atual['empresa']) : [];
+    $multi = count($emps) > 1;
+    // empresa a que a resposta se refere: a do usuário de empresa; o administrador escolhe (NC de uma empresa só = a própria)
+    $empResp = function () use ($corpo, $minhaEmp, $emps, $multi) {
+        $e = $minhaEmp !== '' ? $minhaEmp : mb_strtoupper(trim((string)($corpo['campos']['empresa'] ?? '')));
+        if (!$multi) {
+            return $emps[0] ?? '';
+        }
+        if ($e === '' || !in_array($e, $emps, true)) {
+            throw new ErroValidacao('Escolha a empresa a que a resposta se refere.');
+        }
+        return $e;
+    };
+    // grava a resposta de UMA empresa: NC de uma empresa só usa as colunas da NC; com várias, a tabela nc_respostas
+    $gravarResp = function ($emp, array $vals) use ($id, $multi) {
+        if (!$multi) {
+            gravar_linha('nao_conformidades', $id, $vals);
+            return;
+        }
+        $linha = q('SELECT id FROM nc_respostas WHERE nc_id = ? AND empresa = ?', [$id, $emp])->fetch();
+        if ($linha) {
+            gravar_linha('nc_respostas', (int)$linha['id'], $vals);
+        } else {
+            gravar_linha('nc_respostas', null, array_merge(['nc_id' => $id, 'empresa' => $emp], $vals));
+        }
+    };
+    $respDe = function ($emp) use ($atual, $id, $multi) {
+        if (!$multi) {
+            return ['acao' => $atual['acao'] ?? null, 'respondida_em' => $atual['respondida_em'] ?? null];
+        }
+        return q('SELECT * FROM nc_respostas WHERE nc_id = ? AND empresa = ?', [$id, $emp])->fetch() ?: ['acao' => null, 'respondida_em' => null];
     };
 
     if ($acao === 'excluir') {
@@ -1311,6 +1344,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
             @unlink($dir . '/' . basename((string)$f['arquivo']));
         }
         q('DELETE FROM nc_fotos WHERE nc_id = ?', [$id]);
+        q('DELETE FROM nc_respostas WHERE nc_id = ?', [$id]);
         q('DELETE FROM nao_conformidades WHERE id = ?', [$id]);
         return ['codigo' => $atual['codigo']];
     }
@@ -1323,7 +1357,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         if ($resp === '') {
             throw new ErroValidacao('Escreva a resposta (ação corretiva realizada).');
         }
-        gravar_linha('nao_conformidades', $id, ['acao' => $resp]);
+        $gravarResp($empResp(), ['acao' => $resp]);
         return ['id' => $id, 'codigo' => $atual['codigo']];
     }
 
@@ -1338,12 +1372,32 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         if ($resp === '') {
             throw new ErroValidacao('Escreva a resposta: o que foi feito para corrigir.');
         }
-        if ((int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois'", [$id])->fetchColumn() < 1) {
-            throw new ErroValidacao('Anexe ao menos uma foto da correção ("depois") antes de enviar a resposta.');
+        $emp = $empResp();
+        if ($multi && $respDe($emp)['respondida_em']) {
+            throw new ErroValidacao('A empresa ' . $emp . ' já respondeu. Aguarde a validação ou a devolução do administrador.');
         }
-        gravar_linha('nao_conformidades', $id, ['acao' => $resp, 'situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
+        $fotosDepois = $multi ? (int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois' AND empresa = ?", [$id, $emp])->fetchColumn()
+            : (int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois'", [$id])->fetchColumn();
+        if ($fotosDepois < 1) {
+            throw new ErroValidacao('Anexe ao menos uma foto da correção ("depois"' . ($multi ? ' de ' . $emp : '') . ') antes de enviar a resposta.');
+        }
+        if (!$multi) {
+            gravar_linha('nao_conformidades', $id, ['acao' => $resp, 'situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
+        } else {
+            $gravarResp($emp, ['acao' => $resp, 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
+            // a NC só vira "aguardando validação" quando TODAS as empresas responderam
+            $faltam = 0;
+            foreach ($emps as $e) {
+                if (!(q('SELECT respondida_em FROM nc_respostas WHERE nc_id = ? AND empresa = ?', [$id, $e])->fetchColumn())) {
+                    $faltam++;
+                }
+            }
+            if ($faltam === 0) {
+                gravar_linha('nao_conformidades', $id, ['situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
+            }
+        }
         qualidade_notificar($nc(1), 'respondida', $usuario);
-        return ['id' => $id, 'codigo' => $atual['codigo']];
+        return ['id' => $id, 'codigo' => $atual['codigo'], 'empresa' => $emp];
     }
 
     if ($acao === 'situacao') {   // o administrador muda a situação direto: aguardando resposta, em andamento ou concluída (sem e-mail)
@@ -1358,6 +1412,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
             gravar_linha('nao_conformidades', $id, ['situacao' => 'concluida', 'encerrada_em' => $hoje, 'validada_por' => (string)$usuario['nome']]);
         } else {
             gravar_linha('nao_conformidades', $id, ['situacao' => $nova, 'encerrada_em' => null, 'validada_por' => null, 'respondida_em' => null, 'respondida_por' => null]);
+            q('UPDATE nc_respostas SET respondida_em = NULL, respondida_por = NULL WHERE nc_id = ?', [$id]);   // cada empresa volta a poder responder (o texto fica)
         }
         return ['id' => $id, 'codigo' => $atual['codigo'], 'situacao' => $nova];
     }
@@ -1372,6 +1427,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
             }
             gravar_linha('nao_conformidades', $id, ['situacao' => 'aberta', 'encerrada_em' => null, 'validada_por' => null, 'respondida_em' => null, 'respondida_por' => null,
                 'devolucao' => 'Reaberta em ' . $agoraBrt->format('d/m/Y') . ' por ' . $usuario['nome']]);
+            q('UPDATE nc_respostas SET respondida_em = NULL, respondida_por = NULL WHERE nc_id = ?', [$id]);
             qualidade_notificar($nc(1), 'devolvida', $usuario);
             return ['id' => $id, 'codigo' => $atual['codigo']];
         }
@@ -1387,8 +1443,16 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         if ($motivo === '') {
             throw new ErroValidacao('Informe o motivo da devolução para a empresa corrigir.');
         }
-        gravar_linha('nao_conformidades', $id, ['situacao' => 'aberta', 'respondida_em' => null, 'respondida_por' => null,
-            'devolucao' => 'Devolvida em ' . $agoraBrt->format('d/m/Y') . ' por ' . $usuario['nome'] . ': ' . $motivo]);
+        $alvo = mb_strtoupper(trim((string)($corpo['campos']['empresa'] ?? '')));   // NC com várias empresas: devolve a escolhida (vazio = todas)
+        $textoDev = 'Devolvida em ' . $agoraBrt->format('d/m/Y') . ' por ' . $usuario['nome'] . ': ' . $motivo;
+        gravar_linha('nao_conformidades', $id, ['situacao' => 'aberta', 'respondida_em' => null, 'respondida_por' => null, 'devolucao' => $textoDev]);
+        if ($multi) {
+            foreach ($emps as $e) {
+                if ($alvo === '' || $alvo === $e) {
+                    $gravarResp($e, ['respondida_em' => null, 'respondida_por' => null, 'devolucao' => $textoDev]);
+                }
+            }
+        }
         qualidade_notificar($nc(1), 'devolvida', $usuario);
         return ['id' => $id, 'codigo' => $atual['codigo']];
     }
@@ -1407,9 +1471,20 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     $txt = function ($k, $max = 255) use ($c) {
         return mb_substr(trim((string)($c[$k] ?? '')), 0, $max);
     };
-    $empresa = $atual && !in_array($atual['situacao'], ['aberta', 'andamento'], true) ? $atual['empresa'] : mb_strtoupper($txt('empresa'));
-    if ($empresa === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empresa])->fetch()) {
-        throw new ErroValidacao('Escolha a empresa responsável pela não conformidade.');
+    if ($atual && !in_array($atual['situacao'], ['aberta', 'andamento'], true)) {
+        $empresa = $atual['empresa'];
+    } else {   // uma ou mais empresas ('CMM|EJ'): sem repetição, em ordem alfabética, todas cadastradas na obra
+        $listaEmp = array_values(array_unique(nc_empresas_da(mb_strtoupper($txt('empresa')))));
+        sort($listaEmp);
+        if (!$listaEmp) {
+            throw new ErroValidacao('Escolha a empresa responsável pela não conformidade.');
+        }
+        foreach ($listaEmp as $e) {
+            if (!q('SELECT id FROM empresas WHERE nome = ?', [$e])->fetch()) {
+                throw new ErroValidacao('Empresa não cadastrada na obra: ' . $e . '.');
+            }
+        }
+        $empresa = implode('|', $listaEmp);
     }
     $titulo = $txt('titulo');
     $local = $txt('local');
@@ -1450,6 +1525,20 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         return ['id' => $id, 'codigo' => $vals['codigo']];
     }
     gravar_linha('nao_conformidades', $id, $vals);
+    // a quantidade de empresas mudou: a resposta que estava nas colunas da NC (uma empresa) passa para a tabela de respostas e vice-versa
+    $antes = nc_empresas_da($atual['empresa']);
+    $depois = nc_empresas_da($empresa);
+    if (count($antes) === 1 && count($depois) > 1 && ($atual['acao'] || $atual['respondida_em'])) {
+        gravar_linha('nc_respostas', null, ['nc_id' => $id, 'empresa' => $antes[0], 'acao' => $atual['acao'], 'respondida_em' => $atual['respondida_em'], 'respondida_por' => $atual['respondida_por'], 'devolucao' => $atual['devolucao']]);
+        q("UPDATE nc_fotos SET empresa = ? WHERE nc_id = ? AND tipo = 'depois' AND (empresa IS NULL OR empresa = '')", [$antes[0], $id]);
+    } elseif (count($antes) > 1 && count($depois) === 1) {
+        $r = q('SELECT * FROM nc_respostas WHERE nc_id = ? AND empresa = ?', [$id, $depois[0]])->fetch();
+        if ($r) {
+            gravar_linha('nao_conformidades', $id, ['acao' => $r['acao'], 'respondida_em' => $r['respondida_em'], 'respondida_por' => $r['respondida_por']]);
+        }
+        q('DELETE FROM nc_respostas WHERE nc_id = ?', [$id]);
+        q("UPDATE nc_fotos SET empresa = NULL WHERE nc_id = ? AND tipo = 'depois' AND empresa = ?", [$id, $depois[0]]);
+    }
     return ['id' => $id, 'codigo' => $atual['codigo']];
 }
 
