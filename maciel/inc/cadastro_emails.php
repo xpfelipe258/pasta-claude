@@ -46,18 +46,19 @@ function cadastro_email_boas_vindas(array $d)
 {
     $nome = cadastro_email_esc($d['admin_nome']);
     $empresa = cadastro_email_esc($d['empresa']);
-    $conteudo = '<p style="margin:0 0 18px;font-size:15px;line-height:1.6;">Olá, <strong>' . $nome . '</strong>! A empresa <strong>' . $empresa . '</strong> já está cadastrada. Seu acesso está liberado para começar a organizar as obras e a equipe.</p>'
+    $conteudo = '<p style="margin:0 0 18px;font-size:15px;line-height:1.6;">Olá, <strong>' . $nome . '</strong>! A empresa <strong>' . $empresa . '</strong> já está cadastrada. Confirme seu e-mail para liberar o acesso e começar a organizar as obras e a equipe.</p>'
         . '<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e3e9f0;border-radius:8px;border-collapse:separate;border-spacing:0;background:#f8fafc;">'
         . cadastro_email_linha('Plano', $d['plano'])
         . cadastro_email_linha('Teste até', $d['vencimento'])
         . cadastro_email_linha('Seu login', $d['login'])
         . '</table>'
-        . cadastro_email_botao($d['link'], 'Acessar o sistema')
+        . cadastro_email_botao($d['link_verificacao'], 'Confirmar meu e-mail')
+        . '<p style="margin:16px 0 0;color:#526176;font-size:13px;line-height:1.6;">O link de confirmação é válido por 24 horas. Depois de confirmar, acesse <a href="' . cadastro_email_esc($d['link']) . '" style="color:#14213d;">a página de login</a>.</p>'
         . '<h2 style="margin:30px 0 12px;font-size:17px;color:#14213d;">Primeiros passos</h2>'
         . '<ol style="margin:0;padding-left:22px;color:#526176;font-size:14px;line-height:1.8;">'
         . '<li>Cadastre sua primeira obra.</li><li>Convide os profissionais da equipe.</li><li>Registre a produção e acompanhe os indicadores.</li></ol>'
         . '<p style="margin:22px 0 0;color:#526176;font-size:13px;line-height:1.6;">Use o login e a senha que você criou no cadastro. Por segurança, sua senha não é enviada por e-mail.</p>';
-    return cadastro_email_layout($d['sistema'], 'Boas-vindas ao ' . $d['sistema'] . '!', 'Seu período de teste começou e sua empresa já pode usar a plataforma.', $conteudo,
+    return cadastro_email_layout($d['sistema'], 'Boas-vindas ao ' . $d['sistema'] . '!', 'Seu período de teste começou. Confirme seu e-mail para acessar a plataforma.', $conteudo,
         'Esta mensagem foi enviada após o cadastro de sua empresa no ' . $d['sistema'] . '. Se você não realizou esse cadastro, desconsidere este e-mail.');
 }
 
@@ -76,4 +77,13 @@ function cadastro_email_aviso_admin(array $d)
         . cadastro_email_botao($d['link_admin'], 'Acompanhar em Comercial');
     return cadastro_email_layout($d['sistema'], 'Novo cliente cadastrado', 'Cadastro de empresa iniciado na plataforma.', $conteudo,
         'Aviso automático do ' . $d['sistema'] . ' para a equipe administradora.');
+}
+
+function cadastro_email_reenvio_verificacao(array $d)
+{
+    $conteudo = '<p style="margin:0 0 18px;font-size:15px;line-height:1.6;">Olá, <strong>' . cadastro_email_esc($d['admin_nome']) . '</strong>. Recebemos uma solicitação para confirmar o e-mail da sua conta.</p>'
+        . cadastro_email_botao($d['link_verificacao'], 'Confirmar meu e-mail')
+        . '<p style="margin:20px 0 0;color:#526176;font-size:13px;line-height:1.6;">O link é válido por 24 horas. Se você não solicitou o reenvio, desconsidere esta mensagem.</p>';
+    return cadastro_email_layout($d['sistema'], 'Confirme seu e-mail', 'Falta um passo para acessar o ' . $d['sistema'] . '.', $conteudo,
+        'Mensagem automática do ' . $d['sistema'] . '. Sua senha nunca é enviada por e-mail.');
 }
