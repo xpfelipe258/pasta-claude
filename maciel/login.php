@@ -11,7 +11,9 @@ $erro = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $u = q('SELECT * FROM usuarios WHERE login = ? AND ativo = 1', [trim($_POST['login'] ?? '')])->fetch();
-    if ($u && password_verify($_POST['senha'] ?? '', $u['senha']) && $u['perfil'] !== 'admin' && !empty(manutencao_info()['ativo'])) {
+    if ($u && password_verify($_POST['senha'] ?? '', $u['senha']) && !empty($u['email_verificacao_pendente'])) {
+        $erro = 'Confirme seu e-mail antes de entrar. Confira a mensagem de boas-vindas ou solicite um novo link.';
+    } elseif ($u && password_verify($_POST['senha'] ?? '', $u['senha']) && $u['perfil'] !== 'admin' && !empty(manutencao_info()['ativo'])) {
         $erro = trim((string)manutencao_info()['mensagem']) !== '' ? manutencao_info()['mensagem'] : 'O sistema está em manutenção. Tente novamente em instantes.';
     } elseif ($u && password_verify($_POST['senha'] ?? '', $u['senha'])) {
         if (!session_regenerate_id(true)) {
@@ -50,7 +52,7 @@ try { $cadastroAberto = !empty(planos_config()['cadastro_aberto']); } catch (Thr
     <label>Usuário<div class="input-wrap"><span>●</span><input name="login" autocomplete="username" placeholder="Seu usuário" required autofocus></div></label>
     <label>Senha<div class="input-wrap"><span>◆</span><input name="senha" type="password" autocomplete="current-password" placeholder="Sua senha" required></div></label>
     <?php if (!empty(manutencao_info()['ativo']) && $erro === ''): ?><p class="erro-form">🔧 <?= h(trim((string)manutencao_info()['mensagem']) !== '' ? manutencao_info()['mensagem'] : 'O sistema está em manutenção. Tente novamente em instantes.') ?></p><?php endif; ?>
-    <?php if ($erro): ?><p class="erro-form"><?= h($erro) ?></p><?php endif; ?>
+    <?php if ($erro): ?><p class="erro-form"><?= h($erro) ?><?php if ($u && !empty($u['email_verificacao_pendente'])): ?> <a href="verificar_email.php">Reenviar confirmação</a><?php endif; ?></p><?php endif; ?>
     <button class="btn primario login-button" type="submit">Entrar no sistema <span>→</span></button>
     <div class="login-links"><a href="redefinir_senha.php">Esqueci minha senha</a><?php if ($cadastroAberto): ?> · <a href="cadastro.php">Cadastrar minha empresa</a><?php endif; ?></div>
     <small class="login-security">Sessão protegida e acesso monitorado</small>
