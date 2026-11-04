@@ -149,7 +149,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 34;   // 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 35;   // 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -606,6 +606,17 @@ function garantir_autenticacao_estendida(PDO $pdo, $driver)
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     if (!in_array('email', colunas_tabela($pdo, $driver, 'usuarios'), true)) {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN email VARCHAR(150) NULL");
+    }
+    foreach ([
+        'email_verificacao_pendente' => 'INT NOT NULL DEFAULT 0',
+        'email_verificado_em' => 'VARCHAR(19) NULL',
+        'email_verificacao_hash' => 'VARCHAR(64) NULL',
+        'email_verificacao_expira_em' => 'VARCHAR(19) NULL',
+        'email_verificacao_enviado_em' => 'VARCHAR(19) NULL',
+    ] as $coluna => $tipo) {
+        if (!in_array($coluna, colunas_tabela($pdo, $driver, 'usuarios'), true)) {
+            $pdo->exec("ALTER TABLE usuarios ADD COLUMN $coluna $tipo");
+        }
     }
     if (!in_array('tema', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // tema visual de cada usuário: light | dark | space (vazio = automático)
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN tema VARCHAR(20) NULL");
@@ -1289,6 +1300,10 @@ function usuario_atual()
             }
         }
         $u = $linha ?: null;
+        if ($u && (int)q_global('SELECT email_verificacao_pendente FROM usuarios WHERE id = ?', [(int)$u['id']])->fetchColumn() === 1) {
+            $_SESSION = [];
+            return null;
+        }
         if ($u && trim((string)($u['empresa'] ?? '')) === '' && ($ef = empresa_do_vinculo_obra_propria($u)) !== '') {   // conta ligada só à obra própria de uma terceirizada = usuário dessa empresa
             $u['empresa'] = $ef;
             $u['empresa_por_obra'] = 1;
