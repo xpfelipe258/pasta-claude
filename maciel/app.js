@@ -1075,9 +1075,92 @@ function renderLanc() {
     return `<button data-emp="${esc(e.aba)}" class="${e.aba === empSel ? 'ativa' : ''}">${esc(e.nome)}${n ? ` <span class="contador">${n}</span>` : ''}</button>`;
   }).join('');
   const e = M.empresas.find(x => x.aba === empSel);
+  $('#btnLancarProducao').hidden = !lancPodeEditar() || !e || !bmAtiv(e.nome).length;
+  renderLancCartoes(e);
   if (!e) return;
   $('#tabLanc').className = '';
   return renderLancServico(e);
+}
+
+function lancPodeEditar() {
+  const u = D?.usuario;
+  return !document.body.classList.contains('somente-leitura') &&
+    (!u?.modulos_edicao || u.modulos_edicao.includes('producao'));
+}
+
+function renderLancCartoes(e) {
+  const box = $('#lancCartoes');
+  if (!e) { box.innerHTML = '<p class="vazio">Nenhuma empresa disponível.</p>'; return; }
+  const its = bmItens(e.nome, ref), s = segunda(ref);
+  box.innerHTML = its.length ? its.map(it => `<div class="lanc-grupo"><h3>${esc(it.item)} · ${esc(cap(it.desc))}</h3>${it.ats.map(({ a, real, pct }) => {
+    const ctl = a.controle ? colDe(e, a.controle) : null;
+    const und = ctl ? soma(e, ctl, s, add(s, 6)) : null;
+    const semana = ctl ? bmQtdFinanceira(a, und) : bmSomaSemana(a, s, add(s, 6));
+    return `<article class="lanc-cartao"><h4>${esc(a.atividade)}</h4><p class="nota">${esc(a.codigo)} · ${esc(bmUnFinanceira(a))}</p><dl><div><dt>Na semana</dt><dd>${bmFmtQtdFinanceira(a, semana, und)}</dd></div><div><dt>Acumulado</dt><dd>${bmFmtQtdFinanceira(a, real, ctl ? soma(e, ctl, '0000', ref) : null)}</dd></div><div><dt>Avanço</dt><dd>${nf(pct * 100, 1)}%</dd></div></dl>${typeof vcConsumoAbrir === 'function' ? `<p><button type="button" class="link vc-cons-btn" data-cons-ativ="${esc(a.codigo)}">Consumo de material${vcConsumoResumo(a.codigo)}</button></p>` : ''}${lancPodeEditar() ? `<button type="button" class="btn primario" data-lanc-atividade="${esc(a.codigo)}">Lançar produção</button>` : ''}</article>`;
+  }).join('')}</div>`).join('') : '<p class="vazio">Não há atividades do BM cadastradas para esta empresa.</p>';
+}
+
+function lancContexto() {
+  const dlg = $('#dlgLancProducao');
+  const e = M.empresas.find(x => x.aba === dlg.dataset.aba);
+  const a = e && bmAtiv(e.nome).find(x => x.codigo === $('#lancProducaoAtividade').value);
+  if (!a) return null;
+  const d = $('#lancProducaoData').value, ctl = a.controle ? colDe(e, a.controle) : null;
+  const mapa = ctl ? pend : bmPend;
+  const k = ctl ? chave(e.aba, d, ctl) : bmChave(e.nome, a.codigo, d);
+  const salvo = ctl ? textoSalvo(e, d, ctl) : bmQtdSalva(e.nome, a.codigo, d);
+  return { e, a, d, ctl, mapa, k, salvo, valor: mapa.has(k) ? mapa.get(k) : salvo };
+}
+
+function lancAtualizarCampos() {
+  const c = lancContexto();
+  if (!c) return;
+  $('#lancProducaoQtd').value = c.valor;
+  $('#lancProducaoUnidade').textContent = `Quantidade lançada (${c.ctl ? bmUnProducao(c.a) : bmUnFinanceira(c.a)})`;
+  const fechado = bmPeriodos(c.e.nome).find(p => p.fechado && c.d >= p.ini && c.d <= p.fim);
+  $('#lancProducaoNota').textContent = (c.valor !== '' ? `Valor atual no dia: ${c.valor}. Informe o total do dia para corrigir; o valor será substituído.` : 'Informe o total executado nesta data.') +
+    (fechado ? ` O BM${fechado.n} está fechado: a correção entra como ajuste no BM em aberto.` : '') +
+    (pend.size + bmPend.size ? ' Ao salvar, as alterações pendentes da grade também serão gravadas.' : '');
+  $('#lancProducaoErro').hidden = true;
+}
+
+function abrirLancProducao(codigo) {
+  if (!lancPodeEditar() || salvando) return;
+  const e = M.empresas.find(x => x.aba === empSel);
+  const ats = e ? bmAtiv(e.nome) : [];
+  if (!ats.length) { toast('Cadastre uma atividade no catálogo do BM.', true); return; }
+  const dlg = $('#dlgLancProducao');
+  dlg.dataset.aba = e.aba;
+  $('#lancProducaoEmpresa').textContent = e.nome;
+  $('#lancProducaoAtividade').innerHTML = ats.map(a => `<option value="${esc(a.codigo)}">${esc(a.item)} · ${esc(a.atividade)} (${esc(a.codigo)})</option>`).join('');
+  if (codigo) $('#lancProducaoAtividade').value = codigo;
+  $('#lancProducaoData').value = minD(ref, hoje());
+  lancAtualizarCampos();
+  dlg.showModal();
+  patchDatas();
+}
+
+async function salvarLancProducao(ev) {
+  ev.preventDefault();
+  const dlg = $('#dlgLancProducao');
+  if (dlg.dataset.salvando || salvando || !lancPodeEditar()) return;
+  const c = lancContexto(), texto = $('#lancProducaoQtd').value.trim();
+  const erro = msg => { $('#lancProducaoErro').textContent = msg; $('#lancProducaoErro').hidden = false; };
+  if (!c || !ehISO(c.d) || (c.ctl && !M.datas.includes(c.d))) { erro('Escolha uma data disponível no calendário da obra.'); return; }
+  if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?$/.test(texto) || !Number.isFinite(Number(texto.replace(/\./g, '').replace(',', '.')))) {
+    erro('Informe uma quantidade válida, maior ou igual a zero. Use vírgula para os decimais.'); return;
+  }
+  if (texto === c.salvo) c.mapa.delete(c.k); else c.mapa.set(c.k, texto);
+  atualizarPendentes(); renderLanc();
+  dlg.dataset.salvando = '1';
+  dlg.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
+  try {
+    if ((!pend.size && !bmPend.size) || await salvarLanc()) dlg.close();
+    else erro('O lançamento ainda não foi salvo. Confira o aviso e tente novamente.');
+  } finally {
+    delete dlg.dataset.salvando;
+    dlg.querySelectorAll('button, input, select').forEach(el => el.disabled = false);
+  }
 }
 
 function pendentesEmPeriodoFechado() {
@@ -1141,6 +1224,7 @@ function pedirTiposJoist(totalJoists) {
     dlg.querySelectorAll('input').forEach(inp => inp.addEventListener('input', atualizar));
     atualizar();
     const fechar = (cancelar) => {
+      dlg.removeEventListener('cancel', cancelarEsc);
       dlg.close();
       dlg.querySelectorAll('input').forEach(inp => inp.removeEventListener('input', atualizar));
       if (cancelar) { resolve(null); return; }
@@ -1148,6 +1232,8 @@ function pedirTiposJoist(totalJoists) {
       campos.forEach(t => { const v = parseInt(document.getElementById('jTipo' + t).value) || 0; if (v > 0) qtds[t] = v; });
       resolve(qtds);
     };
+    const cancelarEsc = ev => { ev.preventDefault(); fechar(true); };
+    dlg.addEventListener('cancel', cancelarEsc);
     document.getElementById('dlgJoistFechar').onclick = () => fechar(true);
     document.getElementById('dlgJoistCancelar').onclick = () => fechar(true);
     document.getElementById('dlgJoistForm').onsubmit = e => { e.preventDefault(); fechar(false); };
@@ -1239,6 +1325,7 @@ async function salvarLanc() {
     } else {
       toast(`Salvo ${ONDE} (${total} célula(s))`);
     }
+    return true;
   } catch (err) {
     salvando = false; atualizarPendentes();
     toast(err.message, true);
@@ -7518,9 +7605,19 @@ function ligarEventos() {
     }
   });
   $('#btnSalvar').onclick = salvarLanc;
+  $('#btnLancarProducao').onclick = () => abrirLancProducao();
+  $('#lancCartoes').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-lanc-atividade]');
+    if (b) abrirLancProducao(b.dataset.lancAtividade);
+  });
+  $('#lancProducaoAtividade').onchange = lancAtualizarCampos;
+  $('#lancProducaoData').addEventListener('change', lancAtualizarCampos);
+  $('#formLancProducao').onsubmit = salvarLancProducao;
+  $('#dlgLancProducao').querySelectorAll('[data-lanc-fechar]').forEach(b => b.onclick = () => $('#dlgLancProducao').close());
+  $('#dlgLancProducao').addEventListener('cancel', ev => { if ($('#dlgLancProducao').dataset.salvando) ev.preventDefault(); });
   $('#btnDescartar').onclick = () => { pend.clear(); bmPend.clear(); atualizarPendentes(); renderLanc(); verificarVersao(); };
   document.addEventListener('keydown', ev => {
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && !$('#dlg').open) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && !$('#dlg').open && !$('#dlgLancProducao').open) {
       ev.preventDefault();
       if (abaAtual === 'metas') salvarMetas(); else salvarLanc();
     }
