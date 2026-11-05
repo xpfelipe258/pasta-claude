@@ -679,6 +679,52 @@ async function rsHtmlFixadores() {
     : '<p class="nota">Não há itens de fixador cadastrados.</p>';
   return tplDocumento({ titulo: 'Relatório de fixadores', subtitulo: `Inventário de fixadores · planejado × enviado × pendente · posição em ${fdA(D.ref)}`, meta: 'Fixadores da obra · planejado × enviado × pendente', corpo: html, css: RS_CSS });
 }
+// Ação da linha de Remessas: relatório isolado de uma TAG, com todas as remessas dela.
+async function rsHtmlItemRemessas(tag) {
+  const chave = matChaveTag(tag);
+  const D = await rsDados(null);
+  await tplLogosCarregar();
+  const item = D.itens.find(i => matChaveTag(i.tag) === chave);
+  const remessas = D.rems.map(r => {
+    const ri = r.itens.find(i => matChaveTag(i.tag) === chave);
+    return ri ? { ...r, item: ri } : null;
+  }).filter(Boolean);
+  const base = item || (remessas.length ? remessas[0].item : null);
+  if (!base) throw new Error('O item selecionado não foi encontrado nos dados de Remessas.');
+  const nome = item?.material || base.material || base.produto || tag;
+  const totalRem = soma0(remessas, r => r.item.qtd);
+  const linhas = remessas.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td class="n"><b>${nf(r.item.qtd)}</b></td>
+    <td>${r.prev ? fdA(r.prev) : '—'}</td><td>${r.nf ? fdA(r.nf) : '—'}</td><td>${r.ch ? fdA(r.ch) : '—'}</td>
+    <td>${rsFr(r.status, r.rotulo)}</td></tr>`);
+  const resumo = rsTabela(['Campo', 'Informação'], [
+    `<tr><td>TAG</td><td><b>${esc(item?.tag || base.tag)}</b></td></tr>`,
+    `<tr><td>Material / produto</td><td>${esc(nome)}${base.produto && base.produto !== nome ? ' · ' + esc(base.produto) : ''}</td></tr>`,
+    `<tr><td>Etapa / local</td><td>${esc(item?.etapa || base.etapa || '—')} · ${esc(item?.local || '—')}</td></tr>`,
+    `<tr><td>Quantidade planejada</td><td>${item ? nf(item.plan) : '—'}</td></tr>`,
+    `<tr><td>Quantidade nas remessas</td><td><b>${nf(totalRem)}</b> em ${nf(remessas.length)} remessa(s)</td></tr>`,
+    `<tr><td>Total recebido no cadastro</td><td>${item ? nf(item.chegou) : '—'}</td></tr>`,
+    `<tr><td>Saldo a receber</td><td>${item ? nf(item.falta) : '—'}</td></tr>`
+  ]);
+  const corpo = `<h2>Item selecionado</h2>${resumo}<h2>Remessas deste item</h2>
+    ${rsTabela(['Remessa', 'n:Quantidade desta TAG', 'Prevista', 'Emissão NF', 'Chegada na obra', 'Situação do prazo'], linhas, 'Este item ainda não possui quantidade em nenhuma remessa.')}
+    <p class="nota">As datas e o farol são da remessa. A quantidade e os totais acima pertencem exclusivamente à TAG ${esc(item?.tag || base.tag)}. Posição em ${fdA(D.ref)}.</p>`;
+  return tplDocumento({ titulo: 'Relatório de Suprimentos — item', subtitulo: `${item?.tag || base.tag} · ${nome} · posição em ${fdA(D.ref)}`,
+    meta: 'Uma TAG · suas remessas · quantidades e prazos', corpo, css: RS_CSS });
+}
+async function rsGerarItemRemessas(btn, tag) {
+  if (RS_GERANDO) return;
+  RS_GERANDO = true;
+  const rot = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Gerando…';
+  try {
+    const html = await rsHtmlItemRemessas(tag);
+    const arq = String(tag).replace(/[^A-Za-z0-9_-]+/g, '_');
+    reAbrirPrevia(html, `Relatorio-Suprimentos-Item-${arq}-${ref}.html`, `Suprimentos · ${tag}`);
+  } catch (e) {
+    console.error('Relatório de Remessas por item', e);
+    toast('Não foi possível gerar o relatório deste item: ' + (e && e.message || e), true, 6000);
+  } finally { RS_GERANDO = false; btn.disabled = false; btn.textContent = rot; }
+}
 let RS_GERANDO = false;
 async function rsGerar(btn, filtro) {
   if (RS_GERANDO) return;
@@ -703,4 +749,4 @@ async function rsAbrir(btn) {
   if (!EP) return toast('Os dados de Suprimentos ainda não foram carregados. Abra uma aba de Suprimentos e tente de novo.', true);
   rsFiltroAbrir();
 }
-document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rel-suprim]'); if (b) rsAbrir(b); });
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rs-item]'); if (b) { rsGerarItemRemessas(b, b.dataset.rsItem); return; } const geral = e.target.closest && e.target.closest('[data-rel-suprim]'); if (geral) rsAbrir(geral); });
