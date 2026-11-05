@@ -2992,7 +2992,7 @@ function renderEstMateriais() {
   const visTags = vis.map(m => m.tag), nSelVis = visTags.filter(t => MAT_SEL.has(t)).length;
   $('#tabEstMat').innerHTML = `<thead><tr>${podeLote ? `<th class="mat-ck"><input type="checkbox" id="matSelTodos" title="Selecionar (ou limpar) todos os itens que aparecem na lista" aria-label="Selecionar todos os itens da lista" ${vis.length && nSelVis === vis.length ? 'checked' : ''}></th>` : ''}<th>TAG</th><th>Nome</th><th>Produto</th><th>Tipo</th><th>Local</th><th>Etapa</th><th class="n">Planejado</th><th class="n">Chegou</th><th class="n">Consumido</th><th class="n">Est. Pós-Baixa</th><th class="n">Atendimento</th><th>Status</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>` +
     (vis.length ? vis.map(m => {
-      const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button>`;
+      const acoes = `<button class="link" data-mat-edit="${esc(m.tag)}">Editar</button> <button type="button" class="link" data-rs-item="${esc(m.tag)}" title="Gerar relatório apenas desta TAG">Relatório deste item</button>`;
       const tagBtn = `<button type="button" class="link mat-tag" data-mat-edit="${esc(m.tag)}" title="Clique para editar este item (tipo, nome, local, etapa, planejado)"><b>${esc(m.tag)}</b></button>`;
       return `<tr class="${MAT_SEL.has(m.tag) ? 'mat-sel' : ''}">
       ${podeLote ? `<td class="mat-ck"><input type="checkbox" data-mat-sel="${esc(m.tag)}" aria-label="Selecionar ${esc(m.tag)}" ${MAT_SEL.has(m.tag) ? 'checked' : ''}></td>` : ''}<td>${tagBtn}</td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.tipo_material || '—')}</td>
@@ -3213,7 +3213,7 @@ function renderEstRemessas() {
       + novaDataInput('chegada_obra', 'Obra', ed.chegadaObra, 'chegadaObra')
       + `<input class="ed-cab" data-ed="rem" placeholder="Nº da remessa de ${ehFix ? 'fixador' : 'carga'}" value="${esc(ed.nome)}" aria-label="Nº da remessa"></th>` : '') +
     `<th class="n">Total</th></tr></thead><tbody>` +
-    (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
+    (vis.length ? vis.map(m => `<tr><td><b>${esc(m.tag)}</b><br><button type="button" class="link" data-rs-item="${esc(m.tag)}" title="Gerar relatório apenas desta TAG">Relatório deste item</button></td><td>${esc(m.material)}</td><td>${esc(m.produto)}</td><td>${esc(m.etapa)}</td>` +
       (!ed ? cols.map(c => { const q = m.qtd_por_remessa[c]; return `<td class="n">${q ? nf(q) : ''}</td>`; }).join('') : '') +
       (ed ? `<td class="col-nova"><input class="ed-in" data-ed="rem" data-tag="${esc(m.tag)}" data-col="q" inputmode="decimal" value="${esc(ed.val.get(m.tag) || '')}" aria-label="${esc(m.tag)}"></td>` : '') +
       `<td class="n"><b>${nf(m.total_recebido)}</b></td></tr>`).join('')
