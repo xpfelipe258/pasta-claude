@@ -53,6 +53,10 @@
   }
   function preparar() {
     const botao = document.getElementById('ceGuiaAbrir'); if (!botao) return;
+    if (document.querySelector('[data-central-aba="pessoal"][aria-current="page"]')) {
+      const video = document.createElement('a'); video.className = 'btn'; video.href = 'tutorial_rh.html';
+      video.textContent = 'Vídeo completo de RH (15min30s)'; botao.before(video);
+    }
     const st = document.createElement('style');
     st.textContent = '.ce-guia-barra{padding:10px 22px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}.ce-guia{position:fixed;bottom:18px;right:18px;width:min(430px,calc(100vw - 24px));box-sizing:border-box;max-height:70dvh;overflow:auto;z-index:10010;background:#fff;color:#182230;border:2px solid var(--marca,#2563eb);border-radius:14px;padding:18px;box-shadow:0 12px 48px #0004;font:16px/1.5 system-ui}.ce-guia h2{font-size:20px;margin:8px 0}.ce-guia p{margin:8px 0 16px}.ce-guia-topo,.ce-guia-acoes{display:flex;justify-content:space-between;align-items:center;gap:12px}.ce-guia-topo{font-size:13px;color:#475467}.ce-guia-topo button{background:none;border:0;min-height:44px;min-width:44px;font-size:26px;color:#182230}.ce-guia-acoes{margin-top:14px}.ce-guia .btn{min-height:44px}.ce-guia-destaque{outline:4px solid #2563eb!important;outline-offset:3px;scroll-margin:90px}.ce-guia [hidden]{display:none!important}@media(max-width:600px){.ce-guia{bottom:12px;right:12px;padding:14px;font-size:15px;max-height:55dvh}.ce-guia-barra{padding:10px 14px}}';
     document.head.append(st);

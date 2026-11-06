@@ -1,0 +1,673 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:05.719
+Bem-vindo ao tutorial completo do Painel pessoal, o RH do Núcleo de Obras.
+
+00:00:06.223 --> 00:00:11.756
+Vamos percorrer a visão geral, cadastrar um colaborador, atualizar sua ficha,
+
+00:00:11.865 --> 00:00:16.911
+organizar os documentos, mudar a alocação e entender de onde vêm a folha e
+
+00:00:16.846 --> 00:00:18.072
+os indicadores.
+
+00:00:18.669 --> 00:00:22.786
+Para cada bloco, você verá o que informar, como salvar e por que manter
+
+00:00:22.732 --> 00:00:23.796
+o dado correto.
+
+00:00:24.508 --> 00:00:29.636
+Usaremos a Horizonte Engenharia, uma empresa fictícia, e pessoas e documentos
+
+00:00:29.570 --> 00:00:30.727
+de demonstração.
+
+00:00:31.231 --> 00:00:36.311
+Na Central da empresa, abra Painel pessoal, RH.
+
+00:00:36.594 --> 00:00:40.886
+Há duas seções: Visão geral e folha e Colaboradores.
+
+00:00:41.227 --> 00:00:43.753
+A primeira consolida os resultados.
+
+00:00:44.036 --> 00:00:47.468
+A segunda organiza os cadastros e os acessos às fichas.
+
+00:00:47.879 --> 00:00:50.603
+O botão Novo colaborador inicia uma inclusão.
+
+00:00:50.886 --> 00:00:54.016
+Sua conta determina quais empresas e obras aparecem.
+
+00:00:54.520 --> 00:00:58.544
+Os valores de salários e custos só ficam disponíveis quando existe acesso
+
+00:00:58.490 --> 00:01:04.384
+à área Financeiro; o cadastro de pessoas e o efetivo podem continuar visíveis
+
+00:01:04.400 --> 00:01:05.788
+sem esses valores.
+
+00:01:06.501 --> 00:01:09.875
+Na Visão geral, selecione o mês e clique em Atualizar.
+
+00:01:10.100 --> 00:01:12.952
+Esse filtro permite comparar competências diferentes.
+
+00:01:13.235 --> 00:01:17.410
+Colaboradores ativos indica as pessoas consideradas no cálculo daquele mês;
+
+00:01:17.635 --> 00:01:20.324
+confira também o aviso de salário não informado.
+
+00:01:20.920 --> 00:01:25.247
+Folha total reúne remuneração, encargos, provisões e benefícios.
+
+00:01:25.657 --> 00:01:29.206
+Remuneração bruta corresponde ao salário e aos adicionais.
+
+00:01:29.709 --> 00:01:33.791
+Encargos e provisões representam outras parcelas do custo gerencial.
+
+00:01:34.075 --> 00:01:38.737
+O efetivo médio no DP vem dos registros diários, e o pico informa o
+
+00:01:38.684 --> 00:01:39.875
+maior efetivo.
+
+00:01:40.158 --> 00:01:43.520
+Cadastro e presença diária são fontes diferentes.
+
+00:01:43.931 --> 00:01:49.209
+A tabela Por obra separa os resultados de cada empreendimento e pode incluir
+
+00:01:49.167 --> 00:01:51.891
+a linha Sem obra, para o quadro da empresa.
+
+00:01:52.302 --> 00:01:58.230
+Confira colaboradores, remuneração, encargos e provisões, benefícios, folha
+
+00:01:58.176 --> 00:02:01.585
+total, custo médio e efetivo médio e de pico.
+
+00:02:02.182 --> 00:02:06.009
+O custo médio divide o custo total pelo número de colaboradores.
+
+00:02:06.721 --> 00:02:10.897
+O botão Abrir Pessoal da obra leva à rotina operacional.
+
+00:02:11.493 --> 00:02:15.970
+Se alguém estiver sem alocação, use o acesso para conferir essa lista.
+
+00:02:16.474 --> 00:02:20.614
+Essa comparação ajuda a localizar concentração de custos e diferenças entre
+
+00:02:20.549 --> 00:02:23.157
+pessoas cadastradas e presença informada.
+
+00:02:23.753 --> 00:02:28.684
+A Evolução da folha mostra os seis meses até a competência selecionada.
+
+00:02:29.280 --> 00:02:33.351
+Compare quantidades, efetivo médio e custo total.
+
+00:02:34.063 --> 00:02:38.970
+Por empresa contratada agrupa as pessoas pela empregadora informada, própria
+
+00:02:38.963 --> 00:02:43.544
+ou terceirizada, e mostra as obras e os custos correspondentes.
+
+00:02:44.257 --> 00:02:49.732
+Em Colaboradores ativos no mês, confira nome, função, empresa, obra, vínculo,
+
+00:02:49.655 --> 00:02:51.671
+situação e custo individual.
+
+00:02:52.384 --> 00:02:56.222
+Use Abrir ficha ou Editar conforme a origem do registro.
+
+00:02:56.726 --> 00:03:01.144
+Esses resultados são recalculados com os cadastros e as premissas disponíveis;
+
+00:03:01.288 --> 00:03:04.813
+não devem ser tratados como uma folha oficial congelada.
+
+00:03:05.410 --> 00:03:08.203
+Abra agora a seção Colaboradores.
+
+00:03:08.428 --> 00:03:13.219
+A busca aceita nome, CPF ou função.
+
+00:03:13.560 --> 00:03:17.317
+Combine os filtros de obra e situação e clique em Filtrar.
+
+00:03:17.728 --> 00:03:22.309
+Sem obra encontra quem ainda está no quadro da empresa sem uma alocação.
+
+00:03:22.592 --> 00:03:28.880
+A lista mostra função, vínculo, alocação, quantidade de anexos, documentos
+
+00:03:28.827 --> 00:03:30.703
+vencidos e custo do mês.
+
+00:03:31.114 --> 00:03:34.662
+O nome e o botão Abrir ficha permitem editar a pessoa.
+
+00:03:35.166 --> 00:03:40.165
+Se aparecer o bloco Cadastrados dentro das obras, use Abrir na obra para alterar
+
+00:03:40.112 --> 00:03:44.705
+o cadastro de origem; evite cadastrar a mesma pessoa novamente apenas para
+
+00:03:44.651 --> 00:03:46.191
+mudar uma informação.
+
+00:03:46.787 --> 00:03:49.384
+Para incluir, clique em Novo colaborador.
+
+00:03:49.980 --> 00:03:54.388
+Comece pelo nome completo, obrigatório para identificar a pessoa.
+
+00:03:54.799 --> 00:04:00.344
+O CPF, quando informado, é validado e ajuda a evitar duplicidade dentro da
+
+00:04:00.267 --> 00:04:01.052
+empresa.
+
+00:04:01.904 --> 00:04:05.847
+RG, nascimento e sexo completam a identificação.
+
+00:04:06.188 --> 00:04:10.549
+Celular e e-mail apoiam o contato; confira o formato do e-mail.
+
+00:04:10.879 --> 00:04:15.959
+Endereço, cidade e estado organizam a localização, e cidade e estado devem
+
+00:04:15.906 --> 00:04:17.689
+ser preenchidos em conjunto.
+
+00:04:18.088 --> 00:04:24.806
+CTPS e série guardam a referência da carteira de trabalho.
+
+00:04:25.205 --> 00:04:30.217
+Estes campos armazenam informações: o sistema não consulta automaticamente
+
+00:04:30.175 --> 00:04:34.013
+órgãos públicos nem comprova a autenticidade dos documentos.
+
+00:04:34.610 --> 00:04:38.773
+Em Contrato e alocação, escolha a função e o setor.
+
+00:04:39.370 --> 00:04:42.987
+A função descreve o trabalho, como montador ou soldador.
+
+00:04:43.398 --> 00:04:47.492
+O setor organiza a área, como operacional ou administrativo.
+
+00:04:47.717 --> 00:04:53.088
+Se a opção não existir, selecione Cadastrar nova função ou Cadastrar novo
+
+00:04:53.034 --> 00:04:56.164
+setor, digite o nome e salve a ficha.
+
+00:04:56.761 --> 00:04:59.845
+A opção passa a integrar a lista da empresa.
+
+00:05:00.186 --> 00:05:04.164
+Padronizar os nomes facilita buscar pessoas e comparar equipes.
+
+00:05:04.343 --> 00:05:09.226
+Empresa empregadora identifica quem contrata a pessoa; se ficar vazia, o sistema
+
+00:05:09.172 --> 00:05:10.631
+usa o nome da sua empresa.
+
+00:05:11.857 --> 00:05:17.309
+O campo Vínculo e situação oferece Contratado, Experiência, Jovem aprendiz,
+
+00:05:17.337 --> 00:05:21.976
+Autônomo, PJ, Estágio, Afastado e Demitido.
+
+00:05:22.619 --> 00:05:26.063
+A seleção influencia o agrupamento e o cálculo gerencial de encargos.
+
+00:05:26.706 --> 00:05:32.519
+Neste modelo, autônomo, PJ e estágio usam o valor combinado e benefícios,
+
+00:05:32.662 --> 00:05:37.720
+sem os encargos de CLT; jovem aprendiz recebe um tratamento específico de
+
+00:05:37.643 --> 00:05:39.194
+FGTS.
+
+00:05:39.907 --> 00:05:44.697
+Afastado não representa, sozinho, um cálculo completo de licença ou benefício
+
+00:05:44.644 --> 00:05:45.731
+previdenciário.
+
+00:05:46.234 --> 00:05:49.876
+Escolha o vínculo correspondente ao cadastro real e valide o enquadramento
+
+00:05:49.799 --> 00:05:52.175
+com o responsável pelo departamento pessoal.
+
+00:05:52.516 --> 00:05:56.772
+Informe a admissão e, quando houver saída, o desligamento.
+
+00:05:56.997 --> 00:06:00.742
+As datas ajudam a calcular a fração do mês considerada no custo.
+
+00:06:01.084 --> 00:06:04.783
+Uma data de desligamento anterior à admissão é recusada.
+
+00:06:05.379 --> 00:06:09.740
+Em Alocado na obra, selecione o empreendimento ou deixe Sem obra.
+
+00:06:10.244 --> 00:06:14.802
+Alocado desde registra a data informada para a alocação.
+
+00:06:15.515 --> 00:06:20.700
+A obra escolhida determina em qual linha o colaborador aparece e quais premissas
+
+00:06:20.635 --> 00:06:22.512
+de custo são utilizadas.
+
+00:06:22.853 --> 00:06:27.504
+A data de alocação não cria, por si só, uma distribuição automática do custo
+
+00:06:27.427 --> 00:06:29.501
+entre várias obras no mesmo mês.
+
+00:06:30.004 --> 00:06:35.120
+Na Remuneração, escolha Mensal para informar o salário mensal ou Hora para
+
+00:06:35.043 --> 00:06:36.908
+informar o valor de uma hora.
+
+00:06:37.504 --> 00:06:41.354
+No caso do horista, o sistema multiplica esse valor pelas horas mensais dos
+
+00:06:41.312 --> 00:06:42.306
+parâmetros.
+
+00:06:43.019 --> 00:06:47.159
+Informe os valores com centavos, como três mil e quinhentos reais.
+
+00:06:47.756 --> 00:06:52.871
+O campo Adicional permite Nenhum, insalubridade de dez, vinte ou quarenta
+
+00:06:52.818 --> 00:06:56.482
+por cento, ou periculosidade de trinta por cento.
+
+00:06:57.078 --> 00:07:02.333
+Na regra implementada, a insalubridade usa o salário mínimo configurado; a
+
+00:07:02.303 --> 00:07:04.620
+periculosidade usa o salário base.
+
+00:07:05.124 --> 00:07:08.347
+O formulário escolhe uma opção de adicional por vez.
+
+00:07:08.688 --> 00:07:13.595
+Preencha vale-transporte mensal, alimentação e outros benefícios conforme
+
+00:07:13.518 --> 00:07:14.419
+o cadastro.
+
+00:07:15.016 --> 00:07:19.632
+O vale-transporte informado é o valor mensal de referência; a parcela de custo
+
+00:07:19.578 --> 00:07:22.673
+da empresa considera o desconto definido nos parâmetros.
+
+00:07:22.852 --> 00:07:25.854
+Alimentação e outros benefícios compõem o custo.
+
+00:07:26.358 --> 00:07:31.520
+Na ficha já salva, os cartões apresentam remuneração bruta, encargos e provisões,
+
+00:07:31.478 --> 00:07:33.831
+benefícios e custo do mês atual.
+
+00:07:34.543 --> 00:07:38.474
+Não confunda esses cartões com o filtro de competência da Visão geral.
+
+00:07:39.187 --> 00:07:44.442
+Uma alteração de salário ou benefício pode mudar o custo recalculado: confira
+
+00:07:44.365 --> 00:07:48.714
+o período e registre a atualização na rotina do departamento pessoal.
+
+00:07:49.311 --> 00:07:53.277
+Use Observações para anotações úteis sobre o colaborador.
+
+00:07:53.781 --> 00:07:56.830
+Revise os campos e clique em Cadastrar colaborador.
+
+00:07:57.542 --> 00:08:01.996
+O retorno de confirmação e a ficha aberta indicam que o registro foi salvo.
+
+00:08:02.221 --> 00:08:06.593
+Se houver erro, o formulário preserva o preenchimento e destaca os campos
+
+00:08:06.551 --> 00:08:07.464
+a corrigir.
+
+00:08:07.875 --> 00:08:15.417
+Corrija o nome, CPF, datas, endereço ou remuneração indicados e tente novamente.
+
+00:08:15.897 --> 00:08:20.397
+Para atualizar depois, localize a pessoa, abra a ficha, altere os campos e
+
+00:08:20.344 --> 00:08:22.185
+clique em Salvar alterações.
+
+00:08:22.503 --> 00:08:24.194
+Apenas digitar não grava.
+
+00:08:24.419 --> 00:08:28.165
+Cancelar retorna à lista sem salvar as mudanças pendentes.
+
+00:08:28.680 --> 00:08:32.077
+Os Documentos do colaborador aparecem depois do primeiro salvamento.
+
+00:08:32.372 --> 00:08:38.811
+A lista permite organizar documentos pessoais, CTPS, residência e contrato;
+
+00:08:39.245 --> 00:08:45.626
+ASO; treinamentos e normas regulamentadoras, como NR seis, dez, doze, dezoito,
+
+00:08:45.549 --> 00:08:51.199
+trinta e três e trinta e cinco; ficha de EPI; ordem de serviço; atestado,
+
+00:08:51.122 --> 00:08:55.506
+afastamento e advertência; e habilitação ou registro profissional.
+
+00:08:56.219 --> 00:09:00.383
+Outra NR e Outro documento atendem categorias adicionais.
+
+00:09:00.666 --> 00:09:05.410
+Ao escolher Outro e digitar o nome, você identifica um documento não previsto
+
+00:09:05.368 --> 00:09:06.153
+na lista.
+
+00:09:06.494 --> 00:09:11.818
+A seleção classifica o anexo; não certifica sua validade técnica ou legal.
+
+00:09:12.415 --> 00:09:17.705
+Para anexar, escolha o tipo, preencha uma descrição, informe a validade quando
+
+00:09:17.616 --> 00:09:19.586
+existir e selecione o arquivo.
+
+00:09:20.159 --> 00:09:23.579
+Clique em Anexar documento e confira a nova linha.
+
+00:09:24.071 --> 00:09:31.382
+São aceitos PDF, imagens, Word, Excel ou ZIP, com até dez megabytes por arquivo.
+
+00:09:31.955 --> 00:09:38.777
+A tabela mostra tipo, descrição, validade, nome do arquivo, tamanho, responsável
+
+00:09:38.701 --> 00:09:40.054
+pelo envio e data.
+
+00:09:40.465 --> 00:09:45.372
+O nome abre o documento, Baixar permite guardar uma cópia e Excluir remove
+
+00:09:45.295 --> 00:09:46.951
+o anexo após confirmação.
+
+00:09:47.547 --> 00:09:52.268
+Os exemplos exibidos são documentos fictícios, destinados apenas ao treinamento.
+
+00:09:52.493 --> 00:09:57.388
+O painel diferencia documento sem validade, em dia, a vencer em até trinta
+
+00:09:57.335 --> 00:09:58.932
+dias e vencido.
+
+00:09:59.529 --> 00:10:05.132
+Os alertas da Visão geral ajudam a localizar pendências e abrir a ficha correspondente.
+
+00:10:05.845 --> 00:10:10.113
+Para renovar um arquivo, anexe a versão atualizada com a descrição e a nova
+
+00:10:10.071 --> 00:10:12.249
+data e confira o resultado.
+
+00:10:12.962 --> 00:10:17.706
+O envio não substitui automaticamente o arquivo anterior: as versões podem
+
+00:10:17.652 --> 00:10:19.017
+permanecer juntas.
+
+00:10:19.730 --> 00:10:24.056
+Se a rotina da empresa permitir remover a versão antiga, faça isso somente
+
+00:10:24.003 --> 00:10:25.763
+depois de conferir o novo anexo.
+
+00:10:26.046 --> 00:10:28.793
+Uma validade vazia não gera um prazo de vencimento.
+
+00:10:29.984 --> 00:10:34.728
+Para transferir uma pessoa, use Alocação e situação no final da ficha.
+
+00:10:35.011 --> 00:10:39.221
+Escolha a obra, informe A partir de e clique em Alocar.
+
+00:10:39.818 --> 00:10:44.004
+Essa opção muda a alocação sem exigir a edição do restante dos campos.
+
+00:10:44.601 --> 00:10:49.868
+Na lista de Colaboradores, o seletor de obra também altera a alocação ao escolher
+
+00:10:49.803 --> 00:10:50.715
+a opção.
+
+00:10:51.428 --> 00:10:56.451
+Sem obra mantém o colaborador no quadro e na folha da empresa; não significa
+
+00:10:56.397 --> 00:10:57.182
+demissão.
+
+00:10:57.779 --> 00:11:00.317
+Confira a linha de destino na Visão geral.
+
+00:11:00.913 --> 00:11:06.714
+Este cadastro guarda a alocação atual, e não um rateio histórico automático
+
+00:11:06.648 --> 00:11:07.666
+entre obras.
+
+00:11:08.007 --> 00:11:14.063
+Quando uma pessoa sair, abra a ficha, escolha Demitido, informe o desligamento
+
+00:11:14.056 --> 00:11:14.968
+e salve.
+
+00:11:15.565 --> 00:11:21.551
+Confira a competência correspondente: o cálculo usa a admissão e a saída para
+
+00:11:21.486 --> 00:11:23.548
+estimar a participação no mês.
+
+00:11:24.145 --> 00:11:27.321
+Não use a exclusão como rotina de desligamento.
+
+00:11:27.732 --> 00:11:32.941
+Excluir colaborador remove o cadastro e os documentos, com uma confirmação
+
+00:11:32.887 --> 00:11:34.694
+de ação irreversível.
+
+00:11:35.406 --> 00:11:38.200
+Atualizar a situação conserva a ficha.
+
+00:11:38.541 --> 00:11:43.552
+Para afastamentos e retornos, atualize a situação e as observações de acordo
+
+00:11:43.510 --> 00:11:48.150
+com o controle do departamento pessoal, sem presumir cálculos de afastamento
+
+00:11:48.073 --> 00:11:50.147
+que não foram informados ao sistema.
+
+00:11:50.860 --> 00:11:55.499
+Os Parâmetros da folha ficam dentro da obra, em Financeiro, Contas a pagar.
+
+00:11:56.084 --> 00:11:59.121
+Abra o botão correspondente para consultar as premissas.
+
+00:11:59.346 --> 00:12:06.911
+Regime normal ou CPRB altera o tratamento do INSS patronal neste modelo.
+
+00:12:07.415 --> 00:12:10.197
+Salário mínimo define a base da insalubridade.
+
+00:12:10.596 --> 00:12:13.447
+Horas por mês define a base de conversão do horista.
+
+00:12:13.742 --> 00:12:23.618
+INSS patronal, RAT, FAP, terceiros e FGTS compõem os encargos configuráveis;
+
+00:12:23.738 --> 00:12:26.392
+o FAP multiplica o RAT.
+
+00:12:26.919 --> 00:12:31.477
+Esses dados precisam representar a empresa e a competência analisada: não
+
+00:12:31.412 --> 00:12:35.355
+mude percentuais apenas para fazer o resultado coincidir com uma expectativa.
+
+00:12:36.068 --> 00:12:42.530
+Na mesma janela, confira multa sobre FGTS, rotatividade provisionada e a opção
+
+00:12:42.465 --> 00:12:44.225
+de provisionar aviso prévio.
+
+00:12:44.822 --> 00:12:47.696
+Eles participam das provisões rescisórias.
+
+00:12:48.293 --> 00:12:54.058
+O modelo também provisiona décimo terceiro, férias com um terço e os encargos
+
+00:12:54.005 --> 00:12:55.185
+correspondentes.
+
+00:12:55.886 --> 00:13:02.093
+Desconto de vale-transporte, seguro de vida e EPI, uniforme e ferramentas
+
+00:13:02.039 --> 00:13:04.229
+completam as premissas de benefícios.
+
+00:13:04.918 --> 00:13:09.976
+Salvar parâmetros recalcula os custos; Voltar aos padrões preenche os valores
+
+00:13:09.899 --> 00:13:12.925
+de referência, que ainda precisam ser salvos.
+
+00:13:13.103 --> 00:13:15.711
+Quem está sem obra usa os parâmetros padrão.
+
+00:13:16.308 --> 00:13:21.469
+Confirme regime, percentuais e convenção com o contador: esta folha é uma
+
+00:13:21.392 --> 00:13:22.862
+estimativa gerencial.
+
+00:13:23.087 --> 00:13:27.831
+Para entender o efetivo, abra Gestão, Pessoal, dentro da obra.
+
+00:13:28.173 --> 00:13:31.547
+Em Efetivo diário, selecione a empresa e confira o mês.
+
+00:13:32.259 --> 00:13:35.273
+A matriz registra quantidades por função e dia.
+
+00:13:35.417 --> 00:13:40.545
+Para inserir uma função com lançamento, use Adicionar nova função, informe
+
+00:13:40.503 --> 00:13:44.515
+data, empresa, função e quantidade e salve.
+
+00:13:45.112 --> 00:13:49.879
+Para atualizar, edite a célula do dia e confirme a gravação da própria tela.
+
+00:13:50.592 --> 00:13:53.652
+Baixar relatório permite escolher período e empresas.
+
+00:13:54.249 --> 00:13:57.925
+A média considera os dias que têm lançamento, e o pico é o maior
+
+00:13:57.906 --> 00:13:59.017
+total diário.
+
+00:13:59.613 --> 00:14:04.949
+Esse registro não substitui o cadastro nominal ou o controle de ponto.
+
+00:14:05.546 --> 00:14:11.172
+As abas de colaboradores, ASO, treinamentos e outros registros de pessoal
+
+00:14:11.130 --> 00:14:14.899
+dentro da obra têm seus próprios cadastros e permissões.
+
+00:14:15.495 --> 00:14:19.787
+Os colaboradores existentes nesse cadastro também entram no consolidado da
+
+00:14:19.710 --> 00:14:20.541
+empresa.
+
+00:14:21.254 --> 00:14:25.754
+Um documento anexado à ficha central não cria automaticamente um lançamento
+
+00:14:25.701 --> 00:14:27.124
+nessas outras abas.
+
+00:14:27.408 --> 00:14:33.591
+Da mesma forma, manter uma pessoa cadastrada não preenche o efetivo diário.
+
+00:14:33.816 --> 00:14:38.212
+Use o aviso de origem e o botão de acesso adequado para corrigir a
+
+00:14:38.158 --> 00:14:42.577
+fonte certa, sem duplicar pessoas para tentar ajustar os indicadores.
+
+00:14:43.290 --> 00:14:48.974
+Ao terminar uma atualização, volte à Visão geral, selecione o mês e confira
+
+00:14:48.898 --> 00:14:51.285
+os resultados por obra e por empregadora.
+
+00:14:51.997 --> 00:14:57.519
+Verifique quem ficou sem obra, quem está sem salário e quais documentos precisam
+
+00:14:57.477 --> 00:14:58.460
+de renovação.
+
+00:14:59.172 --> 00:15:04.242
+Compare o cadastro com o efetivo informado e revise as premissas antes de
+
+00:15:04.177 --> 00:15:06.413
+utilizar o custo em uma decisão.
+
+00:15:07.126 --> 00:15:12.032
+Valores estimados não comprovam pagamento nem substituem o fechamento oficial
+
+00:15:11.967 --> 00:15:12.845
+do contador.
+
+00:15:13.558 --> 00:15:19.230
+A rotina recomendada é cadastrar uma vez, atualizar a mesma ficha, organizar
+
+00:15:19.165 --> 00:15:22.237
+os documentos e conferir mensalmente o consolidado.
+
+00:15:22.648 --> 00:15:27.787
+Assim, o RH se torna uma fonte confiável para acompanhar pessoas e custos.
