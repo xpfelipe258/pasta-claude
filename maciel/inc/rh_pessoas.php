@@ -133,7 +133,7 @@ function rhp_opcoes($campo, $org = 0)
     $tudo = $padrao[$campo];
     $custom = cfg_json_ler('rh_listas');
     foreach ($custom as $o => $l) {
-        if ($org > 0 && (int)$o !== (int)$org) { continue; }
+        if ($org > 0 && (int)$o !== (int)$org && (int)$o !== 0) { continue; }   // chave 0 = lista de todas as empresas
         foreach ((array)($l[$campo] ?? []) as $v) { $tudo[] = (string)$v; }
     }
     garantir_rh_pessoas();
@@ -147,12 +147,14 @@ function rhp_opcoes($campo, $org = 0)
 }
 
 /** Guarda uma função/setor novo na lista da empresa. Devolve o nome gravado (se já existe, devolve o nome que já estava na lista). */
-function rhp_opcao_adicionar($campo, $org, $valor)
+function rhp_opcao_adicionar($campo, $org, $valor, $todas = false)
 {
+    if ($todas) { $org = 0; }   // vale para todas as empresas e usuários
     $campo = $campo === 'setor' ? 'setor' : 'funcao';
     $valor = trim(preg_replace('/\s+/u', ' ', (string)$valor));
-    foreach (rhp_opcoes($campo, (int)$org) as $o) { if (mb_strtolower($o) === mb_strtolower($valor)) { return $o; } }
     $t = cfg_json_ler('rh_listas');
+    $ja = $todas ? array_merge(rhp_listas_padrao()[$campo], (array)($t['0'][$campo] ?? [])) : rhp_opcoes($campo, (int)$org);
+    foreach ($ja as $o) { if (mb_strtolower($o) === mb_strtolower($valor)) { return $o; } }
     $t[(string)(int)$org][$campo][] = $valor;
     global_gravar('rh_listas', json_encode($t, JSON_UNESCAPED_UNICODE));
     return $valor;
@@ -236,7 +238,7 @@ function rhp_salvar(array $post, array $u, $id = 0)
     }
     if ($erros) { throw new RhpValidacao($erros); }
     foreach ($escolha as $c_ => $e_) {   // só grava na lista depois que o resto do formulário está certo
-        $escolha[$c_] = isset($e_['novo']) ? rhp_opcao_adicionar($c_, $org, $e_['novo']) : $e_['valor'];
+        $escolha[$c_] = isset($e_['novo']) ? rhp_opcao_adicionar($c_, $org, $e_['novo'], ($u['perfil'] ?? '') === 'admin' && !empty($post[$c_ . '_todas'])) : $e_['valor'];
     }
     $orgNome = $org > 0 ? (string)(organizacao_ler($org)['nome'] ?? '') : '';
     $empresa = trim((string)($post['empresa'] ?? '')) !== '' ? mb_substr(trim($post['empresa']), 0, 120) : $orgNome;
