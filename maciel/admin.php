@@ -80,6 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (q('SELECT id FROM usuarios WHERE login = ?', [$login])->fetch()) {
                 throw new InvalidArgumentException('Já existe um usuário com esse login.');
             }
+            if ($email !== '' && q_global('SELECT id FROM usuarios WHERE email = ?', [$email])->fetch()) {
+                throw new InvalidArgumentException('E-mail já está em uso por outro usuário.');
+            }
             $nivel = in_array($_POST['nivel'] ?? '', ['admin', 'editor', 'leitor'], true) ? $_POST['nivel'] : 'editor';   // nível NESTA obra
             $perfil = $nivel === 'leitor' ? 'leitura' : 'editor';   // o perfil global nunca é administrador do sistema por aqui
             $orgAtor = $global ? 0 : usuario_organizacao_id($eu)[0];   // administrador de uma empresa cliente: o usuário novo é da empresa e conta no limite do plano
