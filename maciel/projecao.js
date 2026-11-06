@@ -587,18 +587,27 @@ async function pjRelatorio() {
       reTab(['Atividade', 'Quem', '#nQuantidade', '#nPreço unit.', '#nValor do plano', '#nPlanejado até hoje', '#nExecutado (R$)', '#n% físico', '#nProjeção no fim do plano', '#nTermina em', '#nSaldo a medir', 'Situação'], linhasAtiv,
         `<tfoot><tr><th colspan="4">Total</th><th class="n">${rs(r.totalPlano)}</th><th class="n">${rs(r.planoAteHoje)}</th><th class="n">${rs(r.exec)}</th><th class="n">${nf(pctFis, 0)}%</th><th class="n">${rs(aoFim)}</th><th class="n">${r.termina ? fdA(r.termina) : '—'}</th><th class="n">${rs(soma0(r.itens, i => Math.max(0, i.qtd - i.x.realAc) * i.p))}</th><th></th></tr></tfoot>`);
 
-    let matHtml = `<thead><tr><th>Atividade</th><th class="n">Valor do plano</th>${per.map(k => `<th class="n ${cls(k)}">${pjRotPeriodo(k, vista)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
-    r.itens.forEach((i, ix) => { const tot = soma0(matriz[ix], m => m.ex + m.pj);
-      matHtml += `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td class="n">${rs(i.valor)}</td>${matriz[ix].map((m, j) => { const v = m.ex + m.pj; return `<td class="n ${cls(per[j])}">${v > 0.5 ? rs(v) : ''}</td>`; }).join('')}<td class="n"><b>${rs(tot)}</b></td></tr>`; });
-    matHtml += `</tbody><tfoot>
-      <tr><th>Planejado no período</th><th class="n">${rs(r.totalPlano)}</th>${totPer.map(t => `<th class="n">${t.pla > 0.5 ? rs(t.pla) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.pla))}</th></tr>
-      <tr><th>Executado + projetado no período</th><th></th>${totPer.map((t, j) => `<th class="n ${cls(per[j])}">${t.ex + t.pj > 0.5 ? rs(t.ex + t.pj) : ''}</th>`).join('')}<th class="n">${rs(soma0(totPer, t => t.ex + t.pj))}</th></tr>
-      <tr><th>Acumulado planejado</th><th></th>${acum.map(a => `<th class="n">${rs(a.p)}</th>`).join('')}<th></th></tr>
-      <tr><th>Acumulado executado + projetado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${rs(a.e)}</th>`).join('')}<th></th></tr>
-      <tr><th>% físico-financeiro acumulado</th><th></th>${acum.map((a, j) => `<th class="n ${cls(per[j])}">${r.totalPlano ? nf(Math.min(100, a.e / r.totalPlano * 100), 0) + '%' : ''}</th>`).join('')}<th></th></tr>
-      <tr><th>Desvio acumulado (projetado − planejado)</th><th></th>${acum.map(a => `<th class="n ${a.e - a.p < -0.5 ? 'valor-neg' : ''}">${(a.e - a.p >= 0 ? '+' : '−') + rs(Math.abs(a.e - a.p))}</th>`).join('')}<th></th></tr></tfoot>`;
-    const secMatriz = `<h2>Cronograma físico-financeiro por ${vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = executado · amarelas = projetado · a que contém ${fdA(r.base)} mistura os dois. Projetado = saldo distribuído por dia útil no ritmo atual × ${d.prod}%.</p><div class="cff-mat"><table>${matHtml}</table></div>`;
-
+    // Em PDF, dividir os períodos impede que a matriz force a largura de toda a página.
+    const blocosMatriz = [];
+    const porBloco = 6;
+    for (let ini = 0; ini < per.length; ini += porBloco) {
+      const fim = Math.min(ini + porBloco, per.length), periodos = per.slice(ini, fim);
+      let matHtml = `<thead><tr><th>Atividade</th><th class="n">Valor do plano</th>${periodos.map(k => `<th class="n ${cls(k)}">${pjRotPeriodo(k, vista)}</th>`).join('')}<th class="n">Total no recorte</th></tr></thead><tbody>`;
+      r.itens.forEach((i, ix) => {
+        const celulas = matriz[ix].slice(ini, fim), total = soma0(celulas, m => m.ex + m.pj);
+        matHtml += `<tr><td><b>${esc(i.x.it.atividade)}</b></td><td class="n">${rs(i.valor)}</td>${celulas.map((m, j) => { const v = m.ex + m.pj; return `<td class="n ${cls(periodos[j])}">${v > 0.5 ? rs(v) : ''}</td>`; }).join('')}<td class="n"><b>${rs(total)}</b></td></tr>`;
+      });
+      const totais = totPer.slice(ini, fim), acumulados = acum.slice(ini, fim);
+      matHtml += `</tbody><tfoot>
+        <tr><th>Planejado no período</th><th class="n">${rs(r.totalPlano)}</th>${totais.map(t => `<th class="n">${t.pla > 0.5 ? rs(t.pla) : ''}</th>`).join('')}<th class="n">${rs(soma0(totais, t => t.pla))}</th></tr>
+        <tr><th>Executado + projetado no período</th><th></th>${totais.map((t, j) => `<th class="n ${cls(periodos[j])}">${t.ex + t.pj > 0.5 ? rs(t.ex + t.pj) : ''}</th>`).join('')}<th class="n">${rs(soma0(totais, t => t.ex + t.pj))}</th></tr>
+        <tr><th>Acumulado planejado</th><th></th>${acumulados.map(a => `<th class="n">${rs(a.p)}</th>`).join('')}<th></th></tr>
+        <tr><th>Acumulado executado + projetado</th><th></th>${acumulados.map((a, j) => `<th class="n ${cls(periodos[j])}">${rs(a.e)}</th>`).join('')}<th></th></tr>
+        <tr><th>% físico-financeiro acumulado</th><th></th>${acumulados.map((a, j) => `<th class="n ${cls(periodos[j])}">${r.totalPlano ? nf(Math.min(100, a.e / r.totalPlano * 100), 0) + '%' : ''}</th>`).join('')}<th></th></tr>
+        <tr><th>Desvio acumulado (projetado − planejado)</th><th></th>${acumulados.map(a => `<th class="n ${a.e - a.p < -0.5 ? 'valor-neg' : ''}">${(a.e - a.p >= 0 ? '+' : '−') + rs(Math.abs(a.e - a.p))}</th>`).join('')}<th></th></tr></tfoot>`;
+      blocosMatriz.push(`<h3>Períodos ${ini + 1}–${fim} de ${per.length}</h3><div class="cff-mat"><table>${matHtml}</table></div>`);
+    }
+    const secMatriz = `<h2>Cronograma físico-financeiro por ${vista === 'mes' ? 'mês' : 'semana'}</h2><p class="sub-cab">Colunas verdes = executado · amarelas = projetado · a que contém ${fdA(r.base)} mistura os dois. Projetado = saldo distribuído por dia útil no ritmo atual × ${d.prod}%.</p>` + blocosMatriz.join('');
     let secEquip = '';
     if (eq.itens.length && eq.K > 0) {
       const totalProj = eq.totReal + eq.totProj, fat = soma0(eq.itens, i => Math.min(i.qtd, i.x.realAc) * i.p) + soma0(eq.itens, i => { let q = 0; i.proj.forEach(v => { q += v; }); return Math.min(i.qtd - Math.min(i.qtd, i.x.realAc), q) * i.p; });
@@ -607,7 +616,7 @@ async function pjRelatorio() {
         reTab(['Atividade', '#nQtd do plano', '#nGasto planejado', '#nGasto até hoje', '#nGasto projetado', '#nTotal até concluir'], eq.porItem.map(x => `<tr><td><b>${esc(x.i.x.it.atividade)}</b></td><td class="n">${plFmt(x.i.qtd, x.i.x.it.unidade)} ${esc(x.i.x.it.unidade)}</td><td class="n">${rs(x.plan)}</td><td class="n">${rs(x.exec)}</td><td class="n">${rs(x.proj)}</td><td class="n"><b>${rs(x.exec + x.proj)}</b></td></tr>`));
     }
 
-    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat table{font-size:9px}.cff-mat th,.cff-mat td{padding:3px 4px;white-space:nowrap}.valor-neg{color:#b42318}.cff-curva{width:100%;max-height:340px;object-fit:contain}td .nota{font-size:9px;color:#555;white-space:normal}</style>`;
+    const css = `<style>@page{size:A4 landscape}.pj-real{background:#e3f1e8}.pj-proj{background:#fbf0d9}.pj-misto{background:linear-gradient(90deg,#e3f1e8 50%,#fbf0d9 50%)}.cff-mat{width:100%;max-width:100%;overflow:hidden}.cff-mat table{width:100%;table-layout:fixed;font-size:10px}.cff-mat th,.cff-mat td{padding:4px 5px;white-space:normal;overflow-wrap:anywhere}.valor-neg{color:#b42318}.cff-curva{display:block;width:100%;max-width:100%;height:auto;object-fit:contain}td .nota{font-size:9px;color:#555;white-space:normal}</style>`;
     const corpo = `<section class="emp-sec"><div class="pag">
       <p class="sub-cab"><b>Escopo:</b> ${d.emp ? 'empresa ' + esc(d.emp) : 'todas as empresas'} · contrato ${esc(R)} · produtividade ${d.prod}% do ritmo atual · posição em ${fdA(c.baseRef)}${planosTxt ? ' · planos: ' + esc(planosTxt) : ''}.</p>
       <div class="cards">${card('Valor do plano', rs(r.totalPlano), `${r.itens.length} atividade(s) · contrato ${esc(R)}`, 'az')}${card('Planejado até hoje', rs(r.planoAteHoje), `${nf(pctPrev, 1)}% do valor do plano`, 'nd')}${card('Executado até hoje', rs(r.exec), `${nf(pctFis, 1)}% · desvio ${desv >= 0 ? '+' : '−'}${rs(Math.abs(desv))}`, desv < -0.05 * Math.max(r.planoAteHoje, 1) ? 'vm' : desv < 0 ? 'am' : 'vd')}${card(`Projeção no fim do plano${sim ? ' (simulada)' : ''}`, rs(aoFim), `${r.totalPlano ? nf(aoFim / r.totalPlano * 100, 0) : 0}% do plano${foraPrazo > 0.5 ? ' · ' + rs(foraPrazo) + ' ficam para depois' : ' · fecha no prazo'}`, foraPrazo > 0.5 ? 'vm' : 'vd')}${card('Término projetado', r.termina ? fdA(r.termina) : '—', r.termina && r.termina > r.fimPlano ? `${contarDiasUteis(r.fimPlano, r.termina)} dias úteis depois do fim do plano (${fdA(r.fimPlano)})` : `plano termina em ${fdA(r.fimPlano)}`, r.termina && r.termina > r.fimPlano ? 'am' : 'vd')}</div>

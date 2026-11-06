@@ -1,0 +1,56 @@
+# Tutorial do cliente — Núcleo de Obras
+
+Duração final: 05:00. Voz: Henrique (ElevenLabs), português brasileiro. Empresa fictícia: Horizonte Engenharia. Dados de demonstração em ambiente isolado, com perfil de administrador da empresa cliente.
+
+## 00:00:00 — Bem-vindo · visão do cliente
+
+Bem-vindo ao Núcleo de Obras. Neste tutorial de cinco minutos, você vai conhecer a visão de uma empresa cliente, navegar pelas abas iniciais e entender como acompanhar o painel de produção, lançar quantidades e conferir a medição. As telas mostram a Horizonte Engenharia, uma empresa fictícia, com dados de demonstração.
+
+## 00:00:20 — Central da empresa · Início
+
+Ao entrar, você encontra a Central da empresa. A aba Início reúne os principais atalhos e resumos. Ela ajuda a identificar onde estão as obras, as informações financeiras, as propostas comerciais e a gestão de pessoas. Os dados disponíveis dependem das obras e das permissões da sua conta.
+
+## 00:00:40 — Obras · escolha e acesso
+
+Em Obras, escolha o empreendimento que deseja acompanhar. Confira o nome, o prazo e os dados do cartão antes de abrir. Quem administra a obra pode editar seu cadastro, organizar as empresas participantes e enviar documentos, conforme os acessos liberados. Os registros de uma obra ficam separados dos registros das demais.
+
+## 00:01:03 — Painel financeiro
+
+O Painel financeiro reúne os resultados das obras da empresa. Selecione a data ou o período e clique em Atualizar. Compare o valor contratado, o que já foi medido e os indicadores de avanço em relação ao prazo. Medir um serviço não significa receber o pagamento: acompanhe também as contas e os registros financeiros correspondentes.
+
+## 00:01:25 — Comercial e pessoal (RH)
+
+No Painel comercial, você prepara orçamentos e propostas. Organize serviços, quantidades e custos; revise o BDI, os descontos e as condições de pagamento. A situação da proposta permite acompanhar sua evolução comercial. Já o Painel pessoal, de recursos humanos, reúne colaboradores, folha e efetivo. Confira sempre o mês e o conjunto de obras consultado.
+
+## 00:01:51 — Configurações e plano da empresa
+
+Em Configurações, ficam os dados e a identidade visual da empresa, além das opções disponíveis para sua administração. Os acessos dos usuários devem refletir a responsabilidade de cada pessoa. O painel administrativo de uma empresa cliente trata do seu plano e dos seus limites. A administração geral da plataforma é uma área diferente.
+
+## 00:02:13 — Tutorial interativo das abas iniciais
+
+Para aprender essas abas na própria tela, toque em Tutorial interativo. Cada passo destaca um item, explica sua função e oferece o botão Abrir esta aba. Use Próximo e Anterior para revisar as orientações. Ao abrir outra aba pelo guia, a explicação continua. Você pode fechar a visita e reabri-la quando precisar.
+
+## 00:02:35 — Painel de produção
+
+Agora, vamos entrar na obra. O nome no topo confirma onde você está trabalhando. No menu Produção, abra o Painel. Escolha o período de análise e observe a comparação entre previsto e realizado. Os cartões resumem o desempenho, e os faróis ajudam a localizar serviços que exigem atenção. Use os filtros por empresa para investigar cada resultado, sempre com o mesmo período de referência.
+
+## 00:03:01 — Lançar produção pelo celular
+
+Em Lançamentos, selecione a empresa responsável pelo serviço. No celular, as atividades aparecem em cartões. Toque em Lançar produção para abrir o formulário. Escolha a atividade, toque no calendário, selecione a data e informe a quantidade na unidade indicada. Confira as informações e salve. Se o dia já tiver um valor, o formulário mostra esse total. A correção substitui a quantidade anterior; ela não representa uma soma adicional.
+
+## 00:03:31 — Grade semanal e relatório de produção
+
+No computador, a grade semanal também permite lançar a produção por dia e atividade. Observe os avisos de alterações pendentes e confirme a gravação. O relatório de produção usa a empresa e o período selecionados para mostrar os serviços que tiveram avanço. Evite duplicar os registros quando a produção já vier dos apontamentos de montagem.
+
+## 00:03:54 — Medição (BM) · contrato e avanço
+
+Para acompanhar a medição, abra Financeiro e Medição, o BM. Escolha a empresa e o período. Confira as atividades do catálogo, as quantidades contratadas, o realizado e os percentuais de avanço. A unidade produtiva pode ser diferente da unidade financeira; observe a indicação de conversão apresentada pelo sistema.
+
+## 00:04:14 — Deduções e fechamento da medição
+
+Revise os valores medidos e as deduções antes do fechamento. Um BM fechado preserva os valores registrados. Correções de produção em períodos fechados seguem as regras de ajuste da medição em aberto. A situação do boletim, o período escolhido e as permissões do usuário devem ser conferidos antes de qualquer ação.
+
+## 00:04:35 — Tutorial dentro da obra · conclusão
+
+Dentro da obra, a área Geral também tem um Tutorial. Escolha um assunto para consultar o passo a passo ou iniciar uma visita guiada. Ela destaca os controles e explica cada etapa. Use este apoio sempre que precisar revisar uma rotina. O caminho recomendado é simples: escolha a obra, acompanhe o painel, registre a produção com cuidado e confira a medição antes de fechar o período.
+

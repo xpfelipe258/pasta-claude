@@ -77,33 +77,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             q_global('INSERT INTO auditoria_global (quando, usuario, acao, detalhe) VALUES (?, ?, ?, ?)', [
                 agora(), $v['admin_login'], 'cadastro_publico', json_encode(['org' => $orgId, 'nome' => $v['nome'], 'plano' => $v['plano_id'], 'ciclo' => $v['ciclo'], 'ip' => $ip], JSON_UNESCAPED_UNICODE)]);
+            require_once __DIR__ . '/inc/verificacao_email.php';
+            $novoUsuario = q_global('SELECT id FROM usuarios WHERE login = ?', [$v['admin_login']])->fetch();
+            if (!$novoUsuario) { throw new RuntimeException('Usuário criado não encontrado.'); }
+            $tokenVerificacao = verificacao_criar_token((int)$novoUsuario['id']);
             bd()->commit();
             // Avisos por e-mail (falha de envio não desfaz o cadastro).
             $sistema = global_ler('nome_sistema', 'Núcleo de Obras');
             $plano = q_global('SELECT nome FROM planos_assinatura WHERE id = ?', [$v['plano_id']])->fetchColumn();
             $link = url_base_sistema() . '/login.php';
             try {
-                enviar_email_sistema($v['email'], 'Bem-vindo ao ' . $sistema . ' — seu teste começou',
-                    "Olá, {$v['admin_nome']}.\n\nA empresa {$v['nome']} foi cadastrada no {$sistema} com o {$plano}.\nO período de teste vai até " . date('d/m/Y', strtotime($venc)) . ".\n\nSeu login de acesso: {$v['admin_login']}\nEntre em: {$link}\n\nPor lá você cria as obras e cadastra a equipe da empresa.");
+                require_once __DIR__ . '/inc/cadastro_emails.php';
+                $dadosEmail = [
+                    'sistema' => $sistema, 'empresa' => $v['nome'], 'admin_nome' => $v['admin_nome'],
+                    'documento' => $v['documento'], 'telefone' => $v['telefone'], 'email' => $v['email'],
+                    'login' => $v['admin_login'], 'plano' => $plano, 'ciclo' => $v['ciclo'],
+                    'vencimento' => date('d/m/Y', strtotime($venc)), 'link' => $link,
+                    'link_verificacao' => url_base_sistema() . '/verificar_email.php?token=' . urlencode($tokenVerificacao),
+                    'link_admin' => url_base_sistema() . '/admin_planos.php',
+                ];
+                enviar_email_sistema($v['email'], 'Boas-vindas ao ' . $sistema . ' — confirme seu e-mail',
+                    cadastro_email_boas_vindas($dadosEmail), true);
                 foreach (q_global("SELECT email FROM usuarios WHERE perfil = 'admin' AND ativo = 1 AND email IS NOT NULL AND email <> ''")->fetchAll(PDO::FETCH_COLUMN) as $para) {
-                    enviar_email_sistema($para, 'Novo cadastro de empresa: ' . $v['nome'],
-                        "Uma empresa se cadastrou pela tela de login.\n\nEmpresa: {$v['nome']}\nCNPJ: " . ($v['documento'] ?: '—') . "\nResponsável: {$v['admin_nome']} ({$v['email']})\nTelefone: " . ($v['telefone'] ?: '—') . "\nPlano: {$plano} · ciclo " . strtolower($v['ciclo']) . "\nTeste até: " . date('d/m/Y', strtotime($venc)) . "\n\nAcompanhe em Comercial (admin_planos.php).");
+                    enviar_email_sistema($para, 'Novo cliente cadastrado: ' . $v['nome'],
+                        cadastro_email_aviso_admin($dadosEmail), true);
                 }
             } catch (Throwable $e) { /* sem e-mail configurado: segue */ }
-            // Entra direto (a menos que o sistema esteja em manutenção).
-            if (empty(manutencao_info()['ativo'])) {
-                $u = q_global('SELECT id, login FROM usuarios WHERE login = ?', [$v['admin_login']])->fetch();
-                if ($u && session_regenerate_id(true)) {
-                    $_SESSION['uid'] = (int)$u['id'];
-                    $_SESSION['ultimo'] = time();
-                    $_SESSION['obra_id'] = 0;
-                    $_SESSION['csrf'] = bin2hex(random_bytes(16));
-                    registrar_global('login', ['login' => $u['login'], 'origem' => 'cadastro']);
-                    header('Location: obras.php');
-                    exit;
-                }
-            }
-            header('Location: login.php');
+            header('Location: verificar_email.php?enviado=1');
             exit;
         }
     } catch (InvalidArgumentException $e) {

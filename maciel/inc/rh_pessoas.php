@@ -321,7 +321,12 @@ function rhp_listar(array $u, array $f = [])
     if (!empty($f['status'])) { $where[] = 'c.status = ?'; $par[] = $f['status']; }
     if (!empty($f['org']) && rhp_contexto($u)['todas']) { $where[] = 'c.organizacao_id = ?'; $par[] = (int)$f['org']; }
     $q = trim((string)($f['q'] ?? ''));
-    if ($q !== '') { $where[] = '(c.nome LIKE ? OR c.cpf LIKE ? OR c.funcao LIKE ?)'; $par[] = "%$q%"; $par[] = '%' . sesmt_cpf_digitos($q) . '%'; $par[] = "%$q%"; }
+    if ($q !== '') {
+        $busca = ['c.nome LIKE ?', 'c.funcao LIKE ?']; $par[] = "%$q%"; $par[] = "%$q%";
+        $cpf = sesmt_cpf_digitos($q);
+        if ($cpf !== '') { $busca[] = 'c.cpf LIKE ?'; $par[] = "%$cpf%"; }
+        $where[] = '(' . implode(' OR ', $busca) . ')';
+    }
     $rows = q_global('SELECT c.*, o.nome AS obra_nome FROM rh_pessoas c LEFT JOIN obras o ON o.id = c.obra_id WHERE ' . implode(' AND ', $where) . ' ORDER BY c.nome', $par)->fetchAll();
     $docs = [];
     $hoje = planos_hoje();

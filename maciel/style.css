@@ -480,6 +480,33 @@ tr.grupo-item td { background: var(--bg); font-size: .82rem; }
 .tabela-bm th, .tabela-bm td { white-space: nowrap; }
 .tabela-bm td:first-child { white-space: normal; }
 #tabLanc.por-servico { table-layout: fixed; width: 1298px; }
+.lanc-cartoes, .lanc-nota-celular { display: none; }
+#dlgLancProducao { width: min(520px, calc(100vw - 32px)); }
+#dlgLancProducao .campos { grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
+#dlgLancProducao input, #dlgLancProducao select { width: 100%; min-width: 0; box-sizing: border-box; }
+#dlgLancProducao .acoes { justify-content: flex-end; margin-top: 18px; }
+#lancProducaoErro { color: var(--vermelho); }
+.lanc-grupo h3 { font-size: .85rem; margin: 16px 0 10px; overflow-wrap: anywhere; }
+.lanc-cartao { padding: 16px; margin-bottom: 10px; border: 1px solid var(--linha); border-radius: 10px; background: var(--card); }
+.lanc-cartao h4 { margin: 0 0 6px; font-size: 1rem; overflow-wrap: anywhere; }
+.lanc-cartao dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.lanc-cartao dt { color: var(--fg2); font-size: .7rem; }
+.lanc-cartao dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.lanc-cartao .btn { width: 100%; }
+@media (max-width: 700px) {
+  #aba-lanc .grade-lanc, #aba-lanc .lanc-nota-grade { display: none; }
+  #aba-lanc .lanc-cartoes, #aba-lanc .lanc-nota-celular { display: block; }
+  #aba-lanc > .barra-acoes { flex-direction: column; align-items: stretch; }
+  #aba-lanc #segEmpresas { display: flex; flex-wrap: wrap; }
+  #aba-lanc #segEmpresas button { min-height: 44px; flex: 1 1 auto; white-space: normal; }
+  #aba-lanc #btnLancarProducao { min-height: 48px; width: 100%; }
+  #aba-lanc .re-barra { flex-wrap: wrap; min-width: 0; }
+  #aba-lanc .re-barra label { flex: 1 1 120px; min-width: 0; }
+  #aba-lanc .re-barra > .btn { width: 100%; }
+  #aba-lanc .acoes { justify-content: flex-start; }
+  #aba-lanc #pendTxt { flex-basis: 100%; }
+  #dlgLancProducao input, #dlgLancProducao select { min-height: 44px; font-size: 16px; }
+}
 #tabLanc.por-servico td.sub-ativ, #tabLanc.por-servico td.fixa { max-width: none; min-width: 0; }
 .grade-lanc input[data-fechado] { background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--linha-forte) 5px 6px); box-shadow: inset 2px 0 0 var(--vermelho); }
 .linha-info td { color: var(--fg2); font-size: .85rem; }

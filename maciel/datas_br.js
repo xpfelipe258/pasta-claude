@@ -50,6 +50,67 @@
 
   const protoValor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
 
+  // Calendário próprio: o Safari não abre de forma confiável showPicker() num input oculto.
+  function abrirCalendario(nat, bt) {
+    if (nat.disabled || nat.readOnly) return;
+    if (!document.getElementById('dataBrCalendarioEstilo')) {
+      const st = document.createElement('style'); st.id = 'dataBrCalendarioEstilo';
+      st.textContent = `.data-br-cal{box-sizing:border-box;width:min(360px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 24px);overflow:auto;padding:16px;border:1px solid #c9ced6;border-radius:14px;background:var(--card,#fff);color:var(--fg,#182230);font:16px system-ui;box-shadow:0 12px 40px #0003}.data-br-cal::backdrop{background:#0007}.data-br-cal header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.data-br-cal h2{font-size:16px;text-align:center;margin:0}.data-br-cal button{font:inherit;min-height:44px;border:1px solid #d0d5dd;border-radius:8px;background:var(--card,#fff);color:inherit;cursor:pointer;padding:4px}.data-br-cal header button{min-width:44px}.data-br-cal button:disabled{opacity:.35;cursor:default}.data-br-cal-grade{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.data-br-cal-grade span{text-align:center;font-size:12px;padding:6px 0;color:var(--fg2,#667085)}.data-br-cal-grade button{min-width:0;min-height:40px;border-color:transparent}.data-br-cal-grade button[aria-current=date]{border-color:var(--acento,#2563eb)}.data-br-cal-grade button[aria-pressed=true]{background:var(--acento,#2563eb);color:white}.data-br-cal button:focus-visible{outline:3px solid #60a5fa;outline-offset:1px}.data-br-cal footer{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}.data-br-cal footer button{padding:6px 10px}`;
+      document.head.append(st);
+    }
+    const dlg = document.createElement('dialog'); dlg.className = 'data-br-cal';
+    dlg.setAttribute('aria-label', 'Selecionar data');
+    const agora = new Date(), pad = n => String(n).padStart(2, '0');
+    const hoje = `${agora.getFullYear()}-${pad(agora.getMonth() + 1)}-${pad(agora.getDate())}`;
+    const permitido = d => (!nat.min || d >= nat.min) && (!nat.max || d <= nat.max);
+    let inicial = nat.value || hoje;
+    if (nat.min && inicial < nat.min) inicial = nat.min;
+    if (nat.max && inicial > nat.max) inicial = nat.max;
+    let ano = +inicial.slice(0, 4), mes = +inicial.slice(5, 7) - 1;
+    const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const fechar = () => { dlg.close(); dlg.remove(); bt.focus(); };
+    const escolher = valor => {
+      if (nat.disabled || nat.readOnly || (valor && !permitido(valor))) return;
+      nat.value = valor;
+      fechar();
+      nat.dispatchEvent(new Event('input', { bubbles: true }));
+      nat.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    function desenhar() {
+      dlg.innerHTML = `<header><button type="button" data-mes="-1" aria-label="Mês anterior">‹</button><h2 aria-live="polite">${meses[mes]} de ${ano}</h2><button type="button" data-mes="1" aria-label="Próximo mês">›</button></header><div class="data-br-cal-grade"></div><footer><button type="button" data-hoje>Hoje</button>${nat.required ? '' : '<button type="button" data-limpar>Limpar</button>'}<button type="button" data-fechar>Fechar</button></footer>`;
+      const grid = dlg.querySelector('.data-br-cal-grade');
+      ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].forEach(d => { const el = document.createElement('span'); el.textContent = d; grid.append(el); });
+      const primeiro = new Date(Date.UTC(ano, mes, 1)).getUTCDay(), total = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+      for (let i = 0; i < primeiro; i++) grid.append(document.createElement('span'));
+      for (let dia = 1; dia <= total; dia++) {
+        const data = `${ano}-${pad(mes + 1)}-${pad(dia)}`, el = document.createElement('button');
+        el.type = 'button'; el.textContent = dia; el.dataset.data = data;
+        el.disabled = !permitido(data); el.setAttribute('aria-label', isoParaBr(data));
+        el.setAttribute('aria-pressed', String(data === nat.value));
+        if (data === hoje) el.setAttribute('aria-current', 'date');
+        grid.append(el);
+      }
+      dlg.querySelector('[data-hoje]').disabled = !permitido(hoje);
+    }
+    dlg.addEventListener('click', ev => {
+      const b = ev.target.closest('button'); if (!b || b.disabled) return;
+      if (b.dataset.mes) {
+        const novo = new Date(Date.UTC(ano, mes + Number(b.dataset.mes), 1));
+        ano = novo.getUTCFullYear(); mes = novo.getUTCMonth(); desenhar();
+        dlg.querySelector(`[data-mes="${b.dataset.mes}"]`).focus();
+      } else if (b.dataset.data) escolher(b.dataset.data);
+      else if (b.hasAttribute('data-hoje')) escolher(hoje);
+      else if (b.hasAttribute('data-limpar')) escolher('');
+      else if (b.hasAttribute('data-fechar')) fechar();
+    });
+    dlg.addEventListener('cancel', ev => { ev.preventDefault(); fechar(); });
+    // Dentro de um pop-up, o calendário também precisa ficar no diálogo ativo.
+    (nat.closest('dialog[open]') || document.body).append(dlg);
+    desenhar(); dlg.showModal();
+    const foco = dlg.querySelector('[aria-pressed="true"]:not(:disabled)') || dlg.querySelector('[data-data]:not(:disabled)') || dlg.querySelector('[data-fechar]');
+    foco.focus();
+  }
+
   function melhorarData(nat) {
     if (nat._brOk || nat.type !== 'date') return;
     nat._brOk = true;
@@ -61,7 +122,7 @@
     if (nat.title) txt.title = nat.title;
     if (nat.getAttribute('aria-label')) txt.setAttribute('aria-label', nat.getAttribute('aria-label'));
     const bt = document.createElement('button');
-    bt.type = 'button'; bt.className = 'data-br-bt'; bt.tabIndex = -1; bt.title = 'Abrir calendário'; bt.setAttribute('aria-label', 'Abrir calendário'); bt.textContent = '📅';
+    bt.type = 'button'; bt.className = 'data-br-bt'; bt.title = 'Abrir calendário'; bt.setAttribute('aria-label', 'Abrir calendário'); bt.setAttribute('aria-haspopup', 'dialog'); bt.textContent = '📅';
     nat.parentNode.insertBefore(caixa, nat);
     caixa.append(txt, bt, nat);
     nat.classList.add('data-br-nat'); nat.tabIndex = -1;
@@ -98,12 +159,7 @@
       } else txt.classList.remove('data-br-erro');
     });
     txt.addEventListener('blur', () => { if (txt.value && !brParaIso(txt.value)) espelhar(); });   // data incompleta ou inválida: volta ao valor válido
-    bt.addEventListener('click', () => {
-      if (nat.disabled || nat.readOnly) return;
-      nat._brPicker = true;
-      try { nat.showPicker(); } catch (e) { try { focoOriginal(); nat.click(); } catch (e2) { /* navegador sem calendário */ } }
-      setTimeout(() => { nat._brPicker = false; }, 600);
-    });
+    bt.addEventListener('click', () => abrirCalendario(nat, bt));
     nat.addEventListener('change', espelhar);   // escolha feita no calendário
     nat.addEventListener('input', espelhar);
     if (nat.form) nat.form.addEventListener('reset', () => setTimeout(espelhar, 0));

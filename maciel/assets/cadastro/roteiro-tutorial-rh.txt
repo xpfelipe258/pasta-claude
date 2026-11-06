@@ -1,0 +1,96 @@
+# RH completo — Núcleo de Obras
+
+Duração: 15:30. Voz brasileira Henrique, ElevenLabs. Horizonte Engenharia: empresa fictícia; pessoas e documentos de demonstração em ambiente isolado. As operações filmadas usam uma conta administradora da empresa cliente.
+
+## 00:00:00 — Apresentação e objetivos
+
+Bem-vindo ao tutorial completo do Painel pessoal, o RH do Núcleo de Obras. Vamos percorrer a visão geral, cadastrar um colaborador, atualizar sua ficha, organizar os documentos, mudar a alocação e entender de onde vêm a folha e os indicadores. Para cada bloco, você verá o que informar, como salvar e por que manter o dado correto. Usaremos a Horizonte Engenharia, uma empresa fictícia, e pessoas e documentos de demonstração.
+
+## 00:00:31 — Acesso e permissões do RH
+
+Na Central da empresa, abra Painel pessoal, RH. Há duas seções: Visão geral e folha e Colaboradores. A primeira consolida os resultados. A segunda organiza os cadastros e os acessos às fichas. O botão Novo colaborador inicia uma inclusão. Sua conta determina quais empresas e obras aparecem. Os valores de salários e custos só ficam disponíveis quando existe acesso à área Financeiro; o cadastro de pessoas e o efetivo podem continuar visíveis sem esses valores.
+
+## 00:01:06 — Visão geral e seleção do mês
+
+Na Visão geral, selecione o mês e clique em Atualizar. Esse filtro permite comparar competências diferentes. Colaboradores ativos indica as pessoas consideradas no cálculo daquele mês; confira também o aviso de salário não informado. Folha total reúne remuneração, encargos, provisões e benefícios. Remuneração bruta corresponde ao salário e aos adicionais. Encargos e provisões representam outras parcelas do custo gerencial. O efetivo médio no DP vem dos registros diários, e o pico informa o maior efetivo. Cadastro e presença diária são fontes diferentes.
+
+## 00:01:43 — Indicadores por obra e custo médio
+
+A tabela Por obra separa os resultados de cada empreendimento e pode incluir a linha Sem obra, para o quadro da empresa. Confira colaboradores, remuneração, encargos e provisões, benefícios, folha total, custo médio e efetivo médio e de pico. O custo médio divide o custo total pelo número de colaboradores. O botão Abrir Pessoal da obra leva à rotina operacional. Se alguém estiver sem alocação, use o acesso para conferir essa lista. Essa comparação ajuda a localizar concentração de custos e diferenças entre pessoas cadastradas e presença informada.
+
+## 00:02:23 — Evolução, empregadoras e custo individual
+
+A Evolução da folha mostra os seis meses até a competência selecionada. Compare quantidades, efetivo médio e custo total. Por empresa contratada agrupa as pessoas pela empregadora informada, própria ou terceirizada, e mostra as obras e os custos correspondentes. Em Colaboradores ativos no mês, confira nome, função, empresa, obra, vínculo, situação e custo individual. Use Abrir ficha ou Editar conforme a origem do registro. Esses resultados são recalculados com os cadastros e as premissas disponíveis; não devem ser tratados como uma folha oficial congelada.
+
+## 00:03:05 — Lista de colaboradores e filtros
+
+Abra agora a seção Colaboradores. A busca aceita nome, CPF ou função. Combine os filtros de obra e situação e clique em Filtrar. Sem obra encontra quem ainda está no quadro da empresa sem uma alocação. A lista mostra função, vínculo, alocação, quantidade de anexos, documentos vencidos e custo do mês. O nome e o botão Abrir ficha permitem editar a pessoa. Se aparecer o bloco Cadastrados dentro das obras, use Abrir na obra para alterar o cadastro de origem; evite cadastrar a mesma pessoa novamente apenas para mudar uma informação.
+
+## 00:03:46 — Novo colaborador: dados pessoais
+
+Para incluir, clique em Novo colaborador. Comece pelo nome completo, obrigatório para identificar a pessoa. O CPF, quando informado, é validado e ajuda a evitar duplicidade dentro da empresa. RG, nascimento e sexo completam a identificação. Celular e e-mail apoiam o contato; confira o formato do e-mail. Endereço, cidade e estado organizam a localização, e cidade e estado devem ser preenchidos em conjunto. CTPS e série guardam a referência da carteira de trabalho. Estes campos armazenam informações: o sistema não consulta automaticamente órgãos públicos nem comprova a autenticidade dos documentos.
+
+## 00:04:34 — Função, setor e empregadora
+
+Em Contrato e alocação, escolha a função e o setor. A função descreve o trabalho, como montador ou soldador. O setor organiza a área, como operacional ou administrativo. Se a opção não existir, selecione Cadastrar nova função ou Cadastrar novo setor, digite o nome e salve a ficha. A opção passa a integrar a lista da empresa. Padronizar os nomes facilita buscar pessoas e comparar equipes. Empresa empregadora identifica quem contrata a pessoa; se ficar vazia, o sistema usa o nome da sua empresa.
+
+## 00:05:11 — Vínculos e situações
+
+O campo Vínculo e situação oferece Contratado, Experiência, Jovem aprendiz, Autônomo, PJ, Estágio, Afastado e Demitido. A seleção influencia o agrupamento e o cálculo gerencial de encargos. Neste modelo, autônomo, PJ e estágio usam o valor combinado e benefícios, sem os encargos de CLT; jovem aprendiz recebe um tratamento específico de FGTS. Afastado não representa, sozinho, um cálculo completo de licença ou benefício previdenciário. Escolha o vínculo correspondente ao cadastro real e valide o enquadramento com o responsável pelo departamento pessoal.
+
+## 00:05:52 — Admissão, saída e alocação inicial
+
+Informe a admissão e, quando houver saída, o desligamento. As datas ajudam a calcular a fração do mês considerada no custo. Uma data de desligamento anterior à admissão é recusada. Em Alocado na obra, selecione o empreendimento ou deixe Sem obra. Alocado desde registra a data informada para a alocação. A obra escolhida determina em qual linha o colaborador aparece e quais premissas de custo são utilizadas. A data de alocação não cria, por si só, uma distribuição automática do custo entre várias obras no mesmo mês.
+
+## 00:06:30 — Salário mensal, horista e adicionais
+
+Na Remuneração, escolha Mensal para informar o salário mensal ou Hora para informar o valor de uma hora. No caso do horista, o sistema multiplica esse valor pelas horas mensais dos parâmetros. Informe os valores com centavos, como três mil e quinhentos reais. O campo Adicional permite Nenhum, insalubridade de dez, vinte ou quarenta por cento, ou periculosidade de trinta por cento. Na regra implementada, a insalubridade usa o salário mínimo configurado; a periculosidade usa o salário base. O formulário escolhe uma opção de adicional por vez.
+
+## 00:07:08 — Benefícios e custo do mês
+
+Preencha vale-transporte mensal, alimentação e outros benefícios conforme o cadastro. O vale-transporte informado é o valor mensal de referência; a parcela de custo da empresa considera o desconto definido nos parâmetros. Alimentação e outros benefícios compõem o custo. Na ficha já salva, os cartões apresentam remuneração bruta, encargos e provisões, benefícios e custo do mês atual. Não confunda esses cartões com o filtro de competência da Visão geral. Uma alteração de salário ou benefício pode mudar o custo recalculado: confira o período e registre a atualização na rotina do departamento pessoal.
+
+## 00:07:49 — Salvar, corrigir e atualizar a ficha
+
+Use Observações para anotações úteis sobre o colaborador. Revise os campos e clique em Cadastrar colaborador. O retorno de confirmação e a ficha aberta indicam que o registro foi salvo. Se houver erro, o formulário preserva o preenchimento e destaca os campos a corrigir. Corrija o nome, CPF, datas, endereço ou remuneração indicados e tente novamente. Para atualizar depois, localize a pessoa, abra a ficha, altere os campos e clique em Salvar alterações. Apenas digitar não grava. Cancelar retorna à lista sem salvar as mudanças pendentes.
+
+## 00:08:28 — Documentos: o que cada tipo organiza
+
+Os Documentos do colaborador aparecem depois do primeiro salvamento. A lista permite organizar documentos pessoais, CTPS, residência e contrato; ASO; treinamentos e normas regulamentadoras, como NR seis, dez, doze, dezoito, trinta e três e trinta e cinco; ficha de EPI; ordem de serviço; atestado, afastamento e advertência; e habilitação ou registro profissional. Outra NR e Outro documento atendem categorias adicionais. Ao escolher Outro e digitar o nome, você identifica um documento não previsto na lista. A seleção classifica o anexo; não certifica sua validade técnica ou legal.
+
+## 00:09:12 — Anexar, abrir e baixar documentos
+
+Para anexar, escolha o tipo, preencha uma descrição, informe a validade quando existir e selecione o arquivo. Clique em Anexar documento e confira a nova linha. São aceitos PDF, imagens, Word, Excel ou ZIP, com até dez megabytes por arquivo. A tabela mostra tipo, descrição, validade, nome do arquivo, tamanho, responsável pelo envio e data. O nome abre o documento, Baixar permite guardar uma cópia e Excluir remove o anexo após confirmação. Os exemplos exibidos são documentos fictícios, destinados apenas ao treinamento.
+
+## 00:09:52 — Vencimentos e renovação de anexos
+
+O painel diferencia documento sem validade, em dia, a vencer em até trinta dias e vencido. Os alertas da Visão geral ajudam a localizar pendências e abrir a ficha correspondente. Para renovar um arquivo, anexe a versão atualizada com a descrição e a nova data e confira o resultado. O envio não substitui automaticamente o arquivo anterior: as versões podem permanecer juntas. Se a rotina da empresa permitir remover a versão antiga, faça isso somente depois de conferir o novo anexo. Uma validade vazia não gera um prazo de vencimento.
+
+## 00:10:29 — Transferir entre obras e ficar sem obra
+
+Para transferir uma pessoa, use Alocação e situação no final da ficha. Escolha a obra, informe A partir de e clique em Alocar. Essa opção muda a alocação sem exigir a edição do restante dos campos. Na lista de Colaboradores, o seletor de obra também altera a alocação ao escolher a opção. Sem obra mantém o colaborador no quadro e na folha da empresa; não significa demissão. Confira a linha de destino na Visão geral. Este cadastro guarda a alocação atual, e não um rateio histórico automático entre obras.
+
+## 00:11:08 — Desligamento, afastamento e exclusão
+
+Quando uma pessoa sair, abra a ficha, escolha Demitido, informe o desligamento e salve. Confira a competência correspondente: o cálculo usa a admissão e a saída para estimar a participação no mês. Não use a exclusão como rotina de desligamento. Excluir colaborador remove o cadastro e os documentos, com uma confirmação de ação irreversível. Atualizar a situação conserva a ficha. Para afastamentos e retornos, atualize a situação e as observações de acordo com o controle do departamento pessoal, sem presumir cálculos de afastamento que não foram informados ao sistema.
+
+## 00:11:50 — Parâmetros da folha: regime e encargos
+
+Os Parâmetros da folha ficam dentro da obra, em Financeiro, Contas a pagar. Abra o botão correspondente para consultar as premissas. Regime normal ou CPRB altera o tratamento do INSS patronal neste modelo. Salário mínimo define a base da insalubridade. Horas por mês define a base de conversão do horista. INSS patronal, RAT, FAP, terceiros e FGTS compõem os encargos configuráveis; o FAP multiplica o RAT. Esses dados precisam representar a empresa e a competência analisada: não mude percentuais apenas para fazer o resultado coincidir com uma expectativa.
+
+## 00:12:36 — Parâmetros: provisões e benefícios
+
+Na mesma janela, confira multa sobre FGTS, rotatividade provisionada e a opção de provisionar aviso prévio. Eles participam das provisões rescisórias. O modelo também provisiona décimo terceiro, férias com um terço e os encargos correspondentes. Desconto de vale-transporte, seguro de vida e EPI, uniforme e ferramentas completam as premissas de benefícios. Salvar parâmetros recalcula os custos; Voltar aos padrões preenche os valores de referência, que ainda precisam ser salvos. Quem está sem obra usa os parâmetros padrão. Confirme regime, percentuais e convenção com o contador: esta folha é uma estimativa gerencial.
+
+## 00:13:23 — Efetivo diário: inserir, atualizar e relatar
+
+Para entender o efetivo, abra Gestão, Pessoal, dentro da obra. Em Efetivo diário, selecione a empresa e confira o mês. A matriz registra quantidades por função e dia. Para inserir uma função com lançamento, use Adicionar nova função, informe data, empresa, função e quantidade e salve. Para atualizar, edite a célula do dia e confirme a gravação da própria tela. Baixar relatório permite escolher período e empresas. A média considera os dias que têm lançamento, e o pico é o maior total diário. Esse registro não substitui o cadastro nominal ou o controle de ponto.
+
+## 00:14:05 — Cadastros da obra e fontes dos dados
+
+As abas de colaboradores, ASO, treinamentos e outros registros de pessoal dentro da obra têm seus próprios cadastros e permissões. Os colaboradores existentes nesse cadastro também entram no consolidado da empresa. Um documento anexado à ficha central não cria automaticamente um lançamento nessas outras abas. Da mesma forma, manter uma pessoa cadastrada não preenche o efetivo diário. Use o aviso de origem e o botão de acesso adequado para corrigir a fonte certa, sem duplicar pessoas para tentar ajustar os indicadores.
+
+## 00:14:43 — Conferência mensal e rotina recomendada
+
+Ao terminar uma atualização, volte à Visão geral, selecione o mês e confira os resultados por obra e por empregadora. Verifique quem ficou sem obra, quem está sem salário e quais documentos precisam de renovação. Compare o cadastro com o efetivo informado e revise as premissas antes de utilizar o custo em uma decisão. Valores estimados não comprovam pagamento nem substituem o fechamento oficial do contador. A rotina recomendada é cadastrar uma vez, atualizar a mesma ficha, organizar os documentos e conferir mensalmente o consolidado. Assim, o RH se torna uma fonte confiável para acompanhar pessoas e custos.
+

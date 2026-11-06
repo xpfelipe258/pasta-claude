@@ -269,6 +269,7 @@
   <section id="aba-lanc" hidden>
     <div class="barra-acoes">
       <div class="seg" id="segEmpresas"></div>
+      <button type="button" class="btn primario" id="btnLancarProducao">+ Lançar produção</button>
       <div class="re-barra" title="Produção do período das atividades que tiveram avanço — da empresa selecionada nas abas ao lado e do período das datas">
         <label>De <input type="date" id="lcBarIni"></label><label>até <input type="date" id="lcBarFim"></label>
         <button class="btn" id="btnRelLanc">Relatório de produção</button>
@@ -279,7 +280,9 @@
         <button class="btn primario btn-salvar-destino" id="btnSalvar" disabled>Salvar na planilha</button>
       </div>
     </div>
-    <p class="nota">Digite a quantidade executada no dia. Texto (ex.: INTEGRAÇÃO, CHUVA) também é aceito. Enter desce para o próximo dia · Ctrl+S salva.</p>
+    <p class="nota lanc-nota-grade">Digite a quantidade executada no dia. Texto (ex.: INTEGRAÇÃO, CHUVA) também é aceito. Enter desce para o próximo dia · Ctrl+S salva.</p>
+    <p class="nota lanc-nota-celular">Toque em Lançar produção para informar a data e a quantidade executada na atividade.</p>
+    <div id="lancCartoes" class="lanc-cartoes"></div>
     <div class="tabela-rolagem grade-lanc"><table id="tabLanc"></table></div>
   </section>
 
@@ -899,6 +902,21 @@
       <button type="button" class="btn" id="tfCancelar">Cancelar</button>
       <button type="submit" class="btn primario" id="tfSalvar">Salvar</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="dlgLancProducao" aria-labelledby="lancProducaoTit">
+  <form id="formLancProducao">
+    <div class="bloco-cab"><h2 id="lancProducaoTit">Lançar produção</h2><button type="button" class="btn-icone" data-lanc-fechar aria-label="Fechar">×</button></div>
+    <p class="nota" id="lancProducaoEmpresa"></p>
+    <div class="campos">
+      <label class="largo">Atividade<select id="lancProducaoAtividade" required></select></label>
+      <label>Data de lançamento<input type="date" id="lancProducaoData" required></label>
+      <label><span id="lancProducaoUnidade">Quantidade lançada</span><input type="text" id="lancProducaoQtd" inputmode="decimal" autocomplete="off" placeholder="Ex.: 12,5" required></label>
+    </div>
+    <p class="nota" id="lancProducaoNota" aria-live="polite"></p>
+    <p id="lancProducaoErro" role="alert" hidden></p>
+    <div class="acoes"><button type="button" class="btn" data-lanc-fechar>Cancelar</button><button type="submit" class="btn primario" id="lancProducaoSalvar">Salvar produção</button></div>
   </form>
 </dialog>
 

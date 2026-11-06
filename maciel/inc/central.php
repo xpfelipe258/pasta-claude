@@ -53,9 +53,10 @@ function central_topo($titulo, $ativo, array $eu, $sub = 'Central da empresa')
     echo '<div class="portal-user"><span>Olá, ' . h($eu['nome']) . '</span><a class="btn ghost" href="sair.php">Sair</a></div></header>';
     echo '<nav class="ce-abas" aria-label="Painéis da empresa">';
     foreach ($abas as $k => $a) {
-        echo '<a href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';
+        echo '<a data-central-aba="' . h($k) . '" href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';
     }
     echo '</nav>';
+    echo central_tutorial();
 }
 
 /** Mesma barra para as telas que já têm o próprio topo (Central de obras e Painel financeiro): só as abas. */
@@ -65,9 +66,16 @@ function central_abas($ativo, array $eu)
     $abas = central_lista_abas($eu);
     $s = '<link rel="stylesheet" href="central.css?v=' . @filemtime(dirname(__DIR__) . '/central.css') . '"><nav class="ce-abas" aria-label="Painéis da empresa">';
     foreach ($abas as $k => $a) {
-        $s .= '<a href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';
+        $s .= '<a data-central-aba="' . h($k) . '" href="' . h($a[1]) . '"' . ($k === $ativo ? ' class="on" aria-current="page"' : '') . '>' . h($a[0]) . '</a>';
     }
-    return $s . '</nav>';
+    return $s . '</nav>' . central_tutorial();
+}
+
+/** Guia da Central compartilhado por todas as abas; as etapas seguem os links permitidos ao usuário. */
+function central_tutorial()
+{
+    return '<div class="ce-guia-barra"><a class="btn" href="tutorial_cliente.html">Vídeo tutorial (5 min)</a><button type="button" class="btn" id="ceGuiaAbrir">Tutorial interativo</button></div>'
+        . '<script src="central_tutorial.js?v=' . @filemtime(dirname(__DIR__) . '/central_tutorial.js') . '" defer></script>';
 }
 
 // ===================================================================== COMERCIAL: orçamentos e propostas
