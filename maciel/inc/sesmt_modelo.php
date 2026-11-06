@@ -248,6 +248,45 @@ function sesmt_opcoes($lista)
     return $cache[$lista];
 }
 
+/** Funções adicionadas na ficha pertencem à empresa cliente da obra/usuário. */
+function sesmt_funcoes_org()
+{
+    $u = usuario_atual();
+    $org = $u ? (int)usuario_organizacao_id($u)[0] : 0;
+    if ($org > 0 && ($u['perfil'] ?? '') !== 'admin') { return $org; }
+    return (int)q_global('SELECT organizacao_id FROM obras WHERE id = ?', [obra_atual_id()])->fetchColumn();
+}
+
+function sesmt_funcoes_opcoes()
+{
+    require_once __DIR__ . '/rh_pessoas.php';
+    $opcoes = sesmt_opcoes('funcao');
+    $org = sesmt_funcoes_org();
+    if ($org > 0) { $opcoes = array_merge($opcoes, rhp_opcoes('funcao', $org)); }
+    $sql = "SELECT DISTINCT funcao FROM sesmt_colaboradores WHERE obra_id = ? AND funcao IS NOT NULL AND funcao <> ''";
+    $params = [sesmt_obra_id()];
+    if (($empresa = sesmt_escopo_empresa()) !== '') { $sql .= ' AND UPPER(TRIM(empresa)) = ?'; $params[] = $empresa; }
+    $opcoes = array_merge($opcoes, q_global($sql, $params)->fetchAll(PDO::FETCH_COLUMN));
+    $unicas = [];
+    foreach ($opcoes as $valor) {
+        $valor = trim((string)$valor);
+        if ($valor !== '' && !isset($unicas[mb_strtolower($valor, 'UTF-8')])) { $unicas[mb_strtolower($valor, 'UTF-8')] = $valor; }
+    }
+    $opcoes = array_values($unicas); natcasesort($opcoes);
+    return array_values($opcoes);
+}
+
+function sesmt_funcao_adicionar($valor)
+{
+    foreach (sesmt_funcoes_opcoes() as $existente) {
+        if (mb_strtolower($existente, 'UTF-8') === mb_strtolower($valor, 'UTF-8')) { return $existente; }
+    }
+    $org = sesmt_funcoes_org();
+    if ($org > 0) { return rhp_opcao_adicionar('funcao', $org, $valor); }
+    sesmt_lista_adicionar('funcao', $valor);
+    return $valor;
+}
+
 function sesmt_lista_fixa($lista)
 {
     $d = sesmt_listas_iniciais();
@@ -941,7 +980,7 @@ function sesmt_normalizar_campo($reg, $k, array $c, $bruto, array &$erros, $idAt
             }
             return $e;
         case 'lista':
-            $opcoes = sesmt_opcoes($lista);
+            $opcoes = $reg === 'colaboradores' && $k === 'funcao' ? sesmt_funcoes_opcoes() : sesmt_opcoes($lista);
             $atual = $idAtual ? (sesmt_obter($reg, $idAtual)[$k] ?? null) : null;
             if (!in_array($v, $opcoes, true) && $v !== $atual) {
                 $erros[] = "$rot: escolha um valor da lista.";
@@ -1051,8 +1090,16 @@ function sesmt_dados_do_post($reg, array $post, $id)
     $erros = [];
     $dados = [];
     $esc = sesmt_escopo_empresa();
+    $novaFuncao = null;
+    if ($reg === 'colaboradores' && ($post['funcao'] ?? '') === '__nova') {
+        $novaFuncao = trim(preg_replace('/\s+/u', ' ', (string)($post['funcao_nova'] ?? '')));
+        if (mb_strlen($novaFuncao, 'UTF-8') < 2 || mb_strlen($novaFuncao, 'UTF-8') > 60) {
+            $erros[] = 'Nova função: informe um nome de 2 a 60 caracteres.';
+        }
+    }
     foreach (sesmt_campos_visiveis($reg) as $k => $c) {
         if ($esc !== '' && $k === 'empresa') { $post[$k] = $esc; }   // a empresa grava sempre na própria
+        if ($k === 'funcao' && $novaFuncao !== null) { $dados[$k] = $novaFuncao; continue; }
         $dados[$k] = sesmt_normalizar_campo($reg, $k, $c, $post[$k] ?? null, $erros, $id);
     }
     if (!$erros) {
@@ -1090,6 +1137,9 @@ function sesmt_salvar($reg, $id, array $post)
     list($dados, $erros) = sesmt_dados_do_post($reg, $post, $id);
     if ($erros) {
         return [(int)$id, $erros];
+    }
+    if ($reg === 'colaboradores' && ($post['funcao'] ?? '') === '__nova') {
+        $dados['funcao'] = sesmt_funcao_adicionar($dados['funcao']);
     }
     $t = sesmt_tabela($reg);
     $agora = sesmt_agora();
