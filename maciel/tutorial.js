@@ -70,7 +70,8 @@ const TUT_TOPICOS = [
     resumo: 'A grade onde se lança a produção por dia, serviço e empresa. É o número oficial da produção.',
     passos: [
       { t: 'Escolha a empresa na barra de abas (EJ, CMM, Globo Aços…). Cada empresa tem seus serviços.', alvo: '#segEmpresas' },
-      { t: 'Digite as quantidades nas células de cada dia (colunas SEG, TER, QUA…), na linha da atividade.', alvo: '#tabLanc' },
+      { t: 'No celular, as atividades aparecem em cartões. Toque em Lançar produção para abrir o formulário de atividade, data e quantidade. No computador, a grade semanal também continua disponível.', alvo: '#btnLancarProducao' },
+      { t: 'No formulário, toque no ícone de calendário para selecionar a data. Informe o total executado no dia e salve. Ao corrigir um dia preenchido, o valor substitui o total anterior; não é uma soma adicional.' },
       { t: 'O aviso ao lado de Salvar mostra "Tudo salvo no sistema" ou quantos lançamentos ainda estão pendentes.', alvo: '#pendTxt' },
       { t: 'Clique em Salvar para gravar ou em Descartar para desfazer o que ainda não foi salvo.', alvo: '#btnSalvar' },
       { t: 'O que é apontado em "Apontar montagem" soma sozinho na coluna principal do serviço: em Lançamentos o total é sempre um só.' },
@@ -341,7 +342,7 @@ async function renderTutorial() {
   document.getElementById('tutTour').textContent = tx('Começar visita guiada');
   if (!corpo.dataset.montado) {
     corpo.dataset.montado = '1';
-    corpo.innerHTML = `<div class="bloco tut-topo"><div id="tutProg"></div><input type="search" id="tutBusca" class="input-filtro" placeholder="${esc(tx('Buscar no tutorial…'))}" autocomplete="off"></div>
+    corpo.innerHTML = `<div class="bloco tut-topo"><div id="tutProg"></div><a class="btn" href="tutorial_cliente.html" target="_blank" rel="noopener">Vídeo tutorial do cliente (5 min)</a><input type="search" id="tutBusca" class="input-filtro" placeholder="${esc(tx('Buscar no tutorial…'))}" autocomplete="off"></div>
       <div class="tut-grade"><nav class="bloco tut-lista" id="tutLista" aria-label="${esc(tx('Todos os tópicos'))}"></nav><article class="bloco tut-detalhe" id="tutDetalhe"></article></div>`;
     corpo.addEventListener('click', tutClique);
     corpo.addEventListener('change', tutMudou);
