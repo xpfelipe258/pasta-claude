@@ -179,6 +179,16 @@ function renderRdo() {
       <p class="nota">O <b>RDO do cliente</b> traz produção por empresa e atividade, efetivo, máquinas usadas (sem valores), o número das remessas que chegaram e as fotos — sem financeiro e sem suprimentos.
         O <b>RDO da gestão</b> traz tudo isso + produzido e gasto em R$ e os impactos em aberto.</p>
     </div>
+    <div class="bloco rdo-gerar">
+      <div class="bloco-cab"><h2>Registro por período</h2><span class="nota">Junta os RDOs de vários dias: produção total do período, observações e fotos de cada dia.</span></div>
+      <div class="rdo-botoes rdo-periodo">
+        <label class="rot-sel">De <input type="date" id="rdoPerIni" value="${esc(RDO.pIni || add(dia, -6))}"></label>
+        <label class="rot-sel">Até <input type="date" id="rdoPerFim" value="${esc(RDO.pFim || dia)}"></label>
+        <button class="btn primario" id="btnRdoPerCliente">Registro do período — cliente</button>
+        <button class="btn" id="btnRdoPerGestao">Registro do período — gestão</button>
+      </div>
+      <p class="nota">Até ${RDO_PER_MAX} dias por relatório. A versão do cliente não leva valores em R$ nem as observações internas.</p>
+    </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
       <div class="rdo-obs">
@@ -514,6 +524,102 @@ async function rdoGerar(modo) {
   } catch (e) { console.error(e); toast('Não foi possível gerar o RDO: ' + (e.message || e), true); }
   finally { btn.disabled = false; btn.textContent = rot; }
 }
+
+// ------------------------------------------------------------ REGISTRO POR PERÍODO (vários dias num só relatório)
+const RDO_PER_MAX = 62;
+function rdoDiasEntre(ini, fim) { const l = []; for (let d = ini; d <= fim && l.length < RDO_PER_MAX; d = add(d, 1)) l.push(d); return l; }
+async function rdoFotosEmLote(fotos) {   // 3 por vez, para o servidor não recusar dezenas de pedidos simultâneos
+  const out = new Array(fotos.length).fill('');
+  let i = 0;
+  const trab = async () => { while (i < fotos.length) { const k = i++; for (let t = 0; t < 3 && !out[k]; t++) { try { out[k] = await rdoFotoDataUri(fotos[k].linha); } catch (e) { await new Promise(r => setTimeout(r, 400 * (t + 1))); } } } };
+  await Promise.all([trab(), trab(), trab()]);
+  return out;
+}
+async function rdoPeriodoHtml(ini, fim, modo) {
+  await tplLogosCarregar();
+  try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* segue */ }
+  const gestao = modo === 'gestao', dias = rdoDiasEntre(ini, fim), pc = v => nf(v * 100, 1) + '%';
+  const card = (rot, val, sub, cls) => `<div class="card ${cls}"><div class="rot">${rot}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  // produção total do período
+  const prod = [];
+  (M.empresas || []).forEach(e => { try { const d = lcDados(e.nome, ini, fim); if (d && d.itens.length) prod.push({ emp: e.nome, itens: d.itens, medicao: d.medicao || 0 }); } catch (err) { console.error('RDO período', e.nome, err); } });
+  let tProd = '', cabProd;
+  if (!gestao) {
+    const som = rdoProducaoSomada(fim, prod);
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No período</th><th class="n">Acumulado (total)</th><th class="n">Contratado</th><th class="n">% do total acumulado</th>';
+    som.itens.forEach(g => {
+      tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
+      g.ats.forEach(o => { tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`; });
+    });
+  } else {
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">% no período</th><th class="n">Acumulado</th><th class="n">% executada</th><th class="n">Produzido (R$)</th>';
+    prod.forEach(p => {
+      tProd += `<tr class="grupo"><td colspan="8"><b>${esc(p.emp)}</b></td></tr>`;
+      p.itens.forEach(x => {
+        tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+        x.ats.forEach(t => { const q = Number(t.a.qtd) || 0; tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${q ? nf(q, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${q ? pc(t.per / q) : '—'}</td><td class="n">${nf(t.real, 2)}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`; });
+      });
+    });
+  }
+  const produzido = soma0(prod, p => p.medicao);
+  const eq = gestao ? (() => { try { return relEquipDados('geral', ini, fim, 'todos'); } catch (e) { return { empresas: [] }; } })() : null;
+  const gasto = eq ? soma0(eq.empresas, e => (e.custo || 0) + (e.comb || 0)) : 0;
+  // dia a dia
+  const porDia = dias.map(d => ({ d, info: rdoInfo(d) || {}, efet: soma0(rdoEfetivo(d), e => e.total), rem: rdoRemessas(d), fotos: rdoFotos(d), val: rdoValidacao(d) }));
+  const todasFotos = porDia.flatMap(x => x.fotos), uris = await rdoFotosEmLote(todasFotos), uriDe = new Map(todasFotos.map((f, i) => [f.linha, uris[i]]));
+  const efetDias = porDia.filter(x => x.efet > 0), pico = efetDias.reduce((m, x) => Math.max(m, x.efet), 0);
+  const remPer = [...new Set(porDia.flatMap(x => x.rem))];
+  const nVal = porDia.filter(x => x.val).length, falhas = todasFotos.filter(f => !uriDe.get(f.linha)).length;
+  const tDias = porDia.map(x => `<tr><td><b>${esc(fdA(x.d))}</b> <span class="nota">${esc(diaSemanaLonga(x.d))}</span></td><td>${esc(rdoClimaTxt(x.info) || '—')}</td><td class="n">${x.efet ? nf(x.efet, 0) : '—'}</td><td class="n">${x.fotos.length || '—'}</td><td>${x.rem.length ? esc(x.rem.join(', ')) : '—'}</td><td>${x.val ? '<span class="farol f-verde">VALIDADO</span>' : '<span class="farol f-amarelo">RASCUNHO</span>'}</td></tr>`).join('');
+  const secDias = porDia.filter(x => x.info.obs_cliente || (gestao && x.info.obs_gestao) || x.fotos.length || rdoClimaTxt(x.info)).map(x => {
+    const figs = x.fotos.map((f, i) => { const u = uriDe.get(f.linha); return `<figure><div class="rdo-quadro">${u ? `<img src="${u}" alt="Foto ${i + 1}">` : '<div class="rdo-sem" style="padding:30px">foto não carregou — gere o relatório de novo</div>'}</div><figcaption><b>Foto ${i + 1} de ${x.fotos.length}</b><span>${f.legenda ? esc(f.legenda) : '<i class="rdo-sem">sem comentário</i>'}</span></figcaption></figure>`; }).join('');
+    return `<h2>${esc(rdoDiaTxt(x.d))}</h2>
+      <p class="sub-cab">${rdoClimaTxt(x.info) ? `Clima: ${esc(rdoClimaTxt(x.info))} · ` : ''}Efetivo: ${nf(x.efet, 0)}${x.rem.length ? ` · Remessa(s): ${esc(x.rem.join(', '))}` : ''} · ${x.val ? '✔ ' + esc(rdoTxtValidacao(x.val)) : 'rascunho (não validado)'}</p>
+      ${x.info.obs_cliente ? `<p>${esc(x.info.obs_cliente).replace(/\n/g, '<br>')}</p>` : ''}
+      ${gestao && x.info.obs_gestao ? `<p><b>Gestão:</b> ${esc(x.info.obs_gestao).replace(/\n/g, '<br>')}</p>` : ''}
+      ${!x.info.obs_cliente && !(gestao && x.info.obs_gestao) ? '<p class="rdo-sem">Sem observações neste dia.</p>' : ''}
+      ${figs ? `<div class="rdo-fotos">${figs}</div>` : ''}`;
+  }).join('');
+  const per = `${fdA(ini)} a ${fdA(fim)}`;
+  const corpo = `${RDO_CSS}<section class="emp-sec"><div class="pag">
+    <h1>${esc((D.obra && D.obra.nome) || '')}</h1><p class="sub-cab">Registro do período: ${esc(per)} · ${nf(dias.length, 0)} dia(s)</p>
+    <p class="rdo-selo ${nVal === dias.length ? 'ok' : ''}">${nVal === dias.length ? '✔ Todos os RDOs do período estão validados.' : `${nf(nVal, 0)} de ${nf(dias.length, 0)} dia(s) com RDO validado; os demais saem como rascunho.`}</p>
+    ${falhas ? `<p class="rdo-selo">${nf(falhas, 0)} foto(s) não carregaram. Gere o relatório de novo.</p>` : ''}
+    <div class="cards">
+      ${card('Atividades com produção', nf(soma0(prod, p => p.itens.reduce((s, x) => s + x.ats.length, 0)), 0), `${nf(prod.length, 0)} empresa(s)`, 'vd')}
+      ${card('Efetivo médio por dia', efetDias.length ? nf(soma0(efetDias, x => x.efet) / efetDias.length, 1) : '—', `pico ${nf(pico, 0)} · ${nf(efetDias.length, 0)} dia(s) com lançamento`, 'az')}
+      ${card('Fotos', nf(todasFotos.length, 0), `${nf(porDia.filter(x => x.fotos.length).length, 0)} dia(s) com foto`, 'vm')}
+      ${card('Remessas que chegaram', nf(remPer.length, 0), remPer.length ? esc(remPer.join(', ')) : 'nenhuma no período', 'am')}
+      ${gestao ? card('Produzido no período', rs2(produzido), 'medição estimada (qtd × preço do BM)', 'vd') : ''}
+      ${gestao ? card('Gasto no período', rs2(gasto), 'equipamentos + combustível lançados', 'vm') : ''}
+    </div>
+    <h2>Produção total do período</h2>
+    <table><thead><tr>${cabProd}</tr></thead><tbody>${tProd || `<tr><td colspan="${gestao ? 8 : 6}" class="vazio">Nenhuma produção lançada no período.</td></tr>`}</tbody>
+      ${gestao && prod.length ? `<tfoot><tr><th colspan="7">Total produzido no período (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
+    <h2>Resumo dia a dia</h2>
+    <table><thead><tr><th>Dia</th><th>Clima</th><th class="n">Efetivo</th><th class="n">Fotos</th><th>Remessas</th><th>RDO</th></tr></thead><tbody>${tDias}</tbody></table>
+    ${secDias || '<p class="rdo-sem">Nenhum dia do período tem observação ou foto.</p>'}
+  </div></section>`;
+  return tplDocumento({ titulo: gestao ? 'Registro do período — Gestão' : 'Registro do período (RDO)', subtitulo: `${(D.obra && D.obra.nome) || ''} — ${per}`,
+    meta: gestao ? 'Uso interno: produção total, financeiro, observações e fotos de cada dia' : 'Produção total do período, observações e fotos de cada dia', corpo });
+}
+async function rdoGerarPeriodo(modo) {
+  const ini = $('#rdoPerIni').value, fim = $('#rdoPerFim').value;
+  if (!ehISO(ini) || !ehISO(fim)) { toast('Informe as datas de início e fim do período.', true); return; }
+  if (fim < ini) { toast('A data final é anterior à inicial.', true); return; }
+  if (add(ini, RDO_PER_MAX - 1) < fim) { toast(`O período pode ter no máximo ${RDO_PER_MAX} dias.`, true); return; }
+  RDO.pIni = ini; RDO.pFim = fim;
+  const btn = document.getElementById(modo === 'gestao' ? 'btnRdoPerGestao' : 'btnRdoPerCliente'), rot = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Montando…';
+  try { reAbrirPrevia(await rdoPeriodoHtml(ini, fim, modo), `RDO-periodo-${modo}-${ini}_${fim}.html`, `Registro do período ${modo === 'gestao' ? 'da gestão' : 'do cliente'} · ${fdA(ini)} a ${fdA(fim)}`); }
+  catch (e) { console.error(e); toast('Não foi possível gerar o registro do período: ' + (e.message || e), true); }
+  finally { btn.disabled = false; btn.textContent = rot; }
+}
+document.addEventListener('change', ev => { if (ev.target.id === 'rdoPerIni') RDO.pIni = ev.target.value; else if (ev.target.id === 'rdoPerFim') RDO.pFim = ev.target.value; });
+document.addEventListener('click', ev => {
+  const t = ev.target.closest && ev.target.closest('#btnRdoPerCliente, #btnRdoPerGestao');
+  if (t) rdoGerarPeriodo(t.id === 'btnRdoPerGestao' ? 'gestao' : 'cliente');
+});
 
 // ------------------------------------------------------------ ENVIO DO RDO AO CLIENTE POR E-MAIL (depois de validado)
 const rdoEmail = () => (M && M.rdo_email) || null;
