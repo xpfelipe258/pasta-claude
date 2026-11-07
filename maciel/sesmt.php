@@ -142,13 +142,21 @@ function sv_input($reg, $k, array $c, $valor)
             $out = '<input type="text" list="dl_empresas" maxlength="100" autocomplete="off" placeholder="Escolha da lista ou digite"' . $nome . ' value="' . h($valor) . '"' . $req . '>';
             return $out;
         case 'lista':
-            $opcoes = sesmt_opcoes($arg);
-            if ($valor !== null && $valor !== '' && !in_array($valor, $opcoes, true)) {
+            $opcoes = $reg === 'colaboradores' && $k === 'funcao' ? sesmt_funcoes_opcoes() : sesmt_opcoes($arg);
+            if ($valor !== null && $valor !== '' && !in_array($valor, $opcoes, true) && !($reg === 'colaboradores' && $k === 'funcao' && $valor === '__nova')) {
                 array_unshift($opcoes, $valor);
             }
             $out = '<select' . $nome . $req . '><option value="">—</option>';
             foreach ($opcoes as $o) {
                 $out .= '<option value="' . h($o) . '"' . ((string)$o === (string)$valor ? ' selected' : '') . '>' . h($o) . '</option>';
+            }
+            if ($reg === 'colaboradores' && $k === 'funcao') {
+                $nova = (string)$valor === '__nova';
+                $out .= '<option value="__nova"' . ($nova ? ' selected' : '') . '>+ Adicionar nova função…</option></select>';
+                $out .= '<div id="novaFuncaoBox"' . ($nova ? '' : ' hidden') . '><label for="f_funcao_nova">Nova função *</label>'
+                    . '<input type="text" name="funcao_nova" id="f_funcao_nova" minlength="2" maxlength="60" value="' . h($nova ? ($_POST['funcao_nova'] ?? '') : '') . '"' . ($nova ? ' required' : ' disabled') . ' placeholder="Digite o nome da função"></div>'
+                    . '<span class="dica">Não encontrou? Escolha “Adicionar nova função”. Ela fica disponível ao salvar o colaborador.</span>';
+                return $out;
             }
             return $out . '</select>';
         case 'ref':
@@ -879,7 +887,10 @@ elseif ($reg !== ''):
   <section class="bloco"><div class="faixa">Esta área é restrita ao administrador.</div></section>
 <?php endif; ?>
 </main>
-<script>document.getElementById('sidebarToggle').onclick=function(){document.getElementById('sidebar').classList.toggle('aberta')};document.querySelectorAll('.sidebar-titulo').forEach(function(x){x.onclick=function(){x.classList.toggle('aberto');x.nextElementSibling&&x.nextElementSibling.classList.toggle('aberto')}});</script>
+<script>
+var funcao=document.getElementById('f_funcao'),novaFuncao=document.getElementById('novaFuncaoBox');
+if(funcao&&novaFuncao){funcao.addEventListener('change',function(){var nova=funcao.value==='__nova',campo=document.getElementById('f_funcao_nova');novaFuncao.hidden=!nova;campo.disabled=!nova;campo.required=nova;if(nova)campo.focus();});}
+document.getElementById('sidebarToggle').onclick=function(){document.getElementById('sidebar').classList.toggle('aberta')};document.querySelectorAll('.sidebar-titulo').forEach(function(x){x.onclick=function(){x.classList.toggle('aberto');x.nextElementSibling&&x.nextElementSibling.classList.toggle('aberto')}});</script>
 <?= menu_paginas_script() ?>
 <script>
 // aqui o foco é o SESMT (ou Gestão, na aba Pessoas): os demais grupos do menu começam recolhidos (um clique no título abre)
