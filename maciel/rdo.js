@@ -627,12 +627,12 @@ function rdoEmailEnvios(dia) { const e = rdoEmail(); return e && e.admin ? ((e.e
 function rdoEnvioHtml(dia, val) {
   const e = rdoEmail(), admin = rdoEhAdmin();
   if (!e) return '';
-  const cfg = e.admin ? e.cfg : null, dest = cfg ? cfg.destinatarios : [], auto = e.admin ? cfg.auto : e.auto;
+  const cfg = e.admin ? e.cfg : null, dest = cfg ? cfg.destinatarios : [], cc = (cfg && cfg.copias) || [], auto = e.admin ? cfg.auto : e.auto;
   const env = rdoEmailEnvios(dia), ult = [...env].reverse().find(x => x.ok);
   const status = !auto && !(dest && dest.length) ? '<b>Envio ao cliente não configurado</b> <span>Informe o e-mail do cliente para receber o RDO assim que for validado.</span>'
-    : auto ? `<b>✉ Envio automático LIGADO</b> <span>Ao validar o RDO, o relatório do cliente (PDF) é enviado para <b>${esc((dest || []).join(', ') || (e.n + ' destinatário(s)'))}</b>.</span>`
-    : `<b>Envio automático desligado</b> <span>O RDO só vai ao cliente quando você clicar em “Enviar ao cliente agora”. Destino: <b>${esc((dest || []).join(', '))}</b>.</span>`;
-  const hist = env.length ? `<ul class="rdo-envios">${[...env].reverse().slice(0, 4).map(x => `<li class="${x.ok ? 'ok' : 'falha'}">${x.ok ? '✔ Enviado' : '✖ Falhou'} em ${esc(fdA(String(x.em).slice(0, 10)))} às ${esc(String(x.em).slice(11, 16))} por ${esc(x.por || '')}${x.auto ? ' (automático)' : ''}${x.ok ? ` para ${esc((x.para || []).join(', '))}` : ''}${(x.falhas || []).length ? ` · não aceito: ${esc(x.falhas.join(', '))}` : ''}</li>`).join('')}</ul>` : '';
+    : auto ? `<b>✉ Envio automático LIGADO</b> <span>Ao validar o RDO, o relatório do cliente (PDF) é enviado para <b>${esc((dest || []).join(', ') || (e.n + ' destinatário(s)'))}</b>${cc.length ? ` · Cópias: ${esc(cc.join(', '))}` : ''}.</span>`
+    : `<b>Envio automático desligado</b> <span>O RDO só vai ao cliente quando você clicar em “Enviar ao cliente agora”. Destino: <b>${esc((dest || []).join(', '))}</b>${cc.length ? ` · Cópias: ${esc(cc.join(', '))}` : ''}.</span>`;
+  const hist = env.length ? `<ul class="rdo-envios">${[...env].reverse().slice(0, 4).map(x => `<li class="${x.ok ? 'ok' : 'falha'}">${x.ok ? '✔ Enviado' : '✖ Falhou'} em ${esc(fdA(String(x.em).slice(0, 10)))} às ${esc(String(x.em).slice(11, 16))} por ${esc(x.por || '')}${x.auto ? ' (automático)' : ''}${x.ok ? ` para ${esc((x.para || []).join(', '))}${(x.cc || []).length ? ` · Cc: ${esc(x.cc.join(', '))}` : ''}` : ''}${(x.falhas || []).length ? ` · não aceito: ${esc(x.falhas.join(', '))}` : ''}</li>`).join('')}</ul>` : '';
   return `<div class="bloco rdo-envio">
     <div class="rdo-valid-txt">${status}${hist}</div>
     ${admin && e.admin ? `<div class="rdo-envio-botoes"><button class="btn" id="btnRdoEmailCfg">Configurar envio</button>
@@ -662,7 +662,7 @@ async function rdoEnviarCliente(dia, auto) {
     const g = await relPdfGerar(html, `RDO-cliente-${dia}.html`, `RDO do cliente · ${fdA(dia)}`, (n, t) => { const b = document.getElementById('btnRdoEmailEnviar'); if (b) b.textContent = `Montando o PDF… ${n}/${t}`; }, { blob: true });
     const j = await rdoEmailPost('enviar', g.blob, `&data=${encodeURIComponent(dia)}&resumo=${encodeURIComponent(JSON.stringify(rdoResumoDia(dia)))}${auto ? '&auto=1' : ''}`, 'application/pdf');
     await carregar();
-    toast(`RDO enviado ao cliente: ${j.enviados.join(', ')}${j.falhas.length ? ` (não aceito: ${j.falhas.join(', ')})` : ''}.`);
+    toast(`RDO enviado ao cliente: ${j.enviados.join(', ')}${(j.cc || []).length ? ` · cópia para ${j.cc.join(', ')}` : ''}${j.falhas.length ? ` (não aceito: ${j.falhas.join(', ')})` : ''}.`);
   } catch (e) { console.error(e); toast('Não foi possível enviar o RDO ao cliente: ' + (e.message || e) + (auto ? ' Use “Enviar ao cliente agora” para tentar de novo.' : ''), true); }
   finally { RDO_EMAIL_ENVIANDO = false; try { await carregar(); } catch (e) { /* tela já atualizada */ } }
 }
@@ -670,6 +670,7 @@ function rdoEmailAbrirCfg() {
   const e = rdoEmail(); if (!e || !e.admin) return;
   const c = e.cfg, d = $('#dlgRdoEmail');
   $('#rdoEmDest').value = (c.destinatarios || []).join('\n');
+  $('#rdoEmCc').value = (c.copias || []).join('\n');
   $('#rdoEmAuto').checked = !!c.auto; $('#rdoEmCopia').checked = !!c.copia;
   $('#rdoEmAssunto').value = c.assunto; $('#rdoEmMsg').value = c.mensagem;
   $('#rdoEmPrevia').innerHTML = '<p class="nota">Clique em “Ver como o cliente recebe” para visualizar o e-mail.</p>';
@@ -678,7 +679,7 @@ function rdoEmailAbrirCfg() {
 async function rdoEmailSalvar(ev) {
   if (ev) ev.preventDefault();
   try {
-    await rdoEmailPost('config', JSON.stringify({ destinatarios: $('#rdoEmDest').value, auto: $('#rdoEmAuto').checked, copia: $('#rdoEmCopia').checked, assunto: $('#rdoEmAssunto').value, mensagem: $('#rdoEmMsg').value }));
+    await rdoEmailPost('config', JSON.stringify({ destinatarios: $('#rdoEmDest').value, copias: $('#rdoEmCc').value, auto: $('#rdoEmAuto').checked, copia: $('#rdoEmCopia').checked, assunto: $('#rdoEmAssunto').value, mensagem: $('#rdoEmMsg').value }));
     $('#dlgRdoEmail').close(); await carregar(); toast('Envio do RDO ao cliente configurado.');
   } catch (e) { toast(e.message, true); }
 }
@@ -687,7 +688,7 @@ async function rdoEmailPrevia() {
   try {
     const j = await rdoEmailPost('previa', JSON.stringify({ data: rdoDia(), resumo: rdoResumoDia(rdoDia()), assunto: $('#rdoEmAssunto').value, mensagem: $('#rdoEmMsg').value }));
     const dest = $('#rdoEmDest').value.split(/[\s,;]+/).filter(Boolean);
-    box.innerHTML = `<div class="rdo-em-cab"><div><b>Para:</b> ${esc(dest.join(', ') || '— informe o e-mail do cliente —')}</div><div><b>Assunto:</b> ${esc(j.assunto)}</div><div><b>Responder para:</b> ${esc(j.replyto || 'no-reply (seu usuário não tem e-mail cadastrado)')}</div><div><b>Anexo:</b> RDO-${esc(rdoDia())}.pdf</div></div><iframe class="rdo-em-frame" id="rdoEmFrame" title="Pré-visualização do e-mail"></iframe>`;
+    box.innerHTML = `<div class="rdo-em-cab"><div><b>Para:</b> ${esc(dest.join(', ') || '— informe o e-mail do cliente —')}</div>${(() => { const cc = $('#rdoEmCc').value.split(/[\s,;]+/).filter(Boolean); return cc.length ? `<div><b>Cc:</b> ${esc(cc.join(', '))}</div>` : ''; })()}<div><b>Assunto:</b> ${esc(j.assunto)}</div><div><b>Responder para:</b> ${esc(j.replyto || 'no-reply (seu usuário não tem e-mail cadastrado)')}</div><div><b>Anexo:</b> RDO-${esc(rdoDia())}.pdf</div></div><iframe class="rdo-em-frame" id="rdoEmFrame" title="Pré-visualização do e-mail"></iframe>`;
     $('#rdoEmFrame').srcdoc = j.html;
   } catch (e) { box.innerHTML = `<p class="nota" style="color:#b42318">${esc(e.message)}</p>`; }
 }

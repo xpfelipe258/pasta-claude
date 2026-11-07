@@ -6,7 +6,7 @@
 function rdo_email_padroes()
 {
     return [
-        'destinatarios' => [], 'auto' => 0, 'copia' => 1,
+        'destinatarios' => [], 'copias' => [], 'auto' => 0, 'copia' => 1,
         'assunto' => 'RDO {obra} — {data}',
         'mensagem' => "Prezados,\n\nSegue em anexo o Relatório Diário de Obra (RDO) do dia {data}, validado pela gestão da obra.\n\nQualquer dúvida, é só responder este e-mail.",
     ];
@@ -17,6 +17,7 @@ function rdo_email_cfg()
     $c = json_decode((string)sistema_ler('rdo_email', '{}'), true);
     $c = is_array($c) ? array_merge(rdo_email_padroes(), $c) : rdo_email_padroes();
     $c['destinatarios'] = array_values(array_filter(array_map('trim', (array)$c['destinatarios'])));
+    $c['copias'] = array_values(array_filter(array_map('trim', (array)$c['copias'])));
     $c['auto'] = !empty($c['auto']) ? 1 : 0;
     $c['copia'] = !empty($c['copia']) ? 1 : 0;
     return $c;
@@ -111,7 +112,9 @@ function rdo_email_enviar_um($para, array $corpo, $pdf, $nomePdf, $replyTo, $cc)
     $h = ['MIME-Version: 1.0', 'From: ' . mb_encode_mimeheader($nome, 'UTF-8', 'B') . ' <no-reply@' . $dom . '>',
         'Reply-To: ' . (filter_var($replyTo, FILTER_VALIDATE_EMAIL) ? $replyTo : 'no-reply@' . $dom), 'X-Mailer: PHP/' . phpversion(),
         'Content-Type: multipart/mixed; boundary="' . $b1 . '"'];
-    if ($cc && filter_var($cc, FILTER_VALIDATE_EMAIL) && strcasecmp($cc, $para) !== 0) { $h[] = 'Cc: ' . $cc; }
+    $ccs = array_values(array_filter((array)$cc, function ($e) use ($para) { return filter_var($e, FILTER_VALIDATE_EMAIL) && strcasecmp($e, $para) !== 0; }));
+    if ($ccs) { $h[] = 'Cc: ' . implode(', ', $ccs); }
+    $cc = implode(', ', $ccs);
     $corpoMime = "--$b1\r\nContent-Type: multipart/alternative; boundary=\"$b2\"\r\n\r\n"
         . "--$b2\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($corpo['texto'])) . "\r\n"
         . "--$b2\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($corpo['html'])) . "\r\n--$b2--\r\n"

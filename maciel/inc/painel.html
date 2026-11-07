@@ -816,7 +816,8 @@
     <div class="bloco-cab"><h2>Envio do RDO ao cliente</h2><button type="button" class="btn-icone" id="rdoEmFechar" aria-label="Fechar">×</button></div>
     <p class="nota">Depois que o administrador valida o RDO, o sistema monta o <b>RDO do cliente</b> em PDF (o mesmo do botão “RDO para o cliente”, sem valores em R$) e envia por e-mail com o PDF em anexo.</p>
     <div class="campos">
-      <label class="largo"><span class="obrig">E-mail(s) do cliente</span><textarea id="rdoEmDest" rows="3" placeholder="um e-mail por linha&#10;ex.: fiscal@cliente.com.br"></textarea></label>
+      <label class="largo"><span class="obrig">Destinatário(s) principal(is) — Para</span><textarea id="rdoEmDest" rows="3" placeholder="um e-mail por linha&#10;ex.: fiscal@cliente.com.br"></textarea></label>
+      <label class="largo"><span>Cópias (Cc)</span><textarea id="rdoEmCc" rows="2" placeholder="um e-mail por linha (opcional)&#10;ex.: gerente@cliente.com.br"></textarea><small class="nota">Recebem o mesmo e-mail em cópia; todos veem quem recebeu. Até 10.</small></label>
       <label class="largo rdo-em-chk"><input type="checkbox" id="rdoEmAuto"> <span><b>Enviar automaticamente quando eu validar o RDO</b><br><small>Sem isso, o envio é manual, pelo botão “Enviar ao cliente agora”.</small></span></label>
       <label class="largo rdo-em-chk"><input type="checkbox" id="rdoEmCopia"> <span><b>Receber uma cópia no meu e-mail</b><br><small>Você aparece em cópia (Cc) e as respostas do cliente chegam a você.</small></span></label>
       <label class="largo"><span>Assunto</span><input type="text" id="rdoEmAssunto" maxlength="160"></label>

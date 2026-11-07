@@ -34,11 +34,15 @@ if ($acao === 'config') {
     list($ok, $ruins) = rdo_email_lista($c['destinatarios'] ?? '');
     if ($ruins) { re_resp(400, ['erro' => 'E-mail inválido: ' . implode(', ', array_slice($ruins, 0, 3)) . '. Confira os endereços.']); }
     if (count($ok) > 10) { re_resp(400, ['erro' => 'No máximo 10 destinatários.']); }
+    list($cop, $ruinsC) = rdo_email_lista($c['copias'] ?? '');
+    if ($ruinsC) { re_resp(400, ['erro' => 'E-mail de cópia inválido: ' . implode(', ', array_slice($ruinsC, 0, 3)) . '. Confira os endereços.']); }
+    $cop = array_values(array_diff($cop, $ok));   // quem já é destinatário não entra de novo em cópia
+    if (count($cop) > 10) { re_resp(400, ['erro' => 'No máximo 10 e-mails em cópia.']); }
     $auto = !empty($c['auto']) ? 1 : 0;
     if ($auto && !$ok) { re_resp(400, ['erro' => 'Informe ao menos um e-mail de destino para ligar o envio automático.']); }
     $assunto = mb_substr(trim((string)($c['assunto'] ?? '')), 0, 160) ?: rdo_email_padroes()['assunto'];
     $mensagem = mb_substr(trim((string)($c['mensagem'] ?? '')), 0, 2000) ?: rdo_email_padroes()['mensagem'];
-    $novo = ['destinatarios' => $ok, 'auto' => $auto, 'copia' => !empty($c['copia']) ? 1 : 0, 'assunto' => $assunto, 'mensagem' => $mensagem];
+    $novo = ['destinatarios' => $ok, 'copias' => $cop, 'auto' => $auto, 'copia' => !empty($c['copia']) ? 1 : 0, 'assunto' => $assunto, 'mensagem' => $mensagem];
     sistema_gravar('rdo_email', json_encode($novo, JSON_UNESCAPED_UNICODE));
     sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
     registrar_global('rdo_email_config', ['obra' => $obraId, 'destinatarios' => count($ok), 'auto' => $auto]);
@@ -55,7 +59,7 @@ if ($acao === 'previa') {
     $ant = null;
     foreach (array_reverse(rdo_email_envios($dia)) as $e) { if (!empty($e['ok'])) { $ant = $e['em']; break; } }
     $corpo = rdo_email_corpo($cfg, $dia, is_array($c['resumo'] ?? null) ? $c['resumo'] : [], $u, $ant);
-    re_resp(200, ['ok' => true, 'assunto' => $corpo['assunto'], 'html' => $corpo['html'], 'para' => $cfg['destinatarios'], 'replyto' => (string)($u['email'] ?? '')]);
+    re_resp(200, ['ok' => true, 'assunto' => $corpo['assunto'], 'html' => $corpo['html'], 'para' => $cfg['destinatarios'], 'cc' => $cfg['copias'], 'replyto' => (string)($u['email'] ?? '')]);
 }
 
 if ($acao === 'enviar') {
@@ -72,17 +76,21 @@ if ($acao === 'enviar') {
     $corpo = rdo_email_corpo($cfg, $dia, $resumoDe($_GET['resumo'] ?? ''), $u, $ant);
     $nomePdf = 'RDO-' . $dia . '.pdf';
     $ok = $falhas = [];
-    $cc = $cfg['copia'] ? (string)($u['email'] ?? '') : '';
-    foreach ($cfg['destinatarios'] as $para) {
-        if (rdo_email_enviar_um($para, $corpo, $pdf, $nomePdf, (string)($u['email'] ?? ''), $cc)) { $ok[] = $para; } else { $falhas[] = $para; }
+    $cc = $cfg['copias'];
+    if ($cfg['copia'] && !empty($u['email'])) { $cc[] = (string)$u['email']; }
+    $ccEnviado = [];
+    foreach ($cfg['destinatarios'] as $para) {   // as cópias (Cc) vão junto do primeiro e-mail aceito, para ninguém receber o RDO repetido
+        $ccDeste = $ccEnviado ? [] : $cc;
+        if (rdo_email_enviar_um($para, $corpo, $pdf, $nomePdf, (string)($u['email'] ?? ''), $ccDeste)) { $ok[] = $para; if (!$ccEnviado) { $ccEnviado = $ccDeste ?: [true]; } } else { $falhas[] = $para; }
     }
+    $ccEnviado = array_values(array_filter($ccEnviado, 'is_string'));
     $env = rdo_email_envios();
-    $env[$dia][] = ['em' => $agora, 'por' => (string)$u['nome'], 'ok' => count($ok) > 0 ? 1 : 0, 'para' => $ok, 'falhas' => $falhas, 'tam' => strlen($pdf), 'auto' => !empty($_GET['auto']) ? 1 : 0];
+    $env[$dia][] = ['em' => $agora, 'por' => (string)$u['nome'], 'ok' => count($ok) > 0 ? 1 : 0, 'para' => $ok, 'cc' => $ccEnviado, 'falhas' => $falhas, 'tam' => strlen($pdf), 'auto' => !empty($_GET['auto']) ? 1 : 0];
     $env[$dia] = array_slice($env[$dia], -20);
     sistema_gravar('rdo_email_envios', json_encode((object)$env, JSON_UNESCAPED_UNICODE));
     sistema_gravar('versao', (string)((int)sistema_ler('versao', '0') + 1));
     registrar_global('rdo_email_envio', ['obra' => $obraId, 'data' => $dia, 'ok' => count($ok), 'falhas' => count($falhas), 'auto' => !empty($_GET['auto']) ? 1 : 0]);
     if (!$ok) { re_resp(502, ['erro' => 'O servidor não aceitou o envio do e-mail. Tente de novo em instantes.', 'falhas' => $falhas]); }
-    re_resp(200, ['ok' => true, 'enviados' => $ok, 'falhas' => $falhas, 'copia' => $cc]);
+    re_resp(200, ['ok' => true, 'enviados' => $ok, 'falhas' => $falhas, 'cc' => $ccEnviado]);
 }
 re_resp(400, ['erro' => 'Ação desconhecida.']);
