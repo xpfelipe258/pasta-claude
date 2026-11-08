@@ -28,6 +28,16 @@ function tfConvEstrutura(el) {
 }
 
 function tfConvLista(el, c) {
+  if(Number(c.tarefa)===0 && Array.isArray(c.empresas_mural)) {
+    let seletor=el.querySelector('[data-cv-empresa]');
+    if(!seletor){const rot=document.createElement('label');rot.textContent='Empresa do mural ';seletor=document.createElement('select');seletor.dataset.cvEmpresa='1';rot.appendChild(seletor);el.querySelector('.tf-conv-compor').prepend(rot);}
+    const anterior=seletor.value || String(c.mural_empresa_padrao || '');
+    const op=c.empresas_mural;
+    seletor.innerHTML='<option value="">Selecione a empresa</option>'+op.map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join('');
+    seletor.value=op.some(e=>String(e.id)===anterior)?anterior:'';
+    el.querySelectorAll('[data-cv-enviar],[data-cv-arquivo]').forEach(b=>b.disabled=!op.length);
+    el.querySelector('[data-cv-nota]').textContent=op.length?'Mural separado por empresa. Mensagens antigas sem empresa registrada ficam com o autor e a administração geral. Arquivos até 10 MB.':'Sua conta precisa ser vinculada a uma empresa para enviar ao mural.';
+  }
   const l = el.querySelector('[data-cv-lista]');
   const rolouFim = l.scrollTop + l.clientHeight >= l.scrollHeight - 40, primeira = !el.dataset.pintou;
   const ant = (TFC[el.dataset.cvId] || {}).render;
@@ -35,7 +45,7 @@ function tfConvLista(el, c) {
     const ext = String(m.arquivo_tipo || '').toLowerCase(), img = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
     const arq = m.tem_arquivo ? `<div class="tf-msg-arq">${img ? `<a href="tarefa_arquivo.php?acao=ver&id=${m.id}" target="_blank" rel="noopener"><img loading="lazy" src="tarefa_arquivo.php?acao=ver&id=${m.id}" alt="${esc(m.arquivo_nome)}"></a>` : ''}
       <a href="tarefa_arquivo.php?acao=ver&id=${m.id}${ext === 'pdf' ? '' : '&baixar=1'}" ${ext === 'pdf' ? 'target="_blank" rel="noopener"' : ''}>📎 ${esc(m.arquivo_nome)}</a><span class="nota">${tfTamanho(m.arquivo_tam)}</span></div>` : '';
-    return `<div class="tf-msg ${m.minha ? 'minha' : ''}"><div class="tf-msg-cab"><b>${m.minha ? 'Você' : esc(m.autor)}</b><span>${tfHora(m.criado_em)}</span>${m.pode_excluir ? `<button type="button" class="link perigo-txt" data-cv-del="${m.id}">Apagar</button>` : ''}</div>
+    return `<div class="tf-msg ${m.minha ? 'minha' : ''}"><div class="tf-msg-cab"><b>${esc(m.autor)}${m.minha ? ' (você)' : ''} · ${esc(m.autor_empresa || 'Sem empresa vinculada')}</b><span>${tfHora(m.criado_em)}</span>${m.pode_excluir ? `<button type="button" class="link perigo-txt" data-cv-del="${m.id}">Apagar</button>` : ''}</div>
       ${m.texto ? `<div class="tf-msg-txt">${esc(m.texto)}</div>` : ''}${arq}</div>`;
   }).join('') : '<p class="tf-conv-vazia">Nenhuma mensagem ainda. Escreva a primeira ou anexe um arquivo.</p>';
   if (html !== ant) {
@@ -78,7 +88,7 @@ async function tfConvEnviarTexto(el) {
   if (!texto) { toast('Escreva a mensagem.', true); ta.focus(); return; }
   const b = el.querySelector('[data-cv-enviar]'); b.disabled = true;
   try {
-    const j = await postar(API + 'tarefas-msgs', { acao: 'enviar', tarefa: +el.dataset.cvId, texto });
+    const j = await postar(API + 'tarefas-msgs', { acao: 'enviar', tarefa: +el.dataset.cvId, texto, mural_empresa_id: +(el.querySelector('[data-cv-empresa]')?.value || 0) });
     ta.value = ''; tfConvLista(el, j); tfConvCarregar(el, true);
     if (j.aviso_email) toast('Mensagem enviada · ' + j.aviso_email);
   } catch (err) { toast(err.message, true); }
@@ -92,7 +102,7 @@ async function tfConvEnviarArquivo(el, input) {
   const ta = el.querySelector('[data-cv-texto]'), nota = el.querySelector('[data-cv-nota]'), orig = nota.textContent;
   nota.textContent = `Enviando ${f.name}…`;
   try {
-    const q = `acao=enviar&tarefa=${el.dataset.cvId}&nome=${encodeURIComponent(f.name)}&texto=${encodeURIComponent(ta.value.trim().slice(0, 1000))}`;
+    const q = `acao=enviar&tarefa=${el.dataset.cvId}&mural_empresa_id=${encodeURIComponent(el.querySelector('[data-cv-empresa]')?.value || '')}&nome=${encodeURIComponent(f.name)}&texto=${encodeURIComponent(ta.value.trim().slice(0, 1000))}`;
     const r = await fetch('tarefa_arquivo.php?' + q, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' }, body: f });
     if (r.status === 401) { location.href = 'login.php'; return; }
     const j = await r.json().catch(() => ({ erro: 'O servidor recusou o arquivo (tamanho ou tipo).' }));
@@ -198,7 +208,7 @@ function tfRelHtml(c) {
   // por responsável
   const por = new Map();
   l.forEach(t => {
-    const o = por.get(t.responsavel_id) || { nome: t.responsavel_nome || '—', n: 0, pend: 0, and: 0, atr: 0, ok: 0, okp: 0, canc: 0 };
+    const o = por.get(t.responsavel_id) || { nome: tfPessoaEmpresa(t,'responsavel'), n: 0, pend: 0, and: 0, atr: 0, ok: 0, okp: 0, canc: 0 };
     o.n++;
     if (t.status === 'pendente') o.pend++; else if (t.status === 'andamento') o.and++;
     if (tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada') o.atr++;
@@ -213,11 +223,11 @@ function tfRelHtml(c) {
   // detalhe, agrupado por responsável
   let linhas = '', ult = null;
   l.forEach(t => {
-    if (t.responsavel_id !== ult) { ult = t.responsavel_id; linhas += `<tr class="grupo"><td colspan="9"><b>${esc(t.responsavel_nome || '—')}</b></td></tr>`; }
+    if (t.responsavel_id !== ult) { ult = t.responsavel_id; linhas += `<tr class="grupo"><td colspan="9"><b>${esc(tfPessoaEmpresa(t,'responsavel'))}</b></td></tr>`; }
     const s = tfRelSituacaoTxt(t, h), neg = (tfAberta(t) && tfSituacao(t, h).nivel === 'atrasada') || tfAtrasoConcl(t) > 0;
     linhas += `<tr><td style="white-space:nowrap"><b>${esc(t.codigo || '—')}</b></td>
       <td><b>${esc(t.titulo)}</b>${t.descricao ? `<div class="nota">${esc(t.descricao)}</div>` : ''}${t.retorno ? `<div class="nota"><b>Retorno:</b> ${esc(t.retorno)}</div>` : ''}${t.n_msgs ? `<div class="nota">💬 ${t.n_msgs} mensagem(ns) na conversa</div>` : ''}</td>
-      <td>${esc(t.pessoal ? 'lembrete pessoal' : (t.criado_por_nome || '—'))}</td><td>${esc(TF_PRIO[t.prioridade] || t.prioridade)}</td>
+      <td>${esc(t.pessoal ? 'lembrete pessoal' : (tfPessoaEmpresa(t,'criado_por')))}</td><td>${esc(TF_PRIO[t.prioridade] || t.prioridade)}</td>
       <td class="n">${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td class="n">${t.data_fim ? fdA(t.data_fim) : '—'}</td>
       <td class="n">${t.iniciada_em ? fdA(String(t.iniciada_em).slice(0, 10)) : '—'}</td><td class="n">${t.concluida_em ? fdA(String(t.concluida_em).slice(0, 10)) : '—'}</td>
       <td class="${neg ? 'neg' : ''}">${esc(s)}</td></tr>`;
@@ -305,7 +315,7 @@ function tfAlertasHtml() {
   itens.sort((a, b) => a.s.ordem - b.s.ordem);
   return nc + `<div class="tf-alertas"><div class="tf-alerta-tit">Alertas — ${tfPlural(itens.length, 'tarefa pede atenção', 'tarefas pedem atenção')}</div><ul>` +
     itens.slice(0, 12).map(({ t, s, minha }) => `<li><span class="farol ${s.cls}">${esc(s.rot)}</span> <span class="tf-cod">${esc(t.codigo || '')}</span> <a href="#" data-tf-abrir="${t.id}">${esc(t.titulo)}</a>
-      <span class="nota">${minha ? '' : `· de ${esc(t.responsavel_nome || '—')} `}· conclusão ${fdA(t.data_fim)}</span></li>`).join('') +
+      <span class="nota">${minha ? '' : `· de ${esc(tfPessoaEmpresa(t,'responsavel'))} `}· conclusão ${fdA(t.data_fim)}</span></li>`).join('') +
     (itens.length > 12 ? `<li class="nota">…e mais ${itens.length - 12}. Use os filtros abaixo.</li>` : '') + '</ul></div>';
 }
 
@@ -377,12 +387,12 @@ function renderTarefas() {
   $('#tabTarefas').innerHTML = `<thead><tr><th>Código</th><th>Prioridade</th><th>Tarefa</th><th>Responsável</th><th>Início</th><th>Conclusão</th><th>Prazo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>` +
     (lista.length ? lista.map(t => {
       const s = sit(t);
-      const origem = t.pessoal ? '<span class="nota">lembrete pessoal</span>' : `<span class="nota">por ${esc(t.criado_por_nome || '—')}</span>`;
+      const origem = t.pessoal ? '<span class="nota">lembrete pessoal</span>' : `<span class="nota">por ${esc(tfPessoaEmpresa(t,'criado_por'))}</span>`;
       return `<tr class="${tfAberta(t) ? '' : 'tf-fechada'} tf-p-${esc(t.prioridade)}">
         <td class="nw"><b class="tf-cod">${esc(t.codigo || '—')}</b></td>
         <td><span class="tf-prio tf-prio-${esc(t.prioridade)}">${esc(TF_PRIO[t.prioridade] || t.prioridade)}</span></td>
         <td class="tf-titulo"><a href="#" data-tf-abrir="${t.id}"><b>${esc(t.titulo)}</b></a>${t.descricao ? `<div class="nota tf-desc">${esc(t.descricao)}</div>` : ''}${t.n_msgs ? `<a href="#" data-tf-chat="${t.id}" class="tf-msgs-n ${tfNovasTarefa(t) ? 'nova' : ''}" title="Conversa da tarefa">💬 ${t.n_msgs}${tfNovasTarefa(t) ? ' · nova' : ''}</a>` : ''}${t.retorno ? `<div class="nota tf-ret">Retorno: ${esc(t.retorno)}</div>` : ''}</td>
-        <td>${esc(t.responsavel_nome || '—')}<br>${origem}</td>
+        <td>${esc(tfPessoaEmpresa(t,'responsavel'))}<br>${origem}</td>
         <td>${t.data_inicio ? fdA(t.data_inicio) : '—'}</td><td>${t.data_fim ? fdA(t.data_fim) : '—'}</td>
         <td><span class="farol ${s.cls}">${esc(s.rot)}</span></td><td>${statusSel(t)}</td>
         <td><button class="link" data-tf-abrir="${t.id}">${t.pode_editar ? 'Editar' : 'Abrir'}</button>${t.pode_editar ? ` · <button class="link perigo-txt" data-tf-excluir="${t.id}">Excluir</button>` : ''}</td></tr>`;
@@ -393,7 +403,7 @@ function renderTarefas() {
   if (d.admin && TF.vista === 'todas') {
     const por = new Map();
     d.tarefas.forEach(t => {
-      const o = por.get(t.responsavel_id) || { nome: t.responsavel_nome || '—', ab: 0, at: 0, ok: 0 };
+      const o = por.get(t.responsavel_id) || { nome: tfPessoaEmpresa(t,'responsavel'), ab: 0, at: 0, ok: 0 };
       if (tfAberta(t)) { o.ab++; if (sit(t).nivel === 'atrasada') o.at++; } else if (t.status === 'concluida') o.ok++;
       por.set(t.responsavel_id, o);
     });
@@ -413,14 +423,14 @@ function tfAbrir(id, chat) {
   const editaDados = !t || t.pode_editar;
   dlg.dataset.id = t ? t.id : '';
   $('#tfTit').textContent = t ? `${editaDados ? 'Editar tarefa' : 'Tarefa'} · ${t.codigo || ''}` : 'Nova tarefa';
-  $('#tfCodigoNota').textContent = t ? `Código ${t.codigo || '—'} · criada em ${tfHora(t.criado_em)} por ${t.criado_por_nome || '—'}${t.iniciada_em ? ' · iniciada em ' + tfHora(t.iniciada_em) : ''}${t.concluida_em ? ' · concluída em ' + tfHora(t.concluida_em) : ''}` : 'O código (TAR-ano-número) é gerado quando a tarefa é salva.';
+  $('#tfCodigoNota').textContent = t ? `Código ${t.codigo || '—'} · criada em ${tfHora(t.criado_em)} por ${tfPessoaEmpresa(t,'criado_por')}${t.iniciada_em ? ' · iniciada em ' + tfHora(t.iniciada_em) : ''}${t.concluida_em ? ' · concluída em ' + tfHora(t.concluida_em) : ''}` : 'O código (TAR-ano-número) é gerado quando a tarefa é salva.';
   f.elements.titulo.value = t ? t.titulo : '';
   f.elements.descricao.value = t ? (t.descricao || '') : '';
   const selR = f.elements.responsavel_id;
-  const opt = u => `<option value="${u.id}">${esc(u.nome)} · ${esc(u.grupo || 'RÓTULA')}${u.id === d.usuario_id ? ' (eu)' : ''}</option>`;
-  const grupos = [...new Set(d.usuarios.map(u => u.grupo || 'RÓTULA'))];
-  selR.innerHTML = grupos.length > 1 ? grupos.map(g => `<optgroup label="${esc(g)}">${d.usuarios.filter(u => (u.grupo || 'RÓTULA') === g).map(opt).join('')}</optgroup>`).join('') : d.usuarios.map(opt).join('');
-  if (t && !d.usuarios.some(u => u.id === t.responsavel_id)) selR.insertAdjacentHTML('afterbegin', `<option value="${t.responsavel_id}">${esc(t.responsavel_nome || '—')}</option>`);
+  const opt = u => `<option value="${u.id}">${esc(u.nome)} · ${esc(u.empresa_nome || u.grupo || 'Sem empresa vinculada')}${u.id === d.usuario_id ? ' (eu)' : ''}</option>`;
+  const grupos = [...new Set(d.usuarios.map(u => u.empresa_nome || u.grupo || 'Sem empresa vinculada'))];
+  selR.innerHTML = grupos.length > 1 ? grupos.map(g => `<optgroup label="${esc(g)}">${d.usuarios.filter(u => (u.empresa_nome || u.grupo || 'Sem empresa vinculada') === g).map(opt).join('')}</optgroup>`).join('') : d.usuarios.map(opt).join('');
+  if (t && !d.usuarios.some(u => u.id === t.responsavel_id)) selR.insertAdjacentHTML('afterbegin', `<option value="${t.responsavel_id}">${esc(tfPessoaEmpresa(t,'responsavel'))}</option>`);
   selR.value = String(t ? t.responsavel_id : d.usuario_id);
   $('#tfRespBox').hidden = !tfPodeEnviar();
   $('#tfPessoalNota').hidden = tfPodeEnviar();
@@ -436,6 +446,7 @@ function tfAbrir(id, chat) {
   $('#tfExcluir').hidden = !(t && t.pode_editar);
   $('#tfExcluir').dataset.confirmar = ''; $('#tfExcluir').textContent = 'Excluir';
   $('#tfConversaBox').hidden = !t;
+  $('#tfAnexoBox').hidden = !!t; f.elements.anexos.value = '';
   if (t) tfConvMontar($('#tfConvTarefa'), t.id);
   dlg.showModal();
   if (chat && t) {   // veio do ícone de chat: já na conversa, com o cursor na caixa de resposta
@@ -465,11 +476,28 @@ async function tfSalvar(ev) {
       }
     }
     const antes = new Set((TF.dados.tarefas || []).map(x => x.id));
-    TF.dados = r; dlg.close(); tfAtualizarMenu(); renderTarefas();
+    const anexos = !t ? [...(f.elements.anexos.files || [])] : [];
+    TF.dados = r;
     const nova = !t && r.tarefas.find(x => !antes.has(x.id));
-    toast((nova ? `Tarefa criada · código ${nova.codigo}` : 'Tarefa salva') + (r.aviso_email ? ' · ' + r.aviso_email : ''));
+    let falhas = [];
+    if (nova && anexos.length) {   // a tarefa já existe: os arquivos vão para a conversa dela
+      b.textContent = 'Enviando arquivo(s)…';
+      for (const a of anexos) {
+        try {
+          if (a.size > TF_MAX_ARQ) throw new Error('passa de 10 MB');
+          const q = `acao=enviar&tarefa=${nova.id}&nome=${encodeURIComponent(a.name)}&texto=`;
+          const rr = await fetch('tarefa_arquivo.php?' + q, { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' }, body: a });
+          const jj = await rr.json().catch(() => ({ erro: 'recusado pelo servidor' }));
+          if (!rr.ok) throw new Error(jj.erro || 'falha');
+        } catch (e) { falhas.push(`${a.name} (${e.message})`); }
+      }
+    }
+    dlg.close(); tfAtualizarMenu(); renderTarefas();
+    const nAnx = anexos.length - falhas.length;
+    toast((nova ? `Tarefa criada · código ${nova.codigo}` : 'Tarefa salva') + (nAnx ? ` · ${nAnx} arquivo(s) anexado(s)` : '') + (r.aviso_email ? ' · ' + r.aviso_email : ''));
+    if (falhas.length) toast('Não foi possível anexar: ' + falhas.join(', ') + '. Abra a tarefa e envie pela conversa.', true);
   } catch (err) { toast(err.message, true); }
-  finally { b.disabled = false; }
+  finally { b.disabled = false; b.textContent = 'Salvar'; }
 }
 
 async function tfMudarStatus(id, status) {
@@ -638,3 +666,5 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && do
 setTimeout(() => tfChatAtualizar(true), 1500);
 
 ligarTarefas();
+
+function tfPessoaEmpresa(t,campo='responsavel') { return (t[campo+'_nome'] || 'Usuário removido') + ' · ' + (t[campo+'_empresa'] || 'Sem empresa vinculada'); }
