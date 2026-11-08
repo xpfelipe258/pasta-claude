@@ -97,7 +97,7 @@ function plItemDoCatalogo(at, modelo, base) {
     inicio_plan: ini, prazo, fontes: [], _bmAt: at, bm_percentual: false, virtual_gantt: true, _eclusa: undefined, servico_exib: undefined, responsavel: at.empresa };
   const real = bmRealizado(at, base), brutos = ganBmDatasAtividade(at, base), tot = soma0(brutos, ([, v]) => v), fator = tot > 0 ? real / tot : 0;
   const ds = brutos.map(([d, v]) => [d, v * fator]).filter(([, v]) => v > 0).sort((x, y) => x[0].localeCompare(y[0]));
-  const prevAc = prevCliente(it, base), status = real >= qtd - 1e-9 && qtd > 0 ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+  const prevAc = prevCliente(it, base), status = qtd > 0 && real >= qtd * (1 - PL_TOL_CONCLUSAO) ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
   const linha = { it, ini, fimPrev: prazo, prazo, ri: ds.length ? ds[0][0] : null, rf: status === 'CONCLUÍDO' && ds.length ? ds[ds.length - 1][0] : (ds.length ? base : null), ultimo: ds.length ? ds[ds.length - 1][0] : null,
     realAc: real, prevAc, pctReal: qtd ? Math.min(1, real / qtd) : 0, pctPrev: qtd ? Math.min(1, prevAc / qtd) : 0, projecao: null, status, porEmp: ds.length ? [{ nome: at.empresa, ds }] : [], dsReal: ds };
   return { chave: 'BM|' + at.codigo, nome: cap(it.servico), frente, fase: ganFaseNumero(it), unidade: at.unidade || 'un', qtd, ini, prazo, status, realAc: real, prevAc,
@@ -164,6 +164,7 @@ function plSerieReal(a) {
 }
 
 // ---------------------------------------------------------------- cálculo do plano
+const PL_TOL_CONCLUSAO = 0.002;   // 0,2%: arredondamento de m²/telhas não deixa atividade terminada como "em andamento"
 function plCalcItem(pl0, it0, base) {
   const pl = it0._plano || pl0;   // item vindo de outro plano (visão combinada no Painel): vale a janela do plano dele
   const ativ = plAtivPorChave(it0.chave);
@@ -182,7 +183,13 @@ function plCalcItem(pl0, it0, base) {
   const realAc = r0 + soma0([...real.values()], v => v);
   let planAc = r0;
   mapaPlan.forEach((v, d) => { if (d <= base) planAc += v; });
-  const falta = Math.max(0, it.qtd - realAc);
+  // Atividade já encerrada na obra (acumulado de toda a obra até a data de referência ≥ contrato) conta como concluída no plano,
+  // mesmo que parte tenha sido produzida antes do início do plano. Tolerância de 0,2% para sobra de arredondamento (ex.: 99,9% em m²).
+  const contrato = ativ ? Number(ativ.qtd) || 0 : 0;
+  const acObra = ativ ? soma0(plSerieReal(ativ).filter(([d]) => d <= plBase()), ([, v]) => v) : 0;
+  const fechouObra = contrato > 0 && acObra >= contrato * (1 - PL_TOL_CONCLUSAO);
+  const fechouPlano = it.qtd > 0 && realAc >= it.qtd * (1 - PL_TOL_CONCLUSAO);
+  const falta = fechouObra || fechouPlano ? 0 : Math.max(0, it.qtd - realAc);
   const diasRest = base < it.fim ? contarDiasUteis(maxD(base, add(it.inicio, -1)), it.fim) : 0;
   const ultimos = [];
   for (let d = base, n = 0; n < 5 && d >= pl.inicio; d = add(d, -1)) if (diaUtil(d)) { ultimos.push(d); n++; }
@@ -190,7 +197,7 @@ function plCalcItem(pl0, it0, base) {
   const ritmoNec = diasRest > 0 ? falta / diasRest : null;
   const ratio = planAc > 0 ? realAc / planAc : null;
   let status;
-  if (realAc >= it.qtd - 1e-9) status = 'CONCLUÍDO';
+  if (fechouObra || fechouPlano) status = 'CONCLUÍDO';
   else if (base < it.inicio && realAc <= 0) status = 'A INICIAR';
   else if (ratio === null) status = realAc > 0 ? 'ADIANTADO' : 'A INICIAR';
   else status = ratio >= 1.05 ? 'ADIANTADO' : ratio >= 1 ? 'NO PRAZO' : ratio >= .95 ? 'NO LIMITE' : 'ATRASADO';
@@ -206,8 +213,8 @@ function plCalcItem(pl0, it0, base) {
   const termina = (qtd, taxa, de) => (taxa > 0 && qtd > 0 && Math.ceil(qtd / taxa) <= 400 ? somarDiasUteis(de, Math.ceil(qtd / taxa)) : null);
   const terminaMeta = termina(restante, meta, add(it.inicio, -1));           // pela meta, a partir do início planejado
   const terminaRitmo = falta <= 1e-9 ? (concluiu || base) : termina(falta, taxaProj, maxD(base, add(it.inicio, -1)));   // pelo ritmo (ou meta), a partir de agora
-  return { it, ativ, r0, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
-    pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, pctReal: it.qtd ? Math.min(1, realAc / it.qtd) : 0,
+  return { it, ativ, r0, acObra, contrato, fechouObra, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
+    pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, pctReal: fechouObra || fechouPlano ? 1 : it.qtd ? Math.min(1, realAc / it.qtd) : 0,
     primeiro: datasReais[0] || null, ultimo: datasReais[datasReais.length - 1] || null, concluiu, redistrib };
 }
 function plCalc(pl) {
