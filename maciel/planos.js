@@ -1582,3 +1582,45 @@ document.addEventListener('change', ev => {
   else if (t.id === 'ppAtv') { PL.pp.atv = t.value; renderPainelPlanos(); }
 });
 
+
+// ---------------------------------------------------------------- ALERTA DE PLANO NOVO (usuário da empresa executora)
+// Plano 5W2H publicado (ou alterado) que tem atividade da empresa aparece como alerta em Tarefas a fazer e num aviso ao entrar,
+// até o usuário abrir o plano ou marcar como visto. O "visto" fica no navegador (por usuário).
+const plVistosChave = () => 'planosVistos_' + ((window.D && D.usuario && D.usuario.nome) || '') + '_' + ((window.D && D.obra && D.obra.id) || '');
+function plVistosLer() { try { return JSON.parse(localStorage.getItem(plVistosChave()) || '{}') || {}; } catch { return {}; } }
+function plVistosGravar(v) { try { localStorage.setItem(plVistosChave(), JSON.stringify(v)); } catch { /* sem armazenamento: o alerta volta ao recarregar */ } }
+function plNovosDaEmpresa() {
+  if (!window.USUARIO_RESTRITO || !PL.dados) return [];
+  const v = plVistosLer();
+  return (PL.dados.planos || []).filter(p => p.status === 'ativo' && v[p.id] !== (p.atualizado_em || '1'));
+}
+function plMarcarVisto(ids) {
+  const v = plVistosLer();
+  (PL.dados.planos || []).filter(p => ids.includes(p.id)).forEach(p => { v[p.id] = p.atualizado_em || '1'; });
+  plVistosGravar(v);
+}
+function plAlertaTarefasHtml() {
+  const l = plNovosDaEmpresa();
+  if (!l.length) return '';
+  return `<div class="tf-alertas tf-plano"><div class="tf-alerta-tit"><span>📋 ${l.length === 1 ? 'Novo planejamento' : l.length + ' planejamentos novos ou atualizados'} para a ${esc(window.USUARIO_RESTRITO)}</span>
+    <button type="button" class="btn" data-pl-visto="*">Marcar como visto</button></div><ul>` +
+    l.slice(0, 8).map(p => `<li><button type="button" class="btn primario" data-pl-ver="${esc(p.id)}">Ver plano</button> <b>${esc(p.nome)}</b>
+      <span class="nota">· ${p.inicio ? fdA(p.inicio) : '—'} a ${p.fim ? fdA(p.fim) : '—'} · ${(p.itens || []).length} atividade(s) da empresa${p.atualizado_por ? ' · por ' + esc(p.atualizado_por) : ''}</span></li>`).join('') + '</ul></div>';
+}
+const PL_AVISADOS = new Set();
+async function plAvisoNovos() {
+  if (!window.USUARIO_RESTRITO) return;
+  if (!PL._avisoTimer) PL._avisoTimer = setInterval(() => { if (!document.hidden) plAvisoNovos().catch(() => {}); }, 180000);   // plano criado com o usuário online chega em até 3 min
+  await plCarregar(true);
+  PL._atv = null;
+  const l = plNovosDaEmpresa().filter(p => !PL_AVISADOS.has(p.id + '|' + p.atualizado_em));
+  l.forEach(p => PL_AVISADOS.add(p.id + '|' + p.atualizado_em));
+  if (l.length) toast(`📋 ${l.length === 1 ? 'Novo planejamento: ' + l[0].nome : l.length + ' planejamentos novos ou atualizados'}. Veja em Tarefas a fazer.`);
+  if (typeof abaAtual !== 'undefined' && abaAtual === 'tarefas' && typeof renderTarefas === 'function') renderTarefas();
+}
+document.addEventListener('click', ev => {
+  const ver = ev.target.closest && ev.target.closest('[data-pl-ver]');
+  const vis = ev.target.closest && ev.target.closest('[data-pl-visto]');
+  if (ver) { const id = ver.dataset.plVer; plMarcarVisto([id]); PL.sub = 'planos'; PL.sel = id; mudarAba('plan'); }
+  else if (vis) { plMarcarVisto(plNovosDaEmpresa().map(p => p.id)); if (typeof renderTarefas === 'function') renderTarefas(); }
+});

@@ -310,7 +310,7 @@ function tfAlertasHtml() {
     if (!minha && !(d.admin && s.nivel === 'atrasada')) return;   // do que é dos outros, o admin só vê o que está atrasado
     itens.push({ t, s, minha });
   });
-  const nc = typeof qualAlertaTarefasHtml === 'function' ? qualAlertaTarefasHtml() : '';   // não conformidades a responder/validar contam como tarefa
+  const nc = typeof qualAlertaTarefasHtml === 'function' ? qualAlertaTarefasHtml() : '' + (typeof plAlertaTarefasHtml === 'function' ? plAlertaTarefasHtml() : '');   // plano 5W2H novo para a empresa   // não conformidades a responder/validar contam como tarefa
   if (!itens.length) return nc || '<div class="tf-alertas tf-ok"><b>Tudo em dia.</b> Nenhuma tarefa atrasada, vencendo ou começando agora.</div>';
   itens.sort((a, b) => a.s.ordem - b.s.ordem);
   return nc + `<div class="tf-alertas"><div class="tf-alerta-tit">Alertas — ${tfPlural(itens.length, 'tarefa pede atenção', 'tarefas pedem atenção')}</div><ul>` +

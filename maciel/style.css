@@ -1753,3 +1753,5 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .imp-emp { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--borda, #d0d5dd); border-radius: 999px; cursor: pointer; font-weight: 600; min-height: 40px; }
 .imp-emp input { width: 18px; height: 18px; margin: 0; }
 .imp-emp:has(input:checked) { background: var(--acento-claro, #e0ecff); border-color: var(--acento, #2563eb); }
+.tf-alertas.tf-plano { border-color: #9cc3f0; background: #eef5fd; }
+.tf-alertas.tf-plano .tf-alerta-tit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; color: #1d4f8a; }

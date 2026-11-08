@@ -7833,7 +7833,8 @@ function ligarEventos() {
   patchDatas();
   atualizarBotoesSegFase();
   mudarAba(document.getElementById('aba-' + aba) && !UI_OCULTOS.abas.includes(aba) ? aba : (document.querySelector('#abas .sidebar-grupo:not([hidden]) button[data-aba]')?.dataset.aba || 'tarefas'));   // aba ocultada pelo administrador não abre nem pelo endereço
-  if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
+  if (typeof tfCarregar === 'function') tfCarregar(true).then(() => { tfAvisoAoAbrir(); if (abaAtual === 'tarefas') renderTarefas(); });
+  if (typeof plAvisoNovos === 'function') plAvisoNovos().catch(e => console.warn('aviso de plano novo', e));   // tarefas.js pode não ter chegado (rede/cache): a aba busca o arquivo de novo ao ser aberta   // contador do menu, alertas e aviso ao abrir
   // consulta de versão: a cada 10 s e só com a aba visível (aba em segundo plano não consulta; ao voltar, confere na hora). Antes era a cada 4 s em toda aba aberta.
   setInterval(() => { if (!document.hidden) verificarVersao(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) verificarVersao(); });
