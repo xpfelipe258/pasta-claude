@@ -1745,3 +1745,11 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .cfg-campo-id { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .cfg-campo-id input[type=color] { width: 64px; height: 36px; padding: 2px; }
 .cfg-campo-id .cfg-check { display: flex; flex-direction: row; align-items: center; gap: 6px; font-weight: 400; }
+
+/* Impactos: empresas impactadas em caixas de marcar (no iPhone a lista múltipla não mostrava a escolha) */
+.imp-emps-campo { display: flex; flex-direction: column; gap: 6px; }
+.rot-imp-emps { font-weight: 600; font-size: 13px; }
+.imp-emps { display: flex; flex-wrap: wrap; gap: 8px; }
+.imp-emp { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--borda, #d0d5dd); border-radius: 999px; cursor: pointer; font-weight: 600; min-height: 40px; }
+.imp-emp input { width: 18px; height: 18px; margin: 0; }
+.imp-emp:has(input:checked) { background: var(--acento-claro, #e0ecff); border-color: var(--acento, #2563eb); }

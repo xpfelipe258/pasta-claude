@@ -375,10 +375,11 @@ async function carregar() {
     const u = j.usuario;
     window.USUARIO_PERFIL = u.perfil;
     window.USUARIO_EMPRESA = u.empresa || '';
+    window.USUARIO_EMPRESA_NOME = u.empresa_nome || 'Sem empresa vinculada';
     window.USUARIO_RESTRITO = u.empresa_restrita || '';   // empresa a que a visão fica restrita ('' = enxerga tudo, ex.: obra criada pela própria empresa)
     if (typeof tplIdentidadeCarregar === 'function') tplIdentidadeCarregar();
     $('#usuarioBox').hidden = false;
-    $('#usuarioBox').innerHTML = `<button type="button" class="tf-chat-btn" id="tfChatBtn" title="Mensagens das tarefas e do mural">💬 <span>Mensagens</span><span class="tf-chat-badge" id="tfChatBadge" hidden>0</span></button><span>${esc(u.nome)}${u.empresa ? ' · ' + esc(u.empresa) : ''}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
+    $('#usuarioBox').innerHTML = `<button type="button" class="tf-chat-btn" id="tfChatBtn" title="Mensagens das tarefas e do mural">💬 <span>Mensagens</span><span class="tf-chat-badge" id="tfChatBadge" hidden>0</span></button><span>${esc(u.nome)} · ${esc(u.empresa_nome || 'Sem empresa vinculada')}</span><a href="dashboard_admin.php">${u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard'}</a>${u.perfil === 'admin' ? '<a href="admin.php">Administração</a>' : ''}<a href="sair.php">Sair</a>`;
     if (typeof tfChatPintar === 'function') tfChatPintar();
     const menuDash = document.getElementById('menuDashboardGeral');
     if (menuDash) menuDash.textContent = u.perfil === 'admin' ? 'Dashboard geral' : 'Meu dashboard';
@@ -5269,10 +5270,11 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
   const linhas = rt.filter(r => !filtroEmp || r.empAjust === filtroEmp)
     .sort((a, b) => (a.data || '').localeCompare(b.data || '') || String(a.empAjust || '').localeCompare(String(b.empAjust || '')) || String(a.equipamento || '').localeCompare(String(b.equipamento || '')));
   const porDia = new Map(), porEmp = new Map(), porEq = new Map();
-  linhas.forEach(r => {
+  linhas.forEach((r, indice) => {
     const total = (r.custoR || 0) + (r.combR || 0);
-    const kDia = `${r.data}|${r.empAjust}|${r.equipamento || 'NÃO INFORMADO'}|${r.uso || ''}`;
-    const d = porDia.get(kDia) || { data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
+    // Uma linha por lançamento e por parcela do rateio, sem juntar abastecimentos distintos.
+    const kDia = indice;
+    const d = porDia.get(kDia) || { linha: r.linha, preco_litro: r.preco_litro, data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
     (r.partesRateio || []).forEach(x => d.partes.add(x)); d.litrosTot += r.litros || 0; d.combTot += r.custo_combustivel || 0; d.custoTot += r.custo || 0;
     d.qtd += r.quantidade || 0; d.custo += r.custoR || 0; d.litros += r.litrosR || 0; d.comb += r.combR || 0; d.total += total;
     if (r.operador) d.oper.add(String(r.operador).trim());
@@ -5309,12 +5311,12 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
     const eqs = dados.equipamentos.filter(q => q.litros > 0 || q.comb > 0).sort((a, b) => b.comb - a.comb);
     const rowsEqA = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.n}</td><td class="n">${nf(q.litros, 1)}</td><td class="n">${q.litros > 0 ? rs2(q.comb / q.litros) : '—'}</td><td class="n"><b>${rs2(q.comb)}</b></td></tr>`).join('') || vazio(8);
     const rowsEmpA = dados.empresas.filter(e => e.litros > 0 || e.comb > 0).sort((a, b) => b.comb - a.comb).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.n}</td><td class="n">${nf(e.litros, 1)}</td><td class="n"><b>${rs2(e.comb)}</b></td></tr>`).join('') || vazio(4);
-    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso || '—')}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${nf(l.litrosTot, 1)} L · ${rs2(l.combTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.litros > 0 ? rs2(l.comb / l.litros) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(10);
+    const rowsDiaA = dados.linhas.filter(l => l.litros > 0 || l.comb > 0).map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso || '—')}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${nf(l.litrosTot, 1)} L · ${rs2(l.combTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.litros, 1)}</td><td class="n">${l.preco_litro ? rs2(l.preco_litro) : '—'}</td><td class="n"><b>${rs2(l.comb)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(10);
     corpo = `${cardsH([['Combustível no período', rs2(comb)], ['Litros', nf(litros, 1) + ' L'], ['Abastecimentos', nf(soma0(eqs, q => q.n), 0)], ['Máquinas abastecidas', nf(eqs.length, 0)]])}
-      <h2>Máquinas abastecidas no período</h2><table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Abastecido por</th><th>Empresa(s)</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">R$/litro médio</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEqA}</tbody>
+      <h2>Máquinas abastecidas no período</h2><table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Abastecido por</th><th>Empresa(s)</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">R$/litro médio efetivo</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEqA}</tbody>
         <tfoot><tr><th colspan="4">Total</th><th class="n">${nf(soma0(eqs, q => q.n), 0)}</th><th class="n">${nf(litros, 1)}</th><th class="n">${litros > 0 ? rs2(comb / litros) : '—'}</th><th class="n">${rs2(comb)}</th></tr></tfoot></table>
       <h2>Abastecimento por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Abastecimentos</th><th class="n">Litros</th><th class="n">Valor abastecido</th></tr></thead><tbody>${rowsEmpA}</tbody></table>
-      <h2 class="quebra">Detalhe dos abastecimentos</h2><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
+      <h2 class="quebra">Detalhe dos abastecimentos — espelho dos lançamentos</h2><p class="nota">R$/litro é o preço informado no lançamento. Litros e valores são preservados, com o rateio entre empresas quando houver. A média efetiva dos resumos corresponde ao valor total dividido pelos litros.</p><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro lançado</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
   } else if (soEq) {   // SOMENTE equipamento: uso e custo do equipamento — sem litros nem combustível
     const eqs = dados.equipamentos.filter(q => q.custo > 0 || q.qtd > 0 || q.n > 0).sort((a, b) => b.custo - a.custo);
     const rowsEqE = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.dias.size}</td><td class="n">${nf(q.qtd, 1)}</td><td class="n"><b>${rs2(q.custo)}</b></td></tr>`).join('') || vazio(7);
@@ -5328,11 +5330,11 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   } else {   // equipamento + abastecimento (relatório completo)
     const rowsEmp = dados.empresas.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td><td class="n">${e.dias.size}</td></tr>`).join('') || vazio(6);
     const rowsEq = dados.equipamentos.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.equipamento)}</td><td>${esc(e.resp)}</td><td class="n">${nf(e.qtd,1)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td></tr>`).join('') || vazio(7);
-    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(10);
+    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${l.preco_litro ? rs2(l.preco_litro) : '—'}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(11);
     corpo = `${cardsH([['Custo total', rs(total)], ['Equipamentos', rs(custo)], ['Combustível', rs(comb)], ['Litros', nf(litros, 1) + ' L']])}
       <h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th><th class="n">Dias com uso</th></tr></thead><tbody>${rowsEmp}</tbody></table>
       <h2>Resumo por equipamento</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Qtd/usos</th><th class="n">Custo equipamento</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>${rowsEq}</tbody></table>
-      <h2 class="quebra">Uso diário por equipamento e empresa</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Equipamento</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo equip.</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th><th>Responsável / obs.</th></tr></thead><tbody>${rowsDia}</tbody></table>`;
+      <h2 class="quebra">Lançamentos por equipamento e empresa</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Equipamento</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo equip.</th><th class="n">Litros</th><th class="n">R$/litro lançado</th><th class="n">Combustível</th><th class="n">Total</th><th>Responsável / obs.</th></tr></thead><tbody>${rowsDia}</tbody></table>`;
   }
   const assinatura = geral ? '' : `<div class="assinaturas"><div class="assinatura">Responsável da ${esc(tipo)}<br><span class="nota">Nome, assinatura e data</span></div><div class="assinatura">MTEC / Administração da obra<br><span class="nota">Nome, assinatura e data</span></div></div>`;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>${esc(titulo)}</h1><p class="sub">Obra: ${esc(M?.obra?.nome || D?.obra?.nome || 'OBRA 198')} · Período: <b>${periodo}</b> · Uso: <b>${esc(usoRotulo)}</b> · Gerado em ${fdA(hoje())}</p>${corpo}${assinatura}</body></html>`;
@@ -7117,7 +7119,7 @@ function atualizarServicoOutro(f) {
   if (!outro) o.value = '';
 }
 function preencherServicosImpacto(f, atual) {
-  const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value), sel = f.elements.servico;
+  const emps = impEmpsMarcadas(f), sel = f.elements.servico;
   const grupos = M.empresas.filter(e => emps.includes(e.nome));
   const eraOutro = sel.value === '__outro';
   const opt = v => `<option value="${esc(v)}">${esc(v)}</option>`;
@@ -7143,7 +7145,7 @@ function atualizarCascataImpacto(f) {
   const box = $('#impCascata'), servico = servicoImpactoValor(f);
   if (!box) return;
   if (!servico) { box.hidden = true; return; }
-  const emps = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value);
+  const emps = impEmpsMarcadas(f);
   const c = typeof impactoCascata === 'function' ? impactoCascata(servico, frenteDoServico(servico, emps)) : null;
   box.hidden = false;
   box.innerHTML = !c ? `<b>Efeito cascata:</b> este serviço não está mapeado no fluxo da obra; nenhuma atividade posterior foi calculada.`
@@ -7154,6 +7156,7 @@ function impactoCascataDe(i) {
   return impactoCascata(i.servico, frenteDoServico(i.servico, impactoEmpresas(i)));
 }
 
+const impEmpsMarcadas = f => [...f.querySelectorAll('input[name="empresasSel"]:checked')].map(c => c.value);
 function abrirFormImp(linha) {
   if (typeof PL !== 'undefined') PL._atv = null;   // recalcula as atividades do cronograma para o efeito cascata
   const f = $('#formImp');
@@ -7163,8 +7166,8 @@ function abrirFormImp(linha) {
   $('#btnExcluirImp').hidden = !linha;
   $('#btnExcluirImp').dataset.confirmar = '';
   $('#btnExcluirImp').textContent = 'Excluir';
-  const selEmpImp = f.elements.empresasSel;
-  if (selEmpImp) selEmpImp.innerHTML = M.empresas.map(e => `<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
+  const boxEmpImp = f.querySelector('#impEmpresas');
+  if (boxEmpImp) boxEmpImp.innerHTML = M.empresas.map(e => `<label class="imp-emp"><input type="checkbox" name="empresasSel" value="${esc(e.nome)}"><span>${esc(e.nome)}</span></label>`).join('');
   f.elements.fornecedorSel.innerHTML = '<option value="">Selecione o fornecedor</option>' + fornecedoresImpacto().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__outro">Outros…</option>';
   f.elements.fornecedorOutro.value = '';
   f.elements.servicoOutro.value = '';
@@ -7176,7 +7179,7 @@ function abrirFormImp(linha) {
       else f.elements[k].value = v ?? '';
     }
     const marcadas = impactoEmpresas(i);
-    if (selEmpImp) [...selEmpImp.options].forEach(o => o.selected = marcadas.includes(o.value));
+    f.querySelectorAll('input[name="empresasSel"]').forEach(c => { c.checked = marcadas.includes(c.value); });
     preencherServicosImpacto(f, i.servico);
     const fz = fornecedorDeSetor(i.setor);   // "Fornecedor — CMM" volta como setor + fornecedor escolhido
     if (fz.isForn) {
@@ -7730,7 +7733,7 @@ function ligarEventos() {
       if (!corpo.solucao) { toast('Informe como o impacto foi solucionado.', true); f.elements.solucao.focus(); return; }
       if (!corpo.solucionado_por) { toast('Informe quem solucionou o impacto.', true); f.elements.solucionado_por.focus(); return; }
     }
-    corpo.empresas = [...(f.elements.empresasSel?.selectedOptions || [])].map(o => o.value).join(' / ') || null;
+    corpo.empresas = impEmpsMarcadas(f).join(' / ') || null;
     const fz = fornecedorDeSetor(f.elements.setor.value);
     if (fz.isForn) {   // setor Fornecedor: precisa dizer qual (CMM, EJ, GLOBO AÇOS ou outro)
       const escolhido = f.elements.fornecedorSel.value, nomeForn = escolhido === '__outro' ? f.elements.fornecedorOutro.value.trim() : (escolhido || fz.nome);
@@ -7860,17 +7863,3 @@ function ligarEventos() {
   const app=document.querySelector('#app,.conteudo,main'); if(app) obs.observe(app,{childList:true,subtree:true});
   setTimeout(()=>obs.disconnect(),5000);
 })();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
