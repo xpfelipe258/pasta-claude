@@ -34,7 +34,7 @@ const VC_GALPAO = {
 const VC_ANEXO_ITEM = { 'PORTARIA': '3.3.3', 'REFEITÓRIO': '3.3.7', 'VESTIÁRIO': '3.3.8', 'ECLUSA': '3.3.1' };
 const VC_ANEXO_FAM = { 'VIGA COBERTURA': '01', 'APOIO PRINCIPAL': '01', 'TRAVAMENTO VIGA': '01', 'TERÇA': '02', 'TERÇA COBERTURA': '02', 'SUPORTE DE TERÇA': '02', 'CONTRAVENTAMENTO': '03', 'SUPORTE CONT.': '03', 'MÃO FRANCESA': '03' };
 const VC_ECLUSA_FAM = { 'VIGA COBERTURA': '01', 'TRAVAMENTO VIGA': '01', 'SUPORTE JOIST': '03', 'CONTRAVENTAMENTO': '04', 'SUPORTE CONT.': '04', 'MÃO FRANCESA': '04' };
-const VC_ANEXO_TELHA = { 'PORTARIA': 'GLO-3.4.1-02', 'VESTIÁRIO': 'GLO-3.4.1-04', 'REFEITÓRIO': 'GLO-3.4.2-01', 'ECLUSA': 'GLO-3.4.1-01' };
+const VC_ANEXO_TELHA = { 'PORTARIA': 'GLO-3.4.1-02', 'VESTIÁRIO': 'GLO-3.4.1-04', 'REFEITÓRIO': 'GLO-3.4.2-01', 'ECLUSA': 'GLO-3.4.4-01' };
 // Serviços com regra por unidade (regras_baixa.json › consumo_por_servico) → atividade e total de unidades (limites_ifc)
 const VC_REGRA_SERV = [
   { serv: 'PREMONTAGEM', ativ: '3.1.1-02', un: 'joist', tot: 'joists_no_galpao_maximo' },

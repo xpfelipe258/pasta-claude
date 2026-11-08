@@ -1878,7 +1878,7 @@ const ANEXO_CAT = {
   V: { EST: ['EJ-3.3.8-01', 'EJ-3.3.8-02', 'EJ-3.3.8-03', 'EJ-3.3.8-04'], CAL: ['GLO-3.4.10-04', 'GLO-3.4.10-11'], TEL: ['GLO-3.4.1-04'] },
   PD: { EST: ['EJ-3.3.13-01', 'EJ-3.3.13-02', 'EJ-3.3.13-03', 'EJ-3.3.13-04', 'EJ-3.3.15-01', 'EJ-3.3.15-02', 'EJ-3.3.15-03', 'EJ-3.3.15-04'], CAL: ['GLO-3.4.10-03', 'GLO-3.4.10-10'], TEL: ['GLO-3.4.1-03'] },
   AV: { EST: ['EJ-3.3.11-01', 'EJ-3.3.11-02', 'EJ-3.3.11-03', 'EJ-3.3.11-04'], CAL: ['GLO-3.4.10-07', 'GLO-3.4.10-14'], TEL: ['GLO-3.4.3-01', 'GLO-3.4.3-02', 'GLO-3.4.3-03', 'GLO-3.4.3-04'] },
-  E: { PLAT_EST: ['EJ-3.3.2-01', 'EJ-3.3.2-02'], PLAT_TEL: ['GLO-3.4.4-01', 'GLO-3.4.4-02', 'GLO-3.4.4-03', 'GLO-3.4.4-04'] },
+  E: { PLAT_EST: ['EJ-3.3.2-01', 'EJ-3.3.2-02'], PLAT_TEL: ['GLO-3.4.1-01'] },   // platibanda – telhas = 3.4.1-01 (pedido do usuário em 2026-11-08: estava trocado com a cobertura)
 };
 const ANEXO_FRENTE = { P: 'PORTARIA', R: 'REFEITÓRIO', V: 'VESTIÁRIO', PD: 'PASSARELAS / ÁREA DE VIVÊNCIA', AV: 'PASSARELAS / ÁREA DE VIVÊNCIA', QDF: 'QDF CAG', E: 'ECLUSA', C: 'ANEXOS – COMUNS' };
 function anexoPredio(texto) {
@@ -2016,7 +2016,7 @@ function ganBmResumo(it, ate) {
 }
 // Linhas das frentes anexas cujo avanço vem das atividades do BM da própria frente (e não das colunas gerais do galpão).
 // Eclusa: Vigas e Joists = item 3.3.1 (instalação das vigas, pré-montagem e instalação de joists, contraventamento);
-// Calhas = suportes e calhas da Eclusa (3.4.10); Telhas = instalação de telhas da Eclusa (3.4.1).
+// Calhas = suportes e calhas da Eclusa (3.4.10); Telhas da cobertura = 3.4.4-01 (a platibanda usa a 3.4.1-01).
 // Marquise do galpão (aba MARQUISES do catálogo): cada linha do Gantt lê as atividades do BM do seu serviço. O catálogo cobre o galpão inteiro,
 // então só a linha da Fase 1 recebe o avanço (a Fase 2 começa depois e continua sem avanço até ter atividade própria).
 function ganBmMarquise(it) {
@@ -2041,7 +2041,7 @@ function ganBmAtividadesEspecificas(it) {
   if (sv.includes('VIGAS E JOISTS')) filtro = a => ganNorm(a.item_desc).includes('COBERTURA DA ECLUSA');
   else if (sv.includes('CALHAS')) filtro = a => ganNorm(a.item_desc).includes('CALHAS') && ganNorm(a.atividade).includes('ECLUSA');
   else if (sv.includes('PLATIBANDA')) filtro = null;   // platibanda tem atividades próprias (ANEXO_CAT.E), não as da cobertura
-  else if (sv.includes('TELHAS')) filtro = a => ganNorm(a.atividade).includes('ECLUSA') && ganNorm(a.atividade).includes('TELHA') && ganNorm(a.item_desc).includes('COBERTURA DOS ANEXOS');
+  else if (sv.includes('TELHAS')) filtro = a => a.codigo === 'GLO-3.4.4-01';   // cobertura da Eclusa – telhas = 3.4.4-01 (instalação de telhas)
   return filtro ? bmTab('bm_atividades').filter(filtro) : [];
 }
 
