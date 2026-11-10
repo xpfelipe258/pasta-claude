@@ -6724,7 +6724,7 @@ function preencherEmpresasRelImpacto() {
   const sel = $('#relImpEmpresas');
   if (!sel) return;
   const nomes = [...new Set((M.empresas || []).map(e => e.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  sel.innerHTML = nomes.map(nome => `<option value="${esc(nome)}" selected>${esc(nome)}</option>`).join('');
+  sel.innerHTML = nomes.map(nome => `<label class="imp-emp"><input type="checkbox" value="${esc(nome)}" checked> ${esc(nome)}</label>`).join('');
 }
 function abrirRelImpacto() {
   const pop = $('#modalRelImp');
@@ -6732,6 +6732,7 @@ function abrirRelImpacto() {
   $('#relImpIni').value = per?.ini || ref;
   $('#relImpFim').value = per?.fim || ref;
   preencherEmpresasRelImpacto();
+  const hd = $('#relImpHD'); if (hd && !hd.value) hd.value = relImpValorHD() ? String(relImpValorHD()).replace('.', ',') : '';
   pop.hidden = false;
   document.body.classList.add('modal-aberto');
   setTimeout(() => $('#relImpIni')?.focus(), 50);
@@ -6741,20 +6742,76 @@ function fecharRelImpactoPopup() {
   if (pop) pop.hidden = true;
   document.body.classList.remove('modal-aberto');
 }
-function gerarRelImpactoPopup() {
+function gerarRelImpactoPopup(tipo) {
   const ini = $('#relImpIni')?.value || per?.ini || ref;
   const fim = $('#relImpFim')?.value || per?.fim || ref;
   if (!ehISO(ini) || !ehISO(fim) || fim < ini) return toast('Informe um período válido para o relatório.', true);
-  const sel = $('#relImpEmpresas');
-  const selecionadas = sel ? [...sel.selectedOptions].map(o => o.value).filter(Boolean) : [];
   try {
-    baixarRelImpacto(ini, fim, selecionadas);
+    if (tipo === 'cliente') {
+      const hd = Number(String($('#relImpHD')?.value || '0').replace(/\./g, '').replace(',', '.')) || 0;
+      try { localStorage.setItem('relImpHD', String(hd)); } catch (e) {}
+      baixarRelImpactoCliente(ini, fim, hd);
+    } else {
+      const selecionadas = [...document.querySelectorAll('#relImpEmpresas input:checked')].map(c => c.value);
+      const secoes = [...document.querySelectorAll('#relImpSecoes input:checked')].map(c => c.value);
+      if (!secoes.length) return toast('Marque ao menos uma seção do relatório geral.', true);
+      baixarRelImpacto(ini, fim, selecionadas, { secoes, semRemessa: !secoes.includes('remessas') });
+    }
     fecharRelImpactoPopup();
-    toast('Relatório de impactos gerado. Verifique a pasta de downloads.');
   } catch (err) {
     console.error('Erro ao gerar relatório de impactos', err);
     toast(`Erro ao gerar relatório: ${err?.message || err}`, true, 7000);
   }
+}
+// Impacto "do cliente": setor Cliente ou fornecedor EXTERNO (setor "Fornecedor — X" em que X não é empresa da obra: EJ, CMM, GLOBO AÇOS…).
+// Remessa atrasada (automática), suprimentos, produção, planejamento e as terceirizadas ficam de fora.
+function impactoEhDoCliente(i) {
+  if (i._autoRemessa) return false;
+  const st = ganNorm(impactoSetor(i));
+  if (st.includes('CLIENTE')) return true;
+  const fz = fornecedorDeSetor(i.setor);
+  if (!fz.isForn || !fz.nome) return false;
+  const internas = new Set([...(M.empresas || []).map(e => ganNorm(e.nome)), 'EJ', 'CMM', 'GLOBO ACOS', 'ROTULA']);
+  return !internas.has(ganNorm(fz.nome));
+}
+function relImpValorHD() { try { return Number(localStorage.getItem('relImpHD')) || 0; } catch (e) { return 0; } }
+function baixarRelImpactoCliente(ini, fim, valorHD) {
+  const lim = { ini, fim: minD(fim, ref) };
+  const imp = impactosComAutomaticos().filter(impactoEhDoCliente).filter(i => { const p = periodoImpacto(i); return p.ini <= fim && p.fim >= ini; })
+    .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  const usos = ratear((T.usos || []).filter(u => u.data && u.data >= ini && u.data <= fim));
+  const dp = (T.dp_efetivo || []).filter(d => d.data && d.data >= ini && d.data <= fim);
+  const efet = (emp, d) => soma0(dp.filter(x => x.data === d && normEmp(x.empresa) === emp), x => x.quantidade || 0);
+  const equip = (emp, d) => soma0(usos.filter(u => u.data === d && normEmp(u.empAjust) === emp), u => (u.custoR || 0) + (u.combR || 0));
+  const porEmp = new Map();
+  const linhas = imp.map(i => {
+    const dias = diasPorImpacto(i, lim);
+    const emps = impactoEmpresas(i).map(normEmp);
+    const alvo = emps.length ? emps : [...new Set((M.empresas || []).map(e => normEmp(e.nome)))];
+    let hd = 0, eq = 0;
+    alvo.forEach(e => {
+      let hdE = 0, eqE = 0;
+      dias.forEach((f, d) => { hdE += efet(e, d) * f; eqE += equip(e, d) * f; });
+      const mo = +(hdE * valorHD).toFixed(2), eqR = +eqE.toFixed(2);
+      const o = porEmp.get(e) || { emp: e, n: 0, dias: 0, hd: 0, mo: 0, eq: 0 };
+      if (hdE || eqE || emps.length) { o.n++; o.dias += somaMapa(dias); o.hd += hdE; o.mo += mo; o.eq += eqR; porEmp.set(e, o); }
+      hd += hdE; eq += eqR;
+    });
+    const mo = +(hd * valorHD).toFixed(2);
+    return { i, dias: somaMapa(dias), emps: emps.length ? emps.join(' / ') : 'Todas', hd, mo, eq: +eq.toFixed(2), tot: +(mo + eq).toFixed(2) };
+  });
+  const tDias = somaMapa(mapaImpactos(imp, lim)), tHD = soma0(linhas, l => l.hd), tMO = soma0(linhas, l => l.mo), tEq = soma0(linhas, l => l.eq);
+  const causa = i => { const fz = fornecedorDeSetor(i.setor); return fz.isForn ? `Fornecedor externo — ${fz.nome}` : impactoSetor(i); };
+  const nd = v => nf(v, v % 1 ? 1 : 0);
+  const css = `<style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.val{font-size:18px;font-weight:700}.nota-rel{color:#555;font-size:11px}tfoot th{background:#e9edf3}</style>`;
+  const rows = linhas.map(l => `<tr><td>${fdA(l.i.data)}</td><td>${esc(causa(l.i))}</td><td>${esc(l.i.servico || '')}</td><td>${esc(l.i.motivo || '')}${l.i.paralisacao ? `<div class="nota-rel">${esc(l.i.paralisacao)}</div>` : ''}</td><td>${esc(l.emps)}${(() => { const c = cascataTexto(impactoCascataDe(l.i), 4); return c ? `<div class="nota-rel">em cascata: ${esc(c)}</div>` : ''; })()}</td><td class="n">${nd(l.dias)}</td><td class="n">${nd(l.hd)}</td><td class="n">${rs2(l.mo)}</td><td class="n">${rs2(l.eq)}</td><td class="n"><b>${rs2(l.tot)}</b></td><td>${l.i.solucionado ? `Solucionado ${fdA(l.i.solucionado)}` : 'Em aberto'}</td></tr>`).join('') || '<tr><td colspan="11">Nenhum impacto causado pelo cliente ou por fornecedor externo no período.</td></tr>';
+  const rowsEmp = [...porEmp.values()].sort((a, b) => (b.mo + b.eq) - (a.mo + a.eq)).map(o => `<tr><td>${esc(o.emp)}</td><td class="n">${o.n}</td><td class="n">${nd(o.hd)}</td><td class="n">${rs2(o.mo)}</td><td class="n">${rs2(o.eq)}</td><td class="n"><b>${rs2(o.mo + o.eq)}</b></td></tr>`).join('') || '<tr><td colspan="6">—</td></tr>';
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos do cliente</title>${css}</head><body><h1>Relatório de impactos do cliente</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Impactos causados pelo cliente ou por fornecedores externos · Gerado em ${fdA(hoje())}</p>
+<div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Dias úteis impactados</div><div class="val">${nd(tDias)}</div></div><div class="card"><div>Homem-dia parado</div><div class="val">${nd(tHD)}</div></div><div class="card"><div>Custo estimado</div><div class="val">${rs2(tMO + tEq)}</div></div></div>
+<h2>Impactos e custos</h2><table><thead><tr><th>Data</th><th>Causado por</th><th>Serviço</th><th>Motivo / efeito</th><th>Quem sofreu</th><th class="n">Dias úteis</th><th class="n">Homem-dia</th><th class="n">Mão de obra</th><th class="n">Equipamentos</th><th class="n">Custo total</th><th>Situação</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">${nd(tDias)}</th><th class="n">${nd(tHD)}</th><th class="n">${rs2(tMO)}</th><th class="n">${rs2(tEq)}</th><th class="n">${rs2(tMO + tEq)}</th><th></th></tr></tfoot></table>
+<h2>Custo por empresa que sofreu o impacto</h2><table><thead><tr><th>Empresa</th><th class="n">Impactos</th><th class="n">Homem-dia</th><th class="n">Mão de obra</th><th class="n">Equipamentos</th><th class="n">Total</th></tr></thead><tbody>${rowsEmp}</tbody></table>
+<p class="nota-rel">Custo estimado nos dias úteis de cada impacto dentro do período: mão de obra = efetivo lançado no DP das empresas atingidas × ${rs2(valorHD)} por homem-dia; equipamentos = uso e abastecimento lançados por essas empresas nesses dias. Impacto de meio dia conta a fração. Dias com dois impactos ao mesmo tempo podem ser contados em ambos.</p></body></html>`;
+  reAbrirPrevia(html, `relatorio_impactos_cliente_${ini}_${fim}.html`, `Relatório de impactos do cliente · ${fdA(ini)} a ${fdA(fim)}`);
 }
 // Perfilagem, instalação de telhas e fechamento (telhas) da Globo são medidos em m² pelo catálogo do BM. O relatório usa o mesmo previsto e realizado
 // do Dashboard cliente e do Avanço físico (item do cronograma do cliente: contrato em m² ÷ dias úteis; realizado = maior entre lançamentos e BM).
@@ -6797,13 +6854,14 @@ function previstoClienteDaEmpresa(serv, emp, ini, lim) {
   const n = Math.max(1, donos.length);
   return { item, m2: !!doCat, n, previsto: total / n };
 }
-function baixarRelImpacto(ini, fim, empFiltro = []) {
+function baixarRelImpacto(ini, fim, empFiltro = [], opc = {}) {
+  const sec = k => !opc.secoes || opc.secoes.includes(k);   // seções escolhidas na janela (relatório geral editável)
   if (typeof PL !== 'undefined') PL._atv = null;   // efeito cascata usa o cronograma atual
   const modelo = M || { empresas: [], metas: [], impactos: [] };
   const tabelas = T || {};
   const empsBase = [...new Set((modelo.empresas || []).map(e => e.nome).filter(Boolean))];
   const empsRel = empFiltro.length ? empFiltro : empsBase;
-  const imp = impactosComAutomaticos().filter(i => {
+  const imp = impactosComAutomaticos().filter(i => !(opc.semRemessa && i._autoRemessa)).filter(i => {
     const p = periodoImpacto(i), xs = impactoEmpresas(i);
     const cruza = p.ini <= fim && p.fim >= ini;
     const empOk = !empFiltro.length || !xs.length || xs.some(e => empFiltro.includes(e));
@@ -6861,7 +6919,7 @@ function baixarRelImpacto(ini, fim, empFiltro = []) {
   const footDP = diasDP.length ? `<tfoot><tr><th>Total (homem-dia)</th>${empsDP.map(e => `<th class="n">${nf(soma0(diasDP, d => efDiaEmp(d, e)), 0)}</th>`).join('')}<th class="n">${nf(soma0(diasDP, totDia), 0)}</th><th></th></tr>
     <tr><th>Média por dia lançado</th>${empsDP.map(e => { const ds = diasDP.filter(d => efDiaEmp(d, e)); return `<th class="n">${ds.length ? nf(soma0(ds, d => efDiaEmp(d, e)) / ds.length, 1) : '—'}</th>`; }).join('')}<th class="n">${nf(soma0(diasDP, totDia) / diasDP.length, 1)}</th><th></th></tr>
     <tr><th>Pico no período</th>${empsDP.map(e => `<th class="n">${nf(Math.max(0, ...diasDP.map(d => efDiaEmp(d, e))), 0)}</th>`).join('')}<th class="n">${nf(Math.max(0, ...diasDP.map(totDia)), 0)}</th><th></th></tr></tfoot>` : '';
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p><div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>${htmlRankingImpactos(imp, empFiltro, { ini, fim: minD(fim, ref) })}<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th class="n">Dias úteis no período</th><th>Efetivo no dia</th><th>Efeito</th><th>Efeito cascata</th><th>Situação · como foi solucionado · por quem</th></tr></thead><tbody>${rowsImp}</tbody></table><h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias corridos</th><th class="n">Dias úteis (impacto)</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Dias úteis do período com remessa em atraso (sem repetir o mesmo dia)</th><th class="n">—</th><th class="n">${nf(somaMapa(mapaImpactos(remAtr.map(impactoDeRemessa), limRel)),0)}</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table><h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table><h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p></body></html>`;
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de impactos</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>Relatório de impactos</h1><p class="sub">Período: <b>${fdA(ini)} a ${fdA(fim)}</b> · Empresas: <b>${esc(empsRel.join(' / '))}</b> · Gerado em ${fdA(hoje())}</p>${sec('cards') ? `<div class="cards"><div class="card"><div>Impactos</div><div class="val">${imp.length}</div></div><div class="card"><div>Atividades impactadas</div><div class="val">${servicos.length}</div></div><div class="card"><div>Custo equipamentos</div><div class="val">${rs(totalEquip)}</div></div><div class="card"><div>Efetivo lançado</div><div class="val">${nf(totalPessoasDia,0)}</div></div></div>` : ''}${sec('ranking') ? `${htmlRankingImpactos(imp, empFiltro, { ini, fim: minD(fim, ref) })}` : ''}${sec('impactos') ? `<h2>Impactos</h2><table><thead><tr><th>Data</th><th>Empresas</th><th>Serviço</th><th>Setor responsável</th><th>Motivo</th><th class="n">Dias úteis no período</th><th>Efetivo no dia</th><th>Efeito</th><th>Efeito cascata</th><th>Situação · como foi solucionado · por quem</th></tr></thead><tbody>${rowsImp}</tbody></table>` : ''}${sec('remessas') ? `<h2>Remessas em atraso</h2><table><thead><tr><th>Remessa</th><th>Prevista</th><th>Chegada real</th><th class="n">Dias corridos</th><th class="n">Dias úteis (impacto)</th><th class="n">Qtd.</th><th>Materiais</th></tr></thead><tbody>${rowsRemAtr}</tbody><tfoot><tr><th colspan="3">Dias úteis do período com remessa em atraso (sem repetir o mesmo dia)</th><th class="n">—</th><th class="n">${nf(somaMapa(mapaImpactos(remAtr.map(impactoDeRemessa), limRel)),0)}</th><th class="n">${nf(soma0(remAtr, r => r.qtdTotal),1)}</th><th></th></tr></tfoot></table>` : ''}${sec('produtividade') ? `<h2>Produtividade das empresas nas atividades impactadas</h2><table><thead><tr><th>Empresa</th><th>Atividade</th><th class="n">Previsto</th><th class="n">Realizado</th><th class="n">Ating.</th></tr></thead><tbody>${rowsProd}</tbody></table>${prodRows.some(r => r.un) ? '<p class="nota-rel">Atividades em m² (perfilagem, telhar e fechamento): previsto = cronograma do cliente no período (contrato do catálogo do BM ÷ dias úteis, limitado ao contrato) e realizado = maior entre lançamentos e BM — o mesmo critério do Dashboard cliente e do Avanço físico.</p>' : ''}` : ''}${sec('equipamentos') ? `<h2>Total de equipamentos no período</h2><table><thead>${headEqTot}</thead><tbody>${rowsEqTot}</tbody>${footEqTot}</table>` : ''}${sec('pessoal') ? `<h2>Pessoal por dia</h2><table><thead>${headDP}</thead><tbody>${rowsDP}</tbody>${footDP}</table><p class="nota-rel">Efetivo lançado no DP por empresa em cada data do período. “Impactos em andamento” = impactos abertos naquele dia (da data do impacto até a solução).</p>` : ''}</body></html>`;
   reAbrirPrevia(html, `relatorio_impactos_${ini}_${fim}.html`, `Relatório de impactos · ${fdA(ini)} a ${fdA(fim)}`);   // visualização antes de baixar
 }
 function dpEmpresas() {
@@ -7697,7 +7755,8 @@ function ligarEventos() {
     else if (ev.target.name === 'servico') { atualizarServicoOutro(f); if (f.elements.servico.value === '__outro') f.elements.servicoOutro.focus(); atualizarCascataImpacto(f); }
   });
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
-  const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = gerarRelImpactoPopup;
+  const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = () => gerarRelImpactoPopup('geral');
+  const btnRelImpCli = $('#btnRelImpCliente'); if (btnRelImpCli) btnRelImpCli.onclick = () => gerarRelImpactoPopup('cliente');
   const modalRelImp = $('#modalRelImp'); if (modalRelImp) modalRelImp.querySelectorAll('[data-fechar-rel-imp]').forEach(x => x.addEventListener('click', fecharRelImpactoPopup));
   $('#btnCancelarImp').onclick = () => $('#formImp').hidden = true;
   const btnRelDP = $('#btnRelDP'); if (btnRelDP) btnRelDP.onclick = abrirRelDP;

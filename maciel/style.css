@@ -1755,3 +1755,7 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .imp-emp:has(input:checked) { background: var(--acento-claro, #e0ecff); border-color: var(--acento, #2563eb); }
 .tf-alertas.tf-plano { border-color: #9cc3f0; background: #eef5fd; }
 .tf-alertas.tf-plano .tf-alerta-tit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; color: #1d4f8a; }
+/* Relatório de impactos: blocos cliente × geral */
+.rel-imp-bloco{border:1px solid var(--borda,#ddd);border-radius:10px;padding:10px 12px;margin:10px 0}
+.rel-imp-bloco legend{font-weight:700;padding:0 6px}
+.rel-imp-bloco .imp-emps{margin:4px 0 8px}
