@@ -56,7 +56,15 @@ function plSegunda(d) { return add(d, -dow(d)); }
 // Vigas (9 un) e Joists (18 un): o realizado é o acumulado lançado nas colunas de vigas / de joists da Eclusa (eclusaSerie, app.js), inteiro,
 // mesmo o que saiu antes do início do período. Planos salvos com o item antigo (27 un juntos) são divididos ao abrir (plMigrarEclusa).
 // ---------------------------------------------------------------- atividades (todas as do cronograma)
+function plFechamentoEmVaos(it) {
+  return /FECH(?:AMENTO)? LATERAL ESTRUTURA/.test(ganNorm(it.servico));
+}
+function plEscopoVaos(it) {
+  const quantidades = ganBmAtividades(it).filter(a => ['VAO', 'VAOS'].includes(ganNorm(a.unidade))).map(a => Number(a.qtd) || 0);
+  return Math.max(0, ...quantidades);
+}
 function plUnidade(it) {
+  if (plFechamentoEmVaos(it)) return 'vão';
   if (it._bmAt) return it._bmAt.unidade || 'un';   // atividade do catálogo do BM: a unidade é a do catálogo
   if (it._eclusa) return 'un';
   if (it.bm_percentual || it.fonte_pct) return '%';
@@ -114,7 +122,7 @@ function plAtividades(forcar) {
     const cat = ganBmAnexoLinha(l.it);
     if (!cat) {
       const base0 = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
-        unidade: plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
+        unidade: plUnidade(l.it), qtd: plFechamentoEmVaos(l.it) ? plEscopoVaos(l.it) : Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
         realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
       const a = base0();
       if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
@@ -144,6 +152,7 @@ const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
 // frente e, na Eclusa, o avanço do BM; as demais usam a série do Gantt (produção, BM e apontamentos, a fonte maior).
 function plSerieReal(a) {
   const it = a.it;
+  if (plFechamentoEmVaos(it)) return ganProducao(it, null, true);
   if (it._bmAt) return a.linha.dsReal || [];   // atividade do catálogo: o que foi lançado (grade ou BM) nessa atividade
   if (a.acumulado) return a.linha.dsReal || [];   // Eclusa – Vigas e Joists: só o que foi lançado, acumulado
   if (it.bm_percentual) return a.linha.dsReal || [];   // linha em % (Eclusa etc.): só o avanço do BM, nunca unidades da grade
@@ -177,7 +186,10 @@ function plCalcItem(pl0, it0, base) {
   const mapaPlan = new Map(dias.map((d, i) => [d, plan[i]]));
   const cabeNoPeriodo = meta * dias.length >= restante - 1e-9;   // false: a meta atual não fecha a quantidade no período
   const real = new Map();
-  (ativ ? plSerieReal(ativ) : []).forEach(([d, v]) => {
+  const serie = ativ && plFechamentoEmVaos(ativ.it)
+    ? plEmpresasDoItem(it, ativ).flatMap(emp => plSerieLancamentos(ativ, emp))
+    : ativ ? plSerieReal(ativ) : [];
+  serie.forEach(([d, v]) => {
     if (d >= pl.inicio && d <= pl.fim && d <= base) real.set(d, (real.get(d) || 0) + v);
   });
   const realAc = r0 + soma0([...real.values()], v => v);
@@ -273,6 +285,12 @@ async function plCarregar(forcar) {
   // Fase 2 do galpão não é usada: itens "GALPÃO F2…" de planos antigos saem da tela (o contrato total fica na linha da cobertura, Fase 1)
   PL.dados.planos.forEach(p => { if (Array.isArray(p.itens)) p.itens = p.itens.filter(i => !ehGalpaoFase2(i.frente)); });
   plMigrarEclusa(PL.dados.planos);
+  for (const plano of PL.dados.planos) for (const item of plano.itens || []) {
+    const atividade = plAtivPorChave(item.chave);
+    if (!atividade || !plFechamentoEmVaos(atividade.it)) continue;
+    item.unidade = 'vão';
+    item.qtd_contrato = atividade.qtd;
+  }
   try { plMigrarAnexos(PL.dados.planos); } catch (e) { console.warn('migração dos anexos', e); }
   return PL.dados;
 }
@@ -1503,6 +1521,55 @@ function plPlanoCombinado(planos, emp) {
   return { id: 'combinado', nome: planos.length > 1 ? 'Todos os planos ativos' : planos[0].nome, inicio: planos.map(p => p.inicio).sort()[0], fim: planos.map(p => p.fim).sort().pop(), itens };
 }
 // uma passada por renderização: calcula os planos ativos (cada um com a sua janela) e indexa as atividades
+function plSerieLancamentos(atividade, emp) {
+  if (!atividade) return [];
+  const it = atividade.it;
+  if (!it._bmAt) return ganSerieFase(it, ganProducao(it, emp, true));
+  const at = it._bmAt;
+  if (!at.controle || normEmp(at.empresa) !== normEmp(emp)) return [];
+  const e = empresa(emp), col = colDe(e, at.controle);
+  if (!col) return [];
+  return Object.entries(e.registros).map(([dia, reg]) => [dia, Number(reg.v[col]) || 0]);
+}
+
+function plFarolSemanal(inicio, fim, corte) {
+  const linhas = new Map();
+  const restrita = window.USUARIO_RESTRITO;
+  for (const plano of PL.dados?.planos || []) {
+    if (['rascunho', 'arquivado'].includes(plano.status) || !plano.inicio || !plano.fim ||
+        plano.inicio > fim || plano.fim < inicio || !Array.isArray(plano.itens)) continue;
+    for (const item of plano.itens) {
+      if (!item.inicio || !item.fim || item.inicio > fim || item.fim < inicio) continue;
+      const atividade = plAtivPorChave(item.chave);
+      const dias = plDias(item.inicio, item.fim);
+      const previsto = plDistribuirTaxa(item.qtd, dias.length, plMeta(item, atividade, dias.length), plInteiro(item.unidade));
+      const empresas = [...new Set(plEmpresasDoItem(item, atividade))];
+      for (const emp of empresas) {
+        if (restrita && normEmp(emp) !== normEmp(restrita)) continue;
+        const chave = JSON.stringify([normEmp(emp), item.chave]);
+        const linha = linhas.get(chave) || {
+          emp, serv: item.atividade + (empresas.length > 1 ? ' (previsão compartilhada)' : ''),
+          un: item.unidade, previsto: new Map(), diasReal: new Set(), atividade
+        };
+        dias.forEach((dia, i) => {
+          if (dia >= inicio && dia <= fim && dia >= plano.inicio && dia <= plano.fim) {
+            linha.previsto.set(dia, Math.max(linha.previsto.get(dia) || 0, previsto[i]));
+          }
+        });
+        for (let dia = maxD(inicio, plano.inicio); dia <= minD(corte, plano.fim); dia = add(dia, 1)) linha.diasReal.add(dia);
+        linhas.set(chave, linha);
+      }
+    }
+  }
+  return [...linhas.values()].map(linha => {
+    const { emp, serv, un, previsto, diasReal, atividade } = linha;
+    const prevTotal = soma0([...previsto.values()], qtd => qtd);
+    const prev = soma0([...previsto].filter(([dia]) => dia <= corte), ([, qtd]) => qtd);
+    const real = soma0(plSerieLancamentos(atividade, emp).filter(([dia]) => diasReal.has(dia)), ([, qtd]) => qtd);
+    return { emp, serv, un, prevTotal, prev, real, pct: prev > 0 ? real / prev * 100 : null };
+  }).sort((a, b) => a.emp.localeCompare(b.emp) || a.serv.localeCompare(b.serv));
+}
+
 function plIndicePainel() {
   PL._atv = null;   // o cronograma depende do período/referência atuais
   const lista = [];

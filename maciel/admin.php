@@ -4,9 +4,13 @@ require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/modelo.php';
 require __DIR__ . '/inc/atualizar.php';
 require __DIR__ . '/inc/empresas_obra.php';
+require_once __DIR__ . '/inc/empresa_usuario_papeis.php';
+require_once __DIR__ . '/inc/organizacao_estrutura.php';
+require_once __DIR__ . '/inc/obra_executor_vinculo.php';
 
 $obraSelecionada = exigir_obra_pagina();
 $eu = exigir_admin_da_obra((int)$obraSelecionada['id']);   // administrador do sistema ou administrador DESTA obra (quem a criou)
+garantir_obra_executoras();
 $global = $eu['perfil'] === 'admin';   // só o administrador do sistema mexe no que é global: GitHub, token da API, administradores e usuários de outras obras
 
 // Usuário que o administrador de uma obra pode gerenciar: está nesta obra, não é administrador do sistema e não tem acesso a outras obras
@@ -17,8 +21,11 @@ function usuario_gerenciavel($id)
     if ($global) { return true; }
     $id = (int)$id;
     if ($id <= 0 || $id === (int)$eu['id']) { return false; }
-    $u = q_global('SELECT perfil FROM usuarios WHERE id = ?', [$id])->fetch();
+    $u = q_global('SELECT perfil, organizacao_id, admin_organizacao FROM usuarios WHERE id = ?', [$id])->fetch();
     if (!$u || $u['perfil'] === 'admin') { return false; }
+    if (!empresa_pode_nomear_admin_obra($eu) && ((int)($u['admin_organizacao'] ?? 0) === 1 || q_global('SELECT 1 FROM usuarios_obras WHERE usuario_id = ? AND admin_obra = 1', [$id])->fetchColumn())) { return false; }
+    $orgAtor = usuario_organizacao_id($eu)[0];
+    if ($orgAtor && (int)($u['organizacao_id'] ?? 0) !== $orgAtor) { return false; }
     $obras = q_global('SELECT obra_id FROM usuarios_obras WHERE usuario_id = ?', [$id])->fetchAll(PDO::FETCH_COLUMN);
     return count($obras) === 1 && (int)$obras[0] === obra_atual_id();
 }
@@ -84,17 +91,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('E-mail já está em uso por outro usuário.');
             }
             $nivel = in_array($_POST['nivel'] ?? '', ['admin', 'editor', 'leitor'], true) ? $_POST['nivel'] : 'editor';   // nível NESTA obra
+            empresa_validar_delegacao($eu, $nivel);
             $perfil = $nivel === 'leitor' ? 'leitura' : 'editor';   // o perfil global nunca é administrador do sistema por aqui
-            $orgAtor = $global ? 0 : usuario_organizacao_id($eu)[0];   // administrador de uma empresa cliente: o usuário novo é da empresa e conta no limite do plano
+            if ($nivel !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
+            $vinculoCadastro=usuario_vinculo_cadastro_obra($eu,$_POST);
+            $orgAtor = $vinculoCadastro['org'];   // administrador de uma empresa cliente: o usuário novo é da empresa e conta no limite do plano
             if ($orgAtor) { list($okPlano, $msgPlano) = plano_verificar_usuario($orgAtor); if (!$okPlano) { throw new InvalidArgumentException($msgPlano); } }
+            bd()->beginTransaction();
             q('INSERT INTO usuarios (nome, login, senha, perfil, empresa, email, ativo) VALUES (?, ?, ?, ?, ?, ?, 1)',
-                [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, texto_ou_nulo($_POST['empresa'] ?? null), texto_ou_nulo($email)]);
+                [trim($_POST['nome'] ?? $login), $login, password_hash($_POST['senha'], PASSWORD_DEFAULT), $perfil, $vinculoCadastro['empresa'], texto_ou_nulo($email)]);
             $novoUid = (int)bd()->lastInsertId();
             if ($orgAtor) { q_global('UPDATE usuarios SET organizacao_id = ? WHERE id = ?', [$orgAtor, $novoUid]); }
             obra_ligar_usuario($novoUid, obra_atual_id(), $nivel);
             if ($nivel !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
             salvar_acessos_usuario($novoUid, $nivel === 'admin' ? 'admin' : $perfil);
             registrar_alteracao('usuario_criado', ['login' => $login, 'nivel_na_obra' => $nivel]);
+            bd()->commit();
             $msg = "Usuário $login criado.";
         } elseif ($acao === 'editar_usuario') {
             $id = (int)($_POST['id'] ?? 0);
@@ -113,21 +125,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($existe) { throw new InvalidArgumentException('Já existe outro usuário com esse login.'); }
             if ($nivel !== 'admin' && !array_intersect(modulos_sistema(), (array)($_POST['modulos'] ?? []))) { throw new InvalidArgumentException('Marque ao menos uma área de acesso para o usuário.'); }
             if (obra_criador_id() === $id && $nivel !== 'admin') { throw new InvalidArgumentException('Quem criou a obra é sempre o administrador dela.'); }
-            $alvoAtual = q_global('SELECT perfil FROM usuarios WHERE id = ?', [$id])->fetch();
+            $alvoAtual = q_global('SELECT u.perfil, u.admin_organizacao, uo.admin_obra FROM usuarios u LEFT JOIN usuarios_obras uo ON uo.usuario_id = u.id AND uo.obra_id = ? WHERE u.id = ?', [obra_atual_id(), $id])->fetch();
+            empresa_validar_delegacao($eu, $nivel, $alvoAtual ?: []);
             $perfilFinal = ($alvoAtual && $alvoAtual['perfil'] === 'admin') ? 'admin' : $perfil;   // administrador do sistema continua sendo (só o administrador geral muda isso)
-            q_global('UPDATE usuarios SET nome=?, login=?, email=?, perfil=?, empresa=? WHERE id=?', [$nome, $login, texto_ou_nulo($email), $perfilFinal, texto_ou_nulo($_POST['empresa'] ?? null), $id]);
+            $vinculoCadastro=usuario_vinculo_cadastro_obra($eu,$_POST,$id);
+            bd()->beginTransaction();
+            q_global('UPDATE usuarios SET nome=?, login=?, email=?, perfil=?, empresa=?, organizacao_id=? WHERE id=?', [$nome,$login,texto_ou_nulo($email),$perfilFinal,$vinculoCadastro['empresa'],$vinculoCadastro['org']?:null,$id]);
             if ($perfilFinal !== 'admin') { obra_ligar_usuario($id, obra_atual_id(), $nivel); }
             salvar_acessos_usuario($id, $perfilFinal === 'admin' || $nivel === 'admin' ? 'admin' : $perfilFinal);
             registrar_alteracao('usuario_editado', ['id'=>$id,'login'=>$login,'email'=>$email,'nivel_na_obra'=>$nivel]);
+            bd()->commit();
             $msg = 'Usuário atualizado.';
         } elseif ($acao === 'obra_nivel' || $acao === 'obra_remover_usuario') {   // nível (administrador da obra, editor ou leitor) e saída DESTA obra
             $id = (int)($_POST['id'] ?? 0);
             $obraId = obra_atual_id();
-            $vinculo = q_global('SELECT uo.nivel, uo.admin_obra, u.perfil, u.nome FROM usuarios_obras uo JOIN usuarios u ON u.id = uo.usuario_id WHERE uo.usuario_id = ? AND uo.obra_id = ?', [$id, $obraId])->fetch();
+            $vinculo = q_global('SELECT uo.nivel, uo.admin_obra, u.perfil, u.nome, u.admin_organizacao FROM usuarios_obras uo JOIN usuarios u ON u.id = uo.usuario_id WHERE uo.usuario_id = ? AND uo.obra_id = ?', [$id, $obraId])->fetch();
             if (!$vinculo) { throw new InvalidArgumentException('Este usuário não está nesta obra.'); }
             if ($vinculo['perfil'] === 'admin') { throw new InvalidArgumentException('O administrador geral não é gerenciado por aqui.'); }
             if ($id === (int)$eu['id']) { throw new InvalidArgumentException('Você não pode mudar o próprio nível nem se tirar desta obra.'); }
             if (obra_criador_id() === $id) { throw new InvalidArgumentException('Quem criou a obra é sempre o administrador dela: o nível dele não muda e ele não sai da obra.'); }
+            empresa_validar_delegacao($eu, (string)($_POST['nivel'] ?? 'editor'), $vinculo);
             if ($acao === 'obra_remover_usuario') {
                 q_global('DELETE FROM usuarios_obras WHERE usuario_id = ? AND obra_id = ?', [$id, $obraId]);
                 registrar_alteracao('usuario_removido_da_obra', ['id' => $id]);
@@ -165,14 +182,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $loginN = trim((string)($_POST['login'] ?? ''));
             if ($loginN === '' || strlen((string)($_POST['senha'] ?? '')) < 8) { throw new InvalidArgumentException('Informe o login e uma senha com pelo menos 8 caracteres.'); }
             if (q_global('SELECT id FROM usuarios WHERE login = ?', [$loginN])->fetch()) { throw new InvalidArgumentException('Já existe um usuário com esse login.'); }
+            $executoraOrg = org_espelho_validar(obra_atual_id(), (int)($_POST['executora_org_id'] ?? 0), $eu);
+            bd()->beginTransaction();
             $obraNova = obra_empresa_criar(obra_atual_id(), (string)($_POST['empresa'] ?? ''));
             $uid = obra_empresa_criar_usuario($obraNova, (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
                 (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
+            if ($executoraOrg) {
+                q_global("UPDATE usuarios SET organizacao_id = ?, papel = 'editor_empresa' WHERE id = ?", [$executoraOrg, $uid]);
+                organizacao_vincular_obra($executoraOrg, $obraNova);
+                if (!q_global('SELECT 1 FROM obra_executoras WHERE obra_id=? AND executora_id=?', [obra_atual_id(), $executoraOrg])->fetchColumn()) {
+                    q_global('INSERT INTO obra_executoras VALUES (?,?,?,?,?,?)', [obra_atual_id(), $executoraOrg, $obraNova, (string)($_POST['empresa'] ?? ''), (int)$eu['id'], planos_agora()]);
+                }
+            }
+            bd()->commit();
             $msg = 'Obra própria criada para ' . ($_POST['empresa'] ?? '') . ' e usuário “' . $loginN . '” liberado somente nela.';
         } elseif ($acao === 'empresa_novo_usuario') {
-            obra_empresa_criar_usuario((int)($_POST['obra_id'] ?? 0), (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''),
-                (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
+            $espelhoId = (int)($_POST['obra_id'] ?? 0);
+            $espelho = q_global('SELECT origem_obra_id, organizacao_id FROM obras WHERE id=?', [$espelhoId])->fetch();
+            if (!$espelho || (!$global && (int)$espelho['origem_obra_id'] !== obra_atual_id())) { throw new InvalidArgumentException('Este espelho não pertence à obra aberta.'); }
+            $orgEspelho = (int)($espelho['organizacao_id'] ?? 0);
+            if ($orgEspelho) { list($okPlano,$msgPlano) = plano_verificar_usuario($orgEspelho); if (!$okPlano) { throw new InvalidArgumentException($msgPlano); } }
+            bd()->beginTransaction();
+            $uidEspelho = obra_empresa_criar_usuario($espelhoId, (string)($_POST['nome'] ?? ''), (string)($_POST['login'] ?? ''), (string)($_POST['senha'] ?? ''), (string)($_POST['email'] ?? ''), (array)($_POST['modulos'] ?? []));
+            if ($orgEspelho) { q_global("UPDATE usuarios SET organizacao_id=?, papel='editor_empresa' WHERE id=?", [$orgEspelho,$uidEspelho]); }
+            bd()->commit();
             $msg = 'Usuário criado nesta obra de empresa.';
+        } elseif ($acao === 'empresa_espelhar_producao_bm') {
+            if (obra_empresa_info() || trim((string)($_POST['confirmar'] ?? '')) !== 'ESPELHAR') {
+                throw new InvalidArgumentException('Abra a obra principal e digite ESPELHAR para confirmar.');
+            }
+            $copiados = obra_empresa_espelhar_producao_bm((int)obra_atual_id());
+            $msg = 'Produção e medição copiadas para ' . implode(', ', $copiados) . '. Cópias anteriores guardadas.';
         } elseif ($acao === 'empresa_atualizar_obra') {
             $oid = (int)($_POST['obra_id'] ?? 0);
             $o = q_global('SELECT nome, origem_obra_id FROM obras WHERE id = ?', [$oid])->fetch();
@@ -268,8 +308,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sincronizarDepois = true;
         }
     } catch (InvalidArgumentException $e) {
+        if (bd()->inTransaction()) { bd()->rollBack(); }
         $erro = $e->getMessage();
     } catch (Throwable $e) {
+        if (bd()->inTransaction()) { bd()->rollBack(); }
         $erro = 'Falha: ' . $e->getMessage();
     }
 }
@@ -284,6 +326,7 @@ $empresas = q('SELECT nome FROM empresas ORDER BY ordem')->fetchAll(PDO::FETCH_C
 $ehObraEmpresa = obra_empresa_info() !== null;
 $empresasObra = $ehObraEmpresa ? [] : eo_listar();
 $obrasEmpresa = $ehObraEmpresa ? [] : obra_empresa_listar(obra_atual_id());
+$executorasEspelho = $ehObraEmpresa ? [] : org_espelho_opcoes(obra_atual_id(), $eu);
 $usuariosDaObra = [];
 foreach ($obrasEmpresa as $oe) {
     $usuariosDaObra[(int)$oe['id']] = q_global('SELECT u.nome, u.login, u.ativo FROM usuarios u JOIN usuarios_obras uo ON uo.usuario_id = u.id WHERE uo.obra_id = ? ORDER BY u.nome', [(int)$oe['id']])->fetchAll();
@@ -301,7 +344,7 @@ pagina_inicio('Administração');
 ?>
 <header class="topo">
   <div class="marca"><span class="marca-sigla">198</span><div><h1>Administração</h1>
-    <div class="usuario"><span><?= h($eu['nome']) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Comercial</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
+    <div class="usuario"><span><?= h(usuario_rotulo_empresa($eu)) ?></span><a href="dashboard_admin.php">Dashboard geral</a><a href="obras.php">Central de obras</a><?php if ($global): ?><a href="admin_planos.php">Comercial</a><?php endif; ?><a href="index.php">Voltar ao sistema</a><a href="sair.php">Sair</a></div></div></div>
 </header>
 <main class="admin">
   <?php if ($msg): ?><div class="faixa ok-faixa"><?= h($msg) ?></div><?php endif; ?>
@@ -363,12 +406,12 @@ pagina_inicio('Administração');
       <tbody>
       <?php foreach ($usuarios as $u): ?>
         <tr>
-          <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?php $ehCriador = $criadorObra === (int)$u['id']; $euMesmo = (int)$u['id'] === (int)$eu['id']; ?><?php if ($ehCriador || $euMesmo): ?><span class="farol f-verde"><?= $u['nivel'] === 'admin' ? 'ADMINISTRADOR DA OBRA' : ($u['nivel'] === 'leitor' ? 'LEITOR' : 'EDITOR') ?></span><br><span class="nota"><?= $ehCriador ? 'criador da obra' : 'você' ?></span><?php else: ?><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="obra_nivel"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><select name="nivel" onchange="this.form.submit()"><option value="admin"<?= $u['nivel'] === 'admin' ? ' selected' : '' ?>>Administrador da obra</option><option value="editor"<?= $u['nivel'] === 'editor' ? ' selected' : '' ?>>Editor</option><option value="leitor"<?= $u['nivel'] === 'leitor' ? ' selected' : '' ?>>Leitor</option></select></form><?php endif; ?></td><td><?= h($u['empresa'] ?: 'Todas') ?></td>
+          <td><b><?= h($u['nome']) ?></b></td><td><?= h($u['login']) ?></td><td><?= $u['email'] ? h($u['email']) : '<span class="nota">sem e-mail</span>' ?></td><td><?php $ehCriador = $criadorObra === (int)$u['id']; $euMesmo = (int)$u['id'] === (int)$eu['id']; ?><?php if ($ehCriador || $euMesmo || (!empresa_pode_nomear_admin_obra($eu) && $u['nivel'] === 'admin')): ?><span class="farol f-verde"><?= $u['nivel'] === 'admin' ? 'ADMINISTRADOR DA OBRA' : ($u['nivel'] === 'leitor' ? 'LEITOR' : 'EDITOR') ?></span><br><span class="nota"><?= $ehCriador ? 'criador da obra' : ($euMesmo ? 'você' : 'definido pela empresa') ?></span><?php else: ?><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="obra_nivel"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><select name="nivel" onchange="this.form.submit()"><?php if (empresa_pode_nomear_admin_obra($eu)): ?><option value="admin"<?= $u['nivel'] === 'admin' ? ' selected' : '' ?>>Administrador da obra</option><?php endif; ?><option value="editor"<?= $u['nivel'] === 'editor' ? ' selected' : '' ?>>Editor</option><option value="leitor"<?= $u['nivel'] === 'leitor' ? ' selected' : '' ?>>Leitor</option></select></form><?php endif; ?></td><td><?= h(usuario_identidade_empresa($u)['empresa_nome']) ?></td>
           <?php $ocuU = ui_ocultos_usuario($u); $modsU = $modsPorUsuario[(int)$u['id']] ?? modulos_sistema(); $nOcu = count($ocuU['abas']) + count($ocuU['subs']); ?>
           <td><?php if ($u['nivel']==='admin'): ?><span class="farol f-verde">TODAS AS ÁREAS DA OBRA</span><?php else: ?><span class="nota"><?= h(implode(', ', array_map('ucfirst', array_values(array_intersect(modulos_sistema(), $modsU))))) ?></span><?php if ($nOcu): ?><br><span class="nota">· <?= (int)count($ocuU['abas']) ?> aba(s) e <?= (int)count($ocuU['subs']) ?> sub-aba(s) ocultas</span><?php endif; ?><br><span class="nota">Altere em <b>Editar</b></span><?php endif; ?></td>
           <td><span class="farol f-<?= $u['ativo'] ? 'verde' : 'pendente' ?>"><?= $u['ativo'] ? 'ATIVO' : 'INATIVO' ?></span></td>
           <td><?php if (!usuario_gerenciavel($u['id'])): ?><span class="nota">Usuário de outras obras: dados e senha só pelo administrador geral.</span><?php else: ?><div class="acoes-usuario"><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="senha_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><input type="password" name="senha" placeholder="nova senha" minlength="8" required><button class="btn">Salvar</button></form><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="enviar_reset_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn" <?= $u['email'] ? '' : 'disabled title="Cadastre e-mail antes"' ?>>Enviar link</button></form></div><?php endif; ?></td>
-          <td><div class="acoes-usuario"><?php if (usuario_gerenciavel($u['id'])): ?><button type="button" class="btn" data-editar-usuario data-id="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>" data-login="<?= h($u['login']) ?>" data-email="<?= h($u['email'] ?? '') ?>" data-nivel="<?= h($u['nivel']) ?>" data-empresa="<?= h($u['empresa'] ?? '') ?>" data-modulos="<?= h(implode(',', array_values(array_intersect(modulos_sistema(), $modsU)))) ?>" data-abas-ocultas="<?= h(implode(',', $ocuU['abas'])) ?>" data-subs-ocultas="<?= h(implode(',', $ocuU['subs'])) ?>">Editar</button><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="alternar_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn"><?= $u['ativo'] ? 'Desativar' : 'Ativar' ?></button></form><?php endif; ?><?php if (!$ehCriador && !$euMesmo): ?><form method="post" class="inline" onsubmit="return confirm('Tirar este usuário desta obra? O cadastro dele continua no sistema.')"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="obra_remover_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn">Tirar da obra</button></form><?php endif; ?></div></td>
+          <td><div class="acoes-usuario"><?php if (usuario_gerenciavel($u['id'])): ?><button type="button" class="btn" data-editar-usuario data-id="<?= (int)$u['id'] ?>" data-nome="<?= h($u['nome']) ?>" data-login="<?= h($u['login']) ?>" data-email="<?= h($u['email'] ?? '') ?>" data-nivel="<?= h($u['nivel']) ?>" data-org="<?= (int)usuario_identidade_empresa($u)['organizacao_id'] ?>" data-empresa="<?= h($u['empresa'] ?? '') ?>" data-modulos="<?= h(implode(',', array_values(array_intersect(modulos_sistema(), $modsU)))) ?>" data-abas-ocultas="<?= h(implode(',', $ocuU['abas'])) ?>" data-subs-ocultas="<?= h(implode(',', $ocuU['subs'])) ?>">Editar</button><form method="post" class="inline"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="alternar_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn"><?= $u['ativo'] ? 'Desativar' : 'Ativar' ?></button></form><?php endif; ?><?php if (!$ehCriador && !$euMesmo): ?><form method="post" class="inline" onsubmit="return confirm('Tirar este usuário desta obra? O cadastro dele continua no sistema.')"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="obra_remover_usuario"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"><button class="btn">Tirar da obra</button></form><?php endif; ?></div></td>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -385,6 +428,14 @@ pagina_inicio('Administração');
   <?php if (!$ehObraEmpresa): ?>
   <section class="bloco" id="obrasEmpresas">
     <div class="bloco-cab"><div><h2>Obra própria de cada empresa</h2><span class="nota">Cada empresa recebe uma obra só dela (cópia do que é dela nesta obra), com usuário próprio. O que a empresa lança ou altera lá <b>não altera esta obra</b>.</span></div></div>
+    <form method="post" class="acoes">
+      <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+      <input type="hidden" name="acao" value="empresa_espelhar_producao_bm">
+      <label>Digite ESPELHAR para substituir a produção e os BMs de todos os espelhos vinculados a esta obra. O sistema guarda uma cópia anterior.
+        <input name="confirmar" required pattern="ESPELHAR" autocomplete="off">
+      </label>
+      <button class="btn primario" type="submit">Copiar produção e medição para os espelhos</button>
+    </form>
     <div class="tabela-rolagem"><table>
       <thead><tr><th>Empresa</th><th>Obra própria</th><th>Usuários da empresa</th><th>Ações</th></tr></thead>
       <tbody>
@@ -418,6 +469,7 @@ pagina_inicio('Administração');
         <td><details class="acesso-editar"><summary>Criar obra própria + usuário</summary>
           <form method="post" class="access-checks access-checks-col">
             <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="empresa_criar_obra"><input type="hidden" name="empresa" value="<?= h($emp) ?>">
+            <?php if ($executorasEspelho): ?><label>Cadastro da empresa executora<select name="executora_org_id"><option value="0">Manter vínculo anterior (cadastro legado)</option><?php foreach ($executorasEspelho as $execOrg): ?><option value="<?= (int)$execOrg['id'] ?>"><?= h($execOrg['nome']) ?></option><?php endforeach; ?></select></label><p class="nota">O espelho continua independente. Ao escolher a executora, o administrador da empresa passa a gerenciar seus usuários e os administradores desta obra.</p><?php endif; ?>
             <p class="nota">Cria a obra “<?= h($obra['nome'] ?? 'obra') ?> — <?= h($emp) ?>” com os dados da <?= h($emp) ?> e o usuário abaixo (acesso só a essa obra).</p>
             <input name="nome" placeholder="Nome do usuário" required autocomplete="off"><input name="login" placeholder="Login" required autocomplete="off"><input name="email" type="email" placeholder="E-mail (opcional)" autocomplete="off"><input name="senha" type="password" placeholder="Senha inicial (8+)" minlength="8" required autocomplete="new-password">
             <?php foreach (modulos_sistema() as $m): ?><label class="check"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" <?= in_array($m, OE_MODULOS_PADRAO, true) ? 'checked' : '' ?>><?= h(ucfirst($m)) ?></label><?php endforeach; ?>
@@ -439,14 +491,14 @@ pagina_inicio('Administração');
       <div class="modal-admin-topo"><div><h2 id="tituloNovoUsuario">Criar novo usuário</h2><p id="textoModalUsuario">Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.</p></div><button type="button" class="modal-admin-x" data-fechar-modal aria-label="Fechar">×</button></div>
       <form method="post" class="form-novo-usuario">
         <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_usuario"><input type="hidden" name="id" value="">
-        <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Nível nesta obra<select name="nivel" id="novoPerfil"><option value="editor">Editor</option><option value="leitor">Leitor</option><option value="admin">Administrador da obra</option></select></label><label>Empresa<select name="empresa"><option value="">Todas</option><?php foreach ($empresas as $e): ?><option><?= h($e) ?></option><?php endforeach; ?></select></label></div>
+        <div class="grade-modal"><label>Nome<input name="nome" required autocomplete="off"></label><label>Login<input name="login" required autocomplete="off"></label><label>E-mail para redefinir senha<input name="email" type="email" autocomplete="email" placeholder="usuario@empresa.com"></label><label class="campo-senha-modal">Senha inicial<input name="senha" type="password" minlength="8" required autocomplete="new-password"></label><label>Nível nesta obra<select name="nivel" id="novoPerfil"><option value="editor">Editor</option><option value="leitor">Leitor</option><?php if (empresa_pode_nomear_admin_obra($eu)): ?><option value="admin">Administrador da obra</option><?php endif; ?></select></label><?= usuario_vinculo_campo_obra($eu) ?></div>
         <fieldset class="acesso-modulos" id="novoAcessos"><legend>Nível de acesso por menu</legend><p class="nota">Marque somente os menus que o usuário poderá visualizar. Os alertas do dashboard também seguirão estas permissões.</p><div class="acesso-grade"><?php foreach (modulos_sistema() as $m): ?><label class="check acesso-card"><input type="checkbox" name="modulos[]" value="<?= h($m) ?>" checked><span><?= h(ucfirst($m)) ?></span></label><?php endforeach; ?></div><details class="acesso-abas"><summary>Abas e sub-abas visíveis</summary><input type="hidden" name="ui_enviado" value="1"><p class="nota">Desmarque o que este usuário não deve ver. A área inteira continua valendo pela marcação acima.</p><div class="acesso-abas-lista"><?php foreach (ui_catalogo() as $areaCat): ?><div class="acesso-area"><b><?= h($areaCat[1]) ?></b><?php foreach ($areaCat[2] as $abaCat): ?><label class="check"><input type="checkbox" name="abas[]" value="<?= h($abaCat[0]) ?>" checked><?= h($abaCat[1]) ?></label><?php foreach ($abaCat[2] as $subCat): ?><label class="check acesso-sub"><input type="checkbox" name="subs[]" value="<?= h($abaCat[0] . ':' . $subCat[0]) ?>" checked><?= h($subCat[1]) ?></label><?php endforeach; ?><?php endforeach; ?></div><?php endforeach; ?></div></details><small>Administradores sempre têm acesso total.</small></fieldset>
         <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-modal>Cancelar</button><button class="btn primario" id="btnSalvarUsuarioModal">Criar usuário</button></div>
       </form>
     </div>
   </div>
   <script>
-  (()=>{const m=document.getElementById('modalNovoUsuario'),b=document.getElementById('btnNovoUsuario'),p=document.getElementById('novoPerfil'),a=document.getElementById('novoAcessos'),f=m.querySelector('form'),tit=document.getElementById('tituloNovoUsuario'),txt=document.getElementById('textoModalUsuario'),btn=document.getElementById('btnSalvarUsuarioModal'),campoSenha=m.querySelector('.campo-senha-modal'),senha=m.querySelector('input[name="senha"]'),acao=f.querySelector('input[name="acao"]'),uid=f.querySelector('input[name="id"]');const sync=()=>{const admin=p.value==='admin';a.classList.toggle('acesso-desabilitado',admin);a.querySelectorAll('input').forEach(x=>{x.disabled=admin;if(admin)x.checked=true})};const abrirNovo=()=>{f.reset();acao.value='criar_usuario';uid.value='';tit.textContent='Criar novo usuário';txt.textContent='Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.';btn.textContent='Criar usuário';{const d=f.querySelector('details.acesso-abas');if(d)d.open=false}campoSenha.hidden=false;senha.required=true;senha.disabled=false;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const abrirEditar=el=>{f.reset();acao.value='editar_usuario';uid.value=el.dataset.id||'';f.querySelector('input[name="nome"]').value=el.dataset.nome||'';f.querySelector('input[name="login"]').value=el.dataset.login||'';f.querySelector('input[name="email"]').value=el.dataset.email||'';f.querySelector('select[name="nivel"]').value=el.dataset.nivel||'editor';f.querySelector('select[name="empresa"]').value=el.dataset.empresa||'';const lista=v=>(v||'').split(',').filter(Boolean);const mods=lista(el.dataset.modulos),oa=lista(el.dataset.abasOcultas),os=lista(el.dataset.subsOcultas);f.querySelectorAll('input[name="modulos[]"]').forEach(x=>x.checked=mods.includes(x.value));f.querySelectorAll('input[name="abas[]"]').forEach(x=>x.checked=!oa.includes(x.value));f.querySelectorAll('input[name="subs[]"]').forEach(x=>x.checked=!os.includes(x.value));const det=f.querySelector('details.acesso-abas');if(det)det.open=false;tit.textContent='Editar usuário';txt.textContent='Atualize nome, login, e-mail de recuperação, perfil, empresa e o que o usuário pode ver (áreas, abas e sub-abas).';btn.textContent='Salvar usuário';campoSenha.hidden=true;senha.required=false;senha.disabled=true;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const fechar=()=>{m.hidden=true;document.body.classList.remove('modal-aberto')};b.addEventListener('click',abrirNovo);document.querySelectorAll('[data-editar-usuario]').forEach(x=>x.addEventListener('click',()=>abrirEditar(x)));m.querySelectorAll('[data-fechar-modal]').forEach(x=>x.addEventListener('click',fechar));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)fechar()});p.addEventListener('change',sync);})();
+  (()=>{const m=document.getElementById('modalNovoUsuario'),b=document.getElementById('btnNovoUsuario'),p=document.getElementById('novoPerfil'),a=document.getElementById('novoAcessos'),f=m.querySelector('form'),tit=document.getElementById('tituloNovoUsuario'),txt=document.getElementById('textoModalUsuario'),btn=document.getElementById('btnSalvarUsuarioModal'),campoSenha=m.querySelector('.campo-senha-modal'),senha=m.querySelector('input[name="senha"]'),acao=f.querySelector('input[name="acao"]'),uid=f.querySelector('input[name="id"]');const sync=()=>{const admin=p.value==='admin';a.classList.toggle('acesso-desabilitado',admin);a.querySelectorAll('input').forEach(x=>{x.disabled=admin;if(admin)x.checked=true})};const abrirNovo=()=>{f.reset();acao.value='criar_usuario';uid.value='';tit.textContent='Criar novo usuário';txt.textContent='Defina os dados do login, e-mail e quais menus esse usuário poderá acessar.';btn.textContent='Criar usuário';{const d=f.querySelector('details.acesso-abas');if(d)d.open=false}campoSenha.hidden=false;senha.required=true;senha.disabled=false;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const abrirEditar=el=>{f.reset();acao.value='editar_usuario';uid.value=el.dataset.id||'';f.querySelector('input[name="nome"]').value=el.dataset.nome||'';f.querySelector('input[name="login"]').value=el.dataset.login||'';f.querySelector('input[name="email"]').value=el.dataset.email||'';f.querySelector('select[name="nivel"]').value=el.dataset.nivel||'editor';f.querySelector('[name="empresa"]').value=el.dataset.empresa||'';f.querySelector('[name="organizacao_id"]').value=el.dataset.org||'';const lista=v=>(v||'').split(',').filter(Boolean);const mods=lista(el.dataset.modulos),oa=lista(el.dataset.abasOcultas),os=lista(el.dataset.subsOcultas);f.querySelectorAll('input[name="modulos[]"]').forEach(x=>x.checked=mods.includes(x.value));f.querySelectorAll('input[name="abas[]"]').forEach(x=>x.checked=!oa.includes(x.value));f.querySelectorAll('input[name="subs[]"]').forEach(x=>x.checked=!os.includes(x.value));const det=f.querySelector('details.acesso-abas');if(det)det.open=false;tit.textContent='Editar usuário';txt.textContent='Atualize nome, login, e-mail de recuperação, perfil, empresa e o que o usuário pode ver (áreas, abas e sub-abas).';btn.textContent='Salvar usuário';campoSenha.hidden=true;senha.required=false;senha.disabled=true;m.hidden=false;document.body.classList.add('modal-aberto');sync();f.querySelector('input[name="nome"]').focus()};const fechar=()=>{m.hidden=true;document.body.classList.remove('modal-aberto')};b.addEventListener('click',abrirNovo);document.querySelectorAll('[data-editar-usuario]').forEach(x=>x.addEventListener('click',()=>abrirEditar(x)));m.querySelectorAll('[data-fechar-modal]').forEach(x=>x.addEventListener('click',fechar));document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)fechar()});p.addEventListener('change',sync);})();
   </script>
 
   <div class="grade-2">

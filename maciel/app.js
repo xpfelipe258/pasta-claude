@@ -503,14 +503,25 @@ function preencherListas() {
 }
 
 // ------------------------------------------------------------ navegação e período
+let planSub = 'principal';
 function mudarAba(nome) {
+  if (nome === 'metas') { nome = 'plan'; planSub = 'metas'; }
+  if (nome === 'plan') {
+    const metas = planSub === 'metas' && !UI_OCULTOS.abas.includes('metas');
+    $('#planPrincipal').hidden = metas;
+    $('#aba-metas').hidden = !metas;
+    document.querySelectorAll('[data-plan-sub]').forEach(b => {
+      b.hidden = b.dataset.planSub === 'metas' && UI_OCULTOS.abas.includes('metas');
+      b.classList.toggle('ativa', b.dataset.planSub === (metas ? 'metas' : 'principal'));
+    });
+  }
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativa', b.dataset.aba === nome));
   document.querySelectorAll('.top-aberto').forEach(x => x.classList.remove('top-aberto'));   // menu superior: fecha a lista depois de escolher
   document.querySelectorAll('.sidebar-titulo.area-ativa').forEach(x => x.classList.remove('area-ativa'));
   document.querySelector('#abas button.ativa')?.closest('.sidebar-grupo')?.querySelector('.sidebar-titulo')?.classList.add('area-ativa');
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'aba-' + nome);
-  const emPeriodo = ABAS_PERIODO.has(nome);
+  const emPeriodo = ABAS_PERIODO.has(nome) || (nome === 'plan' && !$('#aba-metas').hidden);
   const emProducao = ABAS_PRODUCAO.has(nome);
   $('#barraPeriodo').hidden = !(emPeriodo || emProducao);
   const pc = $('#perControles');
@@ -579,7 +590,7 @@ function renderAba() {
   const ABAS = { tarefas: () => renderTarefas(), painel: () => renderPainel(), semana: () => renderSemana(), lanc: () => renderLanc(), avanco: () => renderAvanco(), cliente: () => renderCliente(), gantt: () => renderGantt(),
      estmat: () => renderEstMateriais(), estrem: () => renderEstRemessas(), estcons: () => renderEstConsumo(), estinv: () => renderEstInventario(), estcrit: () => renderEstCriticos(), estsis: () => renderEstoque(), estvinc: () => renderVinculos(), estpronto: () => renderPronto(),
      equip: () => renderEquip(), bm: () => renderBM(), metas: () => renderMetas(), impactos: () => renderImpactos(), dp: () => renderDP(), tendencia: () => renderTendencia(), proj: () => renderProjecao(), cff: () => renderCff(), contaspagar: () => renderContasPagar(), apont: () => renderApont(), rdo: () => renderRdo(), qualidade: () => renderQualidade(), sesmtocorr: () => renderSesmtOcorr(),
-     plan: () => renderPlanejamento(), config: () => renderConfig(), tutorial: () => renderTutorial() };
+     plan: () => $('#aba-metas').hidden ? renderPlanejamento() : renderMetas(), config: () => renderConfig(), tutorial: () => renderTutorial() };
   const rendFn = ABAS[abaAtual];
   if (!rendFn) return;
   const exigido = { tarefas: ['renderTarefas', 'tarefas.js'], rdo: ['renderRdo', 'rdo.js'], qualidade: ['renderQualidade', 'qualidade.js'], sesmtocorr: ['renderSesmtOcorr', 'sesmt_aba.js'], cff: ['renderCff', 'cff.js'], contaspagar: ['renderContasPagar', 'contas_pagar.js'], proj: ['renderProjecao', 'projecao.js'], plan: ['renderPlanejamento', 'planos.js'], estvinc: ['renderVinculos', 'vinculos.js'], estpronto: ['renderPronto', 'vinculos.js'], config: ['renderConfig', 'config.js'], tutorial: ['renderTutorial', 'tutorial.js'] }[abaAtual];
@@ -608,10 +619,11 @@ function renderAba() {
 
 // ------------------------------------------------------------ PAINEL (por período)
 function renderPainel() {
-  const c = corte();
+  const inicio = segunda(ref), fim = add(inicio, 6);
+  const c = ref;
   plIndicePainel();   // planos 5W2H ativos (Farol, alertas e bloco de planejamento)
   if (!PL.dados && !PL._carregandoPainel) { PL._carregandoPainel = true; plCarregar().then(() => { PL._carregandoPainel = false; if (abaAtual === 'painel') renderPainel(); }); }
-  const ksAll = paresMeta().map(([e, s]) => kpiPer(e, s, per.ini, per.fim, c)).filter(k => k.prevTotal > 0 || k.real > 0);
+  const ksAll = plFarolSemanal(inicio, fim, c);
 
   // --- filtro de empresa ---
   const emps = [...new Set(ksAll.map(k => k.emp))];
@@ -626,91 +638,68 @@ function renderPainel() {
   $('#aba-painel').classList.toggle('painel-exec', exec);
   document.querySelectorAll('#segPainelModo button').forEach(b => b.classList.toggle('ativa', b.dataset.painelModo === painelModo));
   const ks = painelEmpFiltro ? ksAll.filter(k => k.emp === painelEmpFiltro) : ksAll;
-  const du = c >= per.ini ? contarDiasUteis(add(per.ini, -1), c) : 0;
-  $('#notaFarol').textContent = `Previsto distribuído pelos dias úteis das metas · corte em ${fdA(c)}`;
+  const du = contarDiasUteis(add(inicio, -1), c);
+  $('#notaFarol').textContent = `Planejamento 5W2H · semana de ${fdA(inicio)} a ${fdA(fim)} · corte em ${fdA(c)}`;
 
-  const porEmp = {};
-  ks.forEach(k => {
-    const o = porEmp[k.emp] ||= { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 };
-    if (k.prevTotal > 0) { o.prev += k.prev; o.real += k.real; o.total += k.prevTotal; }
-  });
-  // Projeção de período por empresa (baseada no escopo próprio de cada empresa)
-  const projEmp = projecoesPorEmpresa(c).filter(x => !painelEmpFiltro || x.emp === painelEmpFiltro);
-  projEmp.forEach(x => {
-    const o = porEmp[x.emp] ||= { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 };
-    o.projetadoPer += x.projetadoPer;
-    o.escopoTotal += x.escopo;
-  });
-  const tot = Object.values(porEmp).reduce((a, o) => ({
-    prev: a.prev + o.prev, real: a.real + o.real, total: a.total + o.total,
-    projetadoPer: a.projetadoPer + o.projetadoPer, escopoTotal: a.escopoTotal + o.escopoTotal
-  }), { prev: 0, real: 0, total: 0, projetadoPer: 0, escopoTotal: 0 });
-  const tile = (rot, o, cc) => {
-    const pct = o.prev > 0 ? o.real / o.prev * 100 : null;
-    const pctProjEscopo = o.escopoTotal > 0 && o.projetadoPer > 0 ? o.projetadoPer / o.escopoTotal * 100 : null;
-    const projTxt = pctProjEscopo != null
-      ? ` · proj. período: ${nf(o.projetadoPer, 1)} (${nf(pctProjEscopo, 1)}% do escopo)`
-      : '';
-    return `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, o.total === 0)}</div>
+  const tile = (rot, linhas, cor) => {
+    const comPrevisao = linhas.filter(k => k.pct != null);
+    const pct = comPrevisao.length ? soma0(comPrevisao, k => Math.min(100, k.pct)) / comPrevisao.length : null;
+    const noPrazo = comPrevisao.filter(k => k.pct >= 100).length;
+    return `<div class="tile" style="--c:${cor}"><div class="rot"><span>${esc(rot)}</span>${farolHtml(pct, !comPrevisao.length)}</div>
       <div class="val">${pct == null ? '—' : nf(pct) + '%'}</div>
-      <div class="sub">${exec ? `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)}` : `${nf(o.real)} realizados de ${nf(o.prev, 1)} previstos até ${fd(c)} · meta do período ${nf(o.total, 1)}${projTxt}`}</div></div>`;
+      <div class="sub">${noPrazo} de ${comPrevisao.length} atividades no prazo até ${fd(c)}</div></div>`;
   };
-  // No modo filtrado por empresa: só o tile da empresa. No modo geral: geral + por empresa.
-  const tileGeral = painelEmpFiltro
-    ? tile(painelEmpFiltro, tot, corEmp(painelEmpFiltro))
-    : tile('Geral da obra', tot, 'var(--fg)') + Object.entries(porEmp).map(([n, o]) => tile(n, o, corEmp(n))).join('');
-  $('#tiles').innerHTML = Object.keys(porEmp).length
-    ? tileGeral
-    : `<div class="bloco vazio">Não há metas nem produção no período de ${fdA(per.ini)} a ${fdA(per.fim)}.</div>`;
+  $('#tiles').innerHTML = !ks.length
+    ? `<div class="bloco vazio">Nenhuma atividade 5W2H planejada de ${fdA(inicio)} a ${fdA(fim)}.</div>`
+    : painelEmpFiltro ? tile(painelEmpFiltro, ks, corEmp(painelEmpFiltro))
+      : tile('Geral da obra', ks, 'var(--fg)') + emps.map(emp => tile(emp, ks.filter(k => k.emp === emp), corEmp(emp))).join('');
 
   if (exec) {
     // gestão à vista: serviço, realizado / previsto, % e farol; os piores primeiro dentro de cada empresa
-    let hx = '<thead><tr><th>Serviço</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% da meta do período</th></tr></thead><tbody>';
+    let hx = '<thead><tr><th>Atividade</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% da planejado na semana</th></tr></thead><tbody>';
     let ult = null;
     [...ks].sort((a, b) => a.emp.localeCompare(b.emp) || (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct)).forEach(k => {
       if (k.emp !== ult) { ult = k.emp; hx += `<tr class="grupo"><td colspan="5"><span class="emp-tag" style="--c:${corEmp(ult)}">${esc(ult)}</span></td></tr>`; }
       const semMeta = k.prevTotal === 0, pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
       hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
-        <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+        <td><div class="barra" title="${nf(pctTot)}% da planejado na semana"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
     });
     $('#tabFarol').innerHTML = hx + '</tbody>';
-    renderAlertas(ks, c, true);
+    renderAlertas(ks, c, true, inicio);
     graficoPainel(ks);
     return;
   }
-  let h = `<thead><tr><th>Serviço</th><th class="n">Meta do período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% da meta</th><th class="n" title="Atividades dos planos 5W2H ativos: % do plano já executado">Plano 5W2H</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Atividade</th><th class="n">Planejado na semana</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% do planejado</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
-    if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="9"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
+    if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
     const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
     const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
-    const atrasado = k.prev > 0 && k.real === 0 && c >= per.ini;
-    const pp = plResumoFarol(k);
-    const celPlano = pp ? `<td class="n" title="${nf(pp.real, 1)} ${esc(pp.un)} executados de ${nf(pp.qtd, 1)} do plano; previsto até hoje ${nf(pp.plan, 1)}"><b>${nf(pp.pctPlano, 0)}%</b> ${plFarol(pp.st)}<div class="nota">${pp.pctPrev != null ? nf(pp.pctPrev, 0) + '% do previsto' : 'a iniciar'}</div></td>` : '<td class="n nota">—</td>';
+    const atrasado = k.prev > 0 && k.real === 0 && c >= inicio;
     h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
       <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
       <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
-      <td><div class="barra" title="${nf(pctTot)}% da meta do período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td>${celPlano}</tr>`;
+      <td><div class="barra" title="${nf(pctTot)}% da planejado na semana"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
-  renderAlertas(ks, c, false);
+  renderAlertas(ks, c, false, inicio);
   graficoPainel(ks);
   renderPlanoAcao(c);
   renderPainelPlanos();
 }
 
-function renderAlertas(ks, c, exec) {
+function renderAlertas(ks, c, exec, inicio) {
   const al = [];
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
-    al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para a meta do período.`]));
+    al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para o planejado na semana.`]));
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct >= 90 && k.pct < 100).forEach(k =>
     al.push(['amarelo', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: no limite (${nf(k.pct)}%).`]));
 
-  const limite = minD(add(c, -1), per.fim);
+  const limite = add(c, -1);
   [...new Set(ks.filter(k => k.prevTotal > 0).map(k => k.emp))].forEach(n => {
     const e = empresa(n); if (!e) return;
     const faltam = [];
-    for (let d = per.ini; d <= limite; d = add(d, 1)) if (diaUtil(d) && !e.registros[d]) faltam.push(fd(d));
+    for (let d = inicio; d <= limite; d = add(d, 1)) if (diaUtil(d) && !e.registros[d]) faltam.push(fd(d));
     if (faltam.length) al.push(['amarelo', `<b>${esc(n)}</b> sem lançamento em ${faltam.length > 6 ? faltam.length + ' dias úteis (últimos: ' + faltam.slice(-6).join(', ') + ')' : faltam.join(', ')}. <button class="link" data-ir-lanc="${esc(e.aba)}">Lançar agora</button>`]);
   });
 
@@ -735,7 +724,6 @@ function renderAlertas(ks, c, exec) {
     if (produzido === 0) al.push(['vermelho', `<b>${esc(cap(cl.servico))}</b>: planejado iniciar em ${fd(cl.inicio_plan)} mas ainda não iniciado — <span class="farol f-vermelho">ATRASADO</span>`]);
   });
 
-  plAlertasPainel().forEach(x => al.push(x));   // atividades dos planos 5W2H atrasadas ou no limite
   // faixa de gestão à vista: quantos pontos críticos, de atenção e impactos em aberto
   const nCrit = al.filter(a => a[0] === 'vermelho').length, nAten = al.length - nCrit, nImp = abertos.length;
   const faixa = (rot, v, cc) => `<div class="exec-num" style="--c:${cc}"><b>${v}</b><span>${rot}</span></div>`;
@@ -1753,7 +1741,7 @@ function ganServicoCombina(servicoFonte, servicoLancado) {
   return a === b || a.includes(b) || b.includes(a);
 }
 
-function ganProducao(itOuServico, empNome) {
+function ganProducao(itOuServico, empNome, somenteGrade = false) {
   if (itOuServico && itOuServico._eclusa) return eclusaSerie(itOuServico._eclusa, empNome);   // Eclusa: só as colunas de vigas ou de joists
   const fontes = ganServicosFonte(itOuServico), frenteAlvo = typeof itOuServico === 'string' ? null : itOuServico.frente;
   const ds = [], dsBmAp = [];   // grade e apontamentos do BM separados: o mesmo trabalho pode estar nas duas fontes (telhas apontadas no mapa lançam nas duas)
@@ -1765,6 +1753,7 @@ function ganProducao(itOuServico, empNome) {
       if (typeof ajustado === 'number' && ajustado > 0) ds.push([d, ajustado]);
     }));
   });
+  if (somenteGrade) return ds;
   if (T && Array.isArray(T.bm_atividades) && Array.isArray(T.bm_apontamentos)) {
     fontes.forEach(f => {
       const atividades = T.bm_atividades.filter(a => (!empNome || normEmp(a.empresa) === normEmp(empNome)) && bmAtividadeCompatServico(a, f) && bmAtividadePermitida(a, frenteAlvo));
@@ -5660,7 +5649,7 @@ function bmPeriodos(emp) {
     const propria = !!ld || antigo;
     if (ld) sinal = Number(ld.percentual); else if (antigo) sinal = Number(p.sinal_perc);
     lista.push({ chave: 'p' + p.linha, n, ini: iniP, fim: p.corte, cortado: true, fechado: !!fech, fech, sinalPerc: sinal, sinalPropria: propria, sinalLinha: ld ? ld.linha : null, linha: p.linha,
-      rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' : ''}` });
+      rot: `BM${n} · corte ${fdA(p.corte)}${fech ? ' · fechado' + (fech.competencia ? ' · ref. ' + fech.competencia : '') : ''}` });
     ant = p.corte;
   });
   if (!ant || ref > ant) {
@@ -5949,7 +5938,7 @@ function renderBMBoletim(box) {
   let h = `<div class="barra-acoes"><label class="rot-sel">Medição <select id="selBmPer">${ps.map(x => `<option value="${x.chave}" ${x.chave === bmPerSel ? 'selected' : ''}>${esc(x.rot)}</option>`).join('')}</select></label>
     <span class="status-bm">${p.fechado ? `<span class="farol f-verde">FECHADO em ${fdA(p.fech.fechado_em)}</span>` : `<span class="farol f-amarelo">EM ABERTO</span>`}</span>
     <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento (já medido e pago).' : 'Acumulado da produção lançada, menos o que já foi medido nos BMs anteriores.'}</span>
-    <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${p.cortado && !p.fechado ? `<label class="edit-corte-inline">Corte <input type="date" value="${p.fim}" data-edit-corte="${parseInt(p.chave.slice(1))}" title="Editar data de corte do BM${p.n}"></label>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}<button class="btn" data-bm-imprimir>⤓ Baixar BM${p.n}</button></span></div>`;
+    <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${p.cortado && !p.fechado ? `<label class="edit-corte-inline">Corte <input type="date" value="${p.fim}" data-edit-corte="${parseInt(p.chave.slice(1))}" title="Editar data de corte do BM${p.n}"></label>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${p.fechado && D?.usuario?.perfil !== "leitura" && (D?.usuario?.papel !== "editor_sistema" || D.usuario.modulos_edicao?.includes("financeiro")) ? `<button class="btn" data-bm-competencia>Editar mês de referência</button>` : ""}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}<button class="btn" data-bm-imprimir>⤓ Baixar BM${p.n}</button></span></div>`;
   h += bmResumoPeriodoHtml(emp, p, r, tot, cc) + '<details class="bloco bm-contrato"><summary><b>Contrato, acumulado e descontos do BM</b></summary><div class="tiles">' +
     bmTile('Contrato RÓTULA', rs(tot.contrato), `${esc(emp)} · medição só no contrato RÓTULA`, cc) +
     bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
@@ -6063,16 +6052,53 @@ function renderBMCatalogo(box) {
   box.innerHTML = h + '</tbody></table></div></div>';
 }
 
+function bmEscolherCompetencia(p) {
+  const dialogo = document.createElement('dialog');
+  dialogo.innerHTML = `<form method="dialog">
+    <h2>${p.fechado ? "Editar mês de referência do" : "Fechar"} BM${p.n}</h2>
+    <label>Mês de competência <input type="month" name="competencia" value="${esc(p.fech?.competencia || (p.fech?.fechado_em || p.fim).slice(0, 7))}" required></label>
+    <p class="nota">Contas a pagar usará este mês como referência.</p>
+    <div class="acoes">
+      <button type="button" class="btn" data-cancelar>Cancelar</button>
+      <button type="submit" class="btn primario" value="salvar">${p.fechado ? "Salvar referência" : "Fechar BM"}</button>
+    </div>
+  </form>`;
+  document.body.appendChild(dialogo);
+  dialogo.querySelector('[data-cancelar]').onclick = () => dialogo.close();
+  return new Promise(resolve => {
+    dialogo.addEventListener('close', () => {
+      const mes = dialogo.returnValue === 'salvar' ? dialogo.querySelector('input').value : '';
+      dialogo.remove();
+      resolve(mes);
+    }, { once: true });
+    dialogo.showModal();
+  });
+}
+
 async function fecharBM() {
   const emp = bmEmp, p = bmPeriodos(emp).find(x => x.chave === bmPerSel);
   if (!p || !p.cortado || p.fechado) return;
+  const competencia = await bmEscolherCompetencia(p);
+  if (!competencia) return;
   const its = bmItens(emp, p.fim), d = bmDeducoes(emp, p);
   const atividades = its.flatMap(it => it.ats.map(x => ({ codigo: x.a.codigo, item: it.item, realizado: x.real, qtd: x.a.qtd, peso: x.a.peso, valor_qpc: it.valor['QPC'], valor_rotula: it.valor['RÓTULA'] })));
   try {
-    await postar(API + 'bm/fechar', { empresa: emp, bm: p.n, fechado_em: hoje(), equip: d.equip, comb: d.comb, litros: d.litros, atividades });
+    await postar(API + 'bm/fechar', { empresa: emp, bm: p.n, fechado_em: hoje(), competencia, equip: d.equip, comb: d.comb, litros: d.litros, atividades });
     await carregar();
     toast(`BM${p.n} fechado: valores congelados`);
   } catch (err) { toast(err.message, true); renderBM(); }
+}
+
+async function editarCompetenciaBM() {
+  const emp = bmEmp, p = bmPeriodos(emp).find(x => x.chave === bmPerSel);
+  if (!p?.fechado) return;
+  const competencia = await bmEscolherCompetencia(p);
+  if (!competencia || competencia === p.fech.competencia) return;
+  try {
+    await postar(API + 'bm/competencia', { empresa: emp, bm: p.n, competencia });
+    await carregar();
+    toast(`Mês de referência do BM${p.n} atualizado.`);
+  } catch (err) { toast(err.message, true); }
 }
 
 async function reabrirBM() {
@@ -6720,18 +6746,42 @@ function baixarHtml(nome, html) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   return true;
 }
-function preencherEmpresasRelImpacto() {
-  const sel = $('#relImpEmpresas');
-  if (!sel) return;
-  const nomes = [...new Set((M.empresas || []).map(e => e.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  sel.innerHTML = nomes.map(nome => `<label class="imp-emp"><input type="checkbox" value="${esc(nome)}" checked> ${esc(nome)}</label>`).join('');
+let relImpactosCandidatos = [];
+function opcoesRelImpacto(nomes) {
+  return [...new Set(nomes.filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    .map(nome => `<option value="${esc(nome)}">${esc(nome)}</option>`).join('');
+}
+function atualizarItensRelImpacto() {
+  const ini = $('#relImpIni').value, fim = $('#relImpFim').value;
+  const valores = id => [...$('#' + id).selectedOptions].map(o => o.value).filter(Boolean);
+  const empresas = valores('relImpEmpresas');
+  const causadores = valores('relImpCausador'), servicos = valores('relImpServico').map(ganNorm);
+  const situacoes = valores('relImpSituacao'), origens = valores('relImpOrigem');
+  const busca = ganNorm($('#relImpBusca').value);
+  relImpactosCandidatos = impactosComAutomaticos().filter(i => {
+    const p = periodoImpacto(i);
+    return p.ini <= fim && p.fim >= ini
+      && (!empresas.length || impactoEmpresas(i).some(e => empresas.includes(e)))
+      && (!causadores.length || causadores.includes(impactoSetor(i)))
+      && (!servicos.length || servicos.includes(ganNorm(i.servico)))
+      && (!situacoes.length || situacoes.includes(i.solucionado ? 'solucionado' : 'aberto'))
+      && (!origens.length || origens.includes(i._autoRemessa ? 'auto' : 'manual'))
+      && (!busca || ganNorm([i.motivo, i.paralisacao, i.solucao].join(' ')).includes(busca));
+  }).sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  $('#relImpItens').innerHTML = relImpactosCandidatos.map((i, idx) =>
+    `<option value="${idx}">${esc([fdA(i.data), impactoSetor(i), i.servico, i.motivo].filter(Boolean).join(' · '))}</option>`).join('');
 }
 function abrirRelImpacto() {
   const pop = $('#modalRelImp');
-  if (!pop) return baixarRelImpacto(per?.ini || ref, per?.fim || ref, []);
+  if (!pop) return;
   $('#relImpIni').value = per?.ini || ref;
   $('#relImpFim').value = per?.fim || ref;
-  preencherEmpresasRelImpacto();
+  const impactos = impactosComAutomaticos();
+  $('#relImpEmpresas').innerHTML = opcoesRelImpacto([...(M.empresas || []).map(e => e.nome), ...impactos.flatMap(impactoEmpresas)]);
+  $('#relImpCausador').innerHTML = opcoesRelImpacto(impactos.map(impactoSetor));
+  $('#relImpServico').innerHTML = opcoesRelImpacto(impactos.map(i => i.servico));
+  for (const id of ['relImpSituacao', 'relImpOrigem', 'relImpBusca']) $('#' + id).value = '';
+  atualizarItensRelImpacto();
   const hd = $('#relImpHD'); if (hd && !hd.value) hd.value = relImpValorHD() ? String(relImpValorHD()).replace('.', ',') : '';
   pop.hidden = false;
   document.body.classList.add('modal-aberto');
@@ -6752,10 +6802,14 @@ function gerarRelImpactoPopup(tipo) {
       try { localStorage.setItem('relImpHD', String(hd)); } catch (e) {}
       baixarRelImpactoCliente(ini, fim, hd);
     } else {
-      const selecionadas = [...document.querySelectorAll('#relImpEmpresas input:checked')].map(c => c.value);
+      const selecionadas = [...($('#relImpEmpresas')?.selectedOptions || [])].map(o => o.value).filter(Boolean);
       const secoes = [...document.querySelectorAll('#relImpSecoes input:checked')].map(c => c.value);
       if (!secoes.length) return toast('Marque ao menos uma seção do relatório geral.', true);
-      baixarRelImpacto(ini, fim, selecionadas, { secoes, semRemessa: !secoes.includes('remessas') });
+      const semRemessa = !secoes.includes('remessas');
+      const itens = [...$('#relImpItens').selectedOptions].map(o => relImpactosCandidatos[Number(o.value)]);
+      const impactos = (itens.length ? itens : relImpactosCandidatos).filter(i => !(semRemessa && i._autoRemessa));
+      if (!impactos.length) return toast('Nenhum impacto corresponde aos filtros.', true);
+      baixarRelImpacto(ini, fim, selecionadas, { secoes, semRemessa, impactos });
     }
     fecharRelImpactoPopup();
   } catch (err) {
@@ -6861,7 +6915,7 @@ function baixarRelImpacto(ini, fim, empFiltro = [], opc = {}) {
   const tabelas = T || {};
   const empsBase = [...new Set((modelo.empresas || []).map(e => e.nome).filter(Boolean))];
   const empsRel = empFiltro.length ? empFiltro : empsBase;
-  const imp = impactosComAutomaticos().filter(i => !(opc.semRemessa && i._autoRemessa)).filter(i => {
+  const imp = (opc.impactos || impactosComAutomaticos()).filter(i => !(opc.semRemessa && i._autoRemessa)).filter(i => {
     const p = periodoImpacto(i), xs = impactoEmpresas(i);
     const cruza = p.ini <= fim && p.fim >= ini;
     const empOk = !empFiltro.length || !xs.length || xs.some(e => empFiltro.includes(e));
@@ -7623,6 +7677,9 @@ function ligarEventos() {
     const sub = ev.target.closest('[data-bm-sub]'); if (sub) { bmSub = sub.dataset.bmSub; return renderBM(); }
     const it = ev.target.closest('[data-bm-item]'); if (it) { const k = it.dataset.bmItem; bmAbertos.has(k) ? bmAbertos.delete(k) : bmAbertos.add(k); return renderBM(); }
     if (ev.target.closest('[data-bm-semear]')) return semearBM();
+    const subPlan = ev.target.closest('[data-plan-sub]');
+    if (subPlan) { planSub = subPlan.dataset.planSub; mudarAba('plan'); return; }
+    if (ev.target.closest('[data-bm-competencia]')) { editarCompetenciaBM(); return; }
     const bf = ev.target.closest('[data-bm-fechar], [data-bm-reabrir]');
     if (bf) {
       if (!bf.dataset.confirmar) { bf.dataset.confirmar = '1'; bf.textContent = 'Confirmar ' + (bf.hasAttribute('data-bm-fechar') ? 'fechamento' : 'reabertura'); return; }
@@ -7755,6 +7812,9 @@ function ligarEventos() {
     else if (ev.target.name === 'servico') { atualizarServicoOutro(f); if (f.elements.servico.value === '__outro') f.elements.servicoOutro.focus(); atualizarCascataImpacto(f); }
   });
   const btnRelImp = $('#btnRelImp'); if (btnRelImp) btnRelImp.onclick = abrirRelImpacto;
+  $('#modalRelImp')?.addEventListener('input', ev => {
+    if (ev.target.matches('#relImpIni, #relImpFim, #relImpEmpresas, #relImpCausador, #relImpServico, #relImpSituacao, #relImpOrigem, #relImpBusca')) atualizarItensRelImpacto();
+  });
   const btnGerarRelImp = $('#btnGerarRelImp'); if (btnGerarRelImp) btnGerarRelImp.onclick = () => gerarRelImpactoPopup('geral');
   const btnRelImpCli = $('#btnRelImpCliente'); if (btnRelImpCli) btnRelImpCli.onclick = () => gerarRelImpactoPopup('cliente');
   const modalRelImp = $('#modalRelImp'); if (modalRelImp) modalRelImp.querySelectorAll('[data-fechar-rel-imp]').forEach(x => x.addEventListener('click', fecharRelImpactoPopup));

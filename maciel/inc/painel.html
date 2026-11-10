@@ -61,7 +61,6 @@
         <button data-aba="avanco">Avanço físico</button>
         <button data-aba="gantt">Cronograma (Gantt)</button>
         <button data-aba="cliente">Dashboard cliente</button>
-        <button data-aba="metas">Metas</button>
         <button data-aba="tendencia">Tendências</button>
       </div>
     </div>
@@ -324,8 +323,33 @@
 
   <!-- PLANEJAMENTO DE MONTAGEM -->
   <section id="aba-plan" hidden>
+    <div class="seg barra-acoes" aria-label="Planejamento"><button class="ativa" data-plan-sub="principal">Planejamento</button><button data-plan-sub="metas">Metas</button></div>
+    <div id="planPrincipal">
     <div class="barra-acoes"><div class="seg" id="segPlanSub"></div></div>
     <div id="planoNovo"></div>
+    </div>
+  <section id="aba-metas" hidden>
+    <div class="bloco">
+      <div class="bloco-cab">
+        <h2>Metas da semana — <span id="metasNavLabel"></span></h2>
+        <div class="acoes">
+          <div class="seg">
+            <button id="metasPrevSem" title="Semana anterior">&#8249;</button>
+            <button id="metasHojeSem">Semana atual</button>
+            <button id="metasNextSem" title="Próxima semana">&#8250;</button>
+          </div>
+          <label class="check"><input type="checkbox" id="propagar"> Aplicar também às semanas seguintes</label>
+          <button class="btn primario" id="btnSalvarMetas" disabled>Salvar metas</button>
+        </div>
+      </div>
+      <div class="tabela-rolagem"><table id="tabMetas"></table></div>
+      <p class="nota">Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
+    </div>
+    <div class="bloco">
+      <div class="bloco-cab"><h2>Histórico de metas</h2></div>
+      <div class="tabela-rolagem"><table id="tabMetasHist"></table></div>
+    </div>
+  </section>
   </section>
 
   <section id="aba-avanco" hidden>
@@ -636,28 +660,6 @@
     </div>
     <div id="bmCorpo" class="pilha"></div>
   </section>
-  <section id="aba-metas" hidden>
-    <div class="bloco">
-      <div class="bloco-cab">
-        <h2>Metas da semana — <span id="metasNavLabel"></span></h2>
-        <div class="acoes">
-          <div class="seg">
-            <button id="metasPrevSem" title="Semana anterior">&#8249;</button>
-            <button id="metasHojeSem">Semana atual</button>
-            <button id="metasNextSem" title="Próxima semana">&#8250;</button>
-          </div>
-          <label class="check"><input type="checkbox" id="propagar"> Aplicar também às semanas seguintes</label>
-          <button class="btn primario" id="btnSalvarMetas" disabled>Salvar metas</button>
-        </div>
-      </div>
-      <div class="tabela-rolagem"><table id="tabMetas"></table></div>
-      <p class="nota">Meta ajustada = Meta/dia × Dias úteis + GAP.</p>
-    </div>
-    <div class="bloco">
-      <div class="bloco-cab"><h2>Histórico de metas</h2></div>
-      <div class="tabela-rolagem"><table id="tabMetasHist"></table></div>
-    </div>
-  </section>
 
   <!-- IMPACTOS -->
   <section id="aba-impactos" hidden>
@@ -684,7 +686,15 @@
           <div class="modal-admin-acoes"><button type="button" class="btn primario" id="btnRelImpCliente">Relatório de impactos do cliente</button></div>
         </fieldset>
         <fieldset class="rel-imp-bloco"><legend>Relatório de impactos geral (editável)</legend>
-          <span class="nota">Empresas</span><div class="imp-emps" id="relImpEmpresas"></div>
+          <div class="grade-modal">
+          <label>Quem causou<select id="relImpCausador" multiple size="3"></select></label>
+          <label>Empresa impactada<select id="relImpEmpresas" multiple size="3"></select></label>
+          <label>Serviço<select id="relImpServico" multiple size="3"></select></label>
+          <label>Situação<select id="relImpSituacao" multiple size="3"><option value="aberto">Em aberto</option><option value="solucionado">Solucionado</option></select></label>
+          <label>Origem<select id="relImpOrigem" multiple size="3"><option value="manual">Manual</option><option value="auto">Automática</option></select></label>
+          <label>Buscar no impacto<input type="search" id="relImpBusca" placeholder="Motivo, paralisação ou solução"></label>
+          <label class="largo">Ocorrências<select id="relImpItens" multiple size="6"></select><span class="nota">Use Ctrl ou Command para marcar várias opções nos filtros e na lista de ocorrências. Um campo sem seleção aceita todas as opções.</span></label>
+          </div>
           <span class="nota">Seções que entram</span><div class="imp-emps" id="relImpSecoes"><label class="imp-emp"><input type="checkbox" value="ranking" checked> Ranking por setor e empresa</label><label class="imp-emp"><input type="checkbox" value="cards" checked> Cartões de resumo</label><label class="imp-emp"><input type="checkbox" value="impactos" checked> Lista de impactos</label><label class="imp-emp"><input type="checkbox" value="remessas" checked> Remessas em atraso</label><label class="imp-emp"><input type="checkbox" value="produtividade" checked> Produtividade das empresas</label><label class="imp-emp"><input type="checkbox" value="equipamentos" checked> Total de equipamentos</label><label class="imp-emp"><input type="checkbox" value="pessoal" checked> Pessoal por dia</label></div>
           <p class="nota">Sem “Remessas em atraso”, os impactos automáticos de remessa também saem da lista e do ranking.</p>
           <div class="modal-admin-acoes"><button type="button" class="btn" data-fechar-rel-imp>Cancelar</button><button type="button" class="btn primario" id="btnGerarRelImp">Relatório de impactos geral</button></div>
