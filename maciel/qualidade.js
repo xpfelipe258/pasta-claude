@@ -2,12 +2,12 @@
 // ------------------------------------------------------------------------------------------------
 // QUALIDADE — não conformidades (NC) com resposta da empresa e validação do administrador.
 //   1. A GESTÃO registra: empresa responsável, local, descrição, gravidade, fotos "antes" e o PRAZO PARA RESPONDER.
-//   2. A EMPRESA responde na própria NC (texto + fotos "depois") dentro do prazo; a NC chega como alerta na aba dela.
+//   2. A EMPRESA responde na própria NC (texto e, quando disponíveis, fotos "depois") dentro do prazo; a NC chega como alerta na aba dela.
 //   3. O ADMINISTRADOR valida (a NC fica CONCLUÍDA) ou devolve para correção (volta para a empresa, com o motivo).
 // Cada empresa só vê as próprias NCs. Relatórios mostram ANTES × DEPOIS. Gravação: rota `qualidade` (api.php) e fotos em nc_foto.php.
 // ------------------------------------------------------------------------------------------------
 
-const QUAL = { emp: '', sit: '', grav: '', busca: '', fotosPend: [] };
+const QUAL = { emp: '', sit: '', grav: '', busca: '', fotosPend: [], sel: new Set() };   // sel = não conformidades marcadas para o relatório dos selecionados
 const QUAL_FOTO = 'nc_foto.php';
 const QUAL_SIT = { aberta: 'Aguardando resposta', andamento: 'Em andamento', respondida: 'Aguardando validação', concluida: 'Concluída' };
 const QUAL_SIT_MANUAL = ['aberta', 'andamento', 'concluida'];   // o administrador escolhe qualquer uma destas na hora; "Aguardando validação" só nasce quando a empresa responde
@@ -16,7 +16,7 @@ const QUAL_COR_SIT = { aberta: 'vermelho', andamento: 'azul', respondida: 'amare
 const QUAL_COR_GRAV = { baixa: 'verde', media: 'amarelo', alta: 'vermelho', critica: 'vermelho' };
 
 const qualSomenteLeitura = () => document.body.classList.contains('somente-leitura');
-const qualMinhaEmpresa = () => (window.USUARIO_EMPRESA || '').trim();
+const qualMinhaEmpresa = () => (window.USUARIO_RESTRITO ?? window.USUARIO_EMPRESA ?? '').trim();
 const qualEhAdmin = () => !!(D && D.usuario && (D.usuario.perfil === 'admin' || D.usuario.admin_obra));
 const qualAberta = n => n.situacao === 'aberta' || n.situacao === 'andamento';   // com a empresa: aguardando resposta ou em andamento
 // Uma NC pode ter mais de uma empresa (empresa = 'CMM|EJ'): cada uma responde a sua parte (tabela nc_respostas); NC de uma empresa só usa as colunas da própria NC.
@@ -148,17 +148,61 @@ function qualAlertaHtml() {
   if (minha) {
     const lista = t.filter(qualAberta).sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999'));
     if (!lista.length) return `<div class="qual-alerta ok"><b>✔ Nenhuma não conformidade aguardando a sua resposta.</b></div>`;
-    return `<div class="qual-alerta"><b>⚠ ${lista.length} não conformidade(s) aguardando a resposta da ${esc(minha)}</b> — responda com texto e foto dentro do prazo.
+    return `<div class="qual-alerta"><b>⚠ ${lista.length} não conformidade(s) aguardando a resposta da ${esc(minha)}</b> — envie a resposta dentro do prazo e anexe fotos da correção quando disponíveis.
       <ul>${lista.map(n => `<li><button class="btn qual-resp" data-qual-abrir="${n.linha}">Responder</button> <b>${esc(n.codigo)}</b> — ${esc(n.titulo)} <span class="nota">(${esc(n.local || '')})</span> · prazo ${qualPrazoTxt(n)}${n.devolucao ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</li>`).join('')}</ul></div>`;
   }
-  if (qualEhAdmin()) {
-    const lista = t.filter(n => n.situacao === 'respondida');
-    if (lista.length) return `<div class="qual-alerta val"><b>${lista.length} resposta(s) aguardando a sua validação</b>
-      <ul>${lista.map(n => `<li><button class="btn qual-resp" data-qual-abrir="${n.linha}">Validar</button> <b>${esc(n.codigo)}</b> — ${esc(n.titulo)} · ${esc(qualEmpTxt(n))} · respondida em ${fdA(String(n.respondida_em || '').slice(0, 10))}${qualRespondidaAtraso(n) ? ' <span class="farol f-vermelho">COM ATRASO</span>' : ''}</li>`).join('')}</ul></div>`;
+  const fotosPorNc = new Map();
+  for (const foto of T.nc_fotos || []) {
+    if (foto.tipo !== 'depois') continue;
+    if (!fotosPorNc.has(foto.nc_id)) fotosPorNc.set(foto.nc_id, []);
+    fotosPorNc.get(foto.nc_id).push(foto);
   }
-  return '';
+  const correcoes = [];
+  for (const n of t) {
+    if (n.situacao === 'concluida') continue;
+    const fotos = fotosPorNc.get(n.linha) || [];
+    const empresas = qualEmps(n).flatMap(empresa => {
+      const resposta = qualRespDe(n, empresa);
+      const fotosEmpresa = fotos.filter(f => f.empresa === empresa || (!qualMulti(n) && !f.empresa));
+      return resposta.respondida_em || fotosEmpresa.length ? [{ empresa, resposta, fotos: fotosEmpresa }] : [];
+    });
+    if (!empresas.length && n.situacao !== 'respondida') continue;
+    const ultima = empresas.flatMap(e => [e.resposta.respondida_em || '', ...e.fotos.map(f => f.em || '')]).sort().pop() || n.respondida_em || '';
+    correcoes.push({ n, empresas, ultima });
+  }
+  if (!correcoes.length) return '';
+  correcoes.sort((a, b) => b.ultima.localeCompare(a.ultima) || b.n.linha - a.n.linha);
+  return `<div class="qual-alerta val"><b>Respostas e fotos de correção recebidas (${correcoes.length} NCs)</b>
+    <ul>${correcoes.map(({ n, empresas }) => `<li>
+      <button type="button" class="btn qual-resp" data-qual-abrir="${n.linha}">${n.situacao === 'respondida' && qualEhAdmin() ? 'Validar' : 'Ver correção'}</button>
+      <b>${esc(n.codigo)}</b> — ${esc(n.titulo)} · ${qualSeloSit(n)}
+      ${empresas.length ? `<ul>${empresas.map(({ empresa, resposta, fotos }) => {
+        const textos = [];
+        if (resposta.respondida_em) {
+          textos.push('Resposta enviada em ' + fdA(String(resposta.respondida_em).slice(0, 10)));
+        }
+        if (fotos.length) {
+          const ultimaFoto = fotos.reduce((data, f) => f.em && f.em > data ? f.em : data, '');
+          const descricao = fotos.length + (fotos.length === 1 ? ' foto da correção' : ' fotos da correção');
+          textos.push(descricao + (ultimaFoto ? ' · último anexo em ' + fdA(ultimaFoto.slice(0, 10)) : ''));
+        }
+        return `<li><b>${esc(empresa)}</b> · ${esc(textos.join(' · '))}</li>`;
+      }).join('')}</ul>` : ''}
+    </li>`).join('')}</ul></div>`;
 }
 
+// Seleção de não conformidades (caixas da lista) para baixar o relatório só das marcadas
+function qualSelBarra() {
+  const b = document.getElementById('qualSelBarra');
+  if (!b) return;
+  const vivos = new Set(qualTodas().map(n => n.linha));
+  [...QUAL.sel].forEach(id => { if (!vivos.has(id)) QUAL.sel.delete(id); });
+  const n = QUAL.sel.size;
+  b.hidden = !n;
+  b.innerHTML = n ? `<b>${n} não conformidade(s) selecionada(s)</b> <button type="button" class="btn qual-ok" id="qualRelSel">Relatório dos selecionados</button> <label class="check"><input type="checkbox" id="qualSelFotos" ${QUAL.selSemFotos ? '' : 'checked'}> com fichas e fotos</label> <button type="button" class="btn" id="qualSelLimpar">Limpar seleção</button>` : '';
+  const todos = document.getElementById('qualSelTodos');
+  if (todos) { const vis = qualFiltradas(); todos.checked = vis.length > 0 && vis.every(x => QUAL.sel.has(x.linha)); todos.indeterminate = !todos.checked && vis.some(x => QUAL.sel.has(x.linha)); }
+}
 function renderQualidade() {
   const corpo = $('#qualCorpo');
   if (!corpo) return;
@@ -175,7 +219,7 @@ function renderQualidade() {
     <div class="barra-acoes">
       ${gestao && !ro ? '<button class="btn primario" id="qualNova">+ Nova não conformidade</button>' : ''}
       <button class="btn" id="qualRel" title="Relatório de não conformidades (antes × depois, com fotos)">Relatório de não conformidades</button>
-      <span class="nota">${gestao ? 'Registre a não conformidade com o prazo para a empresa responder. A empresa responde com texto e foto; o administrador valida.' : 'Responda cada não conformidade com texto e foto dentro do prazo. O administrador valida a sua resposta.'}</span>
+      <span class="nota">${gestao ? 'Registre a não conformidade com o prazo para a empresa responder. Acompanhe as respostas e as fotos de correção enviadas pelas executoras.' : 'Envie a resposta dentro do prazo. As fotos da correção podem ser anexadas separadamente.'}</span>
     </div>
     ${empresas.length > 1 ? `<div class="seg qual-seg" id="qualSegEmp"><button type="button" data-qual-emp="" class="${QUAL.emp ? '' : 'ativa'}">Todas as empresas (${todas.length})</button>${porEmp.map(p => `<button type="button" data-qual-emp="${esc(p.emp)}" class="${QUAL.emp === p.emp ? 'ativa' : ''}">${esc(p.emp)} (${p.total}${p.total - p.concl ? ` · ${p.total - p.concl} pendente(s)` : ''})</button>`).join('')}</div>` : ''}
     <div class="tiles">
@@ -198,11 +242,12 @@ function renderQualidade() {
           <input type="search" id="qualBusca" placeholder="Buscar código, local, descrição…" value="${esc(QUAL.busca)}">
         </div>
       </div>
-      <div class="tabela-rolagem"><table id="tabQual"><thead><tr><th>Código</th><th>Registrada em</th><th>Empresa</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo para responder</th><th>Resposta</th><th class="n">Fotos</th><th></th></tr></thead><tbody>
+      <div class="qual-sel-barra" id="qualSelBarra" hidden></div>
+      <div class="tabela-rolagem"><table id="tabQual"><thead><tr><th class="qual-sel-col"><input type="checkbox" id="qualSelTodos" title="Selecionar todas as não conformidades da lista (com os filtros atuais)"></th><th>Código</th><th>Registrada em</th><th>Empresa</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo para responder</th><th>Resposta</th><th class="n">Fotos</th><th></th></tr></thead><tbody>
         ${lista.length ? lista.map(n => {
           const antes = qualFotosDe(n.linha, 'antes').length, depois = qualFotosDe(n.linha, 'depois').length;
           const acaoRot = qualAberta(n) && !gestao ? 'Responder' : n.situacao === 'respondida' && qualEhAdmin() ? 'Validar' : (ro || (gestao && n.situacao === 'concluida') || (!gestao && !qualAberta(n))) ? 'Abrir' : 'Editar';
-          return `<tr${qualAtrasada(n) ? ' class="qual-linha-atraso"' : ''}><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(qualEmpTxt(n))}</td>
+          return `<tr${qualAtrasada(n) ? ' class="qual-linha-atraso"' : ''}><td class="qual-sel-col"><input type="checkbox" data-qual-sel="${n.linha}" ${QUAL.sel.has(n.linha) ? 'checked' : ''} title="Selecionar para o relatório"></td><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(qualEmpTxt(n))}</td>
             <td><a href="#" class="link" data-qual-abrir="${n.linha}"><b>${esc(n.titulo || '')}</b></a>${n.descricao ? `<div class="nota qual-desc">${esc(n.descricao)}</div>` : ''}${n.devolucao && qualAberta(n) ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</td>
             <td>${esc(n.local || '')}</td>
             <td>${qualSelo(QUAL_GRAV[n.gravidade] || n.gravidade || '—', QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td>
@@ -211,9 +256,10 @@ function renderQualidade() {
             <td>${(qualMulti(n) ? qualEmps(n).filter(e => !qualMinhaEmpresa() || e === qualMinhaEmpresa()) : [qualEmps(n)[0] || '']).map(e => { const r = qualRespDe(n, e); return `<div>${qualMulti(n) ? `<b>${esc(e)}:</b> ` : ''}${r.respondida_em ? `${fdA(String(r.respondida_em).slice(0, 10))}${qualRespAtraso(n, r) ? ' <span class="farol f-vermelho">COM ATRASO</span>' : ''}<div class="nota">${esc(r.respondida_por || '')}</div>` : (n.situacao === 'concluida' ? '—' : '<span class="nota">sem resposta</span>')}</div>`; }).join('')}</td>
             <td class="n">${antes || depois ? `📷 ${antes} antes · ${depois} depois` : '—'}</td>
             <td class="qual-acoes"><button class="btn${acaoRot === 'Responder' || acaoRot === 'Validar' ? ' qual-ok' : ''}" data-qual-abrir="${n.linha}">${acaoRot}</button> <button class="btn" data-qual-rnc="${n.linha}" title="Relatório desta não conformidade, antes × depois">Relatório</button></td></tr>`;
-        }).join('') : `<tr><td colspan="11" class="vazio">${todas.length ? 'Nenhuma não conformidade com estes filtros.' : (gestao ? 'Nenhuma não conformidade registrada ainda. Use “+ Nova não conformidade”.' : 'Nenhuma não conformidade para a sua empresa. 👍')}</td></tr>`}
+        }).join('') : `<tr><td colspan="12" class="vazio">${todas.length ? 'Nenhuma não conformidade com estes filtros.' : (gestao ? 'Nenhuma não conformidade registrada ainda. Use “+ Nova não conformidade”.' : 'Nenhuma não conformidade para a sua empresa. 👍')}</td></tr>`}
       </tbody></table></div>
     </div>`;
+  qualSelBarra();
 }
 
 // ---------------------------------------------------------------- fotos
@@ -297,7 +343,7 @@ function qualBlocosDepois(n) {
     return `<div class="qual-resp-emp">
       ${multi ? `<h4 class="qual-resp-tit">${esc(e)} <span class="nota">${r.respondida_em ? '— respondida em ' + fdA(String(r.respondida_em).slice(0, 10)) : '— aguardando resposta'}</span></h4>` : ''}
       ${multi && r.devolucao && pend ? `<div class="qual-devol">↩ ${esc(r.devolucao)}</div>` : ''}
-      ${podeEd || r.acao ? `<label class="qual-larga">Descrição do que foi feito e corrigido (resposta)${podeResp ? ' <span class="nota">(obrigatória, com ao menos uma foto)</span>' : ''}<textarea class="qual-resp-ta" data-emp="${esc(e)}" ${multi ? '' : 'id="qualResposta" name="resposta"'} rows="4" placeholder="Descreva o que foi feito e corrigido e o que evita que se repita. Aparece no relatório." ${podeEd ? '' : 'disabled'}>${esc(r.acao || '')}</textarea></label>` : ''}
+      ${podeEd || r.acao ? `<label class="qual-larga">Descrição do que foi feito e corrigido (resposta)${podeResp ? ' <span class="nota">(obrigatória para enviar a resposta; foto opcional)</span>' : ''}<textarea class="qual-resp-ta" data-emp="${esc(e)}" ${multi ? '' : 'id="qualResposta" name="resposta"'} rows="4" placeholder="Descreva o que foi feito e corrigido e o que evita que se repita. Aparece no relatório." ${podeEd ? '' : 'disabled'}>${esc(r.acao || '')}</textarea></label>` : ''}
       ${r.respondida_em ? `<p class="nota">Respondida por ${esc(r.respondida_por || '—')} em ${fdA(String(r.respondida_em).slice(0, 10))} às ${String(r.respondida_em).slice(11, 16)}${qualRespAtraso(n, r) ? ' — <b style="color:var(--vermelho)">fora do prazo</b>' : ' — dentro do prazo'}</p>` : ''}
       <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)${multi ? ' — ' + esc(e) : ''}</h4>${podeEd ? `<label class="btn qual-up">+ Anexar fotos<input type="file" ${multi ? '' : 'id="qualArqDepois"'} data-qual-arq-depois="${esc(multi ? e : '')}" accept="image/*" multiple hidden></label>` : ''}</div>
         <div class="qual-fotos" ${multi ? '' : 'id="qualFotosDepois"'} data-qual-fotos-depois="${esc(multi ? e : '')}" data-ed="${podeEd ? 1 : 0}"></div></div>
@@ -438,7 +484,10 @@ function qualRelAbrir() {
   d.innerHTML = `<form method="dialog" id="formNCRel" class="qual-form"><h3>Relatório de não conformidades</h3>
     <div class="qual-grade">
       <label>Empresa<select name="emp" ${qualMinhaEmpresa() ? 'disabled' : ''}>${qualMinhaEmpresa() ? '' : '<option value="">Todas as empresas (uma seção por empresa)</option>'}${empresas.map(e => `<option value="${esc(e)}" ${e === (QUAL.emp || qualMinhaEmpresa()) ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
-      <label>Situação<select name="sit"><option value="">Todas</option><option value="pendente">Pendentes (não concluídas)</option>${Object.entries(QUAL_SIT).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}<option value="atrasada">Resposta atrasada</option></select></label>
+      <fieldset class="qual-sec qual-larga"><legend>Situação</legend>
+        <p class="nota">Marque as situações que deseja incluir. Sem marcação, o relatório inclui todas.</p>
+        <div class="qual-grade">${[['pendente', 'Pendentes (não concluídas)'], ...Object.entries(QUAL_SIT), ['atrasada', 'Resposta atrasada']].map(([valor, nome]) => `<label class="check"><input type="checkbox" name="sit" value="${esc(valor)}"> ${esc(nome)}</label>`).join('')}</div>
+      </fieldset>
       <label>Registradas de<input type="date" name="ini"></label>
       <label>até<input type="date" name="fim"></label>
       <label class="qual-larga check"><input type="checkbox" name="fotos" checked> Incluir as fichas com ANTES × DEPOIS e as fotos</label>
@@ -462,8 +511,10 @@ const QUAL_CSS = `<style>
 </style>`;
 async function qualHtml(f) {
   const empresaUnica = f.emp || qualMinhaEmpresa();
-  let lista = qualTodas().filter(n => (!empresaUnica || qualDaEmpresa(n, empresaUnica)) && qualPassaSit(n, f.sit) && (!f.ini || (n.data || '') >= f.ini) && (!f.fim || (n.data || '') <= f.fim));
+  const situacoes = Array.isArray(f.sit) ? f.sit : (f.sit ? [f.sit] : []);
+  let lista = qualTodas().filter(n => (!empresaUnica || qualDaEmpresa(n, empresaUnica)) && (!situacoes.length || situacoes.some(sit => qualPassaSit(n, sit))) && (!f.ini || (n.data || '') >= f.ini) && (!f.fim || (n.data || '') <= f.fim));
   if (f.id) lista = qualTodas().filter(n => n.linha === f.id);
+  if (f.ids) lista = qualTodas().filter(n => f.ids.includes(n.linha));   // só as não conformidades marcadas na lista
   lista.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || '', 'pt', { numeric: true }));   // sempre na ordem dos códigos (o geral não separa por empresa: vai para o cliente)
   const rotulo = n => empresaUnica || qualEmpTxt(n);   // relatório de uma empresa: só ela; geral: a NC com mais de uma empresa sai UMA vez, com a informação das duas
   const r = qualResumo(lista), emps = [...new Set(lista.map(rotulo))];
@@ -503,7 +554,7 @@ async function qualHtml(f) {
   const tabela = l => `<table><thead><tr><th>Código</th><th>Registrada</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo p/ responder</th><th>Respondida</th><th>O que foi feito e corrigido</th></tr></thead><tbody>${l.map(n =>
     `<tr><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.titulo || '')}</td><td>${esc(n.local || '')}</td><td>${selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td><td>${qualSeloSit(n)}</td><td>${n.prazo ? fdA(n.prazo) : '—'}${qualAtrasada(n) ? ' ' + selo('ATRASADA', 'vermelho') : ''}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.respondida_em ? fdA(String(r.respondida_em).slice(0, 10)) + (qualRespAtraso(n, r) ? ' ' + selo('COM ATRASO', 'vermelho') : '') : '—'}</div>`; }).join('')}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.acao ? `<span class="nc-txt">${esc(r.acao)}</span>${r.respondida_por ? ` <span class="nota">${esc(r.respondida_por)}</span>` : ''}` : '<span class="nota">sem resposta</span>'}</div>`; }).join('')}</td></tr>`).join('')}</tbody></table>`;
   const sitNome = k => k === 'pendente' ? 'pendentes' : k === 'atrasada' ? 'resposta atrasada' : (QUAL_SIT[k] || k).toLowerCase();
-  const filtroTxt = [empresaUnica ? `Empresa: ${empresaUnica}` : 'Todas as empresas', f.sit ? sitNome(f.sit) : '', f.ini ? `de ${fdA(f.ini)}` : '', f.fim ? `até ${fdA(f.fim)}` : ''].filter(Boolean).join(' · ');
+  const filtroTxt = f.ids ? [empresaUnica ? `Empresa: ${empresaUnica}` : '', `${lista.length} não conformidade(s) selecionada(s)`].filter(Boolean).join(' · ') : [empresaUnica ? `Empresa: ${empresaUnica}` : 'Todas as empresas', situacoes.map(sitNome).join(', '), f.ini ? `de ${fdA(f.ini)}` : '', f.fim ? `até ${fdA(f.fim)}` : ''].filter(Boolean).join(' · ');
   const individual = !!f.id, n0 = individual ? lista[0] : null;
   const corpo = `${QUAL_CSS}<section class="emp-sec"><div class="pag">
     <h1>${individual && n0 ? `Relatório de não conformidade ${esc(n0.codigo || '')}` : 'Relatório de não conformidades'}</h1>
@@ -519,18 +570,20 @@ async function qualHtml(f) {
 async function qualGerar(f, btn) {
   const rot = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Montando…'; }
-  try { await Promise.resolve(carregar()).catch(() => {}); reAbrirPrevia(await qualHtml(f), `Qualidade-${f.id ? 'NC-' + f.id : (f.emp || 'geral')}-${hoje()}.html`, f.id ? 'Relatório de não conformidade' : 'Relatório de não conformidades'); }
+  try { await Promise.resolve(carregar()).catch(() => {}); reAbrirPrevia(await qualHtml(f), `Qualidade-${f.id ? 'NC-' + f.id : f.ids ? 'selecionadas' : (f.emp || 'geral')}-${hoje()}.html`, f.id ? 'Relatório de não conformidade' : 'Relatório de não conformidades'); }
   catch (e) { console.error(e); toast('Não foi possível gerar o relatório: ' + (e.message || e), true); }
   finally { if (btn) { btn.disabled = false; btn.textContent = rot; } }
 }
 
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, [data-qual-resp-enviar], [data-qual-resp-salvar], #qualValidar, #qualDevolver, #qualReabrir, [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
+  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualRelSel, #qualSelLimpar, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, [data-qual-resp-enviar], [data-qual-resp-salvar], #qualValidar, #qualDevolver, #qualReabrir, [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
   if (!t) return;
   const d = document.getElementById('dlgNC');
   if (t.id === 'qualNova') qualAbrir(null);
   else if (t.id === 'qualRel') qualRelAbrir();
+  else if (t.id === 'qualRelSel') { if (QUAL.sel.size) qualGerar({ ids: [...QUAL.sel], emp: qualMinhaEmpresa(), fotos: !QUAL.selSemFotos }, t); }
+  else if (t.id === 'qualSelLimpar') { QUAL.sel.clear(); document.querySelectorAll('#tabQual [data-qual-sel]').forEach(c => { c.checked = false; }); qualSelBarra(); }
   else if (t.id === 'qualFechar') { QUAL.fotosPend.forEach(p => URL.revokeObjectURL(p.url)); QUAL.fotosPend = []; d.close(); }
   else if (t.id === 'qualExcluir') { const n = qualTodas().find(x => x.linha === d._id); if (n && confirm(`Excluir a não conformidade ${n.codigo} e as fotos dela? Não há lixeira.`)) qualAcao({ acao: 'excluir', id: n.linha }, () => `${n.codigo} excluída.`); }
   else if (t.id === 'qualResponder') qualAcao({ acao: 'responder', id: d._id, campos: { resposta: (d.querySelector('#qualResposta') || {}).value || '' } }, j => `${j.codigo}: resposta enviada — aguarda a validação do administrador.`);
@@ -555,14 +608,17 @@ document.addEventListener('submit', ev => {
   else if (ev.target.id === 'formNCRel') {
     ev.preventDefault();
     const fd = new FormData(ev.target), d = document.getElementById('dlgNCRel');
-    const f = { emp: qualMinhaEmpresa() || fd.get('emp') || '', sit: fd.get('sit') || '', ini: fd.get('ini') || '', fim: fd.get('fim') || '', fotos: fd.get('fotos') === 'on' };
+    const f = { emp: qualMinhaEmpresa() || fd.get('emp') || '', sit: fd.getAll('sit'), ini: fd.get('ini') || '', fim: fd.get('fim') || '', fotos: fd.get('fotos') === 'on' };
     if (f.ini && f.fim && f.fim < f.ini) { toast('A data final não pode ser antes da inicial.', true); return; }
     d.close(); qualGerar(f, null);
   }
 });
 document.addEventListener('change', ev => {
   const t = ev.target;
-  if (t.dataset && t.dataset.qualSit) qualMudarSituacao(+t.dataset.qualSit, t.value);
+  if (t.dataset && t.dataset.qualSel) { t.checked ? QUAL.sel.add(+t.dataset.qualSel) : QUAL.sel.delete(+t.dataset.qualSel); qualSelBarra(); }
+  else if (t.id === 'qualSelTodos') { qualFiltradas().forEach(n => { t.checked ? QUAL.sel.add(n.linha) : QUAL.sel.delete(n.linha); }); document.querySelectorAll('#tabQual [data-qual-sel]').forEach(c => { c.checked = QUAL.sel.has(+c.dataset.qualSel); }); qualSelBarra(); }
+  else if (t.id === 'qualSelFotos') QUAL.selSemFotos = !t.checked;
+  else if (t.dataset && t.dataset.qualSit) qualMudarSituacao(+t.dataset.qualSit, t.value);
   else if (t.id === 'qualSit') { QUAL.sit = t.value; renderQualidade(); }
   else if (t.id === 'qualGrav') { QUAL.grav = t.value; renderQualidade(); }
   else if (t.id === 'qualArqAntes' || (t.dataset && t.dataset.qualArqDepois !== undefined)) { const l = [...t.files], tipo = t.id === 'qualArqAntes' ? 'antes' : 'depois', emp = tipo === 'depois' ? t.dataset.qualArqDepois : ''; t.value = ''; if (l.length) qualAdicionarFotos(l, tipo, emp); }
