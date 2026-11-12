@@ -1398,8 +1398,17 @@ function acao_qualidade_exec(array $corpo, array $usuario)
     }
 
     if ($acao === 'resposta') {   // o administrador registra/corrige o texto da resposta (ação corretiva) em qualquer situação, sem mudar a situação
+        // a empresa responsável salva o rascunho da resposta (só a dela, enquanto aguarda resposta); o administrador salva em qualquer situação
         if (!$admin) {
-            throw new ErroValidacao('Só o administrador registra a resposta direto na não conformidade.');
+            if ($minhaEmp === '') {
+                throw new ErroValidacao('Só o administrador registra a resposta direto na não conformidade.');
+            }
+            if (!in_array($atual['situacao'], ['aberta', 'andamento'], true)) {
+                throw new ErroValidacao('Esta não conformidade não está aguardando resposta.');
+            }
+            if ($multi && $respDe($minhaEmp)['respondida_em']) {
+                throw new ErroValidacao('A empresa ' . $minhaEmp . ' já respondeu.');
+            }
         }
         $resp = mb_substr(trim((string)($corpo['campos']['resposta'] ?? '')), 0, 4000);
         if ($resp === '') {

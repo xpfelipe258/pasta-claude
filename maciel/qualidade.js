@@ -338,6 +338,7 @@ function qualPermissoes(n) {
     fotoDepois: !ro && (admin || (!!emp && (sit === 'aberta' || sit === 'andamento'))) && !!n,   // quem anexa a foto da correção
     situacao: !ro && admin && !!n,                           // administrador muda a situação direto: aguardando resposta, em andamento ou concluída
     excluir: !ro && !!n && !emp && (admin || n.por === (D.usuario && D.usuario.nome)),
+    rascunho: !ro && !!n && (admin || (!!emp && (sit === 'aberta' || sit === 'andamento') && qualPendenteEmp(n, emp))),   // salvar o texto da resposta sem enviar (admin: qualquer situação; empresa: só a sua, enquanto aguarda)
   };
 }
 // "DEPOIS": uma resposta (texto + fotos) por empresa; NC de uma empresa só = um bloco com os ids de sempre. A empresa vê só o bloco dela.
@@ -346,7 +347,7 @@ function qualBlocosDepois(n) {
   const lista = multi ? qualEmps(n).filter(e => !eu || e === eu) : [qualEmps(n)[0] || ''];
   return lista.map((e, i) => {
     const r = qualRespDe(n, e), pend = qualPendenteEmp(n, e);
-    const podeEd = !ro && (eu ? pend : adm), podeResp = !ro && (eu || adm) && pend;
+    const podeEd = !ro && (eu ? pend : adm), podeResp = !ro && (eu || adm) && pend, podeSalvar = !ro && (adm || (eu && pend));
     return `<div class="qual-resp-emp">
       ${multi ? `<h4 class="qual-resp-tit">${esc(e)} <span class="nota">${r.respondida_em ? '— respondida em ' + fdA(String(r.respondida_em).slice(0, 10)) : '— aguardando resposta'}</span></h4>` : ''}
       ${multi && r.devolucao && pend ? `<div class="qual-devol">↩ ${esc(r.devolucao)}</div>` : ''}
@@ -354,7 +355,7 @@ function qualBlocosDepois(n) {
       ${r.respondida_em ? `<p class="nota">Respondida por ${esc(r.respondida_por || '—')} em ${fdA(String(r.respondida_em).slice(0, 10))} às ${String(r.respondida_em).slice(11, 16)}${qualRespAtraso(n, r) ? ' — <b style="color:var(--vermelho)">fora do prazo</b>' : ' — dentro do prazo'}</p>` : ''}
       <div class="qual-fotos-bloco"><div class="bloco-cab"><h4>Fotos da correção (depois)${multi ? ' — ' + esc(e) : ''}</h4>${podeEd ? `<label class="btn qual-up">+ Anexar fotos<input type="file" ${multi ? '' : 'id="qualArqDepois"'} data-qual-arq-depois="${esc(multi ? e : '')}" accept="image/*" multiple hidden></label>` : ''}</div>
         <div class="qual-fotos" ${multi ? '' : 'id="qualFotosDepois"'} data-qual-fotos-depois="${esc(multi ? e : '')}" data-ed="${podeEd ? 1 : 0}"></div></div>
-      ${multi && (podeResp || (adm && !ro)) ? `<div class="qual-resp-btns">${podeResp ? `<button type="button" class="btn qual-ok" data-qual-resp-enviar="${esc(e)}">Enviar resposta${eu ? '' : ' de ' + esc(e)}</button>` : ''}${adm && !ro ? `<button type="button" class="btn" data-qual-resp-salvar="${esc(e)}">Salvar resposta${eu ? '' : ' de ' + esc(e)}</button>` : ''}</div>` : ''}
+      ${multi && (podeResp || podeSalvar) ? `<div class="qual-resp-btns">${podeResp ? `<button type="button" class="btn qual-ok" data-qual-resp-enviar="${esc(e)}">Enviar resposta${eu ? '' : ' de ' + esc(e)}</button>` : ''}${podeSalvar ? `<button type="button" class="btn" data-qual-resp-salvar="${esc(e)}">Salvar resposta${eu ? '' : ' de ' + esc(e)}</button>` : ''}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -398,7 +399,7 @@ function qualAbrir(id) {
     <div class="qual-rodape"><span class="nota" id="qualMsg"></span>
       <button type="button" class="btn" id="qualFechar">Fechar</button>
       ${perm.excluir ? '<button type="button" class="btn qual-excluir" id="qualExcluir">Excluir</button>' : ''}
-      ${perm.situacao && !multi ? '<button type="button" class="btn qual-ok" id="qualSalvarResp">Salvar resposta</button>' : ''}
+      ${perm.rascunho && !multi ? '<button type="button" class="btn qual-ok" id="qualSalvarResp">Salvar resposta</button>' : ''}
       ${perm.reabrir ? '<button type="button" class="btn" id="qualReabrir">Reabrir</button>' : ''}
       ${perm.decidir ? '<button type="button" class="btn" id="qualDevolver">Devolver para correção</button><button type="button" class="btn qual-ok" id="qualValidar">Validar e concluir</button>' : ''}
       ${perm.responder && !multi ? '<button type="button" class="btn qual-ok" id="qualResponder">Enviar resposta</button>' : ''}
