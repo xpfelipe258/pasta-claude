@@ -64,9 +64,6 @@ const qualResumo = lista => ({
 });
 const qualSelo = (txt, cor) => `<span class="farol f-${cor}">${esc(txt)}</span>`;
 const qualSeloSit = n => qualSelo(QUAL_SIT[n.situacao] || n.situacao || '—', QUAL_COR_SIT[n.situacao] || 'amarelo');
-// Relatório: só três situações — Aberto (aguardando a empresa), Em andamento (em tratamento ou respondida, aguardando validação) e Concluído
-const QUAL_SIT_REL = { aberta: ['Aberto', 'vermelho'], andamento: ['Em andamento', 'azul'], respondida: ['Em andamento', 'azul'], concluida: ['Concluído', 'verde'] };
-const qualSeloRel = n => { const [t, c] = QUAL_SIT_REL[n.situacao] || [n.situacao || '—', 'amarelo']; return qualSelo(t, c); };
 
 
 // Seletor de situação (só administrador): muda na hora para Aguardando resposta, Em andamento ou Concluída.
@@ -146,6 +143,13 @@ document.addEventListener('click', ev => {
 });
 
 // ---------------------------------------------------------------- tela
+// Alerta de NCs em atraso: prazo para responder vencido sem resposta (empresa vê as dela; gestão vê todas)
+function qualAtrasoAlertaHtml() {
+  const lista = qualTodas().filter(qualAtrasada).sort((a, b) => (a.prazo || '').localeCompare(b.prazo || ''));
+  if (!lista.length) return '';
+  return `<div class="qual-alerta" style="border-color:var(--vermelho)"><b>⚠ ${lista.length} não conformidade(s) em atraso</b> — o prazo para responder já venceu.
+    <ul>${lista.slice(0, 8).map(n => `<li><button class="btn" data-qual-abrir="${n.linha}">Abrir</button> <b>${esc(n.codigo || '')}</b> — ${esc(n.titulo || '')} <span class="nota">(${esc(qualEmpTxt(n))})</span> · prazo ${fdA(n.prazo)} · ${esc(QUAL_SIT[n.situacao] || n.situacao)}</li>`).join('')}</ul>${lista.length > 8 ? `<p class="nota">+ ${lista.length - 8} em atraso (use o filtro “Resposta atrasada”).</p>` : ''}</div>`;
+}
 function qualAlertaHtml() {
   const minha = qualMinhaEmpresa(), t = qualTodas();
   if (minha) {
@@ -218,7 +222,7 @@ function renderQualidade() {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const porEmp = empresas.map(e => ({ emp: e, ...qualResumo(todas.filter(n => qualDaEmpresa(n, e))) }));
   corpo.innerHTML = `
-    ${qualAlertaHtml()}
+    ${qualAlertaHtml()}${qualAtrasoAlertaHtml()}
     <div class="barra-acoes">
       ${gestao && !ro ? '<button class="btn primario" id="qualNova">+ Nova não conformidade</button>' : ''}
       <button class="btn" id="qualRel" title="Relatório de não conformidades (antes × depois, com fotos)">Relatório de não conformidades</button>
@@ -250,11 +254,11 @@ function renderQualidade() {
         ${lista.length ? lista.map(n => {
           const antes = qualFotosDe(n.linha, 'antes').length, depois = qualFotosDe(n.linha, 'depois').length;
           const acaoRot = qualAberta(n) && !gestao ? 'Responder' : n.situacao === 'respondida' && qualEhAdmin() ? 'Validar' : (ro || (gestao && n.situacao === 'concluida') || (!gestao && !qualAberta(n))) ? 'Abrir' : 'Editar';
-          return `<tr><td class="qual-sel-col"><input type="checkbox" data-qual-sel="${n.linha}" ${QUAL.sel.has(n.linha) ? 'checked' : ''} title="Selecionar para o relatório"></td><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(qualEmpTxt(n))}</td>
+          return `<tr${qualAtrasada(n) ? ' class="qual-linha-atraso"' : ''}><td class="qual-sel-col"><input type="checkbox" data-qual-sel="${n.linha}" ${QUAL.sel.has(n.linha) ? 'checked' : ''} title="Selecionar para o relatório"></td><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(qualEmpTxt(n))}</td>
             <td><a href="#" class="link" data-qual-abrir="${n.linha}"><b>${esc(n.titulo || '')}</b></a>${n.descricao ? `<div class="nota qual-desc">${esc(n.descricao)}</div>` : ''}${n.devolucao && qualAberta(n) ? `<div class="qual-devol">↩ ${esc(n.devolucao)}</div>` : ''}</td>
             <td>${esc(n.local || '')}</td>
             <td>${qualSelo(QUAL_GRAV[n.gravidade] || n.gravidade || '—', QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td>
-            <td>${qualSeloSit(n)}${qualSelSit(n) ? `<div>${qualSelSit(n)}</div>` : ''}${n.situacao === 'concluida' && n.encerrada_em ? `<div class="nota">em ${fdA(n.encerrada_em)}${n.validada_por ? ' por ' + esc(n.validada_por) : ''}</div>` : ''}</td>
+            <td>${qualAtrasada(n) ? qualSelo('ATRASADO', 'vermelho') : qualSeloSit(n)}${qualSelSit(n) ? `<div>${qualSelSit(n)}</div>` : ''}${n.situacao === 'concluida' && n.encerrada_em ? `<div class="nota">em ${fdA(n.encerrada_em)}${n.validada_por ? ' por ' + esc(n.validada_por) : ''}</div>` : ''}</td>
             <td>${n.prazo ? fdA(n.prazo) : '—'}</td>
             <td>${(qualMulti(n) ? qualEmps(n).filter(e => !qualMinhaEmpresa() || e === qualMinhaEmpresa()) : [qualEmps(n)[0] || '']).map(e => { const r = qualRespDe(n, e); return `<div>${qualMulti(n) ? `<b>${esc(e)}:</b> ` : ''}${r.respondida_em ? `${fdA(String(r.respondida_em).slice(0, 10))}<div class="nota">${esc(r.respondida_por || '')}</div>` : (n.situacao === 'concluida' ? '—' : '<span class="nota">sem resposta</span>')}</div>`; }).join('')}</td>
             <td class="n">${antes || depois ? `📷 ${antes} antes · ${depois} depois` : '—'}</td>
@@ -539,8 +543,8 @@ async function qualHtml(f) {
   };
   const ficha = n => { const ec = empresaUnica ? [empresaUnica] : qualEmps(n); return `<div class="nc-ficha"><h3>${esc(n.codigo || '')} — ${esc(n.titulo || '')}</h3>
       <div class="nc-meta">${meta(ec.length > 1 ? 'Empresas responsáveis' : 'Empresa responsável', esc(ec.join(' + ')))}${meta('Registrada em', fdA(n.data))}${meta('Local', esc(n.local || '—'))}${meta('Contato', esc(n.responsavel || '—'))}
-        ${meta('Gravidade', selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo'))}${meta('Situação', qualSeloRel(n))}
-        ${meta('Prazo para responder', n.prazo ? fdA(n.prazo) : '—')}${meta('Registrada por', esc(n.por || '—'))}</div>
+        ${meta('Gravidade', selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo'))}${meta('Situação', qualSeloSit(n))}
+        ${meta('Prazo para responder', n.prazo ? fdA(n.prazo) + (qualAtrasada(n) ? ' ' + selo('ATRASADA', 'vermelho') : '') : '—')}${meta('Registrada por', esc(n.por || '—'))}</div>
       <div class="nc-ad">
         <div class="nc-lado antes"><h4>Antes — não conformidade</h4>
           <div class="nc-rot">Descrição</div><div class="nc-txt">${esc(n.descricao || n.titulo || '—')}</div>
@@ -555,14 +559,14 @@ async function qualHtml(f) {
           ${n.situacao === 'concluida' ? `<div class="nc-rot">Validação</div><div class="nc-txt">✔ Validada por ${esc(n.validada_por || '—')} em ${fdA(n.encerrada_em)}</div>` : ''}</div>
       </div></div>`; };
   const tabela = l => `<table><thead><tr><th>Código</th><th>Registrada</th><th>Não conformidade</th><th>Local</th><th>Gravidade</th><th>Situação</th><th>Prazo p/ responder</th><th>Respondida</th><th>O que foi feito e corrigido</th></tr></thead><tbody>${l.map(n =>
-    `<tr><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.titulo || '')}</td><td>${esc(n.local || '')}</td><td>${selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td><td>${qualSeloRel(n)}</td><td>${n.prazo ? fdA(n.prazo) : '—'}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.respondida_em ? fdA(String(r.respondida_em).slice(0, 10)) : '—'}</div>`; }).join('')}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.acao ? `<span class="nc-txt">${esc(r.acao)}</span>${r.respondida_por ? ` <span class="nota">${esc(r.respondida_por)}</span>` : ''}` : '<span class="nota">sem resposta</span>'}</div>`; }).join('')}</td></tr>`).join('')}</tbody></table>`;
+    `<tr><td><b>${esc(n.codigo || '')}</b></td><td>${fdA(n.data)}</td><td>${esc(n.titulo || '')}</td><td>${esc(n.local || '')}</td><td>${selo(QUAL_GRAV[n.gravidade] || n.gravidade, QUAL_COR_GRAV[n.gravidade] || 'amarelo')}</td><td>${qualSeloSit(n)}</td><td>${n.prazo ? fdA(n.prazo) : '—'}${qualAtrasada(n) ? ' ' + selo('ATRASADA', 'vermelho') : ''}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.respondida_em ? fdA(String(r.respondida_em).slice(0, 10)) + (qualRespAtraso(n, r) ? ' ' + selo('COM ATRASO', 'vermelho') : '') : '—'}</div>`; }).join('')}</td><td>${(empresaUnica ? [empresaUnica] : qualEmps(n)).map(e => { const r = qualRespDe(n, e), mu = !empresaUnica && qualMulti(n); return `<div>${mu ? `<b>${esc(e)}:</b> ` : ''}${r.acao ? `<span class="nc-txt">${esc(r.acao)}</span>${r.respondida_por ? ` <span class="nota">${esc(r.respondida_por)}</span>` : ''}` : '<span class="nota">sem resposta</span>'}</div>`; }).join('')}</td></tr>`).join('')}</tbody></table>`;
   const sitNome = k => k === 'pendente' ? 'pendentes' : k === 'atrasada' ? 'resposta atrasada' : (QUAL_SIT[k] || k).toLowerCase();
   const filtroTxt = f.ids ? [empresaUnica ? `Empresa: ${empresaUnica}` : '', `${lista.length} não conformidade(s) selecionada(s)`].filter(Boolean).join(' · ') : [empresaUnica ? `Empresa: ${empresaUnica}` : 'Todas as empresas', situacoes.map(sitNome).join(', '), f.ini ? `de ${fdA(f.ini)}` : '', f.fim ? `até ${fdA(f.fim)}` : ''].filter(Boolean).join(' · ');
   const individual = !!f.id, n0 = individual ? lista[0] : null;
   const corpo = `${QUAL_CSS}<section class="emp-sec"><div class="pag">
     <h1>${individual && n0 ? `Relatório de não conformidade ${esc(n0.codigo || '')}` : 'Relatório de não conformidades'}</h1>
     <p class="sub-cab">${esc((D.obra && D.obra.nome) || '')} · ${esc(individual && n0 ? rotulo(n0) : filtroTxt)}</p>
-    ${individual ? '' : `<div class="cards">${card('Não conformidades', nf(r.total, 0), empresaUnica ? esc(empresaUnica) : 'no período', 'az')}${card('Aberto', nf(r.aguardaResp, 0), 'aguardando a empresa', 'vm')}${card('Em andamento', nf(r.andam + r.aguardaVal, 0), 'em tratamento ou aguardando validação', 'am')}${card('Concluído', nf(r.concl, 0), r.total ? nf(r.concl / r.total * 100, 0) + '% do total' : '—', 'vd')}</div>`}
+    ${individual ? '' : `<div class="cards">${card('Não conformidades', nf(r.total, 0), empresaUnica ? esc(empresaUnica) : 'no período', 'az')}${card('Aguardando resposta', nf(r.aguardaResp, 0), 'com a empresa', 'vm')}${card('Aguardando validação', nf(r.aguardaVal, 0), 'com o administrador', 'am')}${card('Concluídas', nf(r.concl, 0), r.total ? nf(r.concl / r.total * 100, 0) + '% do total' : '—', 'vd')}${card('Resposta atrasada', nf(r.atras, 0), `${nf(r.graves, 0)} grave(s) pendente(s)`, r.atras ? 'vm' : 'vd')}</div>`}
     ${individual ? (n0 ? ficha(n0) : '<p class="nota">Não conformidade não encontrada.</p>') : (lista.length ? (empresaUnica ? emps.map(e => { const l = lista.filter(n => rotulo(n) === e); return `<h2>${esc(e)} — ${l.length} não conformidade(s)</h2>${tabela(l)}<h3>Fichas antes × depois, com a resposta da empresa — ${esc(e)}</h3>${l.map(ficha).join('')}`; }).join('') : `<h2>RESUMO — ${lista.length} NÃO CONFORMIDADE(S)</h2>${tabela(lista)}<h3>Fichas antes × depois, com a resposta da empresa</h3>${lista.map(ficha).join('')}`) : '<p class="nota">Nenhuma não conformidade neste filtro.</p>')}
     <div class="nc-assinaturas"><div class="nc-assinatura">Responsável da empresa${individual && n0 ? ' — ' + esc(rotulo(n0)) : (empresaUnica ? ' — ' + esc(empresaUnica) : '')}<br><span class="nota">Nome, assinatura e data</span></div><div class="nc-assinatura">Qualidade / Administração da obra<br><span class="nota">Nome, assinatura e data</span></div></div>
   </div></section>`;
