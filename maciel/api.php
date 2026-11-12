@@ -229,7 +229,7 @@ try {
         throw new ErroValidacao('Dados inválidos.');
     }
     $moduloRota = [
-        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
+        'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','cronograma-importado'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
         'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
@@ -254,7 +254,7 @@ try {
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
         'estoque-planilha/remessa' => 'acao_estoque_remessa', 'estoque-planilha/remessa-datas' => 'acao_estoque_remessa_datas', 'estoque-planilha/material' => 'acao_estoque_material', 'estoque-planilha/consumo' => 'acao_estoque_consumo', 'estoque-planilha/consumo-celula' => 'acao_estoque_consumo_celula', 'estoque-planilha/consumo-semana' => 'acao_estoque_consumo_semana',
-        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'rdo/validar' => 'acao_rdo_validar', 'qualidade' => 'acao_qualidade', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade', 'cadastro-faltantes' => 'acao_cadastro_faltantes',
+        'planejamento' => 'acao_salvar_planejamento', 'planos' => 'acao_planos', 'cliente-contrato' => 'acao_cliente_contrato', 'projecao-config' => 'acao_projecao_config', 'fluxo-config' => 'acao_fluxo_config', 'cronograma-importado' => 'acao_cronograma_importado', 'rdo/validar' => 'acao_rdo_validar', 'qualidade' => 'acao_qualidade', 'vinculos' => 'acao_vinculos', 'fixadores-atividade' => 'acao_fixadores_atividade', 'cadastro-faltantes' => 'acao_cadastro_faltantes',
         'dados-producao/importar' => 'acao_importar_snapshot',
         'machine-token/gerar' => 'acao_gerar_machine_token',
         'machine-token/revogar' => 'acao_revogar_machine_token',
@@ -3834,6 +3834,76 @@ function acao_projecao_config(array $corpo)
     sistema_gravar('projecao_config', json_encode($d, JSON_UNESCAPED_UNICODE));
     registrar_alteracao('projecao_config', ['kit' => $d['kit'] ?? null, 'cob' => $d['cob'] ?? null, 'precos' => count($precos)]);
     return ['salvos' => 1, 'config' => $d];
+}
+
+// Cronograma importado na aba Cronograma (Gantt): atividades lidas do arquivo (PDF, planilha ou MS Project) e o vínculo de cada uma
+// com o que tem leitura no sistema. Fica em sistema.cronograma_importado (por obra):
+//   { arquivo, formato, rev, aplicado_em, por, substituir, atividades: [{ id, item, nome, grupo[], inicio, fim, dias, qtd, un, resumo,
+//       vinculo: { tipo: linha|bm|nova|ignorar, chave (linha do Gantt "frente|serviço|fase"), cods[] (atividades do catálogo), auto, nota } }] }
+function acao_cronograma_importado(array $corpo)
+{
+    $u = usuario_atual();
+    if ($u && usuario_empresa_restrita($u) !== '') {
+        throw new ErroValidacao('O cronograma da obra é importado pela gestão da obra.');
+    }
+    $ant = json_decode((string)sistema_ler('cronograma_importado', ''), true);
+    $rev = (int)($ant['rev'] ?? 0) + 1;
+    if (!empty($corpo['remover'])) {
+        sistema_gravar('cronograma_importado', json_encode(['rev' => $rev, 'atividades' => []], JSON_UNESCAPED_UNICODE));
+        registrar_alteracao('cronograma_importado', ['removido' => 1]);
+        return ['salvos' => 1, 'removido' => 1];
+    }
+    $lista = $corpo['atividades'] ?? null;
+    if (!is_array($lista) || !$lista) {
+        throw new ErroValidacao('Nenhuma atividade para salvar.');
+    }
+    if (count($lista) > 3000) {
+        throw new ErroValidacao('Cronograma com mais de 3.000 atividades: importe em partes ou só o nível que interessa.');
+    }
+    $ativ = [];
+    $cont = ['linha' => 0, 'bm' => 0, 'nova' => 0, 'ignorar' => 0];
+    foreach ($lista as $a) {
+        if (!is_array($a)) { continue; }
+        $nome = plano_texto($a['nome'] ?? '', 200);
+        $ini = (string)($a['inicio'] ?? '');
+        $fim = (string)($a['fim'] ?? '');
+        if ($nome === '' || !data_valida($ini) || !data_valida($fim) || $fim < $ini) {
+            throw new ErroValidacao('Atividade "' . ($nome !== '' ? $nome : '?') . '": nome, início e término são obrigatórios (término não pode ser antes do início).');
+        }
+        $v = is_array($a['vinculo'] ?? null) ? $a['vinculo'] : [];
+        $tipo = in_array($v['tipo'] ?? '', ['linha', 'bm', 'nova', 'ignorar'], true) ? $v['tipo'] : 'ignorar';
+        $chave = $tipo === 'linha' ? plano_texto($v['chave'] ?? '', 300) : '';
+        $cods = [];
+        if ($tipo === 'bm' && is_array($v['cods'] ?? null)) {
+            foreach (array_slice($v['cods'], 0, 40) as $c) {
+                $c = plano_texto($c, 60);
+                if ($c !== '' && !in_array($c, $cods, true)) { $cods[] = $c; }
+            }
+        }
+        if (($tipo === 'linha' && $chave === '') || ($tipo === 'bm' && !$cods)) {
+            throw new ErroValidacao('Atividade "' . $nome . '": escolha a que atividade do sistema ela se vincula.');
+        }
+        $cont[$tipo]++;
+        $grupo = [];
+        foreach (array_slice(is_array($a['grupo'] ?? null) ? $a['grupo'] : [], -8) as $g) {
+            $g = plano_texto($g, 120);
+            if ($g !== '') { $grupo[] = $g; }
+        }
+        $qtd = numero($a['qtd'] ?? null);
+        $ativ[] = [
+            'id' => count($ativ) + 1, 'item' => plano_texto($a['item'] ?? '', 40), 'nome' => $nome, 'grupo' => $grupo, 'inicio' => $ini, 'fim' => $fim,
+            'dias' => max(0, (int)($a['dias'] ?? 0)), 'qtd' => $qtd !== null && $qtd > 0 ? $qtd : null, 'un' => plano_texto($a['un'] ?? '', 12), 'resumo' => !empty($a['resumo']),
+            'vinculo' => ['tipo' => $tipo, 'chave' => $chave, 'cods' => $cods, 'auto' => !empty($v['auto']), 'nota' => (float)($v['nota'] ?? 0)],
+        ];
+    }
+    $d = [
+        'arquivo' => plano_texto($corpo['arquivo'] ?? '', 190), 'formato' => plano_texto($corpo['formato'] ?? '', 40), 'rev' => $rev,
+        'aplicado_em' => (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s'), 'por' => (string)($u['nome'] ?? ''),
+        'substituir' => !empty($corpo['substituir']), 'atividades' => $ativ,
+    ];
+    sistema_gravar('cronograma_importado', json_encode($d, JSON_UNESCAPED_UNICODE));
+    registrar_alteracao('cronograma_importado', ['arquivo' => $d['arquivo'], 'atividades' => count($ativ)] + $cont);
+    return ['salvos' => count($ativ)] + $cont;
 }
 
 // Dependências entre as etapas do fluxo da obra (aba Planejamento › Fluxo da obra). Só o que difere do padrão do programa é gravado:

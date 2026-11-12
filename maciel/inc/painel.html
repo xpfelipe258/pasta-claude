@@ -799,11 +799,15 @@
       <div class="seg" id="segGanZoom"></div>
       <label class="check">Frente <select id="selGanFrente"></select></label>
       <button class="btn primario" id="btnGanDatas" type="button">Alterar datas</button>
+      <button class="btn primario" id="btnGanImportar" type="button" title="PDF, planilha (.xlsx/.csv) ou MS Project (.xml)">Importar cronograma</button>
+      <button class="btn" id="btnGanConciliar" type="button" hidden>Conciliar atividades</button>
+      <input type="file" id="ganImpArquivo" accept=".pdf,.xlsx,.xlsm,.csv,.xml,.mpp,.xls,.txt" hidden>
       <label class="check"><input type="checkbox" id="chkGanEmp"> Mostrar por empresa</label>
       <div class="legenda" id="ganLegenda"></div>
     </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Cronograma previsto x realizado</h2><span class="nota" id="ganNota"></span></div>
+      <p class="nota" id="ganImpInfo" hidden></p>
       <div class="tabela-rolagem gantt-rolagem"><div id="ganGrafico" class="gantt"></div></div>
     </div>
   </section>
@@ -982,6 +986,7 @@
 <script src="bm_resumo.js"></script>
 <script src="projecao.js"></script>
 <script src="cff.js"></script>
+<script src="cronograma_imp.js"></script>
 <script src="contas_pagar.js"></script>
 <script src="tarefas.js"></script>
 <script src="mapa_obra.js"></script>

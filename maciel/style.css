@@ -1759,3 +1759,31 @@ dialog.cp-dialog:has(.cp-largo) { width: min(1100px, calc(100vw - 24px)); }
 .rel-imp-bloco{border:1px solid var(--borda,#ddd);border-radius:10px;padding:10px 12px;margin:10px 0}
 .rel-imp-bloco legend{font-weight:700;padding:0 6px}
 .rel-imp-bloco .imp-emps{margin:4px 0 8px}
+
+/* Cronograma (Gantt) › importar e conciliar cronograma */
+dialog.ci-dlg { width: min(1320px, 97vw); height: 92vh; max-width: none; max-height: none; padding: 0; overflow: hidden; }
+dialog.ci-dlg[open] { display: flex; flex-direction: column; }
+.ci-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px 8px; border-bottom: 1px solid var(--linha); }
+.ci-cab h2 { margin: 0 0 2px; }
+.ci-topo { padding: 10px 18px 4px; }
+.ci-topo p { margin: 0 0 8px; }
+.ci-aviso { background: var(--amarelo-bg, rgba(217,119,6,.12)); border-left: 3px solid var(--amarelo); padding: 6px 10px; border-radius: 4px; font-size: .8rem; }
+.ci-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ci-barra input[type=search] { min-width: 200px; flex: 1 1 200px; max-width: 320px; }
+.ci-barra .seg button b { margin-left: 4px; }
+dialog.ci-dlg label.check { flex-direction: row; align-items: center; gap: 6px; font-weight: 500; }
+.ci-tab { flex: 1 1 auto; overflow: auto; border-top: 1px solid var(--linha); }
+.ci-tab table { width: 100%; border-collapse: collapse; }
+.ci-tab thead th { position: sticky; top: 0; z-index: 2; background: var(--card); }
+.ci-tab td { vertical-align: top; }
+.ci-tab tr.ci-resumo td { background: var(--bg); }
+.ci-vinc { min-width: 320px; }
+.ci-sel { width: 100%; max-width: 520px; box-sizing: border-box; }
+.ci-extra { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ci-extra .btn-link { background: none; border: 0; padding: 0; color: var(--acento); cursor: pointer; font: inherit; font-size: .78rem; text-decoration: underline; }
+.ci-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border: 1px solid var(--linha-forte); border-radius: 999px; font-size: .75rem; }
+.ci-chip button { background: none; border: 0; cursor: pointer; color: var(--vermelho); font-size: .95rem; line-height: 1; padding: 0; }
+.ci-rodape { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--linha); }
+.g-imp { font-style: normal; color: var(--acento); font-weight: 700; }
+#ganImpInfo { margin: 0 0 8px; }
+@media (max-width: 900px) { dialog.ci-dlg { width: 100vw; height: 100vh; border-radius: 0; } .ci-vinc { min-width: 240px; } }

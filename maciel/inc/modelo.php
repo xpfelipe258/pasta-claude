@@ -231,6 +231,7 @@ function montar_modelo()
         'obra_empresa' => obra_empresa_info(),   // obra própria de uma empresa (cópia isolada da obra principal) ou null
         'mapa_obra' => (bool)q_global('SELECT 1 FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), 'frentes_montagem_obra'])->fetchColumn(),   // obra com mapa de peças da importação automática
         'fixadores_atividade' => (object)(json_decode((string)sistema_ler('fixadores_atividade', '{}'), true) ?: []),   // fixadores por unidade de cada atividade (baixa automática no lançamento)
+        'cronograma_importado' => (function () { $d = json_decode((string)sistema_ler('cronograma_importado', ''), true); return is_array($d) && !empty($d['atividades']) ? $d : (is_array($d) ? ['rev' => (int)($d['rev'] ?? 0), 'atividades' => []] : null); })(),   // aba Cronograma (Gantt): cronograma importado e vínculos
         'projecao_config' => (object)(json_decode((string)sistema_ler('projecao_config', '{}'), true) ?: []),   // conjunto de equipamentos, dias cobrados e preços da aba Projeção
         'referencia' => sistema_ler('referencia', null),
         'tabelas' => $tabelas,

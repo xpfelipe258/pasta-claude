@@ -1698,14 +1698,81 @@ function ganDataOverrides() {
     return o;
   } catch { return {}; }
 }
-function ganSalvarDataOverride(k, v) { const o = ganDataOverrides(); o[k] = v; localStorage.setItem('obra198_gantt_datas', JSON.stringify(o)); }
+function ganSalvarDataOverride(k, v) { const o = ganDataOverrides(); o[k] = { ...v, _rev: ganImpRev() }; localStorage.setItem('obra198_gantt_datas', JSON.stringify(o)); }
 function ganAplicarDatas(it) {
   const k = ganDataKey(it), kn = ganNorm(k);
   const padrao = Object.entries(GAN_AJUSTES_DATAS_PADRAO).find(([kk]) => ganNorm(kk) === kn);
-  const aj = { ...(padrao ? padrao[1] : {}), ...(ganDataOverrides()[k] || {}) };
+  // Cronograma importado (aba Gantt › Importar cronograma) vale sobre as datas padrão. A data alterada à mão neste navegador ("Alterar datas")
+  // só vale sobre o importado se foi feita DEPOIS da importação atual (mesma revisão); ajuste antigo não esconde o cronograma novo.
+  const imp = ganImpMapa()?.linhas.get(kn) || null;
+  const loc = ganDataOverrides()[k] || null;
+  const locVale = !!loc && (!imp || loc._rev === ganImpRev());
+  const aj = { ...(padrao ? padrao[1] : {}), ...(imp ? { inicio_plan: imp.inicio_plan, prazo: imp.prazo } : {}), ...(locVale ? loc : {}) };
   if (aj.inicio_plan) it.inicio_plan = aj.inicio_plan;
   if (aj.prazo) it.prazo = aj.prazo;
+  if (imp) { it._impNomes = imp.nomes; if (!locVale) it._impDatas = true; }
   return it;
+}
+
+// ---- Cronograma importado (PDF, planilha ou MS Project): M.cronograma_importado = { arquivo, rev, substituir, atividades: [{ nome, grupo, inicio, fim, vinculo }] }
+// vinculo.tipo: 'linha' = atividade que já existe no Gantt (as datas dela passam a ser as do arquivo; vale em todas as telas);
+//               'bm' = atividade(s) do catálogo (linha nova no Gantt com o avanço lido dos lançamentos); 'nova' = linha nova sem leitura; 'ignorar'.
+function ganImp() { const ci = M && M.cronograma_importado; return ci && Array.isArray(ci.atividades) && ci.atividades.length ? ci : null; }
+function ganImpRev() { return Number(M?.cronograma_importado?.rev) || 0; }
+let ganImpCache = null;
+function ganImpMapa() {
+  const ci = ganImp();
+  if (!ci) return null;
+  if (ganImpCache && ganImpCache.src === ci) return ganImpCache;
+  const linhas = new Map();
+  ci.atividades.forEach(a => {
+    const v = a.vinculo || {};
+    if (v.tipo !== 'linha' || !v.chave || !ehISO(a.inicio) || !ehISO(a.fim)) return;
+    const kn = ganNorm(v.chave), o = linhas.get(kn) || { inicio_plan: a.inicio, prazo: a.fim, nomes: [] };
+    if (a.inicio < o.inicio_plan) o.inicio_plan = a.inicio;   // várias atividades do arquivo na mesma linha (ex.: Fase 1 e Fase 2): do primeiro início ao último término
+    if (a.fim > o.prazo) o.prazo = a.fim;
+    o.nomes.push(a.nome);
+    linhas.set(kn, o);
+  });
+  return ganImpCache = { src: ci, linhas };
+}
+const ganImpChaveAtiv = cod => typeof vcChaveAtiv === 'function' ? vcChaveAtiv(cod) : String(cod || '').replace(/^(EJ|CMM)-/, '');
+// Linhas novas do Gantt criadas pelo cronograma importado (só na aba Cronograma: não entram em Planejamento, Projeção nem no avanço ponderado).
+function ganLinhasImportadas(c) {
+  const ci = ganImp();
+  if (!ci) return [];
+  const todas = bmTab('bm_atividades'), pesoItem = new Map();
+  todas.forEach(a => { const k = `${a.empresa}|${a.item}`; pesoItem.set(k, (pesoItem.get(k) || 0) + (a.peso || 0)); });
+  return ci.atividades.filter(a => ['bm', 'nova'].includes(a.vinculo?.tipo) && ehISO(a.inicio) && ehISO(a.fim)).map(a => {
+    const cods = a.vinculo.tipo === 'bm' ? (a.vinculo.cods || []) : [];
+    const ats = cods.length ? todas.filter(x => cods.includes(ganImpChaveAtiv(x.codigo))) : [];
+    const frente = String((a.grupo || []).slice(-1)[0] || 'CRONOGRAMA IMPORTADO').toUpperCase();
+    const mesmaUn = ats.length > 0 && cods.length === 1 && new Set(ats.map(x => ganNorm(x.unidade))).size === 1 && ats.every(x => Number(x.qtd) > 0);
+    const qtd = mesmaUn ? soma0(ats, x => Number(x.qtd) || 0) : 100;
+    const it = { frente, fase: '1', servico: a.nome, inicio_plan: a.inicio, prazo: a.fim, qtd, peso: 1, virtual_gantt: true, bm_percentual: !mesmaUn, _impId: a.id, _impUn: mesmaUn ? (ats[0].unidade || '') : '%' };
+    it.meta_dia = metaDiaPorPrazo(it);
+    let realAc = 0; const ds = [], emp = new Map();
+    if (ats.length) {
+      const valor = x => Math.max(x.valor_rotula || x.valor_qpc || 0, 0) * ((x.peso || 0) / (pesoItem.get(`${x.empresa}|${x.item}`) || 1));
+      const somaV = soma0(ats, valor);
+      ats.forEach(x => {
+        const q = Number(x.qtd) || 0, real = Math.min(q || Infinity, Math.max(0, bmRealizado(x, c)));
+        const w = mesmaUn ? 1 : (somaV > 0 ? valor(x) / somaV : 1 / ats.length) * (q ? 100 / q : 0);   // % = parte do valor da atividade × avanço dela
+        const bruto = ganBmDatasAtividade(x, c), totB = soma0(bruto, ([, v]) => v), f = totB > 0 ? real / totB : 0;
+        realAc += real * w;
+        const lista = bruto.map(([d, v]) => [d, v * f * w]).filter(([, v]) => v > 0);
+        ds.push(...lista);
+        if (lista.length) emp.set(x.empresa, [...(emp.get(x.empresa) || []), ...lista]);
+      });
+    }
+    ds.sort((x, y) => x[0].localeCompare(y[0]));
+    const semLeitura = !ats.length, prevAc = prevCliente(it, c), concluiu = !semLeitura && realAc >= qtd - 1e-6;
+    const status = semLeitura ? 'SEM LEITURA' : concluiu ? 'CONCLUÍDO' : prevAc === 0 && realAc === 0 ? 'NÃO INICIADO' : realAc >= prevAc ? 'ADIANTADO' : realAc >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    return { it, ini: a.inicio, fimPrev: a.fim, prazo: a.fim, ri: ds.length ? ds[0][0] : null, rf: concluiu && ds.length ? ds[ds.length - 1][0] : (ds.length ? c : null), ultimo: ds.length ? ds[ds.length - 1][0] : null,
+      realAc, prevAc, pctReal: Math.min(1, realAc / qtd), pctPrev: Math.min(1, prevAc / qtd), projecao: null, status, semLeitura, dsReal: ds,
+      porEmp: [...emp.entries()].map(([nome, lista]) => ({ nome, ds: lista.sort((x, y) => x[0].localeCompare(y[0])) })),
+      impDetalhe: semLeitura ? (cods.length ? 'Atividade do catálogo vinculada não encontrada: ' + cods.join(', ') : 'Sem vínculo com atividade lançada: só o previsto') : 'Catálogo: ' + ats.map(x => x.codigo).join(', ') };
+  });
 }
 
 
@@ -1802,9 +1869,11 @@ function ganQtdRef(cr) {
 
 function ganItensCliente() {
   const base = (M.cliente || []).map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
+  const impMapa = ganImpMapa(), impSubstitui = !!(impMapa && ganImp().substituir);
   GAN_CRONOGRAMA_CLIENTE.forEach(cr => {
     if (faseFiltro && cr.fase !== faseFiltro) return;
     let alvo = base.find(c => ganChavePlanejada(c) === ganChavePlanejada(cr));
+    if (!alvo && impSubstitui && !impMapa.linhas.has(ganNorm(ganDataKey(cr)))) return;   // cronograma importado substitui o padrão: linha padrão sem vínculo não aparece
     if (alvo) {
       alvo.frente = cr.frente;
       alvo.inicio_plan = cr.inicio_plan;
@@ -1827,7 +1896,7 @@ function ganItensCliente() {
   });
   return base.map(it => {
     ganAplicarDatas(it);
-    if (it.meta_derivada || it.bm_percentual) it.meta_dia = metaDiaPorPrazo(it) || it.meta_dia;
+    if (it.meta_derivada || it.bm_percentual || it._impDatas) it.meta_dia = metaDiaPorPrazo(it) || it.meta_dia;   // datas do cronograma importado: a meta/dia acompanha o novo prazo
     return it;
   });
 }
@@ -2175,7 +2244,8 @@ function ganAbrirPopupDatas() {
 
 
 function renderGantt() {
-  const c = corte(), ls0 = ganLinhas(c);
+  const c = corte(), ls0 = [...ganLinhas(c), ...ganLinhasImportadas(c)];
+  if (typeof ciAtualizarBarra === 'function') ciAtualizarBarra();
   const frentes = [...new Set(ls0.map(l => l.it.frente || 'SEM FRENTE'))];
   if (ganEst.frente && !frentes.includes(ganEst.frente)) ganEst.frente = '';
   $('#selGanFrente').innerHTML = `<option value="">Todas</option>` + frentes.map(f => `<option ${f === ganEst.frente ? 'selected' : ''}>${esc(f)}</option>`).join('');
@@ -2185,7 +2255,7 @@ function renderGantt() {
   $('#ganLegenda').innerHTML = `<span><i style="--c:var(--fg3)"></i>Previsto (cliente)</span><span><i style="--c:var(--verde)"></i>Adiantado / no prazo</span><span><i style="--c:var(--amarelo)"></i>No limite</span><span><i style="--c:var(--vermelho)"></i>Atrasado</span><span><i style="--c:var(--pend)"></i>Não iniciado</span><span><i style="--c:var(--acento)"></i>Concluído</span><span><i class="g-leg-inicio"></i>Início planejado</span><span><i class="g-leg-fim"></i>Fim planejado</span><span><i class="g-leg-proj"></i>Projeção</span><span><i class="g-leg-hoje"></i>Hoje</span>`;
 
   const ls = ls0.filter(l => !ganEst.frente || (l.it.frente || 'SEM FRENTE') === ganEst.frente);
-  ganEst.linhasEdit = ls;
+  ganEst.linhasEdit = ls.filter(l => !l.it._impId);   // linhas criadas pelo cronograma importado mudam de data na conciliação
   const avPrev = avancoPonderado(c, true), avReal = avancoPonderado(c, false), gap = avReal - avPrev;
   const atras = ls.filter(l => ganStatusAtrasado(l.status)).length, ok = ls.filter(l => ['ADIANTADO', 'CONCLUÍDO', 'NO PRAZO'].includes(l.status)).length;
   const atrasSemInicio = ls.filter(l => ganStatusAtrasado(l.status) && !l.ri).length;
@@ -2236,16 +2306,16 @@ function renderGantt() {
     xs.forEach(l => {
       const iniciouAtrasado = !!(l.ri && l.ini && l.ri > l.ini);
       const iniciouAdiantadoOuNoPrazo = !!(l.ri && l.ini && l.ri <= l.ini);
-      const semInicioAtrasado = !!(!l.ri && l.ini && l.ini <= c);
+      const semInicioAtrasado = !!(!l.semLeitura && !l.ri && l.ini && l.ini <= c);
       const cor = l.status === 'CONCLUÍDO' ? 'concl' : iniciouAtrasado ? 'vermelho' : iniciouAdiantadoOuNoPrazo ? 'verde' : ganStatusCor(l.status);
       const realIniVis = l.ri || null;
       const realFimVis = l.rf || (l.ri ? c : null);
       const realPctVis = l.ri && l.rf ? l.pctReal : l.ri ? Math.max(l.pctReal, .03) : 0;
-      const un = l.it.bm_percentual ? ' %' : servicoUsaCatalogoM2(l.it.servico) && !l.it.virtual_gantt ? ' m²' : '';
+      const un = l.it._impId ? (l.it._impUn === '%' ? ' %' : ' ' + l.it._impUn) : l.it.bm_percentual ? ' %' : servicoUsaCatalogoM2(l.it.servico) && !l.it.virtual_gantt ? ' m²' : '';
       const rotStatus = semInicioAtrasado ? 'INÍCIO ATRASADO' : iniciouAtrasado ? 'INICIOU ATRASADO' : l.status;
-      const tit = `${cap(l.it.servico)}\nStatus: ${rotStatus}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)}${un} de ${nf(l.it.qtd)}${un} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)}${un} (${nf(l.pctPrev * 100, 1)}%)${semInicioAtrasado ? '\nAlerta: atividade já deveria ter iniciado.' : ''}${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}`;
-      corpo += `<div class="g-linha ${semInicioAtrasado ? 'g-alerta-atraso' : ''}"><div class="g-rot" style="width:${GAN_ESQ}px" title="${esc(tit)}"><span class="g-nome">${esc(cap(l.it.servico))}</span>
-        <span class="g-num"><b class="${ganStatusAtrasado(l.status) ? 'valor-neg' : ''}">${nf(l.pctReal * 100, 0)}%</b> / ${nf(l.pctPrev * 100, 0)}%</span></div>
+      const tit = `${cap(l.it.servico)}\nStatus: ${rotStatus}\nPrevisto: ${l.ini ? fdA(l.ini) : '—'} a ${l.fimPrev ? fdA(l.fimPrev) : '—'} (prazo ${l.prazo ? fdA(l.prazo) : '—'})\nRealizado: ${l.ri ? fdA(l.ri) : 'não iniciado'}${l.rf && l.status === 'CONCLUÍDO' ? ' a ' + fdA(l.rf) : ''}\nProduzido ${nf(l.realAc, 1)}${un} de ${nf(l.it.qtd)}${un} (${nf(l.pctReal * 100, 1)}%) · previsto até hoje ${nf(l.prevAc, 1)}${un} (${nf(l.pctPrev * 100, 1)}%)${semInicioAtrasado ? '\nAlerta: atividade já deveria ter iniciado.' : ''}${l.projecao && l.status !== 'CONCLUÍDO' ? '\nProjeção de término: ' + fdA(l.projReal || l.projecao) : ''}${l.it._impId ? '\nCronograma importado · ' + l.impDetalhe : l.it._impNomes ? '\nCronograma importado: ' + l.it._impNomes.join(' + ') + (l.it._impDatas ? '' : ' (datas alteradas à mão depois)') : ''}`;
+      corpo += `<div class="g-linha ${semInicioAtrasado ? 'g-alerta-atraso' : ''}"><div class="g-rot" style="width:${GAN_ESQ}px" title="${esc(tit)}"><span class="g-nome">${l.it._impId || l.it._impNomes ? '<i class="g-imp" title="Datas do cronograma importado">⇄</i> ' : ''}${esc(cap(l.it.servico))}</span>
+        <span class="g-num">${l.semLeitura ? '<span class="nota">s/ leitura</span>' : `<b class="${ganStatusAtrasado(l.status) ? 'valor-neg' : ''}">${nf(l.pctReal * 100, 0)}%</b>`} / ${nf(l.pctPrev * 100, 0)}%</span></div>
         <div class="g-trilha" style="width:${W}px">
           ${bar('prev', l.ini, l.fimPrev, '', tit, 7)}<i class="g-prog prev-prog" style="width:${l.ini && l.fimPrev ? Math.round(l.pctPrev * Math.max(3, X(add(l.fimPrev, 1)) - X(l.ini))) : 0}px"></i></div>
           ${bar('real ' + cor + (semInicioAtrasado ? ' inicio-atrasado' : ''), realIniVis, realFimVis, '', tit, 20)}<i class="g-prog" style="width:${realIniVis && realFimVis ? Math.round(realPctVis * Math.max(3, X(add(realFimVis, 1)) - X(realIniVis))) : 0}px"></i></div>

@@ -54,6 +54,7 @@ $html = str_replace('src="mapa_obra.js"', 'src="mapa_obra.js?v=' . @filemtime(__
 $html = str_replace('src="tabelas.js"', 'src="tabelas.js?v=' . @filemtime(__DIR__ . '/tabelas.js') . '"', $html);
 $html = str_replace('src="tarefas.js"', 'src="tarefas.js?v=' . @filemtime(__DIR__ . '/tarefas.js') . '"', $html);
 $html = str_replace('src="cff.js"', 'src="cff.js?v=' . @filemtime(__DIR__ . '/cff.js') . '"', $html);
+$html = str_replace('src="cronograma_imp.js"', 'src="cronograma_imp.js?v=' . @filemtime(__DIR__ . '/cronograma_imp.js') . '"', $html);
 $html = str_replace('src="contas_pagar.js"', 'src="contas_pagar.js?v=' . @filemtime(__DIR__ . '/contas_pagar.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . '/toque.js') . '"', $html);

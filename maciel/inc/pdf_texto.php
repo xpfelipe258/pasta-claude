@@ -54,8 +54,28 @@ function pdf_chave($dic, $chave)
     return null;
 }
 
+function pdf_ascii85($s)
+{
+    $s = preg_replace('/\s+/', '', (string)$s);
+    $fim = strpos($s, '~>');
+    if ($fim !== false) { $s = substr($s, 0, $fim); }
+    if (strncmp($s, '<~', 2) === 0) { $s = substr($s, 2); }
+    $s = str_replace('z', '!!!!!', $s);
+    $out = '';
+    for ($i = 0, $n = strlen($s); $i < $n; $i += 5) {
+        $g = substr($s, $i, 5);
+        $falta = 5 - strlen($g);
+        $g = str_pad($g, 5, 'u');
+        $v = 0;
+        for ($k = 0; $k < 5; $k++) { $v = $v * 85 + (ord($g[$k]) - 33); }
+        $out .= substr(pack('N', $v & 0xFFFFFFFF), 0, 4 - $falta);
+    }
+    return $out;
+}
+
 function pdf_decodificar($dic, $bruto)
 {
+    if (strpos($dic, '/ASCII85Decode') !== false || preg_match('/\/A85\b/', $dic)) { $bruto = pdf_ascii85($bruto); }
     if (strpos($dic, '/FlateDecode') === false && strpos($dic, '/Fl') === false) { return $bruto; }
     $d = @gzuncompress($bruto);
     if ($d === false) { $d = @gzinflate(substr($bruto, 2)); }
