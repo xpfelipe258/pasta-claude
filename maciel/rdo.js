@@ -314,13 +314,13 @@ const RDO_CSS = `<style>
 // Três estados, sempre nas mesmas cores: FEITO NO DIA (verde), JÁ TINHA (azul: apontado antes do dia) e FALTA (rosa: ainda não apontado).
 const RDO_COR = { dia: '#16a34a', ant: '#60a5fa', antTr: '#2563eb', falta: '#fecaca', faltaTr: '#f87171' };
 const RDO_COR_MAPA = { forte: RDO_COR.dia, porEmp: false, ant: RDO_COR.ant, antTr: RDO_COR.antTr, pend: RDO_COR.falta, pendTr: RDO_COR.faltaTr };
-const rdoLegenda = (extra = '') => `<div class="rdo-leg"><span><i style="background:${RDO_COR.dia};border-color:#14202b"></i><b>Feito no dia</b></span><span><i style="background:${RDO_COR.ant};border-color:${RDO_COR.antTr}"></i><b>Já tinha</b> (apontado antes do dia)</span><span><i style="background:${RDO_COR.falta};border-color:${RDO_COR.faltaTr}"></i><b>Falta</b> (ainda não apontado)</span>${extra}</div>`;
-const rdoBarraEmp = (n, tot) => tot > 0 ? `<div class="rdo-barra-emp" title="verde = feito no dia · azul = já tinha · rosa = falta"><i style="width:${n.ant / tot * 100}%;background:${RDO_COR.ant}"></i><i style="width:${n.per / tot * 100}%;background:${RDO_COR.dia}"></i></div>` : '';
+const rdoLegenda = (extra = '') => `<div class="rdo-leg"><span><i style="background:${RDO_COR.dia};border-color:#14202b"></i><b>Produção</b> (feito no dia)</span><span><i style="background:${RDO_COR.ant};border-color:${RDO_COR.antTr}"></i><b>Acumulado anterior</b> (apontado antes do dia)</span><span><i style="background:${RDO_COR.falta};border-color:${RDO_COR.faltaTr}"></i><b>Saldo</b> (ainda não apontado)</span>${extra}</div>`;
+const rdoBarraEmp = (n, tot) => tot > 0 ? `<div class="rdo-barra-emp" title="verde = produção do dia · azul = acumulado anterior · rosa = saldo"><i style="width:${n.ant / tot * 100}%;background:${RDO_COR.ant}"></i><i style="width:${n.per / tot * 100}%;background:${RDO_COR.dia}"></i></div>` : '';
 
 // uma linha da tabela-resumo; n = {per, ant, pend, outra?}
 function rdoLinhaMapa(rot, n, un = '', fator = 1) {
-  const tot = n.per + n.ant + n.pend + (n.outra || 0), feito = n.per + n.ant, f = v => nf(v * fator, fator === 1 ? 0 : 0) + (un ? ' ' + un : '');
-  return `<tr><td><b>${esc(rot)}</b></td><td class="n">${f(tot)}</td><td class="n"><b style="color:#15803d">${f(n.per)}</b></td><td class="n">${f(n.ant)}</td><td class="n"><b style="color:#b42318">${f(n.pend)}</b></td><td class="n">${tot ? nf(feito / tot * 100, 1) + '%' : '—'}</td><td>${rdoBarraEmp(n, tot)}</td></tr>`;
+  const tot = n.per + n.ant + n.pend + (n.outra || 0), acu = n.per + n.ant, f = v => nf(v * fator, 0) + (un ? ' ' + un : '');
+  return `<tr><td><b>${esc(rot)}</b></td><td class="n">${f(tot)}</td><td class="n"><b style="color:#15803d">${f(n.per)}</b></td><td class="n">${f(n.ant)}</td><td class="n"><b>${f(acu)}</b></td><td class="n"><b style="color:#b42318">${f(n.pend)}</b></td><td class="n">${tot ? nf(acu / tot * 100, 1) + '%' : '—'}</td><td>${rdoBarraEmp(n, tot)}</td></tr>`;
 }
 
 // obra antiga (G200): reaproveita os mapas do relatório das empresas, com data de corte = o próprio dia
@@ -401,7 +401,7 @@ async function rdoMapasHtml(dia) {
     linhas.push(rdoLinhaMapa('TOTAL DE PEÇAS', mp.tot));
     const dia_ = mp.fases.filter(f => f.n.per > 0);
     figs = dia_.map(f => `<h3>${esc(f.fase)} — ${nf(f.n.per, 0)} peça(s) no dia</h3><div class="mapa-fig">${mp.svgFase(f)}</div>`);
-    notas = `<p class="nota">Peça "feita" = com apontamento em alguma atividade (mapa de apontamento por peça). Cada célula do mapa agrupa as peças do mesmo ponto da malha de eixos e mostra a proporção: verde = feito no dia, azul = já tinha, rosa = falta.${dia_.length ? '' : ' Nenhuma peça foi apontada neste dia, por isso só o resumo é mostrado.'}</p>`;
+    notas = `<p class="nota">Peça "feita" = com apontamento em alguma atividade (mapa de apontamento por peça). Cada célula do mapa agrupa as peças do mesmo ponto da malha de eixos e mostra a proporção: verde = produção do dia, azul = acumulado anterior, rosa = saldo.${dia_.length ? '' : ' Nenhuma peça foi apontada neste dia, por isso só o resumo é mostrado.'}</p>`;
   } else {
     const lg = (() => { try { return rdoMapasLegado(dia); } catch (e) { console.error('RDO mapas', e); return { aviso: 'Não foi possível montar os mapas: ' + (e.message || e) }; } })();
     if (!lg) return '';
@@ -410,7 +410,7 @@ async function rdoMapasHtml(dia) {
   }
   return `<h2>Mapas de montagem — situação em ${esc(fdA(dia))}</h2>
     ${rdoLegenda(extraLeg)}
-    <table><thead><tr><th>Frente</th><th class="n">Total</th><th class="n">Feito no dia</th><th class="n">Já tinha</th><th class="n">Falta</th><th class="n">% concluído</th><th>Situação</th></tr></thead><tbody>${linhas.join('') || '<tr><td colspan="7" class="vazio">Sem peças mapeadas.</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Frente</th><th class="n">Total</th><th class="n">Produção</th><th class="n">Acumulado anterior</th><th class="n">Acumulado total</th><th class="n">Saldo</th><th class="n">% concluído</th><th>Situação</th></tr></thead><tbody>${linhas.join('') || '<tr><td colspan="8" class="vazio">Sem peças mapeadas.</td></tr>'}</tbody></table>
     ${notas}${figs.join('')}`;
 }
 
@@ -432,22 +432,22 @@ async function rdoHtml(dia, modo) {
   const pc = v => nf(v * 100, 1) + '%';
   if (!gestao) {
     const som = rdoProducaoSomada(dia, prod);
-    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No dia</th><th class="n">Acumulado (total)</th><th class="n">Contratado</th><th class="n">% do total acumulado</th>';
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Produção</th><th class="n">Acumulado anterior</th><th class="n">Acumulado total</th><th class="n">Contratado</th><th class="n">Saldo</th><th class="n">% do total acumulado</th>';
     som.itens.forEach(g => {
-      tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
+      tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
       g.ats.forEach(o => {
-        tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`;
+        tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(Math.max(0, o.real - o.per), 2)}</td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n">${o.qtd ? nf(Math.max(0, o.qtd - o.real), 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`;
       });
     });
   } else {
-    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">No dia</th><th class="n">% no dia</th><th class="n">Acumulado</th><th class="n">% executada (acumulado)</th><th class="n">Produzido (R$)</th>';
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">Produção</th><th class="n">% da produção</th><th class="n">Acumulado anterior</th><th class="n">Acumulado total</th><th class="n">Saldo</th><th class="n">% executada (acumulado total)</th><th class="n">Produzido (R$)</th>';
     prod.forEach(p => {
-      tProd += `<tr class="grupo"><td colspan="8"><b>${esc(p.emp)}</b> <span class="nota">· contratado de cada atividade da empresa</span></td></tr>`;
+      tProd += `<tr class="grupo"><td colspan="10"><b>${esc(p.emp)}</b> <span class="nota">· contratado de cada atividade da empresa</span></td></tr>`;
       p.itens.forEach(x => {
-        tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+        tProd += `<tr class="grupo2"><td colspan="10"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
         x.ats.forEach(t => {
           const qtd = Number(t.a.qtd) || 0;
-          tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${qtd ? nf(qtd, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${qtd ? pc(t.per / qtd) : '—'}</td><td class="n">${nf(t.real, 2)}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
+          tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${qtd ? nf(qtd, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${qtd ? pc(t.per / qtd) : '—'}</td><td class="n">${nf(Math.max(0, t.real - t.per), 2)}</td><td class="n">${nf(t.real, 2)}</td><td class="n">${qtd ? nf(Math.max(0, qtd - t.real), 2) : '—'}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`;
         });
       });
     });
@@ -546,18 +546,18 @@ async function rdoPeriodoHtml(ini, fim, modo) {
   let tProd = '', cabProd;
   if (!gestao) {
     const som = rdoProducaoSomada(fim, prod);
-    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">No período</th><th class="n">Acumulado (total)</th><th class="n">Contratado</th><th class="n">% do total acumulado</th>';
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Produção</th><th class="n">Acumulado anterior</th><th class="n">Acumulado total</th><th class="n">Contratado</th><th class="n">Saldo</th><th class="n">% do total acumulado</th>';
     som.itens.forEach(g => {
-      tProd += `<tr class="grupo2"><td colspan="6"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
-      g.ats.forEach(o => { tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`; });
+      tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(g.item)}</b> ${esc(cap(g.desc))}</td></tr>`;
+      g.ats.forEach(o => { tProd += `<tr><td>${esc(o.atividade)}${o.emps.length > 1 ? ` <span class="nota">(${esc(o.emps.join(' + '))})</span>` : ''}</td><td>${esc(o.unidade)}</td><td class="n"><b>${nf(o.per, 2)}</b></td><td class="n">${nf(Math.max(0, o.real - o.per), 2)}</td><td class="n">${nf(o.real, 2)}</td><td class="n">${o.qtd ? nf(o.qtd, 2) : '—'}</td><td class="n">${o.qtd ? nf(Math.max(0, o.qtd - o.real), 2) : '—'}</td><td class="n"><b>${o.qtd ? pc(Math.min(o.real / o.qtd, 1)) : '—'}</b></td></tr>`; });
     });
   } else {
-    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">No período</th><th class="n">% no período</th><th class="n">Acumulado</th><th class="n">% executada</th><th class="n">Produzido (R$)</th>';
+    cabProd = '<th>Atividade</th><th>Un.</th><th class="n">Contratado</th><th class="n">Produção</th><th class="n">% da produção</th><th class="n">Acumulado anterior</th><th class="n">Acumulado total</th><th class="n">Saldo</th><th class="n">% executada (acumulado total)</th><th class="n">Produzido (R$)</th>';
     prod.forEach(p => {
-      tProd += `<tr class="grupo"><td colspan="8"><b>${esc(p.emp)}</b></td></tr>`;
+      tProd += `<tr class="grupo"><td colspan="10"><b>${esc(p.emp)}</b></td></tr>`;
       p.itens.forEach(x => {
-        tProd += `<tr class="grupo2"><td colspan="8"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
-        x.ats.forEach(t => { const q = Number(t.a.qtd) || 0; tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${q ? nf(q, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${q ? pc(t.per / q) : '—'}</td><td class="n">${nf(t.real, 2)}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`; });
+        tProd += `<tr class="grupo2"><td colspan="10"><b>${esc(x.it.item)}</b> ${esc(cap(x.it.desc))}</td></tr>`;
+        x.ats.forEach(t => { const q = Number(t.a.qtd) || 0; tProd += `<tr><td>${esc(t.a.atividade)}</td><td>${esc(t.a.unidade || '')}</td><td class="n">${q ? nf(q, 2) : '—'}</td><td class="n"><b>${nf(t.per, 2)}</b></td><td class="n">${q ? pc(t.per / q) : '—'}</td><td class="n">${nf(Math.max(0, t.real - t.per), 2)}</td><td class="n">${nf(t.real, 2)}</td><td class="n">${q ? nf(Math.max(0, q - t.real), 2) : '—'}</td><td class="n"><b>${pc(t.pct)}</b></td><td class="n">${rs2(t.per * t.preco.unit)}</td></tr>`; });
       });
     });
   }
