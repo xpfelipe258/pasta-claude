@@ -11,7 +11,7 @@
 // Depende de app.js e planos.js: M, T, ref, bmItens, bmPrecoAtividade, bmTab, ganBmAtividades, ganBmAtividadesEspecificas, clienteFonte,
 // ECLUSA_VJ, proxDiaUtil, plCarregar, plCalc, plPlanosPainel-like (planos ativos), plDistribuirTaxa, plInteiro, trocarGrafico, eixos, cor, rs, rs2, nf, fd, fdA.
 // ------------------------------------------------------------------------------------------------
-const PJ = { plano: '', emp: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false, cob: 'uso' };
+const PJ = { plano: '', emp: '', contrato: 'RÓTULA', prod: 100, vista: 'semana', manual: null, aberto: false, cob: 'uso', pend: {} };   // pend: preços digitados e ainda não salvos (chave → texto)
 const PJ_LS = 'obra198_proj_preco_manual';   // antigo: preços digitados ficavam só no navegador (migrados para o servidor na primeira abertura)
 // Configuração compartilhada da obra (servidor, rota projecao-config): conjunto de equipamentos, dias cobrados e preços digitados.
 const pjCfg = () => (M.projecao_config ||= {});
@@ -463,7 +463,7 @@ async function renderProjecao() {
     const est = pjEstado(i, r.base);
     h += `<tr><td><b>${esc(x.it.atividade)}</b><div class="nota">${fd(x.it.inicio)} a ${fd(x.it.fim)}${x.it._planoNome ? ' · ' + esc(x.it._planoNome) : ''}</div></td><td>${esc(PJ.emp || plEmpresasDoItem(x.it, x.ativ).join(' / ') || x.it.empresa || '—')}</td>
       <td class="n">${plFmt(x.it.qtd, un)} ${esc(un)}</td>
-      <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${i.p ? nf(i.p, 2) : ''}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}">${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
+      <td class="n"><input type="text" inputmode="decimal" class="pj-preco ${i.pr.origem === 'sem' ? 'pj-sem' : ''}" data-pj-chave="${esc(i.ativ.chave)}" data-pj-bm="${i.pr.bm || ''}" value="${esc(i.ativ.chave in PJ.pend ? PJ.pend[i.ativ.chave] : (i.p ? nf(i.p, 2) : ''))}" placeholder="R$/${esc(un)}" title="${i.pr.manual ? 'Preço digitado (BM: ' + (i.pr.bm ? rs2(i.pr.bm) : 'sem valor') + ')' : i.pr.bm ? 'Preço do BM: ' + esc(i.pr.codigos.join(', ')) : 'Sem atividade no BM: digite o preço unitário'}"><button type="button" class="btn pj-salvar" data-pj-salvar="${esc(i.ativ.chave)}" hidden>Salvar</button>${i.pr.manual ? ' <button type="button" class="link" data-pj-reset="' + esc(i.ativ.chave) + '" title="Voltar ao preço do BM">↺</button>' : ''}</td>
       <td class="n">${rs(i.valor)}</td><td class="n">${rs(planoHoje)}</td><td class="n"><button class="btn-link pl-audit-val" data-pl-audit="${esc(i.ativ.chave)}" data-ini="${(x.it._plano || pl).inicio}" data-fim="${(x.it._plano || pl).fim}" title="Ver de onde vem o executado (${plFmt(x.realAc, un)} ${esc(un)})">${rs(exec)}</button></td><td class="n">${nf(i.qtd ? Math.min(1, x.realAc / i.qtd) * 100 : 0, 0)}%</td>
       <td class="n pj-proj-cel"><div class="pj-proj-cab">${pjSpark(i, r, est)}<span>${rs(noFim)}</span></div></td><td class="n ${i.termina && i.termina > x.it.fim ? 'valor-neg' : ''}">${i.termina ? fdA(i.termina) : '—'}</td><td class="n">${rs(saldo)}</td><td title="${esc(est.dica)}"><span class="farol f-${est.c}">${esc(est.rot)}</span><div class="nota">${esc(est.dica)}</div></td></tr>`;
   });
@@ -662,18 +662,39 @@ document.addEventListener('change', ev => {
   }
   else if (t.id === 'pjVista') { PJ.vista = t.value; renderProjecao(); }
   else if (t.id === 'pjProd') { PJ.prod = +t.value; renderProjecao(); }
-  else if (t.classList && t.classList.contains('pj-preco')) {
-    const chave = t.dataset.pjChave, bm = Number(t.dataset.pjBm) || 0, txt = t.value.trim(), v = txt === '' ? 0 : edNum(txt);
-    const m = pjManual();
-    const novo = !(v > 0) || (bm && Math.abs(v - bm) < 0.005) ? null : v;
-    if (novo === null) delete m[chave]; else m[chave] = novo;
-    pjGravarCfg({ preco: { chave, valor: novo } }).then(renderProjecao);
+});
+document.addEventListener('input', ev => {
+  if (ev.target.id === 'pjProd') { const s = document.getElementById('pjProdTxt'); if (s) s.textContent = ev.target.value + '%'; }
+  else if (ev.target.classList && ev.target.classList.contains('pj-preco')) {   // digitando: guarda o texto e mostra o botão Salvar
+    const chave = ev.target.dataset.pjChave;
+    PJ.pend[chave] = ev.target.value;
+    const b = ev.target.closest('td') && ev.target.closest('td').querySelector('[data-pj-salvar]');
+    if (b) b.hidden = false;
   }
 });
-document.addEventListener('input', ev => { if (ev.target.id === 'pjProd') { const s = document.getElementById('pjProdTxt'); if (s) s.textContent = ev.target.value + '%'; } });
+// salva o preço unitário de uma atividade (botão Salvar ou Enter no campo)
+async function pjSalvarPreco(chave) {
+  const inp = [...document.querySelectorAll('.pj-preco')].find(x => x.dataset.pjChave === chave);
+  const txt = String(inp ? inp.value : (PJ.pend[chave] || '')).trim();
+  const bm = Number(inp && inp.dataset.pjBm) || 0;
+  const v = txt === '' ? 0 : edNum(txt);
+  if (txt !== '' && !(v >= 0)) { toast('Valor unitário inválido. Digite um número, ex.: 1.234,56', true); return; }
+  const novo = !(v > 0) || (bm && Math.abs(v - bm) < 0.005) ? null : v;
+  const m = pjManual();
+  if (novo === null) delete m[chave]; else m[chave] = novo;
+  await pjGravarCfg({ preco: { chave, valor: novo } });
+  delete PJ.pend[chave];
+  renderProjecao();
+  toast('Valor unitário salvo.');
+}
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('pj-preco')) { ev.preventDefault(); pjSalvarPreco(ev.target.dataset.pjChave); }
+});
 document.addEventListener('click', ev => {
+  const salvar = ev.target.closest && ev.target.closest('[data-pj-salvar]');
+  if (salvar) { pjSalvarPreco(salvar.dataset.pjSalvar); return; }
   const reset = ev.target.closest && ev.target.closest('[data-pj-reset]');
-  if (reset) { delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
+  if (reset) { delete PJ.pend[reset.dataset.pjReset]; delete pjManual()[reset.dataset.pjReset]; pjGravarCfg({ preco: { chave: reset.dataset.pjReset, valor: null } }).then(renderProjecao); return; }
   if (ev.target.closest && ev.target.closest('[data-pj-kit-auto]')) { delete pjCfg().kit; pjGravarCfg({ kit: null }).then(renderProjecao); return; }
   if (ev.target.id === 'pjCsv') pjCsv();
   if (ev.target.id === 'pjRel') pjRelatorio();
