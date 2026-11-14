@@ -58,7 +58,7 @@ $html = str_replace('src="cronograma_imp.js"', 'src="cronograma_imp.js?v=' . @fi
 $html = str_replace('src="contas_pagar.js"', 'src="contas_pagar.js?v=' . @filemtime(__DIR__ . '/contas_pagar.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . '/toque.js') . '"', $html);
-foreach (['i18n.js', 'config.js', 'tutorial.js'] as $arqNovo) {
+foreach (['i18n.js', 'config.js', 'tutorial.js', 'modelo3d.js'] as $arqNovo) {
     $html = str_replace('src="' . $arqNovo . '"', 'src="' . $arqNovo . '?v=' . @filemtime(__DIR__ . '/' . $arqNovo) . '"', $html);
 }
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);

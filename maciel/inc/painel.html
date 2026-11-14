@@ -57,6 +57,7 @@
         <button data-aba="lanc">Lançamentos <span class="contador" id="pendCont" hidden></span></button>
         <button data-aba="apont">Apontar montagem</button>
         <button data-aba="rdo" title="Relatório diário de obra: fotos e RDO do cliente / da gestão">Relatório diário (RDO)</button>
+        <button data-aba="m3d" title="Modelo 3D da obra (IFC) com prazos de montagem e simulação 4D">Modelo 3D (4D)</button>
         <button data-aba="plan">Planejamento de montagem</button>
         <button data-aba="avanco">Avanço físico</button>
         <button data-aba="gantt">Cronograma (Gantt)</button>
@@ -288,6 +289,11 @@
   <!-- AVANÇO -->
   <section id="aba-rdo" hidden>
     <div id="rdoCorpo"></div>
+  </section>
+
+  <!-- MODELO 3D / 4D -->
+  <section id="aba-m3d" hidden>
+    <div id="m3dCorpo"></div>
   </section>
 
   <section id="aba-qualidade" hidden>
@@ -981,6 +987,7 @@
 <script src="rel_lanc.js"></script>
 <script src="rel_suprimentos.js"></script>
 <script src="rdo.js"></script>
+<script src="modelo3d.js"></script>
 <script src="qualidade.js"></script>
 <script src="sesmt_aba.js"></script>
 <script src="bm_resumo.js"></script>

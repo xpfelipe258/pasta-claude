@@ -6,8 +6,10 @@ require_once __DIR__ . '/inc/leitura_util.php';
 require_once __DIR__ . '/inc/fixadores_conciliacao.php';
 require_once __DIR__ . '/inc/estrutura_conciliacao.php';
 
-class ErroValidacao extends Exception
-{
+if (!class_exists('ErroValidacao')) {   // inc/modelo3d.php declara a mesma classe para o ponto de entrada modelo3d.php
+    class ErroValidacao extends Exception
+    {
+    }
 }
 
 if (!config()) {

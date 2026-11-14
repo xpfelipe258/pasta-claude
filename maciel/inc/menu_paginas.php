@@ -26,7 +26,7 @@ function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '')
         $o .= '<div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto">' . $atual . '</div></div>' . "\n";
     }
     if ($pode('producao')) {
-        $o .= menu_pagina_grupo('producao', '☷', 'Produção', $b('painel', 'Painel') . $b('semana', 'Programação semanal') . $b('lanc', 'Lançamentos') . $b('apont', 'Apontar montagem') . $b('rdo', 'Relatório diário (RDO)') . $b('plan', 'Planejamento de montagem') . $b('avanco', 'Avanço físico') . $b('gantt', 'Cronograma (Gantt)') . $b('cliente', 'Dashboard cliente') . $b('tendencia', 'Tendências')) . "\n";
+        $o .= menu_pagina_grupo('producao', '☷', 'Produção', $b('painel', 'Painel') . $b('semana', 'Programação semanal') . $b('lanc', 'Lançamentos') . $b('apont', 'Apontar montagem') . $b('rdo', 'Relatório diário (RDO)') . $b('m3d', 'Modelo 3D (4D)') . $b('plan', 'Planejamento de montagem') . $b('avanco', 'Avanço físico') . $b('gantt', 'Cronograma (Gantt)') . $b('cliente', 'Dashboard cliente') . $b('tendencia', 'Tendências')) . "\n";
     }
     if ($pode('suprimentos')) {
         $o .= menu_pagina_grupo('suprimentos', '□', 'Suprimentos', $b('estmat', 'Materiais') . $b('estrem', 'Remessas') . $b('estcons', 'Consumo físico') . $b('estinv', 'Inventário') . $b('estcrit', 'Fixadores críticos') . $b('estsis', 'Baixa automática') . $b('estvinc', 'Vínculos') . $b('estpronto', 'Pronto para iniciar')) . "\n";
