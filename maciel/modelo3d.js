@@ -1352,10 +1352,7 @@ function m3dPrepararCarga() {
       });
     });
   }
-  // ordem de uso: frentes pelo início, dentro da frente a ordem das peças (eixo); o que não tem frente fica por último
-  const ordem = new Int32Array(d.n).fill(2147483647);
-  let k = 0;
-  M3.grupos.slice().sort((a, b) => String(a.inicio || '9999').localeCompare(String(b.inicio || '9999'))).forEach(g => (g.itens || []).forEach(i => { const r = d.raiz[i]; if (ordem[r] === 2147483647) ordem[r] = k++; }));
+  // A chegada por TAG segue os eixos em ordem decrescente, independente dos grupos.
   const pecas = new Map();
   let nComCarga = 0;
   for (let i = 0; i < d.n; i++) {
@@ -1366,7 +1363,11 @@ function m3dPrepararCarga() {
     pecas.get(t).push(i);
     nComCarga++;
   }
-  pecas.forEach(l => l.sort((a, b) => ordem[a] - ordem[b] || a - b));
+  pecas.forEach(l => l.sort((a, b) => {
+    const eixoA = Number(m3dEixoDe(a)) || 0, eixoB = Number(m3dEixoDe(b)) || 0;
+    return eixoB - eixoA || m3dTxt('pos', a).localeCompare(m3dTxt('pos', b), 'pt-BR', { numeric: true })
+      || String(d.e.guid[a]).localeCompare(String(d.e.guid[b]));
+  }));
   M3.carga = { porTag, pecas, n: nComCarga };
   M3._real = null;
 }
@@ -1390,7 +1391,9 @@ function m3dStatusReal() {
     lista.forEach(i => { if (st[i] >= 4) usadas++; });
     let livre = Math.max(0, chegou - usadas), cam = caminho;
     lista.forEach(i => {
-      if (st[i] >= 4 || (ap.fa && ap.fa[i] && ap.fa[i] <= dia)) return;
+      // Reserva a posição da remessa mesmo com retorno manual à fábrica.
+      // A correção cinza é aplicada depois, sem transferir a chegada para outra peça.
+      if (st[i] >= 4) return;
       if (livre > 0) { st[i] = 3; livre--; } else if (cam > 0) { st[i] = 2; cam--; } else st[i] = 1;
     });
   });
