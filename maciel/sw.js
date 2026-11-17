@@ -1,10 +1,11 @@
 // Modo canteiro sem internet (Modelo 3D): guarda no aparelho a tela, os dados da obra e o modelo convertido.
 // Só é registrado quando alguém aperta "Baixar para o canteiro" na tela do Modelo 3D.
 // Dados (páginas, api.php, modelo3d.php): tenta a rede primeiro (até 6 s) e, sem sinal, usa a última cópia guardada.
-// Arquivos fixos (js, css, wasm, imagens, modelo da demonstração): usa a cópia guardada e atualiza em segundo plano.
+// Programa (js, css) também é rede primeiro: com internet sempre roda a versão publicada; sem sinal, a cópia guardada.
+// Arquivos fixos (wasm, imagens, fontes, modelo da demonstração): usa a cópia guardada e atualiza em segundo plano.
 // Se a rede devolve a tela de login (sessão encerrada), apaga os dados guardados: nada da obra fica para outro usuário.
-const DADOS = 'obras-canteiro-dados-v1';
-const FIXOS = 'obras-canteiro-fixos-v1';
+const DADOS = 'obras-canteiro-dados-v2';
+const FIXOS = 'obras-canteiro-fixos-v2';
 const BASE = new URL('./', self.registration.scope).pathname;
 const NUNCA = /\/(sair|login|instalar|redefinir_senha)\.php$/;
 
@@ -19,7 +20,7 @@ self.addEventListener('message', ev => {
 });
 
 function fixo(u) {
-  return /\.(js|mjs|css|wasm|png|jpe?g|svg|ico|woff2?|webmanifest)$/i.test(u.pathname) || u.pathname.startsWith(BASE + 'demo/');
+  return /\.(wasm|png|jpe?g|svg|ico|woff2?|webmanifest)$/i.test(u.pathname) || u.pathname.startsWith(BASE + 'demo/');
 }
 
 async function daRede(req, ms) {
