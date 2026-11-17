@@ -16,6 +16,10 @@ const M3D_ICO = {
 const M3D_VER = ((document.currentScript && document.currentScript.src) || '').split('v=')[1] || '1';
 const M3D_COR = { sel: '#f59e0b', antes: '#d5d9e0', montando: '#2563eb', feito: '#16a34a', previsto: '#86d6a0', atrasado: '#dc2626', sem: '#c3c8d1' };
 const M3D_ROT = { antes: 'Não iniciado', montando: 'Em montagem', feito: 'Concluído', previsto: 'Concluído (previsto)', atrasado: 'Atrasado', sem: 'Sem prazo definido' };
+// situação real de cada peça montável: carga (Suprimentos › Remessas) + apontamento de campo (içada / torqueada)
+const M3D_RC = ['#e7e5e4', '#cbd5e1', '#7dd3fc', '#facc15', '#86efac', '#15803d', '#dc2626'];
+const M3D_RR = ['Sem dado de carga', 'Na fábrica', 'A caminho', 'No canteiro · pronta para içar', 'Içada', 'Torqueada', 'Atrasada (não içada no prazo)'];
+const M3D_RCURTO = ['Sem dado de carga', 'Na fábrica', 'A caminho', 'No canteiro', 'Içada', 'Torqueada', 'Atrasada'];
 const M3 = { pronto: false, estado: null, modeloId: 0, grupos: [], d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
   cores: 'orig', dia: '', antes: false, semPrazo: true, ocultos: new Set(), isolados: null, tocando: null, vel: 1, refVista: '', props: null, carregando: false };
 
@@ -83,8 +87,9 @@ function m3dEsqueleto() {
     <span class="m3d-esp"></span>
     <span class="m3d-demo-selo" id="m3dDemoSelo" hidden>Obra de demonstração · dados fictícios <button type="button" class="m3d-link" data-m3d="tour">ver o tour</button></span>
     <div class="seg" id="m3dModo" title="O que um clique seleciona"><button type="button" data-m="conj" class="ativa" title="A peça como é montada (viga, joist, terça…)">Peça montável</button><button type="button" data-m="peca" title="Cada componente da peça (chapa, perfil, parafuso…)">Componente</button></div>
-    <div class="seg" id="m3dCores" title="Cores do modelo"><button type="button" data-c="orig" class="ativa">Cores do projeto</button><button type="button" data-c="4d">Simulação 4D</button></div>
+    <div class="seg" id="m3dCores" title="O que as cores mostram"><button type="button" data-c="real" title="Situação de cada peça: carga e apontamento de campo">Situação real</button><button type="button" data-c="4d" title="Prazos das frentes de montagem">Planejado (4D)</button><button type="button" data-c="orig" class="ativa">Cores do projeto</button></div>
   </div>
+  <div class="m3d-vitrine" id="m3dVitrine" hidden></div>
   <div class="m3d-area">
     <div class="m3d-col">
       <div class="m3d-vista" id="m3dVista">
@@ -194,10 +199,12 @@ async function m3dAbrirModelo(id, bufLocal) {
     M3.grupos = g.grupos;
     M3._pesoTot = null;
     m3dIndexarGrupos();
+    await m3dCarregarCampo(id);
     const modAtual = M3.estado.modelos.find(m => m.id === id);
     if (m3dPodeEditar() && modAtual && !modAtual.frentes_auto && !M3.grupos.length) await m3dFrentesAuto(modAtual);
     m3dAviso('');
-    if (M3.estado.demo) { M3.cores = 'orig'; m3dDefinirCores('4d'); M3.dia = m3dHoje(); }
+    M3.dia = m3dHoje();
+    m3dDefinirCores(M3.estado.demo || M3.ap.n || M3.carga.n ? 'real' : 'orig');
     m3dVistaPadrao('iso');
     m3dPintar();
     if (M3.estado.demo) setTimeout(() => m3dTourIniciar(false), 400);
@@ -532,7 +539,8 @@ function m3dPintar() {
   const TH = M3.TH, cores = {}, hj = m3dHoje(), q = { antes: 0, montando: 0, feito: 0, previsto: 0, atrasado: 0, sem: 0 };
   Object.keys(M3D_COR).forEach(k => { cores[k] = new TH.Color(M3D_COR[k]); });
   const sit = M3.grupos.map(g => m3dSituacaoEm(g, M3.dia, hj));
-  const c = new TH.Color(), sel = M3.sel, m4 = M3.cores === '4d', contou = new Uint8Array(d.n);
+  const c = new TH.Color(), sel = M3.sel, m4 = M3.cores === '4d', mr = M3.cores === 'real', contou = new Uint8Array(d.n);
+  const R = m3dStatusReal(), rc = M3D_RC.map(x => new TH.Color(x));
   for (let i = 0; i < d.nInst; i++) {
     const el = d.iel[i], rz = d.raiz[el];
     let vis = true;
@@ -540,7 +548,9 @@ function m3dPintar() {
       c.copy(cores.sel);
     } else {
       if (M3.ocultos.has(el) || M3.ocultos.has(rz) || (M3.isolados && !M3.isolados.has(el) && !M3.isolados.has(rz))) vis = false;
-      if (m4) {
+      if (mr) {
+        c.copy(rc[R.st[rz]]);
+      } else if (m4) {
         const g = d.grupoDeEl[el] >= 0 ? d.grupoDeEl[el] : d.grupoDeEl[rz], s = g >= 0 ? sit[g] : 'sem';
         if (s === 'antes' && !M3.antes) vis = false;
         if (s === 'sem' && !M3.semPrazo) vis = false;
@@ -555,7 +565,228 @@ function m3dPintar() {
   }
   M3.contagem = q;
   m3dContagem();
+  m3dVitrine(R);
   m3dDesenhar();
+}
+
+// ---------------------------------------------------------------- situação real (campo + carga)
+/** Peso de cada peça montável (kg), calculado uma vez: o próprio, ou a soma dos componentes. */
+function m3dPesosRaiz() {
+  const d = M3.d, e = d.e;
+  if (d.pesoRz) return d.pesoRz;
+  const soma = new Float64Array(d.n), p = new Float64Array(d.n);
+  if (e.peso) for (let k = 0; k < d.nGeo; k++) { const r = d.raiz[k]; if (r !== k) soma[r] += e.peso[k] || 0; }
+  for (let i = 0; i < d.n; i++) if (e.pai[i] < 0) p[i] = (e.peso && e.peso[i]) || soma[i];
+  return (d.pesoRz = p);
+}
+/** TAG de carga da peça montável: a marca; peça sem marca no modelo (telha "nd07"…) usa o nome do tipo. */
+function m3dChaveCarga(i) {
+  const m = m3dTxt('marca', i).trim();
+  return (!m || /^nd\d*/i.test(m) ? (m3dTxt('nome', i).trim() || 'PEÇA') : m).toUpperCase();
+}
+function m3dIsoBr(t) {
+  t = String(t || '').trim();
+  if (typeof dataRemessaIso === 'function') { const v = dataRemessaIso(t); if (v) return v; }
+  const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : '';
+}
+async function m3dCarregarCampo(id) {
+  const d = M3.d;
+  M3.ap = { ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
+  try {
+    const a = await m3dGet(`acao=apont&modelo=${id}`);
+    a.itens.forEach(([g, et, dia, emp, inf, por]) => {
+      const i = d.guidDe.get(g);
+      if (i === undefined) return;
+      const r = d.raiz[i];
+      if (et === 2) M3.ap.tq[r] = dia; else { M3.ap.ic[r] = dia; if (inf) M3.ap.inf[r] = 1; }
+      M3.ap.por[r + ':' + et] = por;
+      M3.ap.n++;
+    });
+  } catch (e) { /* sem apontamentos: segue só com o planejado */ }
+  if (typeof EP !== 'undefined' && !EP && typeof API !== 'undefined') {
+    try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* sem acesso a Suprimentos */ }
+  }
+  m3dPrepararCarga();
+}
+/** Cargas por TAG (Suprimentos › Remessas): [nota fiscal, chegada na obra, quantidade]; e a ordem em que as peças de cada TAG são usadas. */
+function m3dPrepararCarga() {
+  const d = M3.d, porTag = new Map(), rem = (typeof EP !== 'undefined' && EP && EP.remessas) || null;
+  if (rem) {
+    const datas = rem.datas || {};
+    (rem.itens || []).forEach(it => {
+      const tag = String(it.tag || '').trim().toUpperCase();
+      if (!tag) return;
+      Object.entries(it.qtd_por_remessa || {}).forEach(([nome, q]) => {
+        q = +q || 0;
+        if (q <= 0) return;
+        const dt = datas[nome] || {}, ch = m3dIsoBr(dt.chegada_obra), nf = m3dIsoBr(dt.emissao_nota) || ch;
+        if (!porTag.has(tag)) porTag.set(tag, []);
+        porTag.get(tag).push([nf, ch, q, nome]);
+      });
+    });
+  }
+  // ordem de uso: frentes pelo início, dentro da frente a ordem das peças (eixo); o que não tem frente fica por último
+  const ordem = new Int32Array(d.n).fill(2147483647);
+  let k = 0;
+  M3.grupos.slice().sort((a, b) => String(a.inicio || '9999').localeCompare(String(b.inicio || '9999'))).forEach(g => (g.itens || []).forEach(i => { const r = d.raiz[i]; if (ordem[r] === 2147483647) ordem[r] = k++; }));
+  const pecas = new Map();
+  let nComCarga = 0;
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0 || d.cRz[i + 1] <= d.cRz[i]) continue;
+    const t = m3dChaveCarga(i);
+    if (!porTag.has(t)) continue;
+    if (!pecas.has(t)) pecas.set(t, []);
+    pecas.get(t).push(i);
+    nComCarga++;
+  }
+  pecas.forEach(l => l.sort((a, b) => ordem[a] - ordem[b] || a - b));
+  M3.carga = { porTag, pecas, n: nComCarga };
+  M3._real = null;
+}
+/** Situação real de cada peça montável numa data (M3.dia, nunca depois de hoje): 0 sem dado · 1 fábrica · 2 a caminho · 3 canteiro · 4 içada · 5 torqueada · 6 atrasada. */
+function m3dStatusReal() {
+  const d = M3.d, hj = m3dHoje(), dia = M3.dia && M3.dia < hj ? M3.dia : hj;
+  if (M3._real && M3._real.dia === dia && M3._real.v === M3._realV) return M3._real;
+  const st = new Uint8Array(d.n), ap = M3.ap || { ic: [], tq: [] };
+  const fimDe = new Array(M3.grupos.length);
+  M3.grupos.forEach((g, k) => { fimDe[k] = g.status === 'concluido' ? '' : (g.fim || ''); });
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0) continue;
+    if (ap.tq[i] && ap.tq[i] <= dia) st[i] = 5;
+    else if (ap.ic[i] && ap.ic[i] <= dia) st[i] = 4;
+  }
+  if (M3.carga) M3.carga.pecas.forEach((lista, tag) => {
+    let chegou = 0, caminho = 0;
+    M3.carga.porTag.get(tag).forEach(([nf, ch, q]) => { if (ch && ch <= dia) chegou += q; else if (nf && nf <= dia) caminho += q; });
+    let usadas = 0;
+    lista.forEach(i => { if (st[i] >= 4) usadas++; });
+    let livre = Math.max(0, chegou - usadas), cam = caminho;
+    lista.forEach(i => {
+      if (st[i] >= 4) return;
+      if (livre > 0) { st[i] = 3; livre--; } else if (cam > 0) { st[i] = 2; cam--; } else st[i] = 1;
+    });
+  });
+  for (let i = 0; i < d.n; i++) {   // frente com término vencido e peça ainda não içada = atrasada
+    if (d.e.pai[i] >= 0 || st[i] >= 4) continue;
+    const g = d.grupoDeEl[i];
+    if (g >= 0 && fimDe[g] && fimDe[g] < dia) st[i] = 6;
+  }
+  return (M3._real = { st, dia, v: M3._realV });
+}
+function m3dSelRaizes(filtro) {
+  const d = M3.d, out = [];
+  for (let i = 0; i < d.n; i++) if (d.e.pai[i] < 0 && d.cRz[i + 1] > d.cRz[i] && filtro(i)) out.push(i);
+  return out;
+}
+/** Os 4 cartões de gestão à vista (na data da linha do tempo, até hoje). */
+function m3dVitrine(R) {
+  const box = $('#m3dVitrine');
+  if (!box || !M3.d) return;
+  const d = M3.d, P = m3dPesosRaiz(), st = R.st, dia = R.dia;
+  let kgMont = 0, kgTot = 0, kgPrev = 0, nCant = 0, kgCant = 0, nAtr = 0;
+  const atrG = new Set();
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0 || d.cRz[i + 1] <= d.cRz[i]) continue;
+    kgTot += P[i];
+    if (st[i] >= 4 && st[i] <= 5) kgMont += P[i];
+    if (st[i] === 3) { nCant++; kgCant += P[i]; }
+    if (st[i] === 6) { nAtr++; atrG.add(d.grupoDeEl[i]); }
+  }
+  M3.grupos.forEach(g => {
+    if (!g.inicio || !g.fim) return;
+    let kg = 0;
+    (g.itens || []).forEach(i => { if (d.e.pai[i] < 0) kg += P[i]; });
+    const f = dia < g.inicio ? 0 : dia >= g.fim ? 1 : (diasEntre(g.inicio, dia) + 1) / (diasEntre(g.inicio, g.fim) + 1);
+    kgPrev += kg * f;
+  });
+  // próxima frente: a que começa primeiro depois da data (sem estar concluída)
+  const prox = M3.grupos.filter(g => g.status !== 'concluido' && g.inicio && g.inicio > dia).sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+  let faltam = 0, cam = 0, nProx = 0;
+  if (prox) (prox.itens || []).forEach(i => { if (d.e.pai[i] >= 0) return; nProx++; if (st[i] <= 2) { faltam++; if (st[i] === 2) cam++; } });
+  const t = kg => nf(kg / 1000, 1) + ' t', pct = kgPrev ? Math.round(kgMont / kgPrev * 100) : 0;
+  const tom = kgPrev && kgMont < kgPrev * 0.9 ? 'ruim' : 'bom';
+  const semCarga = !M3.carga || !M3.carga.n;
+  box.hidden = false;
+  box.innerHTML = `
+    <button type="button" class="m3d-card ${tom}" data-m3d="vit" data-k="mont" title="Selecionar as peças içadas"><span class="m3d-card-t">Montado até ${fdA(dia)}</span>
+      <b>${t(kgMont)}</b><small>${kgPrev ? `${pct}% do previsto (${t(kgPrev)})` : 'defina os prazos das frentes'} · ${t(kgTot)} no total</small></button>
+    <button type="button" class="m3d-card amarelo" data-m3d="vit" data-k="cant" title="Selecionar as peças no canteiro"><span class="m3d-card-t">Prontas para içar</span>
+      <b>${semCarga ? '—' : nCant.toLocaleString('pt-BR')}</b><small>${semCarga ? 'sem cargas lançadas em Suprimentos › Remessas' : `peças no canteiro · ${t(kgCant)}`}</small></button>
+    <button type="button" class="m3d-card ${prox && faltam ? 'alerta' : 'bom'}" data-m3d="vit" data-k="prox" title="Selecionar o que falta chegar para a próxima frente"><span class="m3d-card-t">Próxima frente${prox ? ' · ' + fdA(prox.inicio) : ''}</span>
+      <b>${prox ? (semCarga ? '—' : faltam ? faltam.toLocaleString('pt-BR') + ' faltando' : 'tudo no canteiro') : '—'}</b><small>${prox ? esc(prox.nome) + (semCarga ? '' : faltam ? ` · ${cam.toLocaleString('pt-BR')} a caminho, ${(faltam - cam).toLocaleString('pt-BR')} na fábrica` : ` · ${nProx.toLocaleString('pt-BR')} peças`) : 'nenhuma frente a iniciar'}</small></button>
+    <button type="button" class="m3d-card ${nAtr ? 'ruim' : 'bom'}" data-m3d="vit" data-k="atr" title="Selecionar as peças atrasadas"><span class="m3d-card-t">Prazo</span>
+      <b>${nAtr ? nAtr.toLocaleString('pt-BR') + ' atrasadas' : 'em dia'}</b><small>${nAtr ? `em ${atrG.size} frente(s) com término vencido` : 'nenhuma frente com término vencido'}</small></button>`;
+  M3._vit = { prox };
+}
+function m3dVitrineSelecionar(k) {
+  const R = m3dStatusReal(), st = R.st, d = M3.d;
+  let lista;
+  if (k === 'mont') lista = m3dSelRaizes(i => st[i] === 4 || st[i] === 5);
+  else if (k === 'cant') lista = m3dSelRaizes(i => st[i] === 3);
+  else if (k === 'atr') lista = m3dSelRaizes(i => st[i] === 6);
+  else { const g = M3._vit && M3._vit.prox; lista = g ? [...new Set((g.itens || []).map(i => d.raiz[i]))].filter(i => st[i] <= 2) : []; }
+  if (!lista.length) { toast('Nenhuma peça nesta situação.'); return; }
+  if (M3.modo !== 'conj') { M3.modo = 'conj'; document.querySelectorAll('#m3dModo button').forEach(x => x.classList.toggle('ativa', x.dataset.m === 'conj')); }
+  if (M3.cores !== 'real') m3dDefinirCores('real');
+  M3.sel = new Set(lista);
+  m3dPintar();
+  m3dPainelSel();
+  m3dVistaPadrao('enq');
+  toast(lista.length.toLocaleString('pt-BR') + ' peça(s) selecionada(s).');
+}
+/** Bloco "Campo" do painel da peça: situação real, apontamentos e botões de içar / torquear. */
+function m3dCampoHtml(itens) {
+  const d = M3.d, R = m3dStatusReal(), ap = M3.ap || { ic: [], tq: [], inf: [], por: {} };
+  const raizes = [...new Set(itens.map(i => d.raiz[i]))];
+  const ed = m3dPodeEditar(), dataPad = m3dHoje() > hoje() ? hoje() : m3dHoje();
+  const sIc = raizes.filter(i => !ap.ic[i]).length, sTq = raizes.filter(i => !ap.tq[i]).length;
+  let info = '';
+  if (raizes.length === 1) {
+    const i = raizes[0], s = R.st[i];
+    const l = [];
+    if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
+    if (ap.tq[i]) l.push(`Torqueada em <b>${fdA(ap.tq[i])}</b>${ap.por[i + ':2'] ? ' · ' + esc(ap.por[i + ':2']) : ''}`);
+    const t = m3dChaveCarga(i), cg = M3.carga && M3.carga.porTag.get(t);
+    if (cg) {
+      const tot = cg.reduce((a, x) => a + x[2], 0), ch = cg.filter(x => x[1] && x[1] <= R.dia).reduce((a, x) => a + x[2], 0);
+      const ult = cg.filter(x => x[1] && x[1] <= R.dia).sort((a, b) => b[1].localeCompare(a[1]))[0];
+      l.push(`Carga da marca ${esc(t)}: ${ch.toLocaleString('pt-BR')} de ${tot.toLocaleString('pt-BR')} no canteiro${ult ? ` · última chegada ${fdA(ult[1])} (${esc(ult[3])})` : ''}`);
+    } else l.push('Nenhuma carga desta marca lançada em Suprimentos › Remessas.');
+    info = `<div class="m3d-campo-sit"><i style="background:${M3D_RC[s]}"></i>${esc(M3D_RR[s])}</div><ul class="m3d-campo-hist">${l.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  } else {
+    const q = new Array(7).fill(0);
+    raizes.forEach(i => q[R.st[i]]++);
+    info = `<div class="m3d-legenda">${q.map((n, k) => n ? `<span class="m3d-leg"><i style="background:${M3D_RC[k]}"></i>${M3D_RCURTO[k]}: <b>${n.toLocaleString('pt-BR')}</b></span>` : '').join('')}</div>`;
+  }
+  let bts = '';
+  if (ed) {
+    const n = raizes.length, um = n === 1;
+    const prim = sIc ? `<button type="button" class="btn primario m3d-ap-bt" data-m3d="icar">${um ? 'Marcar como içada' : `Marcar ${sIc.toLocaleString('pt-BR')} como içadas`}</button>`
+      : sTq ? `<button type="button" class="btn primario m3d-ap-bt m3d-ap-tq" data-m3d="torquear">${um ? 'Marcar como torqueada' : `Marcar ${sTq.toLocaleString('pt-BR')} como torqueadas`}</button>` : '';
+    const sec = sIc && sTq ? `<button type="button" class="btn" data-m3d="torquear">${um ? 'Já torqueada' : 'Torqueadas'}</button>` : '';
+    const desf = [n - sTq ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', n - sIc ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
+    bts = (prim || sec ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${prim}${sec}</div>` : '<p class="nota">Montagem concluída nesta seleção.</p>') + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
+  }
+  return `<div class="m3d-campo"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
+}
+async function m3dApontar(acao) {
+  const d = M3.d, guids = [...new Set([...M3.sel].map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];
+  if (!guids.length) return;
+  const etapa = acao === 'icar' || acao === 'desicar' ? 'icada' : 'torqueada', des = acao.startsWith('des');
+  const dia = ($('#m3dApData') && $('#m3dApData').value) || hoje();
+  try {
+    const r = await m3dPost(des ? 'desapontar' : 'apontar', { modelo_id: M3.modeloId, etapa, guids, data: dia });
+    await m3dCarregarCampo(M3.modeloId);
+    M3._realV = (M3._realV || 0) + 1;
+    if (des) toast(`Desfeito: ${r.removidos.toLocaleString('pt-BR')} registro(s).`);
+    else {
+      toast(`${r.novos.toLocaleString('pt-BR')} peça(s) ${etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} em ${fdA(dia)}${r.inferidas ? ` · ${r.inferidas} içamento(s) registrado(s) junto` : ''}${r.ja_feitos ? ` · ${r.ja_feitos} já estava(m) registrada(s)` : ''}.`);
+      M3._apontou = true;
+    }
+    if (M3.cores !== 'real') m3dDefinirCores('real'); else m3dPintar();
+    m3dPainelSel();
+  } catch (e) { toast(e.message, true); }
 }
 
 // ---------------------------------------------------------------- painéis
@@ -613,6 +844,7 @@ function m3dPainelSel() {
     box.innerHTML = `<div class="m3d-peca">
         <div class="m3d-peca-cab"><span class="m3d-marca${semMarca ? ' m3d-marca-nome' : ''}">${esc(semMarca ? cap(tipo || 'Peça') : marca)}</span><span class="m3d-chip s-${s[0]}" title="${esc(s[1])}">${esc(s[1].split(' · ')[0])}</span></div>
         <div class="m3d-peca-sub">${semMarca ? 'sem marca no modelo' : esc(tipo ? cap(tipo) : '')}${kg ? ' · ' + m3dFmtPeso(kg) : ''}</div>
+        ${M3.ap ? m3dCampoHtml([i]) : ''}
         <dl class="m3d-linhas">${linhas.map(x => `<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join('')}</dl>
         ${acoes(G)}
         <details class="m3d-tec" id="m3dTec"><summary>Dados técnicos do IFC</summary>
@@ -630,6 +862,7 @@ function m3dPainelSel() {
   box.innerHTML = `<div class="m3d-peca">
       <div class="m3d-peca-cab"><span class="m3d-marca">${n.toLocaleString('pt-BR')}</span><span class="m3d-peca-un">${M3.modo === 'conj' ? 'peças montáveis' : 'componentes'}</span></div>
       <div class="m3d-peca-sub">${kg ? m3dFmtPeso(kg) : 'peso não informado no IFC'}</div>
+      ${M3.ap ? m3dCampoHtml(itens) : ''}
       <dl class="m3d-linhas"><dt>Etapas</dt><dd>${top.slice(0, 4).map(x => `${esc(x[0])} — ${x[1].toLocaleString('pt-BR')}`).join('<br>')}${top.length > 4 ? `<br>… e mais ${top.length - 4}` : ''}</dd>
         <dt>Frentes</dt><dd>${[...porGrupo].sort((a, b) => b[1] - a[1]).map(([g, q]) => `${g >= 0 ? esc(M3.grupos[g].nome) : 'sem frente'} — ${q.toLocaleString('pt-BR')}`).slice(0, 4).join('<br>')}${porGrupo.size > 4 ? `<br>… e mais ${porGrupo.size - 4}` : ''}</dd></dl>
       ${acoes(gUnica)}
@@ -760,6 +993,13 @@ function m3dTempo() {
 function m3dContagem() {
   const c = $('#m3dCont');
   if (!c) return;
+  if (M3.cores === 'real') {
+    const R = m3dStatusReal(), d = M3.d, q = new Array(7).fill(0);
+    for (let i = 0; i < d.n; i++) if (d.e.pai[i] < 0 && d.cRz[i + 1] > d.cRz[i]) q[R.st[i]]++;
+    c.innerHTML = [1, 2, 3, 4, 5, 6, 0].map(k => `<span class="m3d-leg"><i style="background:${M3D_RC[k]}"></i>${M3D_RCURTO[k]}: <b>${q[k].toLocaleString('pt-BR')}</b></span>`).join('') +
+      (M3.dia > m3dHoje() ? '<span class="nota">Depois de hoje a situação real fica como está hoje (use Planejado para ver o futuro).</span>' : '');
+    return;
+  }
   if (M3.cores !== '4d') { c.innerHTML = '<span class="nota">Arraste a linha do tempo (ou clique em Simular) para ver a obra em cada data.</span>'; return; }
   const q = M3.contagem || {};
   c.innerHTML = ['montando', 'feito', 'previsto', 'atrasado', 'antes', 'sem'].map(k =>
@@ -770,7 +1010,7 @@ function m3dIrDia(dia) {
   const s = $('#m3dSlider'), r = $('#m3dDia');
   if (s && M3.lim) s.value = diasEntre(M3.lim[0], dia);
   if (r) r.textContent = fdA(dia);
-  if (M3.cores !== '4d') m3dDefinirCores('4d'); else m3dPintar();
+  if (M3.cores === 'orig') m3dDefinirCores('real'); else m3dPintar();
 }
 function m3dDefinirCores(c) {
   M3.cores = c;
@@ -933,9 +1173,10 @@ async function m3dFrentesAuto(mod) {
 
 // ---------------------------------------------------------------- tour de 3 passos (obra de demonstração)
 const M3D_TOUR = [
-  { alvo: '#m3dCanvas', lado: 'centro', titulo: 'Clique numa peça do galpão', texto: 'Cada cor é a situação da frente de montagem hoje: <b style="color:#16a34a">verde</b> concluída, <b style="color:#2563eb">azul</b> em montagem, <b style="color:#dc2626">vermelho</b> atrasada.', espera: () => M3.sel.size > 0 },
-  { alvo: '#m3dSelBox', lado: 'esq', titulo: 'Tudo da peça num lugar só', texto: 'Marca, peso, eixo, etapa e a frente com o prazo. Os dados técnicos do IFC ficam recolhidos até você precisar.' },
-  { alvo: '#m3dTempo', lado: 'cima', titulo: 'Arraste a linha do tempo', texto: 'Leve o marcador para o início e aperte <b>Simular</b>: o galpão é montado frente por frente, até o término previsto. <b>Hoje</b> volta para a data atual.' },
+  { alvo: '#m3dVitrine', lado: 'baixo', titulo: 'A obra num olhar', texto: 'Toneladas montadas × previstas, peças prontas para içar, o que falta chegar para a próxima frente e o prazo. Clique num cartão para ver as peças no modelo.' },
+  { alvo: '#m3dCanvas', lado: 'centro', titulo: 'Clique numa peça amarela', texto: '<b style="color:#a16207">Amarelo</b> = já chegou ao canteiro e está pronta para içar. <b style="color:#15803d">Verde</b> = içada e torqueada, <b style="color:#0284c7">azul</b> = a caminho, cinza = na fábrica, <b style="color:#dc2626">vermelho</b> = atrasada.', espera: () => M3.sel.size > 0 },
+  { alvo: '#m3dSelBox', lado: 'esq', titulo: 'Marque como içada', texto: 'Aperte <b>Marcar como içada</b>: fica registrado quem e quando, e a peça muda de cor. Depois do torque, ela fica verde-escura.', espera: () => !!M3._apontou },
+  { alvo: '#m3dTempo', lado: 'cima', titulo: 'Veja a obra no tempo', texto: 'Arraste a linha do tempo ou aperte <b>Simular</b>. Em <b>Situação real</b> você vê como a obra foi montada de fato; em <b>Planejado (4D)</b>, o que os prazos preveem.' },
 ];
 function m3dTourChave() { return 'm3dTour:' + ((window.OBRA_ATUAL && OBRA_ATUAL.id) || 0); }
 function m3dTourIniciar(forcar) {
@@ -967,11 +1208,12 @@ function m3dTourDesenhar() {
   else if (alvo) {
     const r = alvo.getBoundingClientRect();
     if (p.lado === 'esq') { t.style.left = Math.max(8, r.left - vista.left - 336) + 'px'; t.style.top = Math.max(60, r.top - vista.top + 24) + 'px'; t.style.bottom = ''; }
+    else if (p.lado === 'baixo') { t.style.left = '16px'; t.style.top = '12px'; t.style.bottom = ''; }
     else { t.style.left = '16px'; t.style.top = ''; t.style.bottom = '12px'; }
   }
   clearInterval(M3._tourEspera);
   if (p.espera) M3._tourEspera = setInterval(() => { if (M3.tour !== null && p.espera()) { clearInterval(M3._tourEspera); M3.tour++; m3dTourDesenhar(); } }, 250);
-  if (ult) { m3dParar(); m3dDefinirCores('4d'); }
+  if (ult) m3dParar();
 }
 
 function m3dGuidsSel() {
@@ -983,6 +1225,7 @@ async function m3dRecarregarGrupos() {
   const g = await m3dGet(`acao=grupos&modelo=${M3.modeloId}`);
   M3.grupos = g.grupos;
   m3dIndexarGrupos();
+  if (M3.ap) m3dPrepararCarga();
   m3dPintar();
   m3dPaineis();
 }
@@ -1048,6 +1291,8 @@ function m3dLigar() {
     else if (ac === 'ocultar') { M3.sel.forEach(i => M3.ocultos.add(i)); M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
     else if (ac === 'mostrar') { M3.ocultos.clear(); M3.isolados = null; m3dPintar(); m3dPainelSel(); }
     else if (ac === 'props') m3dMostrarProps();
+    else if (ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq') m3dApontar(ac);
+    else if (ac === 'vit') m3dVitrineSelecionar(b.dataset.k);
     else if (ac === 'novo') m3dAbrirGrupo(null);
     else if (ac === 'fsel') m3dFiltrar(false);
     else if (ac === 'fsomar') m3dFiltrar(true);

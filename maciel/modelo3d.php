@@ -66,6 +66,10 @@ try {
             if (!m3d_modelo($_GET['modelo'] ?? 0)) { m3d_resp(404, ['erro' => 'Modelo não encontrado.']); }
             m3d_resp(200, m3d_grupos_ler((int)$_GET['modelo']));
         }
+        if ($acao === 'apont') {
+            if (!m3d_modelo($_GET['modelo'] ?? 0)) { m3d_resp(404, ['erro' => 'Modelo não encontrado.']); }
+            m3d_resp(200, m3d_apont_ler((int)$_GET['modelo']));
+        }
         if ($acao === 'arquivo' || $acao === 'cache') {
             $m = m3d_modelo($_GET['id'] ?? 0);
             if (!$m) {
@@ -166,6 +170,10 @@ try {
             $r = m3d_modelo_excluir($c);
         } elseif ($acao === 'grupo_salvar') {
             $r = m3d_grupo_salvar($c, $u);
+        } elseif ($acao === 'apontar') {
+            $r = m3d_apontar($c, $u);
+        } elseif ($acao === 'desapontar') {
+            $r = m3d_desapontar($c, $u);
         } elseif ($acao === 'frentes_auto') {
             $r = m3d_frentes_auto($c, $u);
         } elseif ($acao === 'grupo_excluir') {

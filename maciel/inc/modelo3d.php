@@ -38,6 +38,12 @@ function m3d_elementos_sql($fim)
         rotulo VARCHAR(120) NULL, PRIMARY KEY (modelo_id, guid))$fim";
 }
 
+function m3d_apontamentos_sql($pk, $fim)
+{
+    return "CREATE TABLE IF NOT EXISTS m3d_apontamentos (id $pk, obra_id INT NOT NULL, modelo_id INT NOT NULL, guid VARCHAR(40) NOT NULL, etapa VARCHAR(10) NOT NULL,
+        data DATE NOT NULL, empresa VARCHAR(100) NULL, inferida INT NOT NULL DEFAULT 0, por VARCHAR(100) NULL, em VARCHAR(19) NULL, UNIQUE (modelo_id, guid, etapa))$fim";
+}
+
 /** Cria as tabelas se faltarem (banco instalado antes desta versão). */
 function garantir_modelo3d()
 {
@@ -51,6 +57,7 @@ function garantir_modelo3d()
     $pdo->exec(modelos_3d_sql($pk, $fim));
     $pdo->exec(m3d_grupos_sql($pk, $mysql ? 'MEDIUMTEXT' : 'TEXT', $fim));
     $pdo->exec(m3d_elementos_sql($fim));
+    $pdo->exec(m3d_apontamentos_sql($pk, $fim));
     if (!in_array('frentes_auto', colunas_tabela($pdo, $mysql ? 'mysql' : 'sqlite', 'modelos_3d'), true)) {   // bancos criados antes desta coluna
         $pdo->exec('ALTER TABLE modelos_3d ADD COLUMN frentes_auto INT NOT NULL DEFAULT 0');
     }
@@ -115,7 +122,7 @@ function m3d_estado(array $u)
         $docs = [];
     }
     return ['modelos' => $modelos, 'docs_ifc' => $docs, 'demo' => obra_eh_demo($obraId) ? 1 : 0, 'pode_editar' => m3d_pode_editar($u) ? 1 : 0, 'empresa' => usuario_empresa_restrita($u),
-        'cache_versao' => M3D_CACHE_VERSAO, 'status' => m3d_status()];
+        'cache_versao' => M3D_CACHE_VERSAO, 'status' => m3d_status(), 'hoje' => substr(m3d_agora(), 0, 10)];
 }
 
 function m3d_pode_editar(array $u)
@@ -268,6 +275,102 @@ function m3d_desvincular($modeloId, array $guids, $soDoGrupo)
     }
 }
 
+// ---------------------------------------------------------------- apontamento de campo por peça (Içada, Torqueada)
+function m3d_etapas_campo()
+{
+    return ['icada' => 'Içada', 'torqueada' => 'Torqueada'];
+}
+
+/** Apontamentos do modelo: lista compacta [guid, 1 = içada | 2 = torqueada, data, empresa, inferida]. */
+function m3d_apont_ler($modeloId)
+{
+    $out = [];
+    foreach (q('SELECT guid, etapa, data, empresa, inferida, por FROM m3d_apontamentos WHERE modelo_id = ? ORDER BY data, id', [(int)$modeloId])->fetchAll() as $a) {
+        $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : 1, substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
+    }
+    return ['itens' => $out];
+}
+
+/** Usuário de empresa só aponta peças das frentes da própria empresa. */
+function m3d_conferir_guids_empresa(array $u, $modeloId, array $guids)
+{
+    $minha = usuario_empresa_restrita($u);
+    if ($minha === '') { return; }
+    $permitidos = [];
+    foreach (q('SELECT e.guid FROM m3d_elementos e JOIN m3d_grupos g ON g.id = e.grupo_id WHERE e.modelo_id = ? AND UPPER(g.empresa) = ?', [(int)$modeloId, mb_strtoupper($minha)])->fetchAll(PDO::FETCH_COLUMN) as $g) {
+        $permitidos[$g] = true;
+    }
+    foreach ($guids as $g) {
+        if (empty($permitidos[$g])) { throw new ErroValidacao('Há peças de frentes de outra empresa na seleção: você só aponta as peças das frentes da ' . $minha . '.'); }
+    }
+}
+
+function m3d_apontar(array $c, array $u)
+{
+    $modelo = m3d_modelo($c['modelo_id'] ?? 0);
+    if (!$modelo) { throw new ErroValidacao('Modelo não encontrado.'); }
+    $etapa = (string)($c['etapa'] ?? '');
+    if (!isset(m3d_etapas_campo()[$etapa])) { throw new ErroValidacao('Etapa inválida.'); }
+    $guids = m3d_guids_validos($c['guids'] ?? []);
+    if (!$guids) { throw new ErroValidacao('Selecione uma ou mais peças.'); }
+    $data = (string)($c['data'] ?? '');
+    $hoje = substr(m3d_agora(), 0, 10);
+    if (!data_valida($data)) { throw new ErroValidacao('Data do apontamento inválida.'); }
+    if ($data > $hoje) { throw new ErroValidacao('Não é possível apontar em data futura.'); }
+    if (function_exists('rdo_dia_validacao') && ($v = rdo_dia_validacao($data))) {
+        throw new ErroValidacao(rdo_mensagem_travado($data, $v));
+    }
+    m3d_conferir_guids_empresa($u, (int)$modelo['id'], $guids);
+    $empresa = usuario_empresa_restrita($u);
+    $agora = m3d_agora();
+    $existe = [];
+    foreach (array_chunk($guids, 400) as $lote) {
+        $st = bd()->prepare('SELECT guid, etapa, data FROM m3d_apontamentos WHERE obra_id = ? AND modelo_id = ? AND guid IN (' . implode(',', array_fill(0, count($lote), '?')) . ')');
+        $st->execute(array_merge([obra_atual_id(), (int)$modelo['id']], $lote));
+        foreach ($st->fetchAll() as $r) { $existe[$r['guid'] . '|' . $r['etapa']] = substr((string)$r['data'], 0, 10); }
+    }
+    $ins = bd()->prepare('INSERT INTO m3d_apontamentos (obra_id, modelo_id, guid, etapa, data, empresa, inferida, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $novos = 0;
+    $inferidas = 0;
+    $jaFeitos = 0;
+    foreach ($guids as $g) {
+        if (isset($existe[$g . '|' . $etapa])) { $jaFeitos++; continue; }
+        if ($etapa === 'torqueada' && !isset($existe[$g . '|icada'])) {   // torque sem içamento registrado: registra o içamento no mesmo dia, marcado como inferido
+            $ins->execute([obra_atual_id(), (int)$modelo['id'], $g, 'icada', $data, $empresa ?: null, 1, (string)$u['nome'], $agora]);
+            $inferidas++;
+        } elseif ($etapa === 'torqueada' && $existe[$g . '|icada'] > $data) {
+            throw new ErroValidacao('Há peça içada depois desta data: o torque não pode ser antes do içamento.');
+        }
+        $ins->execute([obra_atual_id(), (int)$modelo['id'], $g, $etapa, $data, $empresa ?: null, 0, (string)$u['nome'], $agora]);
+        $novos++;
+    }
+    return ['ok' => true, 'novos' => $novos, 'inferidas' => $inferidas, 'ja_feitos' => $jaFeitos];
+}
+
+/** Desfaz a etapa (desfazer o içamento desfaz também o torque). */
+function m3d_desapontar(array $c, array $u)
+{
+    $modelo = m3d_modelo($c['modelo_id'] ?? 0);
+    if (!$modelo) { throw new ErroValidacao('Modelo não encontrado.'); }
+    $etapa = (string)($c['etapa'] ?? '');
+    if (!isset(m3d_etapas_campo()[$etapa])) { throw new ErroValidacao('Etapa inválida.'); }
+    $guids = m3d_guids_validos($c['guids'] ?? []);
+    m3d_conferir_guids_empresa($u, (int)$modelo['id'], $guids);
+    $etapas = $etapa === 'icada' ? ['icada', 'torqueada'] : ['torqueada'];
+    $n = 0;
+    foreach (array_chunk($guids, 400) as $lote) {
+        $st = bd()->prepare('SELECT DISTINCT data FROM m3d_apontamentos WHERE obra_id = ? AND modelo_id = ? AND etapa IN (' . implode(',', array_fill(0, count($etapas), '?')) . ') AND guid IN (' . implode(',', array_fill(0, count($lote), '?')) . ')');
+        $st->execute(array_merge([obra_atual_id(), (int)$modelo['id']], $etapas, $lote));
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $d) {
+            if (function_exists('rdo_dia_validacao') && ($v = rdo_dia_validacao(substr((string)$d, 0, 10)))) { throw new ErroValidacao(rdo_mensagem_travado(substr((string)$d, 0, 10), $v)); }
+        }
+        $st = bd()->prepare('DELETE FROM m3d_apontamentos WHERE obra_id = ? AND modelo_id = ? AND etapa IN (' . implode(',', array_fill(0, count($etapas), '?')) . ') AND guid IN (' . implode(',', array_fill(0, count($lote), '?')) . ')');
+        $st->execute(array_merge([obra_atual_id(), (int)$modelo['id']], $etapas, $lote));
+        $n += $st->rowCount();
+    }
+    return ['ok' => true, 'removidos' => $n];
+}
+
 function m3d_grupo_excluir(array $c, array $u)
 {
     $g = q('SELECT * FROM m3d_grupos WHERE id = ?', [(int)($c['id'] ?? 0)])->fetch();
@@ -304,6 +407,7 @@ function m3d_modelo_excluir(array $c)
     }
     q('DELETE FROM m3d_elementos WHERE modelo_id = ?', [(int)$m['id']]);
     q('DELETE FROM m3d_grupos WHERE modelo_id = ?', [(int)$m['id']]);
+    q('DELETE FROM m3d_apontamentos WHERE modelo_id = ?', [(int)$m['id']]);
     q('DELETE FROM modelos_3d WHERE id = ?', [(int)$m['id']]);
     return ['ok' => true];
 }

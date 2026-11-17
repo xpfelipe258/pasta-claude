@@ -29,6 +29,101 @@ function demo_obra_do_usuario($uid)
         [(int)$uid, DEMO_CODIGO])->fetchColumn();
 }
 
+/** Data em dd/mm/aaaa (formato das remessas de Suprimentos). */
+function demo_br($iso)
+{
+    return $iso ? substr($iso, 8, 2) . '/' . substr($iso, 5, 2) . '/' . substr($iso, 0, 4) : '';
+}
+
+/** Campo da obra de demonstração: peças içadas e torqueadas por frente e as cargas (remessas) que chegaram, estão a caminho ou não saíram.
+ *  Tudo em dias relativos a hoje, para a demonstração ter sempre "o que está no canteiro" e "o que falta para a próxima frente". */
+function demo_semear_campo($obraId, $modeloId, array $frentes, callable $dia)
+{
+    $pdo = bd();
+    $agora = date('Y-m-d H:i:s');
+    $linhas = [];
+    $gravar = function () use (&$linhas, $pdo) {
+        if (!$linhas) { return; }
+        $pdo->prepare('INSERT INTO m3d_apontamentos (obra_id, modelo_id, guid, etapa, data, empresa, inferida, por, em) VALUES ' . implode(',', array_fill(0, count($linhas), '(?, ?, ?, ?, ?, NULL, 0, ?, ?)')))
+            ->execute(array_merge(...$linhas));
+        $linhas = [];
+    };
+    $itens = [];        // TAG => [material, produto, planejado, chegou, peso, qtd_por_remessa]
+    $colunas = [];
+    $datas = [];
+    $nCarga = 0;
+    foreach ($frentes as $f) {
+        $n = count($f['guids']);
+        if (!$n) { continue; }
+        $ini = (int)$f['ini'];
+        $fim = (int)$f['fim'];
+        // ---------------- apontamentos de campo
+        if ($f['status'] === 'concluido') {
+            $fracIc = 1.0;
+            $ateDia = (int)$f['concl'];
+        } elseif ($f['status'] === 'em_andamento') {
+            $fracIc = $fim < 0 ? 0.72 : max(0, min(1, -$ini / max(1, $fim - $ini))) * 0.9;
+            $ateDia = min(-1, $fim);
+        } else {
+            $fracIc = 0;
+            $ateDia = $ini;
+        }
+        $nIc = (int)floor($n * $fracIc);
+        for ($k = 0; $k < $nIc; $k++) {
+            $dIc = $ini + (int)floor(($k / max(1, $nIc)) * max(0, $ateDia - $ini));
+            $dIc = min($dIc, -1);
+            $linhas[] = [$obraId, $modeloId, $f['guids'][$k], 'icada', $dia($dIc), 'Demonstração', $agora];
+            $dTq = $dIc + 4;
+            if ($dTq <= -1 && ($f['status'] === 'concluido' ? $dTq <= max($ateDia, $dIc) + 4 : true)) {
+                $linhas[] = [$obraId, $modeloId, $f['guids'][$k], 'torqueada', $dia(min($dTq, -1)), 'Demonstração', $agora];
+            }
+            if (count($linhas) >= 250) { $gravar(); }
+        }
+        // ---------------- cargas: chegou (frente começou ou começa logo), metade a caminho (começa em até 12 dias), nada (mais tarde)
+        $cargas = [];
+        if ($ini <= 0) {
+            $cargas[] = [1.0, $ini - 6, $ini - 4];
+        } elseif ($ini <= 6) {
+            $cargas[] = [0.75, min($ini - 6, -3), min($ini - 4, -1)];
+            $cargas[] = [0.25, -1, null];
+        } elseif ($ini <= 12) {
+            $cargas[] = [0.6, -1, null];
+        }
+        foreach ($f['chaves'] as $tag => $q) {
+            if (!isset($itens[$tag])) {
+                $itens[$tag] = ['material' => $f['nomes'][$tag] ?? $tag, 'planejado' => 0, 'chegou' => 0, 'peso' => (float)($f['pesos'][$tag] ?? 0), 'rem' => []];
+            }
+            $itens[$tag]['planejado'] += $q;
+        }
+        foreach ($cargas as $c) {
+            $nCarga++;
+            $nome = sprintf('Carga %02d — %s', $nCarga, $f['nome']);
+            $colunas[] = $nome;
+            $datas[$nome] = ['prevista_chegada' => demo_br($dia(($c[2] ?? $c[1] + 3))), 'emissao_nota' => demo_br($dia($c[1])), 'chegada_obra' => $c[2] === null ? '' : demo_br($dia($c[2]))];
+            foreach ($f['chaves'] as $tag => $q) {
+                $qq = (int)round($q * $c[0]);
+                if ($qq <= 0) { continue; }
+                $itens[$tag]['rem'][$nome] = ($itens[$tag]['rem'][$nome] ?? 0) + $qq;
+                if ($c[2] !== null) { $itens[$tag]['chegou'] += $qq; }
+            }
+        }
+    }
+    $gravar();
+    $materiais = [];
+    $remItens = [];
+    foreach ($itens as $tag => $it) {
+        $falta = $it['planejado'] - $it['chegou'];
+        $materiais[] = ['tag' => $tag, 'peso_unitario' => $it['peso'], 'peso_total' => round($it['peso'] * $it['planejado'], 2), 'material' => $it['material'], 'produto' => $it['material'],
+            'planejado' => $it['planejado'], 'chegou' => $it['chegou'], 'falta_enviar' => $falta, 'consumido' => 0, 'estoque_pos_baixa' => $it['chegou'],
+            'atendimento' => $it['planejado'] ? round($it['chegou'] / $it['planejado'], 4) : 0, 'status_logistico' => $falta <= 0 ? 'Recebido' : ($it['chegou'] > 0 ? 'Recebimento Parcial' : 'Aguardando'),
+            'tipo_material' => 'ESTRUTURA', 'etapa' => 'Galpão Exemplo', 'local' => 'Galpão'];
+        $remItens[] = ['material' => $it['material'], 'produto' => $it['material'], 'tag' => $tag, 'etapa' => 'Galpão Exemplo', 'qtd_por_remessa' => $it['rem'], 'total_recebido' => $it['chegou']];
+    }
+    $ep = ['fonte' => 'Obra de demonstração', 'materiais' => $materiais, 'remessas' => ['colunas' => $colunas, 'itens' => $remItens, 'datas' => $datas, 'tipos' => array_fill_keys($colunas, 'CARGA')],
+        'consumo_fisico' => ['semanas' => [], 'empresas' => [], 'itens' => [], 'inventarios_datas' => (object)[]], 'inventario' => []];
+    q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$obraId, 'estoque_planilha', json_encode($ep, JSON_UNESCAPED_UNICODE)]);
+}
+
 /** Cria a obra de demonstração para o usuário (administrador dela) e devolve o id. */
 function demo_criar_obra($uid, $orgId = 0)
 {
@@ -94,6 +189,7 @@ function demo_criar_obra($uid, $orgId = 0)
                 $insE->execute([$obraId, $modeloId, $gid, $g]);
             }
         }
+        demo_semear_campo($obraId, $modeloId, $tpl['frentes'], $dia);
         if ($dono) {
             $pdo->commit();
         }

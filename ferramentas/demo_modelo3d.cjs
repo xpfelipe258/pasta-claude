@@ -61,14 +61,23 @@ for (const r of raizes) {
   if (!g) continue;
   let f = null;
   if (/^1\.1\.1|^Phase 252$|DESLIZAMENTO/i.test(fase)) f = cob[trecho(r)];
-  else if (/^Geral$/i.test(fase)) f = /FECHAMENTO/.test(nome) ? telFech : telCob[trecho(r)];
+  else if (/^Geral$/i.test(fase)) f = /TELHA/.test(nome) ? (/FECHAMENTO/.test(nome) ? telFech : telCob[trecho(r)]) : (/FECHAMENTO/.test(nome) ? fech : telCob[trecho(r)]);
   else if (/^telha$|^RUFO FECHAMENTO$/i.test(fase)) f = telFech;
   else if (/^1\.1\.2/.test(fase)) f = fech;
   else if (/^1\.1\.3|^Phase (316|5)$/i.test(fase)) f = marq;
   else if (/TESTEIRA|RUFOS MARQUISE|FORRO MARQUISE/i.test(fase)) f = marqAc;
   else if (/Calhas|RUFOS COBERTURA/i.test(fase)) f = calhas;
   else if (/Linha de Vida/i.test(fase)) f = vida;
-  if (f) f.guids.push(g);
+  if (f) { f.guids.push(g); f._r = f._r || []; f._r.push(r); }
+}
+// peças de cada frente em ordem de montagem (eixo, depois posição) e contagem por TAG de carga (marca; peça sem marca = nome do tipo)
+const chave = r => { const m = String(S[e.marca[r]] || '').trim(); return !m || /^nd\d*/i.test(m) ? String(S[e.nome[r]] || 'PEÇA').trim().toUpperCase() : m.toUpperCase(); };
+for (const f of frentes) {
+  const rs = (f._r || []).slice().sort((a, b) => eixo(a) - eixo(b) || String(S[e.pos[a]]).localeCompare(String(S[e.pos[b]])));
+  f.guids = rs.map(r => e.guid[r]);
+  f.chaves = {}; f.nomes = {}; f.pesos = {};
+  rs.forEach(r => { const k = chave(r); f.chaves[k] = (f.chaves[k] || 0) + 1; f.nomes[k] = String(S[e.nome[r]] || k); f.pesos[k] = e.peso[r] || 0; });
+  delete f._r;
 }
 
 // nomes de etapa que o modelo deixou genéricos ("Geral", "Phase 252"…) ganham nome de canteiro, só na demonstração

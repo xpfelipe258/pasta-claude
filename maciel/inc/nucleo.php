@@ -53,7 +53,7 @@ function tabelas_da_obra()
 {
     return array_merge([
         'empresas', 'servicos', 'producao', 'metas', 'cliente', 'impactos', 'historico',
-        'modelos_3d', 'm3d_grupos', 'm3d_elementos',   // modelo 3D / 4D: grandes, só carregados pela própria tela (modelo3d.php)
+        'modelos_3d', 'm3d_grupos', 'm3d_elementos', 'm3d_apontamentos',   // modelo 3D / 4D: grandes, só carregados pela própria tela (modelo3d.php)
         'contas_pagar', 'contas_pagar_baixas'   // fora de tabelas_spec() de propósito: não vão no modelo que todo usuário recebe (têm salários)
     ], array_keys(tabelas_spec()));
 }
@@ -150,7 +150,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 36;   // 36: modelo 3D / 4D (modelos_3d, m3d_grupos, m3d_elementos; arquivos em dados_obras/{obra}/modelo3d, servidos por modelo3d.php); 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 36;   // 36: modelo 3D / 4D (modelos_3d, m3d_grupos, m3d_elementos, m3d_apontamentos; arquivos em dados_obras/{obra}/modelo3d, servidos por modelo3d.php); 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -479,6 +479,7 @@ function criar_esquema(PDO $pdo, $driver)
         modelos_3d_sql($pk, $fim),
         m3d_grupos_sql($pk, $longo, $fim),
         m3d_elementos_sql($fim),
+        m3d_apontamentos_sql($pk, $fim),
         planos_sql($pk, $longo, $fim),
         organizacoes_sql($pk, $longo, $fim),
         organizacoes_pagamentos_sql($pk, $fim),
