@@ -1393,6 +1393,7 @@ function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'FECHAMENTO LA
 function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
+  if (M.cronograma_padrao === false) return null;   // obra nova: as datas vêm do cadastro do cliente ou do cronograma importado, nunca da G200
   let cr = GAN_CRONOGRAMA_CLIENTE.find(x => ganChavePlanejada(x) === ganChavePlanejada(c));
   if (!cr) {   // nome do cadastro mais longo que o do cronograma (ex.: "ECLUSA – TELHAS COBERTURA" × "Eclusa - Telhas"): vale a linha de mesmo início de nome
     const nc = ganNorm(c.servico);
@@ -1852,7 +1853,7 @@ function ganQtdRef(cr) {
 function ganItensCliente() {
   const base = (M.cliente || []).map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
   const impMapa = ganImpMapa(), impSubstitui = !!(impMapa && ganImp().substituir);
-  GAN_CRONOGRAMA_CLIENTE.forEach(cr => {
+  (M.cronograma_padrao === false ? [] : GAN_CRONOGRAMA_CLIENTE).forEach(cr => {   // as linhas fixas da G200 não entram em obra nova
     if (faseFiltro && cr.fase !== faseFiltro) return;
     let alvo = base.find(c => ganChavePlanejada(c) === ganChavePlanejada(cr));
     if (!alvo && impSubstitui && !impMapa.linhas.has(ganNorm(ganDataKey(cr)))) return;   // cronograma importado substitui o padrão: linha padrão sem vínculo não aparece

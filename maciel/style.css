@@ -1989,3 +1989,19 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .obra-contexto #obraAtualizarSistema:hover { background: rgba(255, 255, 255, .12); }
 .obra-contexto #obraAtualizarSistema:disabled { opacity: .6; cursor: default; }
 .obra-contexto #obraAtualizarStatus { color: #fde68a; font-size: .75rem; }
+
+/* ---- Modelo 3D · etapa 4: leitura do IFC ao vivo ---- */
+.m3d-conv { text-align: left; min-width: min(560px, 86vw); }
+.m3d-conv-tit { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.m3d-conv-tit small { font-weight: 500; color: var(--fg2, #475569); }
+.m3d-conv-num { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0 8px; }
+.m3d-conv-num div { background: var(--card, #fff); border: 1px solid var(--linha, #e2e8f0); border-radius: 10px; padding: 8px 10px; }
+.m3d-conv-num b { display: block; font-size: 1.45rem; line-height: 1.15; }
+.m3d-conv-num span { font-size: .72rem; color: var(--fg2, #475569); text-transform: uppercase; letter-spacing: .03em; }
+.m3d-conv-linha { font-size: .85rem; margin: 4px 0 6px; }
+.m3d-conv-barra { height: 8px; border-radius: 999px; background: var(--linha, #e2e8f0); overflow: hidden; margin-bottom: 6px; }
+.m3d-conv-barra i { display: block; height: 100%; background: var(--acento, #2563eb); transition: width .4s; }
+@media (max-width: 700px) { .m3d-conv-num { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m3d-aviso:has(.m3d-conv) { max-width: min(640px, 92%); }
+.m3d-vazio p { margin: 8px 0 14px; font-size: .88rem; color: var(--fg2, #475569); }
+.m3d-vazio-bt { min-height: 48px; padding: 0 28px; font-size: 1rem; font-weight: 700; display: block; margin: 0 auto 10px; }

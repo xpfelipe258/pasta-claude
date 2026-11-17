@@ -20,16 +20,97 @@ class Cresce {   // vetor tipado que dobra de tamanho quando enche
 const txt = v => (v && typeof v === 'object' && 'value' in v ? v.value : v);
 function limpo(v) { v = txt(v); return v == null ? '' : String(v); }
 
-function converter(api, bytes, prog) {
+function converter(api, bytes, prog, resumo, andamento) {
   const m = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: true });
   if (m < 0) throw new Error('Não consegui abrir o IFC.');
+  // ---------------------------------------------------------------- leitura das propriedades ANTES da geometria (o resumo aparece cedo na tela)
+  prog('Lendo conjuntos e propriedades…');
+  let totalPartes = 1;
+  const elIds = [];
+  const elDe = new Map();       // expressID do elemento → índice na tabela
+  // ---------------------------------------------------------------- hierarquia (conjuntos) e pavimentos
+  const pai = [];   // por índice de elemento
+  const idsDe = tipo => { const v = api.GetLineIDsWithType(m, tipo), r = []; for (let i = 0; i < v.size(); i++) r.push(v.get(i)); return r; };
+  const linha = id => { try { return api.GetLine(m, id, false); } catch (e) { return null; } };
+  const tipoNome = new Map();
+  const nomeTipo = cod => { let n = tipoNome.get(cod); if (n === undefined) { n = api.GetNameFromTypeCode(cod) || ''; tipoNome.set(cod, n); } return n; };
+  const info = new Map();   // expressID → linha do elemento
+  const lerEl = id => { let l = info.get(id); if (l === undefined) { l = linha(id); info.set(id, l); } return l; };
+  const indice = id => {   // índice do elemento (cria para conjuntos, que não têm geometria própria)
+    let i = elDe.get(id);
+    if (i === undefined) { i = elIds.length; elIds.push(id); elDe.set(id, i); }
+    return i;
+  };
+  const paiId = new Map();
+  idsDe(WebIFC.IFCRELAGGREGATES).forEach(rid => {
+    const r = linha(rid); if (!r || !r.RelatingObject) return;
+    const p = r.RelatingObject.value, lp = lerEl(p);
+    if (!lp || ESPACIAIS.has(nomeTipo(lp.type))) return;
+    (r.RelatedObjects || []).forEach(o => paiId.set(o.value, p));
+  });
+  // ---------------------------------------------------------------- propriedades (Psets e quantidades)
+  const sets = {};          // id do conjunto de propriedades → [nome, {propriedade: valor}]
+  const setsDe = new Map();   // expressID → conjuntos de propriedades (lido antes da geometria)
+  const propCache = new Map();
+  const lerProp = id => {
+    let p = propCache.get(id);
+    if (p !== undefined) return p;
+    const l = linha(id); p = null;
+    if (l && l.Name) {
+      let v = l.NominalValue;
+      if (v === undefined) v = l.LengthValue ?? l.AreaValue ?? l.VolumeValue ?? l.WeightValue ?? l.CountValue ?? l.TimeValue;
+      v = txt(v);
+      if (v !== null && v !== undefined && v !== '') p = [limpo(l.Name), typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v];
+    }
+    propCache.set(id, p);
+    return p;
+  };
+  const lerSet = id => {
+    if (sets[id] !== undefined) return sets[id];
+    const l = linha(id); let s = null;
+    if (l) {
+      const itens = l.HasProperties || l.Quantities;
+      if (itens) {
+        const o = {}; let n = 0;
+        itens.forEach(r => { const p = lerProp(r.value); if (p) { o[p[0]] = p[1]; n++; } });
+        if (n) s = [limpo(l.Name) || 'Propriedades', o];
+      }
+    }
+    sets[id] = s;
+    return s;
+  };
+  idsDe(WebIFC.IFCRELDEFINESBYPROPERTIES).forEach(rid => {
+    const r = linha(rid); if (!r || !r.RelatingPropertyDefinition) return;
+    const sid = r.RelatingPropertyDefinition.value;
+    let lido = false, tem = false;
+    (r.RelatedObjects || []).forEach(o => {
+      if (!lido) { tem = !!lerSet(sid); lido = true; }
+      if (tem) { let l = setsDe.get(o.value); if (!l) setsDe.set(o.value, (l = [])); l.push(sid); }
+    });
+  });
+  Object.keys(sets).forEach(k => { if (!sets[k]) delete sets[k]; });
+  // resumo da obra enquanto lê (o painel da tela enche ao vivo): peças montáveis, toneladas, etapas e eixos
+  {
+    const propDe = (id, re) => { for (const sid of setsDe.get(id) || []) { const o = sets[sid] && sets[sid][1]; if (o) for (const k in o) if (re.test(k)) return String(o[k]); } return ''; };
+    const conj = new Set(paiId.values()), etapas = new Set(), eixos = new Set();
+    let kg = 0, k = 0, etapa = '';
+    for (const id of conj) {
+      const f = propDe(id, /^PHASE\.NAME$/i), ps = propDe(id, /^Assembly\/Cast unit position code$|^POSITION_CODE$/i).trim();
+      const pz = parseFloat(propDe(id, /^WEIGHT_GROSS$|^Assembly\/Cast unit weight$|^Weight$|^Peso$/i).replace(',', '.'));
+      if (f) { etapas.add(f); etapa = f; }
+      const mE = ps.match(/^(\d+)/); if (mE) eixos.add(mE[1]);
+      if (isFinite(pz) && pz > 0) kg += pz;
+      if (++k % 400 === 0) resumo({ conj: k, kg, etapas: etapas.size, eixos: eixos.size, etapa });
+    }
+    resumo({ conj: conj.size, kg, etapas: etapas.size, eixos: eixos.size, etapa: '', fim: true });
+    totalPartes = Math.max(1, paiId.size);
+  }
+
   // ---------------------------------------------------------------- geometria
   const pos = new Cresce(Float32Array, 1 << 20), nor = new Cresce(Int8Array, 1 << 20), idx = new Cresce(Uint32Array, 1 << 20);
   const gVert = new Cresce(Uint32Array), gIdx = new Cresce(Uint32Array);
   const iGeo = new Cresce(Uint32Array), iEl = new Cresce(Uint32Array), iMat = new Cresce(Float32Array, 1 << 14), iCor = new Cresce(Uint8Array, 1 << 12);
   const geoDe = new Map();      // expressID da geometria → índice
-  const elDe = new Map();       // expressID do elemento → índice na tabela
-  const elIds = [];
   let nInst = 0, tris = 0;
   api.StreamAllMeshes(m, mesh => {
     const pg = mesh.geometries, q = pg.size();
@@ -70,32 +151,12 @@ function converter(api, bytes, prog) {
       iCor.a[iCor.n++] = Math.round(p.color.x * 255); iCor.a[iCor.n++] = Math.round(p.color.y * 255); iCor.a[iCor.n++] = Math.round(p.color.z * 255); iCor.a[iCor.n++] = Math.round(p.color.w * 255);
       nInst++; tris += gIdx.a[g] / 3;
     }
-    if (elIds.length % 500 === 0) prog('Convertendo a geometria… ' + elIds.length.toLocaleString('pt-BR') + ' peças');
+    if (elIds.length % 300 === 0) andamento(elIds.length, totalPartes);
   });
   if (!nInst) throw new Error('O IFC não tem geometria para mostrar.');
   const nGeoEls = elIds.length;
 
   // ---------------------------------------------------------------- hierarquia (conjuntos) e pavimentos
-  prog('Lendo conjuntos e propriedades…');
-  const pai = [];   // por índice de elemento
-  const idsDe = tipo => { const v = api.GetLineIDsWithType(m, tipo), r = []; for (let i = 0; i < v.size(); i++) r.push(v.get(i)); return r; };
-  const linha = id => { try { return api.GetLine(m, id, false); } catch (e) { return null; } };
-  const tipoNome = new Map();
-  const nomeTipo = cod => { let n = tipoNome.get(cod); if (n === undefined) { n = api.GetNameFromTypeCode(cod) || ''; tipoNome.set(cod, n); } return n; };
-  const info = new Map();   // expressID → linha do elemento
-  const lerEl = id => { let l = info.get(id); if (l === undefined) { l = linha(id); info.set(id, l); } return l; };
-  const indice = id => {   // índice do elemento (cria para conjuntos, que não têm geometria própria)
-    let i = elDe.get(id);
-    if (i === undefined) { i = elIds.length; elIds.push(id); elDe.set(id, i); }
-    return i;
-  };
-  const paiId = new Map();
-  idsDe(WebIFC.IFCRELAGGREGATES).forEach(rid => {
-    const r = linha(rid); if (!r || !r.RelatingObject) return;
-    const p = r.RelatingObject.value, lp = lerEl(p);
-    if (!lp || ESPACIAIS.has(nomeTipo(lp.type))) return;
-    (r.RelatedObjects || []).forEach(o => paiId.set(o.value, p));
-  });
   for (let i = 0; i < elIds.length; i++) {   // elIds cresce dentro do laço quando aparece um conjunto novo
     const p = paiId.get(elIds[i]);
     pai[i] = p === undefined ? -1 : indice(p);
@@ -108,49 +169,8 @@ function converter(api, bytes, prog) {
     (r.RelatedElements || []).forEach(o => pavDe.set(o.value, nome));
   });
 
-  // ---------------------------------------------------------------- propriedades (Psets e quantidades)
-  const sets = {};          // id do conjunto de propriedades → [nome, {propriedade: valor}]
-  const elSets = elIds.map(() => []);
-  const propCache = new Map();
-  const lerProp = id => {
-    let p = propCache.get(id);
-    if (p !== undefined) return p;
-    const l = linha(id); p = null;
-    if (l && l.Name) {
-      let v = l.NominalValue;
-      if (v === undefined) v = l.LengthValue ?? l.AreaValue ?? l.VolumeValue ?? l.WeightValue ?? l.CountValue ?? l.TimeValue;
-      v = txt(v);
-      if (v !== null && v !== undefined && v !== '') p = [limpo(l.Name), typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v];
-    }
-    propCache.set(id, p);
-    return p;
-  };
-  const lerSet = id => {
-    if (sets[id] !== undefined) return sets[id];
-    const l = linha(id); let s = null;
-    if (l) {
-      const itens = l.HasProperties || l.Quantities;
-      if (itens) {
-        const o = {}; let n = 0;
-        itens.forEach(r => { const p = lerProp(r.value); if (p) { o[p[0]] = p[1]; n++; } });
-        if (n) s = [limpo(l.Name) || 'Propriedades', o];
-      }
-    }
-    sets[id] = s;
-    return s;
-  };
-  idsDe(WebIFC.IFCRELDEFINESBYPROPERTIES).forEach(rid => {
-    const r = linha(rid); if (!r || !r.RelatingPropertyDefinition) return;
-    const sid = r.RelatingPropertyDefinition.value;
-    let lido = false, tem = false;
-    (r.RelatedObjects || []).forEach(o => {
-      const i = elDe.get(o.value); if (i === undefined) return;
-      if (!lido) { tem = !!lerSet(sid); lido = true; }
-      if (tem) elSets[i].push(sid);
-    });
-  });
-  Object.keys(sets).forEach(k => { if (!sets[k]) delete sets[k]; });
-
+  const elSets = elIds.map(id => setsDe.get(id) || []);
+  { const usados = new Set(); elSets.forEach(l => l.forEach(x => usados.add(String(x)))); Object.keys(sets).forEach(k => { if (!usados.has(k)) delete sets[k]; }); }   // só as propriedades das peças do modelo
   // ---------------------------------------------------------------- tabela de elementos
   const S = [''], sDe = new Map([['', 0]]);
   const s = t => { t = t || ''; let i = sDe.get(t); if (i === undefined) { i = S.length; S.push(t); sDe.set(t, i); } return i; };
@@ -201,6 +221,9 @@ function converter(api, bytes, prog) {
 
 self.onmessage = async ev => {
   const prog = t => self.postMessage({ t: 'prog', txt: t });
+  const resumo = r => self.postMessage(Object.assign({ t: 'resumo' }, r));
+  let ultimo = 0;
+  const andamento = (feitas, total) => { const agora = Date.now(); if (agora - ultimo > 400) { ultimo = agora; self.postMessage({ t: 'geo', feitas, total }); } };
   try {
     prog('Preparando o leitor de IFC…');
     const api = new WebIFC.IfcAPI();
@@ -208,7 +231,7 @@ self.onmessage = async ev => {
     await api.Init(arq => base + arq, true);
     try { api.SetLogLevel(WebIFC.LogLevel.LOG_LEVEL_OFF); } catch (e) { /* versões sem o controle de log */ }
     prog('Abrindo o IFC…');
-    const r = converter(api, new Uint8Array(ev.data.ifc), prog);
+    const r = converter(api, new Uint8Array(ev.data.ifc), prog, resumo, andamento);
     self.postMessage({ t: 'ok', geo: r.geo, props: r.props, elementos: r.elementos, unidades: r.unidades }, [r.geo, r.props]);
   } catch (e) {
     self.postMessage({ t: 'erro', txt: (e && e.message) || String(e) });

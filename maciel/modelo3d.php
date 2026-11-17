@@ -119,7 +119,9 @@ try {
         rename($parte, $dir . '/' . $arq);
         q('INSERT INTO modelos_3d (nome, arquivo, tamanho, sha256, por, em) VALUES (?, ?, ?, ?, ?, ?)',
             [pathinfo($nome, PATHINFO_FILENAME), $arq, filesize($dir . '/' . $arq), hash_file('sha256', $dir . '/' . $arq), (string)$u['nome'], $agora]);
-        m3d_resp(200, ['ok' => true, 'id' => (int)bd()->lastInsertId()]);
+        $novoId = (int)bd()->lastInsertId();
+        m3d_documento_do_modelo($obraId, $novoId, $dir . '/' . $arq, $nome, $u);   // um envio só: também vai para Documentos da obra
+        m3d_resp(200, ['ok' => true, 'id' => $novoId]);
     }
 
     if ($acao === 'cache') {   // modelo já convertido pelo navegador (geometria ou propriedades), em partes

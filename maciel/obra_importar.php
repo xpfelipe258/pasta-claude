@@ -156,6 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_encode($v['mensagens'], JSON_UNESCAPED_UNICODE), json_encode($v['resumo'], JSON_UNESCAPED_UNICODE), (int)$eu['id'], (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s'),
         ]);
         $docId = (int)bd()->lastInsertId();
+        if ($tipo === 'ifc' && $v['status'] === 'valido' && function_exists('m3d_modelo_do_documento')) {
+            m3d_modelo_do_documento($obraId, $docId);   // um envio só: o IFC já aparece no Modelo 3D
+        }
         if ($v['status'] === 'valido' && importacao_servico_ativo()) {
             importacao_despachar_validacao($docId);
         }
@@ -166,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $docId = (int)($_POST['doc'] ?? 0);
         $d = q_global('SELECT obra_id FROM obra_documentos WHERE id = ?', [$docId])->fetch();
         if ($d && (int)$d['obra_id'] === $obraId) {
+            try { q_global("DELETE FROM modelos_3d WHERE obra_id = ? AND doc_id = ? AND (cache_geo IS NULL OR cache_geo = '') AND (arquivo IS NULL OR arquivo = '')", [$obraId, $docId]); } catch (Throwable $e) { /* sem tabela do 3D */ }
             importacao_remover_documento($docId);
         }
         resp_json(200, estado_json($obraId));

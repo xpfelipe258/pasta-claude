@@ -212,11 +212,17 @@ async function m3dCarregarEstado(manterId) {
   if (alvo) {
     sel.value = String(alvo.id);
     if (alvo.id !== M3.modeloId || !M3.d) m3dAbrirModelo(alvo.id);
+  } else if (docs.length && m3dPodeEditar() && !M3._autoDoc) {   // um envio só: o IFC já enviado em Documentos da obra vira o modelo sozinho
+    M3._autoDoc = true;
+    try { const r = await m3dPost('usar_doc', { doc_id: docs[0].id }); await m3dCarregarEstado(r.id); return; } catch (e) { toast(e.message, true); }
   } else {
     M3.modeloId = 0;
     m3dLimparCena();
     m3dAviso(m3dPodeEditar()
-      ? '<b>Nenhum modelo 3D nesta obra.</b><br>Clique em <b>+ Enviar IFC</b> e escolha o arquivo .ifc exportado do Tekla ou do Trimble Connect.<br><small>As etapas de montagem do arquivo viram frentes sozinhas.</small>' + (docs.length ? '<br>Ou escolha, na lista <b>Modelo</b>, um IFC que a importação da obra já guardou.' : '')
+      ? `<div class="m3d-vazio"><b>Esta obra ainda não tem o modelo 3D.</b>
+          <p>Envie o IFC exportado do Tekla ou do Trimble Connect. Ele vira o modelo 3D, as frentes de montagem (pelas etapas do arquivo) e também fica nos Documentos da obra, para gerar materiais e mapa.</p>
+          <button type="button" class="btn primario m3d-vazio-bt" data-m3d="enviar-ifc">Enviar IFC</button>
+          <a class="m3d-link" href="obras.php?lista=1">Ver a obra de exemplo (Galpão Exemplo)</a></div>`
       : '<b>Nenhum modelo 3D nesta obra.</b><br>A gestão da obra ainda não enviou o IFC.');
     m3dPaineis();
   }
@@ -410,12 +416,24 @@ function m3dConverter(ifc) {
       falha(new Error('Este navegador não consegue converter o IFC. Use Chrome, Edge, Firefox ou Safari atualizados.'));
       return;
     }
-    const t0 = Date.now();
-    const rel = setInterval(() => { const s = $('#m3dConvSeg'); if (s) s.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
+    const t0 = Date.now(), st = { txt: 'Preparando…', conj: 0, kg: 0, etapas: 0, eixos: 0, etapa: '', feitas: 0, total: 0, resumo: false };
+    const pintar = () => {
+      const seg = Math.round((Date.now() - t0) / 1000), pct = st.total ? Math.min(99, Math.round(st.feitas / st.total * 100)) : 0;
+      const num = (v, r) => `<div><b>${v}</b><span>${r}</span></div>`;
+      m3dAviso(`<div class="m3d-conv"><div class="m3d-conv-tit"><span class="m3d-gira"></span> Lendo o IFC <small>(só na primeira vez · ${seg} s)</small></div>
+        <div class="m3d-conv-num">${num(st.conj.toLocaleString('pt-BR'), 'peças montáveis')}${num(st.kg ? nf(st.kg / 1000, 1) + ' t' : '—', 'toneladas')}${num(st.etapas, 'etapas de montagem')}${num(st.eixos, 'eixos')}</div>
+        <div class="m3d-conv-linha">${st.total ? `Montando a geometria · ${st.feitas.toLocaleString('pt-BR')} componentes (${pct}%)` : st.etapa ? 'Lendo etapa ' + esc(st.etapa) + '…' : esc(st.txt)}</div>
+        <div class="m3d-conv-barra"><i style="width:${st.total ? pct : st.resumo ? 8 : 3}%"></i></div>
+        <small>Modelos grandes levam 1 a 2 minutos. Mantenha esta aba aberta.</small></div>`);
+    };
+    pintar();
+    const rel = setInterval(pintar, 1000);
     const fim = () => { clearInterval(rel); w.terminate(); };
     w.onmessage = ev => {
       const m = ev.data;
-      if (m.t === 'prog') m3dAviso(`<span class="m3d-gira"></span> <b>Convertendo o IFC (só na primeira vez)</b><br>${esc(m.txt)}<br><small>Modelos grandes levam alguns minutos. Mantenha esta aba aberta · <span id="m3dConvSeg">${Math.round((Date.now() - t0) / 1000)} s</span></small>`);
+      if (m.t === 'prog') { st.txt = m.txt; pintar(); }
+      else if (m.t === 'resumo') { Object.assign(st, { conj: m.conj, kg: m.kg, etapas: m.etapas, eixos: m.eixos, etapa: m.etapa, resumo: true }); pintar(); }
+      else if (m.t === 'geo') { st.feitas = m.feitas; st.total = m.total; pintar(); }
       else if (m.t === 'ok') { fim(); ok(m); }
       else { fim(); falha(new Error(m.txt || 'Falha na conversão do IFC.')); }
     };
@@ -2137,6 +2155,7 @@ function m3dLigar() {
     if (ev.target.closest('#m3dPlay')) { m3dTocar(); return; }
     if (ev.target.closest('#m3dHojeBtn')) { m3dParar(); m3dIrDia(m3dHoje() < M3.lim[0] ? M3.lim[0] : m3dHoje() > M3.lim[1] ? M3.lim[1] : m3dHoje()); return; }
     const b = ev.target.closest('[data-m3d]');
+    if (b && b.dataset.m3d === 'enviar-ifc') { $('#m3dArq').click(); return; }
     if (!b || !M3.d) return;
     const ac = b.dataset.m3d;
     if (ac === 'limpar') { M3.sel.clear(); m3dPintar(); m3dPainelSel(); }

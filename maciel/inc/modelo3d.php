@@ -447,3 +447,48 @@ function m3d_ifc_valido($caminho)
     if ($h) { fclose($h); }
     return strpos($ini, 'ISO-10303-21') !== false && stripos($ini, 'HEADER') !== false;
 }
+
+/** Um envio só: IFC enviado em "Documentos da obra" vira modelo do 3D (convertido na primeira abertura por quem edita). */
+function m3d_modelo_do_documento($obraId, $docId)
+{
+    try {
+        garantir_modelo3d();
+        $d = q_global("SELECT * FROM obra_documentos WHERE id = ? AND obra_id = ? AND tipo = 'ifc' AND status = 'valido'", [(int)$docId, (int)$obraId])->fetch();
+        if (!$d || strtolower(pathinfo((string)$d['nome_original'], PATHINFO_EXTENSION)) !== 'ifc') { return 0; }
+        $ja = q_global('SELECT id FROM modelos_3d WHERE obra_id = ? AND (doc_id = ? OR (sha256 = ? AND sha256 <> \'\'))', [(int)$obraId, (int)$docId, (string)$d['sha256']])->fetchColumn();
+        if ($ja) { return (int)$ja; }
+        q_global('INSERT INTO modelos_3d (obra_id, nome, doc_id, tamanho, sha256, por, em) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [(int)$obraId, mb_substr(pathinfo((string)$d['nome_original'], PATHINFO_FILENAME), 0, 160), (int)$d['id'], (float)$d['tamanho'], (string)$d['sha256'], 'Documentos da obra', m3d_agora()]);
+        return (int)bd()->lastInsertId();
+    } catch (Throwable $e) {
+        error_log('m3d_modelo_do_documento: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/** Um envio só (lado inverso): IFC enviado no Modelo 3D também entra em "Documentos da obra" (para gerar materiais, vínculos e mapa). */
+function m3d_documento_do_modelo($obraId, $modeloId, $caminho, $nome, array $u)
+{
+    try {
+        require_once __DIR__ . '/importacao.php';
+        $sha = hash_file('sha256', $caminho);
+        $doc = q_global("SELECT id FROM obra_documentos WHERE obra_id = ? AND tipo = 'ifc' AND sha256 = ?", [(int)$obraId, $sha])->fetchColumn();
+        if (!$doc) {
+            $dir = importacao_diretorio((int)$obraId);
+            $arm = bin2hex(random_bytes(8)) . '.dat';
+            if (!@link($caminho, $dir . '/' . $arm) && !@copy($caminho, $dir . '/' . $arm)) { return 0; }
+            $tam = filesize($dir . '/' . $arm);
+            $nomeIfc = preg_match('/\.ifc$/i', $nome) ? $nome : $nome . '.ifc';
+            $v = importacao_validar_basico('ifc', $dir . '/' . $arm, $nomeIfc, $tam);
+            q_global('INSERT INTO obra_documentos (obra_id, tipo, nome_original, arquivo, tamanho, sha256, status, mensagens, resumo, enviado_por, enviado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [
+                (int)$obraId, 'ifc', $nomeIfc, $arm, $tam, $sha, $v['status'], json_encode($v['mensagens'], JSON_UNESCAPED_UNICODE), json_encode($v['resumo'], JSON_UNESCAPED_UNICODE), (int)$u['id'], m3d_agora()]);
+            $doc = (int)bd()->lastInsertId();
+        }
+        q_global('UPDATE modelos_3d SET doc_id = ? WHERE id = ? AND obra_id = ? AND doc_id IS NULL', [(int)$doc, (int)$modeloId, (int)$obraId]);
+        return (int)$doc;
+    } catch (Throwable $e) {
+        error_log('m3d_documento_do_modelo: ' . $e->getMessage());
+        return 0;
+    }
+}
+

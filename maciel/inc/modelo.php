@@ -229,6 +229,11 @@ function montar_modelo()
         'fluxo_config' => (object)(json_decode((string)sistema_ler('fluxo_config', '{}'), true) ?: []),   // dependências entre as etapas do fluxo da obra (Planejamento › Fluxo da obra)
         'vinculos_material' => (object)(json_decode((string)sistema_ler('vinculos_material', '{}'), true) ?: []),   // vínculo TAG/peça do IFC ↔ atividade (Suprimentos › Vínculos)
         'obra_empresa' => obra_empresa_info(),   // obra própria de uma empresa (cópia isolada da obra principal) ou null
+        'cronograma_padrao' => (function () {   // linhas fixas do cronograma da G200 (GAN_CRONOGRAMA_CLIENTE): só na G200 e nas obras próprias copiadas dela
+            if (sistema_ler('dados_legados', '0') === '1') { return true; }
+            $oe = obra_empresa_info();
+            return $oe && $oe['origem_id'] > 0 && q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [$oe['origem_id'], 'dados_legados'])->fetchColumn() === '1';
+        })(),
         'mapa_obra' => (bool)q_global('SELECT 1 FROM obra_config WHERE obra_id = ? AND chave = ?', [obra_atual_id(), 'frentes_montagem_obra'])->fetchColumn(),   // obra com mapa de peças da importação automática
         'fixadores_atividade' => (object)(json_decode((string)sistema_ler('fixadores_atividade', '{}'), true) ?: []),   // fixadores por unidade de cada atividade (baixa automática no lançamento)
         'cronograma_importado' => (function () { $d = json_decode((string)sistema_ler('cronograma_importado', ''), true); return is_array($d) && !empty($d['atividades']) ? $d : (is_array($d) ? ['rev' => (int)($d['rev'] ?? 0), 'atividades' => []] : null); })(),   // aba Cronograma (Gantt): cronograma importado e vínculos
