@@ -1060,8 +1060,8 @@ function m3dVitrine(R) {
       <b>${semCarga ? '—' : nCant.toLocaleString('pt-BR')}</b><small>${semCarga ? 'sem cargas lançadas em Suprimentos › Remessas' : `peças no canteiro · ${t(kgCant)}`}</small></button>
     <button type="button" class="m3d-card ${prox && faltam ? 'alerta' : 'bom'}" data-m3d="vit" data-k="prox" title="Selecionar o que falta chegar para a próxima frente"><span class="m3d-card-t">Próxima frente${prox ? ' · ' + fdA(prox.inicio) : ''}</span>
       <b>${prox ? (semCarga ? '—' : faltam ? faltam.toLocaleString('pt-BR') + ' faltando' : 'tudo no canteiro') : '—'}</b><small>${prox ? esc(prox.nome) + (semCarga ? '' : faltam ? ` · ${cam.toLocaleString('pt-BR')} a caminho, ${(faltam - cam).toLocaleString('pt-BR')} na fábrica` : ` · ${nProx.toLocaleString('pt-BR')} peças`) : 'nenhuma frente a iniciar'}</small></button>
-    <button type="button" class="m3d-card ${nAtr ? 'ruim' : 'bom'}" data-m3d="vit" data-k="atr" title="Selecionar as peças atrasadas"><span class="m3d-card-t">Prazo</span>
-      <b>${nAtr ? nAtr.toLocaleString('pt-BR') + ' atrasadas' : 'em dia'}</b><small>${nAtr ? `em ${atrG.size} frente(s) com término vencido` : 'nenhuma frente com término vencido'}</small></button>`;
+    <button type="button" class="m3d-card ${nAtr ? 'ruim' : 'bom'}" data-m3d="vit" data-k="atr" title="Selecionar as peças das frentes atrasadas"><span class="m3d-card-t">Prazo</span>
+      <b>${atrG.size ? atrG.size + (atrG.size === 1 ? ' frente atrasada' : ' frentes atrasadas') : 'em dia'}</b><small>${atrG.size ? [...atrG].map(g => esc(M3.grupos[g].nome)).slice(0, 2).join(' · ') + (atrG.size > 2 ? ` · e mais ${atrG.size - 2}` : '') : 'nenhuma frente com término vencido'}</small></button>`;
   M3._vit = { prox };
 }
 function m3dVitrineSelecionar(k) {
