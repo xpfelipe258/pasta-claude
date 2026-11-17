@@ -1008,13 +1008,15 @@ function m3dAbaAssinatura() {
   const a = (typeof T !== 'undefined' && T && T.apontamentos) || [];
   return a.length + '|' + a.reduce((m, x) => Math.max(m, +x.linha || +x.id || 0), 0) + '|' + a.reduce((m, x) => (x.data > m ? x.data : m), '');
 }
+const M3D_SEM_DATA = '2000-01-01';
 async function m3dLerAba() {
   M3._abaSig = m3dAbaAssinatura();
   M3.aba = null;
   const d = M3.d, apts0 = (typeof T !== 'undefined' && T && T.apontamentos) || [];
   // vigas lidas do banco pelo servidor (não depende do que a tela já carregou) + apontamentos carregados na tela
-  const apts = apts0.concat((M3.vigasAba || []).map(([k, dt, emp]) => { const [eixo, letra] = k.split('|'); return { tipo: 'VIGA', eixo, letra, data: dt, empresa: emp, _srv: 1 }; }));
+  const apts = apts0.map(a => a.data ? a : Object.assign({}, a, { data: M3D_SEM_DATA })).concat((M3.vigasAba || []).map(([k, dt, emp]) => { const [eixo, letra] = k.split('|'); return { tipo: 'VIGA', eixo, letra, data: dt || M3D_SEM_DATA, empresa: emp, _srv: 1 }; }));
   if (!d || !apts.length || M3.juntos) return;
+  // apontamento sem data (registros antigos/importados) conta como montado desde sempre, marcado como "sem data"
   const data = new Array(d.n).fill(''), orig = new Array(d.n).fill('');
   const marcar = (i, dia, txt) => { if (!data[i] || dia < data[i]) { data[i] = dia; orig[i] = txt; } };
   // peças do mapa da obra importada: o apontamento guarda o GUID da peça
@@ -1473,7 +1475,7 @@ function m3dCampoHtml(itens) {
     const i = raizes[0], s = R.st[i];
     const l = [];
     if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
-    if (M3.aba && M3.aba.data[i]) l.push(`Montada pela aba <b>Apontar montagem</b> em <b>${fdA(M3.aba.data[i])}</b> · ${esc(M3.aba.orig[i] || '')}`);
+    if (M3.aba && M3.aba.data[i]) l.push(`Montada pela aba <b>Apontar montagem</b> ${M3.aba.data[i] === M3D_SEM_DATA ? '<b>(apontamento sem data)</b>' : `em <b>${fdA(M3.aba.data[i])}</b>`} · ${esc(M3.aba.orig[i] || '')}`);
     if (ap.pend && ap.pend.has(i)) l.push('<span class="m3d-pend">⏱ guardado no aparelho, aguardando envio</span>');
     if (ap.tq[i]) l.push(`Torqueada em <b>${fdA(ap.tq[i])}</b>${ap.por[i + ':2'] ? ' · ' + esc(ap.por[i + ':2']) : ''}`);
     const t = m3dChaveCarga(i), cg = M3.carga && M3.carga.porTag.get(t);
