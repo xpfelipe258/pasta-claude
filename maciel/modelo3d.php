@@ -174,6 +174,8 @@ try {
             $r = m3d_grupo_salvar($c, $u);
         } elseif ($acao === 'apontar') {
             $r = m3d_apontar($c, $u);
+        } elseif ($acao === 'mapa_vigas') {
+            $r = m3d_mapa_vigas_gravar($c);
         } elseif ($acao === 'desapontar') {
             $r = m3d_desapontar($c, $u);
         } elseif ($acao === 'frentes_auto') {

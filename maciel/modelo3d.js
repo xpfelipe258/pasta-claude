@@ -1011,7 +1011,9 @@ function m3dAbaAssinatura() {
 async function m3dLerAba() {
   M3._abaSig = m3dAbaAssinatura();
   M3.aba = null;
-  const d = M3.d, apts = (typeof T !== 'undefined' && T && T.apontamentos) || [];
+  const d = M3.d, apts0 = (typeof T !== 'undefined' && T && T.apontamentos) || [];
+  // vigas lidas do banco pelo servidor (não depende do que a tela já carregou) + apontamentos carregados na tela
+  const apts = apts0.concat((M3.vigasAba || []).map(([k, dt, emp]) => { const [eixo, letra] = k.split('|'); return { tipo: 'VIGA', eixo, letra, data: dt, empresa: emp, _srv: 1 }; }));
   if (!d || !apts.length || M3.juntos) return;
   const data = new Array(d.n).fill(''), orig = new Array(d.n).fill('');
   const marcar = (i, dia, txt) => { if (!data[i] || dia < data[i]) { data[i] = dia; orig[i] = txt; } };
@@ -1075,6 +1077,7 @@ async function m3dLerAba() {
         if (c && eix[e] !== undefined) ptsLoc.push([c, eix[e], posLetra(L)]);
       });
       // joists: o modelo não tem a joist, só os suportes dela; cada suporte vai para a rua e a posição de joist mais próximas
+      m3dGravarMapaVigas(vigaDe);
       const cal = suportes.length || cel.has('TELHA') ? m3dCalibrar(eix, est, vigasEixo, ptsLoc) : null;
       const joistDe = new Map();
       if (cal && rg && rg.layout_joists) {
@@ -1120,6 +1123,16 @@ async function m3dLerAba() {
   const n = data.filter(Boolean).length;
   M3.aba = n ? { data, orig, n } : null;
   M3._real = null;
+}
+/** Grava no servidor o mapa eixo|letra → GUID da viga (uma vez por modelo e versão do mapa), para o servidor e outras telas. */
+function m3dGravarMapaVigas(vigaDe) {
+  if (!m3dPodeEditar() || !M3.modeloId || M3.estado?.demo) return;
+  const mapa = {};
+  vigaDe.forEach((lista, k) => { if (lista.length === 1 && /^\d{2}\|/.test(k)) { const g = M3.d.e.guid[lista[0]]; if (g) mapa[k] = g; } });
+  const n = Object.keys(mapa).length, ass = M3.modeloId + ':' + n + ':' + Object.keys(mapa).sort().join(',').length;
+  if (!n || M3._mapaGravado === ass) return;
+  M3._mapaGravado = ass;
+  m3dPost('mapa_vigas', { modelo_id: M3.modeloId, mapa }).catch(() => { M3._mapaGravado = null; });
 }
 /** Vigas de cobertura de cada eixo (marca VCnn na fase 1.1.1): Map eixo → [[índice, trecho do código, meio em mm]]. */
 function m3dVcEixo(est) {
@@ -1303,6 +1316,7 @@ async function m3dCarregarCampo(id) {
   M3.ap = { ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
   try {
     const a = await m3dGet(`acao=apont&modelo=${id}`);
+    M3.vigasAba = Array.isArray(a.vigas_aba) ? a.vigas_aba : [];   // vigas da aba Apontar montagem, lidas direto do banco
     a.itens.forEach(([g, et, dia, emp, inf, por]) => {
       const i = d.guidDe.get(g);
       if (i === undefined) return;

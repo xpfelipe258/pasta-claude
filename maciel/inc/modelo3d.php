@@ -288,7 +288,50 @@ function m3d_apont_ler($modeloId)
     foreach (q('SELECT guid, etapa, data, empresa, inferida, por FROM m3d_apontamentos WHERE modelo_id = ? ORDER BY data, id', [(int)$modeloId])->fetchAll() as $a) {
         $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : 1, substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
     }
-    return ['itens' => $out];
+    return ['itens' => $out, 'vigas_aba' => m3d_vigas_da_aba((int)$modeloId)];
+}
+
+/**
+ * Vigas apontadas na aba Apontar montagem, lidas direto do banco: [chave "EIXO|LETRA", data, empresa, guid ou ''].
+ * A chave vem do código da viga no mapa (viga_id = E{eixo}-{letra}-{marca}) ou dos campos eixo/letra. O GUID sai do mapa de
+ * vigas gravado pelo 3D (m3d_mapa_vigas: eixo + letra → peça do IFC, por quantidade e posição real).
+ */
+function m3d_vigas_da_aba($modeloId)
+{
+    $mapa = m3d_mapa_vigas_ler($modeloId);
+    $out = [];
+    foreach (q("SELECT data, empresa, eixo, letra, viga_id FROM apontamentos WHERE UPPER(tipo) = 'VIGA' ORDER BY data, id")->fetchAll() as $a) {
+        $eixo = (string)($a['eixo'] ?? ''); $letra = (string)($a['letra'] ?? '');
+        if (preg_match('/^E(\d{1,2})-(.+)-VC\d+$/i', (string)($a['viga_id'] ?? ''), $m)) { $eixo = $m[1]; $letra = $m[2]; }
+        if ($eixo === '' || $letra === '') { continue; }
+        $chave = str_pad($eixo, 2, '0', STR_PAD_LEFT) . '|' . mb_strtoupper(trim($letra));
+        $out[] = [$chave, substr((string)$a['data'], 0, 10), (string)$a['empresa'], $mapa[$chave] ?? ''];
+    }
+    return $out;
+}
+
+function m3d_mapa_vigas_ler($modeloId)
+{
+    $todos = json_decode((string)sistema_ler('m3d_mapa_vigas', '{}'), true);
+    $m = is_array($todos) ? ($todos[(string)(int)$modeloId] ?? []) : [];
+    return is_array($m) ? $m : [];
+}
+
+/** Grava o mapa eixo|letra → GUID calculado pelo 3D para o modelo (vale para toda obra com IFC e malha do projeto). */
+function m3d_mapa_vigas_gravar(array $c)
+{
+    $modelo = m3d_modelo($c['modelo_id'] ?? 0);
+    if (!$modelo) { throw new ErroValidacao('Modelo não encontrado.'); }
+    $mapa = [];
+    foreach ((array)($c['mapa'] ?? []) as $k => $g) {
+        if (preg_match('/^\d{2}\|[A-Z0-9-]{1,8}$/', (string)$k) && preg_match('/^[0-9A-Za-z_$]{22}$/', (string)$g)) { $mapa[(string)$k] = (string)$g; }
+    }
+    if (count($mapa) > 2000) { throw new ErroValidacao('Mapa de vigas grande demais.'); }
+    $todos = json_decode((string)sistema_ler('m3d_mapa_vigas', '{}'), true);
+    if (!is_array($todos)) { $todos = []; }
+    $todos[(string)(int)$modelo['id']] = $mapa;
+    sistema_gravar('m3d_mapa_vigas', json_encode($todos, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true, 'n' => count($mapa)];
 }
 
 /** Usuário de empresa só aponta peças das frentes da própria empresa. */
