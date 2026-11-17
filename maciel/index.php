@@ -69,12 +69,48 @@ $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundar
 $oe = obra_empresa_info((int)$obra['id']);
 $contexto = '<div class="obra-contexto">' . '<a href="obras.php?lista=1&amp;todas=1">← Central de obras</a>' . '<span>' . h($obra['nome']) . '</span>' .
     ($oe ? '<em class="obra-empresa-aviso" title="Esta obra é uma cópia só da ' . h($oe['empresa']) . '. O que você lança ou altera aqui não muda a obra principal.">Visão da empresa ' . h($oe['empresa']) . ' · dados independentes</em>' : '') .
-    (usuario_admin_da_obra($u, (int)$obra['id']) ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
+    (usuario_admin_da_obra($u, (int)$obra['id']) ? '<a href="admin.php">Administrar obra</a>' : '') .
+    '<button type="button" id="obraAtualizarSistema" class="btn" title="Carregar a versão mais recente do sistema">Atualizar</button>' .
+    '<small id="obraAtualizarStatus" role="status" hidden></small></div>';
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);
 $html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";window.EMPRESA_USUARIO=" . json_encode(usuario_identidade_empresa($u), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ";window.EMPRESAS_RELATORIO=" . json_encode(identidade_contexto_relatorio($u), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ";window.UI_OCULTOS=" . json_encode($uiOcultos) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
+$atualizarObra = <<<'HTML'
+<script>
+(() => {
+  const botao = document.getElementById('obraAtualizarSistema');
+  const status = document.getElementById('obraAtualizarStatus');
+  if (!botao || !status) return;
+  const informar = texto => {
+    status.hidden = !texto;
+    status.textContent = texto;
+  };
+  botao.addEventListener('click', async () => {
+    if (botao.disabled) return;
+    const destino = new URL(location.href);
+    destino.searchParams.set('_atualizacao', Date.now().toString(36));
+    const controle = new AbortController();
+    const limite = setTimeout(() => controle.abort(), 10000);
+    botao.disabled = true;
+    informar('Verificando conexão…');
+    try {
+      // O modo canteiro não intercepta HEAD. Verifica a rede antes de recarregar.
+      const resposta = await fetch(destino, { method: 'HEAD', cache: 'no-store', signal: controle.signal });
+      if (!resposta.ok) throw new Error('Servidor indisponível');
+      informar('');
+      location.replace(destino.href);
+    } catch {
+      informar('Não foi possível atualizar. Confira a conexão e tente novamente.');
+    } finally {
+      clearTimeout(limite);
+      botao.disabled = false;
+    }
+  });
+})();
+</script>
+HTML;
+$html = str_replace('</body>', $atualizarObra . '</body>', $html);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 echo $html;
-
