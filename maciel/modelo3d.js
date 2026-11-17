@@ -1315,7 +1315,7 @@ async function m3dEixosMontar() {
 }
 async function m3dCarregarCampo(id) {
   const d = M3.d;
-  M3.ap = { ca: new Array(d.n).fill(''), ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
+  M3.ap = { fa: new Array(d.n).fill(''), ca: new Array(d.n).fill(''), ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
   try {
     const a = await m3dGet(`acao=apont&modelo=${id}`);
     M3.vigasAba = Array.isArray(a.vigas_aba) ? a.vigas_aba : [];   // vigas da aba Apontar montagem, lidas direto do banco
@@ -1323,7 +1323,7 @@ async function m3dCarregarCampo(id) {
       const i = d.guidDe.get(g);
       if (i === undefined) return;
       const r = d.raiz[i];
-      if (et === 2) M3.ap.tq[r] = dia; else if (et === 3) M3.ap.ca[r] = dia; else { M3.ap.ic[r] = dia; if (inf) M3.ap.inf[r] = 1; }
+      if (et === 4) M3.ap.fa[r] = dia; else if (et === 2) M3.ap.tq[r] = dia; else if (et === 3) M3.ap.ca[r] = dia; else { M3.ap.ic[r] = dia; if (inf) M3.ap.inf[r] = 1; }
       M3.ap.por[r + ':' + et] = por;
       M3.ap.n++;
     });
@@ -1390,15 +1390,18 @@ function m3dStatusReal() {
     lista.forEach(i => { if (st[i] >= 4) usadas++; });
     let livre = Math.max(0, chegou - usadas), cam = caminho;
     lista.forEach(i => {
-      if (st[i] >= 4) return;
+      if (st[i] >= 4 || (ap.fa && ap.fa[i] && ap.fa[i] <= dia)) return;
       if (livre > 0) { st[i] = 3; livre--; } else if (cam > 0) { st[i] = 2; cam--; } else st[i] = 1;
     });
   });
   if (ap.ca) for (let i = 0; i < d.n; i++) {   // marcada à mão como "no canteiro" (chegou na obra)
     if (d.e.pai[i] < 0 && st[i] < 3 && ap.ca[i] && ap.ca[i] <= dia) st[i] = 3;
   }
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] < 0 && st[i] < 4 && ap.fa && ap.fa[i] && ap.fa[i] <= dia) st[i] = 1;
+  }
   for (let i = 0; i < d.n; i++) {   // frente com término vencido e peça ainda não içada = atrasada
-    if (d.e.pai[i] >= 0 || st[i] >= 4) continue;
+    if (d.e.pai[i] >= 0 || st[i] >= 4 || (ap.fa && ap.fa[i] && ap.fa[i] <= dia)) continue;
     const g = d.grupoDeEl[i];
     if (g >= 0 && fimDe[g] && fimDe[g] < dia) st[i] = 6;
   }
@@ -1473,11 +1476,13 @@ function m3dCampoHtml(itens) {
   const pelaAba = i => !!(M3.aba && M3.aba.data[i]);
   const sIc = raizes.filter(i => !ap.ic[i] && !pelaAba(i)).length, sTq = raizes.filter(i => !ap.tq[i] && !pelaAba(i)).length;
   const sCa = raizes.filter(i => R.st[i] !== 3 && R.st[i] < 4 && !ap.ic[i] && !pelaAba(i)).length, nCaProp = raizes.filter(i => ap.ca && ap.ca[i]).length;
+  const nFabrica = raizes.filter(i => (R.st[i] === 3 || (ap.ca && ap.ca[i])) && !ap.ic[i] && !ap.tq[i] && !pelaAba(i)).length;
   const nIcProp = raizes.filter(i => ap.ic[i]).length, nTqProp = raizes.filter(i => ap.tq[i]).length;   // só o que foi apontado aqui pode ser desfeito aqui
   let info = '';
   if (raizes.length === 1) {
     const i = raizes[0], s = R.st[i];
     const l = [];
+    if (ap.fa && ap.fa[i]) l.push(`Retornada para a fábrica em <b>${fdA(ap.fa[i])}</b>`);
     if (ap.ca && ap.ca[i]) l.push(`Marcada no canteiro em <b>${fdA(ap.ca[i])}</b>${ap.por[i + ':3'] ? ' · ' + esc(ap.por[i + ':3']) : ''}`);
     if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
     if (M3.aba && M3.aba.data[i]) l.push(`Montada pela aba <b>Apontar montagem</b> ${M3.aba.data[i] === M3D_SEM_DATA ? '<b>(apontamento sem data)</b>' : `em <b>${fdA(M3.aba.data[i])}</b>`} · ${esc(M3.aba.orig[i] || '')}`);
@@ -1503,18 +1508,21 @@ function m3dCampoHtml(itens) {
     const sec = sIc && sTq ? `<button type="button" class="btn" data-m3d="torquear">${um ? 'Já torqueada' : 'Torqueadas'}</button>` : '';
     const ca = sCa ? `<button type="button" class="btn m3d-ap-ca" data-m3d="canteiro" title="Peça chegou na obra (fica amarela: pronta para içar)">${um ? 'Chegou: no canteiro' : `${sCa.toLocaleString('pt-BR')} no canteiro`}</button>` : '';
     const desf = [nCaProp ? `<button type="button" class="m3d-link" data-m3d="descanteiro">desfazer canteiro</button>` : '', nTqProp ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', nIcProp ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
+    const fabrica = nFabrica ? `<button type="button" class="btn m3d-ap-volta" data-m3d="fabrica">← ${um ? 'Voltar para a fábrica' : `Voltar ${nFabrica.toLocaleString('pt-BR')} para a fábrica`}</button>` : '';
     const nAba = raizes.filter(pelaAba).length;
     const nVolta = raizes.filter(i => ap.tq[i] || ap.ic[i] || (ap.ca && ap.ca[i])).length;
     const volta = nVolta ? `<button type="button" class="btn m3d-ap-volta" data-m3d="voltar" title="Torqueada volta para içada, içada volta para no canteiro/fábrica, no canteiro volta para fábrica">← Voltar ${um ? 'para a etapa anterior' : `${nVolta.toLocaleString('pt-BR')} para a etapa anterior`}</button>` : '';
-    bts = (prim || sec || ca ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${ca}${prim}${sec}</div>` : `<p class="nota">Montagem concluída nesta seleção${nAba ? ' (apontada na aba Apontar montagem: para corrigir, use aquela aba)' : ''}.</p>`) + (volta || desf ? `<div class="m3d-ap-desf">${volta}${desf ? ' ' + desf : ''}</div>` : '') + (nAba && !nVolta ? '' : (nAba ? '<p class="nota">Peças montadas pela aba Apontar montagem voltam pela própria aba (excluir o apontamento).</p>' : ''));
+    bts = (prim || sec || ca ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${ca}${prim}${sec}</div>` : `<p class="nota">Montagem concluída nesta seleção${nAba ? ' (apontada na aba Apontar montagem: para corrigir, use aquela aba)' : ''}.</p>`) + (fabrica || volta || desf ? `<div class="m3d-ap-desf">${fabrica}${volta}${desf ? ' ' + desf : ''}</div>` : '') + (nAba && !nVolta ? '' : (nAba ? '<p class="nota">Peças montadas pela aba Apontar montagem voltam pela própria aba (excluir o apontamento).</p>' : ''));
   }
   return `<div class="m3d-cmp"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
 }
 async function m3dApontar(acao) {
-  const d = M3.d, guids = [...new Set([...M3.sel].map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];
+  const R = acao === 'fabrica' ? m3dStatusReal() : null;
+  const d = M3.d, guids = [...new Set([...M3.sel].filter(i => !R || ((R.st[d.raiz[i]] === 3 || M3.ap?.ca?.[d.raiz[i]]) && !M3.ap?.ic?.[d.raiz[i]] && !M3.ap?.tq?.[d.raiz[i]] && !M3.aba?.data?.[d.raiz[i]]))
+    .map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];
   if (!guids.length) return;
-  const etapa = acao === 'icar' || acao === 'desicar' ? 'icada' : acao === 'canteiro' || acao === 'descanteiro' ? 'canteiro' : 'torqueada', des = acao.startsWith('des');
-  const nomeEt = { icada: 'içada(s)', torqueada: 'torqueada(s)', canteiro: 'marcada(s) no canteiro' }[etapa];
+  const etapa = acao === 'fabrica' ? 'fabrica' : acao === 'icar' || acao === 'desicar' ? 'icada' : acao === 'canteiro' || acao === 'descanteiro' ? 'canteiro' : 'torqueada', des = acao.startsWith('des');
+  const nomeEt = { icada: 'içada(s)', torqueada: 'torqueada(s)', canteiro: 'marcada(s) no canteiro', fabrica: 'retornada(s) para a fábrica' }[etapa];
   const dia = ($('#m3dApData') && $('#m3dApData').value) || (m3dHoje() > hoje() ? hoje() : m3dHoje());
   if (dia > hoje()) { toast('Não é possível apontar em data futura.', true); return; }
   const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), acao: des ? 'desapontar' : 'apontar', modelo_id: M3.modeloId, etapa, guids, data: dia, em: new Date().toISOString() };
@@ -1595,14 +1603,21 @@ function m3dAplicarLocal(it) {
     const i = d.guidDe.get(g);
     if (i === undefined) return;
     const r = d.raiz[i];
-    if (it.etapa === 'canteiro') {
+    if (it.etapa === 'fabrica' && it.acao !== 'desapontar') {
+      ap.fa ||= new Array(d.n).fill('');
+      ap.fa[r] = it.data;
+      if (ap.ca) ap.ca[r] = '';
+    } else if (it.etapa === 'canteiro') {
+      if (it.acao !== 'desapontar' && ap.fa) ap.fa[r] = '';
       if (ap.ca) ap.ca[r] = it.acao === 'desapontar' ? '' : (ap.ca[r] || it.data);
     } else if (it.acao === 'desapontar') {
       ap.tq[r] = '';
       if (it.etapa === 'icada') { ap.ic[r] = ''; ap.inf[r] = 0; }
     } else if (it.etapa === 'icada') {
+      if (ap.fa) ap.fa[r] = '';
       if (!ap.ic[r]) ap.ic[r] = it.data;
     } else {
+      if (ap.fa) ap.fa[r] = '';
       if (!ap.ic[r]) { ap.ic[r] = it.data; ap.inf[r] = 1; }
       if (!ap.tq[r]) ap.tq[r] = it.data;
     }
@@ -2319,7 +2334,7 @@ function m3dLigar() {
     else if (ac === 'chlimpar') { M3.chips = { st: new Set(), fase: new Set(), eixo: new Set() }; m3dAplicarChips(); }
     else if (ac === 'chsel') { const R = m3dStatusReal(); M3.sel = new Set(m3dSelRaizes(i => m3dChipsPassa(i, R))); m3dPintar(); m3dPainelSel(); m3dBarraCampo(); toast(M3.sel.size.toLocaleString('pt-BR') + ' peça(s) selecionada(s).'); }
     else if (ac === 'props') m3dMostrarProps();
-    else if (ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq' || ac === 'canteiro' || ac === 'descanteiro') m3dApontar(ac);
+    else if (ac === 'fabrica' || ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq' || ac === 'canteiro' || ac === 'descanteiro') m3dApontar(ac);
     else if (ac === 'voltar') m3dVoltar();
     else if (ac === 'vit') m3dVitrineSelecionar(b.dataset.k);
     else if (ac === 'novo') m3dAbrirGrupo(null);
