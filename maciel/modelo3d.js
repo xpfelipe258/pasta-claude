@@ -1030,13 +1030,18 @@ async function m3dLerAba() {
     if (est && eix) {
       // índice das peças montáveis por posição
       const cel = new Map(), add = (k, i) => { if (!cel.has(k)) cel.set(k, []); cel.get(k).push(i); };
-      const vigasEixo = new Map(), suportes = [];
+      const vigasEixo = new Map(), suportes = [], vcEixo = new Map();
       for (let i = 0; i < d.n; i++) {
         if (d.e.pai[i] >= 0 || d.cRz[i + 1] <= d.cRz[i]) continue;
         const p = m3dPosParse(m3dTxt('pos', i));
         if (!p) continue;
         const nome = m3dTxt('nome', i).toUpperCase(), fase = m3dTxt('fase', i);
         const mm = p.est.map(x => est[x]).filter(x => x !== undefined), meio = mm.length ? (Math.min(...mm) + Math.max(...mm)) / 2 : null;
+        // viga de cobertura = marca VCnn do projeto (no IFC 3 das 13 vigas de cada eixo vêm com o nome "CHAPA")
+        if (p.e1 === p.e2 && /^VC\d+$/.test(m3dTxt('marca', i).trim().toUpperCase()) && /^1\.1\.1/.test(fase)) {
+          if (!vcEixo.has(p.e1)) vcEixo.set(p.e1, []);
+          vcEixo.get(p.e1).push([i, p.est.join('-'), meio]);
+        }
         if (nome === 'VIGA COBERTURA' && p.e1 === p.e2) {
           if (!vigasEixo.has(p.e1)) vigasEixo.set(p.e1, []);
           vigasEixo.get(p.e1).push([i, p.est.join('-'), meio]);
@@ -1057,14 +1062,13 @@ async function m3dLerAba() {
       // vigas: oitão = trecho exato do projeto; demais eixos = letra mais próxima do centro da peça (A, B, BC, C… H)
       const crit = (rg && rg.criterio_por_letra) || {}, ordem = (rg && rg.letras_ordem) || ['A', 'B', 'BC', 'C', 'CD', 'D', 'DE', 'E', 'EF', 'F', 'FG', 'G', 'H'];
       const posLetra = l => l.length === 1 ? est[l] : (est[l[0]] + est[l[1]]) / 2;
-      const vigaDe = new Map();
-      vigasEixo.forEach((lista, e) => lista.forEach(([i, trecho, meio]) => {
-        let letra = trecho;
-        if (e !== '01' && e !== '20' && meio !== null) letra = ordem.reduce((m, l) => Math.abs(posLetra(l) - meio) < Math.abs(posLetra(m) - meio) ? l : m, ordem[0]);
-        const k = `${e}|${letra}`;
-        if (!vigaDe.has(k)) vigaDe.set(k, []);
-        vigaDe.get(k).push(i);
-      }));
+      const vigaDe = new Map(), poe = (k, i) => { if (!vigaDe.has(k)) vigaDe.set(k, []); vigaDe.get(k).push(i); };
+      // oitões (01 e 20): trecho exato do projeto
+      ['01', '20'].forEach(e => (vigasEixo.get(e) || []).forEach(([i, trecho]) => poe(`${e}|${trecho}`, i)));
+      // demais eixos: por QUANTIDADE e LOCAÇÃO. O código de posição do Tekla não segue a letra do projeto, então as vigas de
+      // cada eixo são ordenadas pela posição real (centro da peça) de A para H; eixo com as 13 vigas recebe as letras na ordem
+      // (A, B, BC, C… H); eixo incompleto usa a letra mais próxima pela régua medida nos eixos completos.
+      M3._vigasMapa = m3dVigasPorLocacao(vcEixo, ordem, posLetra, poe);
       // joists: o modelo não tem a joist, só os suportes dela; cada suporte vai para a rua e a posição de joist mais próximas
       const cal = suportes.length ? m3dCalibrar(eix, est, vigasEixo) : null;
       const joistDe = new Map();
@@ -1106,6 +1110,60 @@ async function m3dLerAba() {
   const n = data.filter(Boolean).length;
   M3.aba = n ? { data, orig, n } : null;
   M3._real = null;
+}
+/** Liga as vigas de cobertura dos eixos 02…19 às letras do Apontar montagem pela ordem real ao longo do eixo (A → H). */
+function m3dVigasPorLocacao(vcEixo, ordem, posLetra, poe) {
+  const eixos = [...vcEixo.keys()].filter(e => e !== '01' && e !== '20');
+  const cent = new Map();
+  eixos.forEach(e => vcEixo.get(e).forEach(([i]) => { const c = m3dCentroRaiz(i); if (c) cent.set(i, c); }));
+  // direção A → H: das pontas de cada eixo (média), orientada pelo código de posição (meio em mm cresce de A para H)
+  let dir = [0, 0, 0];
+  eixos.forEach(e => {
+    const l = vcEixo.get(e).filter(([i]) => cent.has(i));
+    if (l.length < 4) return;
+    let a = l[0], b = l[0], dmax = -1;
+    l.forEach(x => l.forEach(y => { const c1 = cent.get(x[0]), c2 = cent.get(y[0]), dd = (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2; if (dd > dmax) { dmax = dd; a = x; b = y; } }));
+    const ca = cent.get(a[0]), cb = cent.get(b[0]);
+    let v = [cb[0] - ca[0], cb[1] - ca[1], cb[2] - ca[2]];
+    if (dir[0] * v[0] + dir[1] * v[1] + dir[2] * v[2] < 0) v = v.map(x => -x);
+    dir = dir.map((x, k) => x + v[k]);
+  });
+  const nd = Math.hypot(...dir);
+  if (!nd) return null;
+  dir = dir.map(x => x / nd);
+  const proj = i => { const c = cent.get(i); return c[0] * dir[0] + c[1] * dir[1] + c[2] * dir[2]; };
+  // sentido: correlação entre a projeção e o meio (mm) do código de posição
+  let sxy = 0, n = 0, sx = 0, sy = 0;
+  eixos.forEach(e => vcEixo.get(e).forEach(([i, , meio]) => { if (cent.has(i) && meio !== null) { const t = proj(i); sx += t; sy += meio; sxy += t * meio; n++; } }));
+  const sinal = n && (sxy - sx * sy / n) < 0 ? -1 : 1;
+  const t = i => sinal * proj(i);
+  // régua (t → mm da estação) medida nos eixos completos
+  const pares = [];
+  const resumo = { completos: 0, incompletos: [] };
+  eixos.forEach(e => {
+    const l = vcEixo.get(e).filter(([i]) => cent.has(i)).sort((x, y) => t(x[0]) - t(y[0]));
+    if (l.length === ordem.length) { resumo.completos++; l.forEach(([i], k) => pares.push([t(i), posLetra(ordem[k])])); }
+  });
+  let a = 1, b = 0;
+  if (pares.length >= 2) {
+    const m = pares.length, mx = pares.reduce((s, p) => s + p[0], 0) / m, my = pares.reduce((s, p) => s + p[1], 0) / m;
+    const sxx = pares.reduce((s, p) => s + (p[0] - mx) ** 2, 0);
+    a = sxx ? pares.reduce((s, p) => s + (p[0] - mx) * (p[1] - my), 0) / sxx : 1; b = my - a * mx;
+  }
+  eixos.forEach(e => {
+    const l = vcEixo.get(e).filter(([i]) => cent.has(i)).sort((x, y) => t(x[0]) - t(y[0]));
+    if (l.length === ordem.length) { l.forEach(([i], k) => poe(`${e}|${ordem[k]}`, i)); return; }
+    resumo.incompletos.push(`${e}: ${l.length}`);
+    if (pares.length < 2) return;
+    const livres = new Set(ordem);
+    l.forEach(([i]) => {
+      const mm = a * t(i) + b;
+      let melhor = null;
+      ordem.forEach(L => { if (livres.has(L) && (melhor === null || Math.abs(posLetra(L) - mm) < Math.abs(posLetra(melhor) - mm))) melhor = L; });
+      if (melhor) { livres.delete(melhor); poe(`${e}|${melhor}`, i); }
+    });
+  });
+  return resumo;
 }
 /** Centro (coordenadas da cena) de uma peça montável: média dos centros dos seus componentes. */
 function m3dCentroRaiz(r) {
