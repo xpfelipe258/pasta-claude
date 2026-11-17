@@ -190,6 +190,11 @@ function demo_criar_obra($uid, $orgId = 0)
             }
         }
         demo_semear_campo($obraId, $modeloId, $tpl['frentes'], $dia);
+        $fmArq = __DIR__ . '/frentes_montagem.json';   // malha de eixos da G200: os eixos 01…20 e A…H aparecem no 3D da demonstração
+        $fm = is_file($fmArq) ? json_decode((string)file_get_contents($fmArq), true) : null;
+        if (is_array($fm) && !empty($fm['malha'])) {
+            q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$obraId, 'frentes_montagem', json_encode(['malha' => $fm['malha'], 'frentes' => (object)[]], JSON_UNESCAPED_UNICODE)]);
+        }
         if ($dono) {
             $pdo->commit();
         }

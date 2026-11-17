@@ -43,7 +43,7 @@ function m3dSalvarCores() {
   }
 }
 
-const M3 = { chips: { st: new Set(), fase: new Set(), eixo: new Set() }, canteiro: false, juntos: false, corte: null, medindo: false, pontos: [], pronto: false, estado: null, modeloId: 0, grupos: [], filtroGrupos: new Set(), d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
+const M3 = { eixosVis: (() => { try { return localStorage.getItem('m3dEixos') !== '0'; } catch (e) { return true; } })(), chips: { st: new Set(), fase: new Set(), eixo: new Set() }, canteiro: false, juntos: false, corte: null, medindo: false, pontos: [], pronto: false, estado: null, modeloId: 0, grupos: [], filtroGrupos: new Set(), d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
   cores: 'orig', dia: '', antes: true, semPrazo: true, ocultos: new Set(), isolados: null, tocando: null, vel: 1, refVista: '', props: null, carregando: false };
 
 // ---------------------------------------------------------------- servidor
@@ -153,6 +153,7 @@ function m3dEsqueleto() {
               <button type="button" data-v="frente">Vista de frente</button>
               <button type="button" data-v="lado">Vista lateral</button>
               <button type="button" data-m3d="ocultar">Ocultar a seleção</button>
+              <button type="button" id="m3dBtnEixos" class="ativo" hidden>Eixos do projeto (01…20 e A…H)</button>
               <button type="button" id="m3dBtnCaixa">Caixa de seleção ao arrastar</button>
               <button type="button" id="m3dBtnSomar">Cada clique soma à seleção</button>
             </div>
@@ -246,6 +247,7 @@ async function m3dAbrirModelo(id, bufLocal) {
     M3._pesoTot = null;
     m3dIndexarGrupos();
     await m3dCarregarCampo(id);
+    m3dEixosMontar().catch(() => {});
     const modAtual = M3.estado.modelos.find(m => m.id === id);
     if (m3dPodeEditar() && modAtual && !modAtual.frentes_auto && !M3.grupos.length) await m3dFrentesAuto(modAtual);
     m3dAviso('');
@@ -454,6 +456,7 @@ function m3dLimparCena() {
   m3dParar();
   const T = M3.T;
   if (T && T.malha) { T.cena.remove(T.malha); T.malha.dispose(); T.malha = null; }
+  m3dEixosRemover();
   M3.d = null;
   M3.corte = null; M3.medindo = false; M3.pontos = [];
   m3dAtualizarFerramentas();
@@ -696,6 +699,7 @@ function m3dDesenharCota() {
   if (canvas.height !== h) canvas.height = h;
   ctx.setTransform(escala, 0, 0, escala, 0, 0);
   ctx.clearRect(0, 0, T.w, T.h);
+  m3dDesenharEixos(ctx, T);
   const [a, b] = M3.pontos.map(p => {
     const ndc = p.clone().project(T.cam);
     return ndc.z < -1 || ndc.z > 1 ? null : [(ndc.x + 1) * T.w / 2, (1 - ndc.y) * T.h / 2];
@@ -731,6 +735,25 @@ function m3dDesenharCota() {
   }
 }
 
+/** Eixos do projeto na camada 2D sobre o modelo: linhas finas tracejadas e rótulos em círculo (01…20 e A…H). */
+function m3dDesenharEixos(ctx, T) {
+  const E = T.eixos;
+  if (!E || !E.visible) return;
+  const tela = p => { const n = p.clone().project(T.cam); return n.z < -1 || n.z > 1 ? null : [(n.x + 1) * T.w / 2, (1 - n.y) * T.h / 2]; };
+  ctx.save();
+  ctx.strokeStyle = 'rgba(71, 85, 105, .55)'; ctx.lineWidth = 1; ctx.setLineDash([6, 5]);
+  E.linhas.forEach(([a, b]) => { const p = tela(a), q = tela(b); if (!p || !q) return; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); });
+  ctx.setLineDash([]);
+  ctx.font = 'bold 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  E.rotulos.forEach(([txt, pos]) => {
+    const p = tela(pos);
+    if (!p || p[0] < -20 || p[1] < -20 || p[0] > T.w + 20 || p[1] > T.h + 20) return;
+    ctx.beginPath(); ctx.arc(p[0], p[1], 11, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#1e293b'; ctx.stroke();
+    ctx.fillStyle = '#0f172a'; ctx.fillText(txt, p[0], p[1] + 0.5);
+  });
+  ctx.restore();
+}
 function m3dLigarFerramentas() {
   const inverter = $('#m3dInverterCorte');
   $('#m3dCortar').addEventListener('click', () => {
@@ -1096,6 +1119,71 @@ function m3dCalibrar(eix, est, vigasEixo) {
   const erro = pts.reduce((s, p) => { const q = f(p[0]); return Math.max(s, Math.abs(q[0] - p[1])); }, 0);
   M3._calErro = erro;
   return erro < 3000 ? f : null;   // mais de 3 m de erro no eixo = modelo fora da malha: não liga joists e telhas
+}
+// ---------------------------------------------------------------- eixos do projeto no 3D (01…20 na horizontal, A…H na vertical)
+// A cena do modelo é ajustada à malha do projeto (frentes-montagem: eixos e estações em mm) usando as vigas de cobertura, cuja
+// posição no projeto vem do código do Tekla; depois as linhas e os rótulos dos eixos são desenhados no chão do modelo.
+function m3dEixosRemover() {
+  if (M3.T) M3.T.eixos = null;
+}
+async function m3dEixosMontar() {
+  m3dEixosRemover();
+  const d = M3.d, T = M3.T, TH = M3.TH;
+  if (!d || !T || !TH || M3.juntos) return;
+  let fm = window._frentes && window._frentes.malha ? window._frentes : null;
+  if (!fm) fm = await fetch(API + 'frentes-montagem', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+  const malha = fm && fm.malha, eix = malha && malha.eixos_mm, est = malha && malha.estacoes_mm;
+  if (!eix || !est || M3.d !== d) return;
+  // pares (cena × projeto) das vigas de cobertura
+  const pts = [];
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0 || m3dTxt('nome', i).toUpperCase() !== 'VIGA COBERTURA') continue;
+    const p = m3dPosParse(m3dTxt('pos', i));
+    if (!p || p.e1 !== p.e2 || eix[p.e1] === undefined) continue;
+    const mm = p.est.map(x => est[x]).filter(x => x !== undefined);
+    if (!mm.length) continue;
+    const c = m3dCentroRaiz(i);
+    if (c) pts.push([eix[p.e1], (Math.min(...mm) + Math.max(...mm)) / 2, c]);
+  }
+  if (pts.length < 12) return;
+  // cena = a·ao_longo + b·transversal + c (um ajuste para x, outro para z); altura = topo das vigas
+  const ajustar = k => {
+    let s = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], t = [0, 0, 0];
+    pts.forEach(([u, v, c]) => { const r = [u, v, 1]; for (let a = 0; a < 3; a++) { t[a] += r[a] * c[k]; for (let b = 0; b < 3; b++) s[a][b] += r[a] * r[b]; } });
+    for (let col = 0; col < 3; col++) {
+      let pv = col; for (let r = col + 1; r < 3; r++) if (Math.abs(s[r][col]) > Math.abs(s[pv][col])) pv = r;
+      if (Math.abs(s[pv][col]) < 1e-9) return null;
+      [s[col], s[pv]] = [s[pv], s[col]]; [t[col], t[pv]] = [t[pv], t[col]];
+      for (let r = 0; r < 3; r++) if (r !== col) { const f = s[r][col] / s[col][col]; for (let q = col; q < 3; q++) s[r][q] -= f * s[col][q]; t[r] -= f * t[col]; }
+    }
+    return t.map((x, a) => x / s[a][a]);
+  };
+  let kx = ajustar(0), kz = ajustar(2);
+  if (!kx || !kz) return;
+  const resid = () => pts.map(([u, v, c]) => Math.hypot(kx[0] * u + kx[1] * v + kx[2] - c[0], kz[0] * u + kz[1] * v + kz[2] - c[2]));
+  const L = Math.hypot(kx[0] * 1000, kz[0] * 1000);   // tamanho de 1 m do projeto na cena
+  // tira as peças fora do padrão (ex.: viga com código de posição genérico) e ajusta de novo
+  let r = resid(), med = r.slice().sort((a, b) => a - b)[Math.floor(r.length / 2)];
+  const lim = Math.max(2 * L, 3 * med);
+  for (let k = pts.length - 1; k >= 0; k--) if (r[k] > lim) pts.splice(k, 1);
+  if (pts.length < 12) return;
+  kx = ajustar(0); kz = ajustar(2);
+  if (!kx || !kz) return;
+  r = resid(); med = r.slice().sort((a, b) => a - b)[Math.floor(r.length / 2)];
+  M3._eixosDiag = { mediana_m: med / L, n: pts.length };
+  if (!(L > 0) || med > L) return;   // erro típico acima de 1 m: modelo fora da malha, não desenha
+  let y0 = Infinity;
+  for (let i = 0; i < d.nInst; i++) if (d.centro[i * 4 + 1] < y0) y0 = d.centro[i * 4 + 1];
+  const P = (u, v) => new TH.Vector3(kx[0] * u + kx[1] * v + kx[2], y0, kz[0] * u + kz[1] * v + kz[2]);
+  const eixosP = Object.keys(eix).filter(k => !/a$/.test(k)).sort(), letras = Object.keys(est).filter(k => /^[A-Z]$/.test(k)).sort();
+  const uMax = Math.max(...Object.values(eix)), vMax = Math.max(...Object.values(est)), margem = 9000;
+  const linhas = [], rotulos = [];
+  eixosP.forEach(e => { const u = eix[e]; linhas.push([P(u, -margem * 0.55), P(u, vMax + margem * 0.55)]); rotulos.push([e, P(u, -margem)], [e, P(u, vMax + margem)]); });
+  letras.forEach(l => { const v = est[l]; linhas.push([P(-margem * 0.55, v), P(uMax + margem * 0.55, v)]); rotulos.push([l, P(-margem, v)], [l, P(uMax + margem, v)]); });
+  T.eixos = { linhas, rotulos, visible: M3.eixosVis };
+  const bt = $('#m3dBtnEixos');
+  if (bt) { bt.hidden = false; bt.classList.toggle('ativo', M3.eixosVis); }
+  m3dDesenhar();
 }
 async function m3dCarregarCampo(id) {
   const d = M3.d;
@@ -1981,6 +2069,7 @@ function m3dLigar() {
       return;
     }
     if (ev.target.closest('#m3dBtnCanteiro')) { m3dModoCanteiro(!M3.canteiro); return; }
+    if (ev.target.closest('#m3dBtnEixos')) { M3.eixosVis = !M3.eixosVis; $('#m3dBtnEixos').classList.toggle('ativo', M3.eixosVis); if (M3.T && M3.T.eixos) M3.T.eixos.visible = M3.eixosVis; m3dDesenhar(); try { localStorage.setItem('m3dEixos', M3.eixosVis ? '1' : '0'); } catch (e) { /* sem armazenamento */ } return; }
     if (ev.target.closest('#m3dSairCanteiro')) { m3dModoCanteiro(false); return; }
     if (ev.target.closest('#m3dBaixar')) { m3dBaixarCanteiro(); return; }
   });

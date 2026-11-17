@@ -1984,3 +1984,8 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
   .m3d-cbar-info { flex-basis: 100%; }
   .m3d-cbar-mais { flex-direction: row; flex-basis: 100%; }
 }
+/* botão "Atualizar" na faixa escura da obra (commit d1c2915): texto legível sobre o fundo escuro */
+.obra-contexto #obraAtualizarSistema { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, .45); min-height: 28px; padding: 3px 12px; font-size: .8rem; font-weight: 600; border-radius: 6px; cursor: pointer; }
+.obra-contexto #obraAtualizarSistema:hover { background: rgba(255, 255, 255, .12); }
+.obra-contexto #obraAtualizarSistema:disabled { opacity: .6; cursor: default; }
+.obra-contexto #obraAtualizarStatus { color: #fde68a; font-size: .75rem; }
