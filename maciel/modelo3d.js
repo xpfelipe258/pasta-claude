@@ -43,7 +43,7 @@ function m3dSalvarCores() {
   }
 }
 
-const M3 = { juntos: false, corte: null, medindo: false, pontos: [], pronto: false, estado: null, modeloId: 0, grupos: [], filtroGrupos: new Set(), d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
+const M3 = { chips: { st: new Set(), fase: new Set(), eixo: new Set() }, canteiro: false, juntos: false, corte: null, medindo: false, pontos: [], pronto: false, estado: null, modeloId: 0, grupos: [], filtroGrupos: new Set(), d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
   cores: 'orig', dia: '', antes: true, semPrazo: true, ocultos: new Set(), isolados: null, tocando: null, vel: 1, refVista: '', props: null, carregando: false };
 
 // ---------------------------------------------------------------- servidor
@@ -56,7 +56,7 @@ async function m3dGet(q) {
 async function m3dPost(acao, corpo) {
   const r = await fetch(`${M3D_URL}?acao=${acao}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' }, body: JSON.stringify(corpo) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.erro || 'Falha ao gravar.');
+  if (!r.ok) { const e = new Error(j.erro || 'Falha ao gravar.'); e.status = r.status; throw e; }
   return j;
 }
 async function m3dEnviarPartes(q, blob, prog) {   // arquivo grande em partes de 4 MB
@@ -112,6 +112,8 @@ function m3dEsqueleto() {
     <button type="button" class="btn" id="m3dJuntar" disabled>Juntar IFCs</button>
     <span id="m3dTotalJuntos" class="nota" role="status"></span>
     <span class="m3d-esp"></span>
+    <span class="m3d-rede" id="m3dRede" hidden></span>
+    <button type="button" class="btn" id="m3dBtnCanteiro" title="Tela para tablet no canteiro: modelo grande, botões Içada e Torqueada, funciona sem internet">Modo canteiro</button>
     <span class="m3d-demo-selo" id="m3dDemoSelo" hidden>Obra de demonstração · dados fictícios <button type="button" class="m3d-link" data-m3d="tour">ver o tour</button></span>
     <div class="seg" id="m3dModo" title="O que um clique seleciona"><button type="button" data-m="conj" class="ativa" title="A peça como é montada (viga, joist, terça…)">Peça montável</button><button type="button" data-m="peca" title="Cada componente da peça (chapa, perfil, parafuso…)">Componente</button></div>
     <div class="seg" id="m3dCores" title="O que as cores mostram"><button type="button" data-c="real" title="Situação de cada peça: carga e apontamento de campo">Situação real</button><button type="button" data-c="4d" title="Prazos das frentes de montagem">Planejado (4D)</button><button type="button" data-c="orig" class="ativa">Cores do projeto</button></div>
@@ -171,10 +173,12 @@ function m3dEsqueleto() {
         <button type="button" class="btn" id="m3dLimparMedida">Limpar medida</button>
       </div>
       <div class="bloco" id="m3dSelBox"></div>
+      <div class="bloco" id="m3dChipsBox"></div>
       <div class="bloco" id="m3dFiltroBox"></div>
       <div class="bloco" id="m3dGruposBox"></div>
     </aside>
-  </div>`;
+  </div>
+  <div class="m3d-cbar" id="m3dCBar" hidden></div>`;
 }
 
 function m3dAviso(html, erro) {
@@ -949,6 +953,7 @@ async function m3dCarregarCampo(id) {
       M3.ap.n++;
     });
   } catch (e) { /* sem apontamentos: segue só com o planejado */ }
+  m3dFila().forEach(m3dAplicarLocal);   // o que foi apontado sem internet e ainda não subiu
   if (typeof EP !== 'undefined' && !EP && typeof API !== 'undefined') {
     try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* sem acesso a Suprimentos */ }
   }
@@ -1091,6 +1096,7 @@ function m3dCampoHtml(itens) {
     const i = raizes[0], s = R.st[i];
     const l = [];
     if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
+    if (ap.pend && ap.pend.has(i)) l.push('<span class="m3d-pend">⏱ guardado no aparelho, aguardando envio</span>');
     if (ap.tq[i]) l.push(`Torqueada em <b>${fdA(ap.tq[i])}</b>${ap.por[i + ':2'] ? ' · ' + esc(ap.por[i + ':2']) : ''}`);
     const t = m3dChaveCarga(i), cg = M3.carga && M3.carga.porTag.get(t);
     if (cg) {
@@ -1119,23 +1125,224 @@ async function m3dApontar(acao) {
   const d = M3.d, guids = [...new Set([...M3.sel].map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];
   if (!guids.length) return;
   const etapa = acao === 'icar' || acao === 'desicar' ? 'icada' : 'torqueada', des = acao.startsWith('des');
-  const dia = ($('#m3dApData') && $('#m3dApData').value) || hoje();
+  const dia = ($('#m3dApData') && $('#m3dApData').value) || (m3dHoje() > hoje() ? hoje() : m3dHoje());
+  if (dia > hoje()) { toast('Não é possível apontar em data futura.', true); return; }
+  const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), acao: des ? 'desapontar' : 'apontar', modelo_id: M3.modeloId, etapa, guids, data: dia, em: new Date().toISOString() };
+  if (!navigator.onLine || m3dFila().length) {   // sem sinal (ou fila ainda pendente): guarda no aparelho e pinta na hora
+    m3dFilaAdd(item);
+    m3dAplicarLocal(item);
+    toast(`Sem sinal: ${guids.length.toLocaleString('pt-BR')} peça(s) ${des ? 'desfeita(s)' : etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} guardada(s) no aparelho. Envio automático quando a internet voltar.`);
+    m3dDepoisApontar(des);
+    if (navigator.onLine) m3dSincronizar();
+    return;
+  }
   try {
-    const r = await m3dPost(des ? 'desapontar' : 'apontar', { modelo_id: M3.modeloId, etapa, guids, data: dia });
+    const r = await m3dPost(item.acao, item);
     await m3dCarregarCampo(M3.modeloId);
-    M3._realV = (M3._realV || 0) + 1;
     if (des) toast(`Desfeito: ${r.removidos.toLocaleString('pt-BR')} registro(s).`);
-    else {
-      toast(`${r.novos.toLocaleString('pt-BR')} peça(s) ${etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} em ${fdA(dia)}${r.inferidas ? ` · ${r.inferidas} içamento(s) registrado(s) junto` : ''}${r.ja_feitos ? ` · ${r.ja_feitos} já estava(m) registrada(s)` : ''}.`);
-      M3._apontou = true;
+    else toast(`${r.novos.toLocaleString('pt-BR')} peça(s) ${etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} em ${fdA(dia)}${r.inferidas ? ` · ${r.inferidas} içamento(s) registrado(s) junto` : ''}${r.ja_feitos ? ` · ${r.ja_feitos} já estava(m) registrada(s)` : ''}.`);
+    m3dDepoisApontar(des);
+  } catch (e) {
+    if (e.status) { toast(e.message, true); return; }   // o servidor recusou: não guarda
+    m3dFilaAdd(item);   // caiu a conexão no meio: guarda e tenta depois
+    m3dAplicarLocal(item);
+    toast('A conexão caiu: o apontamento ficou guardado no aparelho e será enviado quando a internet voltar.');
+    m3dDepoisApontar(des);
+  }
+}
+function m3dDepoisApontar(des) {
+  M3._realV = (M3._realV || 0) + 1;
+  if (!des) M3._apontou = true;
+  if (M3.cores !== 'real') m3dDefinirCores('real'); else m3dPintar();
+  m3dPainelSel();
+  m3dChips();
+  m3dRede();
+}
+
+// ---------------------------------------------------------------- modo canteiro: fila sem internet, cópia no aparelho
+function m3dFilaChave() { return 'm3dFila:' + ((window.OBRA_ATUAL && OBRA_ATUAL.id) || 0); }
+function m3dFila() { try { return JSON.parse(localStorage.getItem(m3dFilaChave()) || '[]'); } catch (e) { return []; } }
+function m3dFilaGravar(f) {
+  try { localStorage.setItem(m3dFilaChave(), JSON.stringify(f)); }
+  catch (e) { toast('O aparelho não deixou guardar o apontamento (memória cheia ou navegação privada). Envie com internet.', true); }
+}
+function m3dFilaAdd(item) { const f = m3dFila(); f.push(item); m3dFilaGravar(f); }
+/** Aplica na tela um apontamento ainda não enviado (fica com o relógio até o servidor confirmar). */
+function m3dAplicarLocal(it) {
+  const d = M3.d, ap = M3.ap;
+  if (!d || !ap || it.modelo_id !== M3.modeloId) return;
+  ap.pend = ap.pend || new Set();
+  it.guids.forEach(g => {
+    const i = d.guidDe.get(g);
+    if (i === undefined) return;
+    const r = d.raiz[i];
+    if (it.acao === 'desapontar') {
+      ap.tq[r] = '';
+      if (it.etapa === 'icada') { ap.ic[r] = ''; ap.inf[r] = 0; }
+    } else if (it.etapa === 'icada') {
+      if (!ap.ic[r]) ap.ic[r] = it.data;
+    } else {
+      if (!ap.ic[r]) { ap.ic[r] = it.data; ap.inf[r] = 1; }
+      if (!ap.tq[r]) ap.tq[r] = it.data;
     }
-    if (M3.cores !== 'real') m3dDefinirCores('real'); else m3dPintar();
-    m3dPainelSel();
-  } catch (e) { toast(e.message, true); }
+    ap.pend.add(r);
+  });
+}
+/** Envia a fila em ordem. Recusa do servidor (ex.: RDO validado) tira o item da fila e avisa; falta de sinal ou sessão vencida mantém tudo guardado. */
+async function m3dSincronizar() {
+  if (M3._sinc || !navigator.onLine) return;
+  let f = m3dFila();
+  if (!f.length) { m3dRede(); return; }
+  M3._sinc = true;
+  const total = f.length;
+  let ok = 0, recusados = [], parou = '';
+  try {
+    while (f.length) {
+      M3._sincTxt = `Enviando ${ok + recusados.length + 1} de ${total}`;
+      m3dRede();
+      const it = f[0];
+      try {
+        await m3dPost(it.acao, it);
+        ok++;
+      } catch (e) {
+        if (!e.status) { parou = 'sem sinal'; break; }
+        if (e.status === 401 || /Sessão expirada|login/i.test(e.message)) { parou = 'sessao'; break; }
+        recusados.push(e.message);
+      }
+      f.shift();
+      m3dFilaGravar(f);
+    }
+  } finally {
+    M3._sinc = false;
+    M3._sincTxt = '';
+  }
+  if (ok || recusados.length) {
+    if (M3.modeloId) { await m3dCarregarCampo(M3.modeloId); m3dFila().forEach(m3dAplicarLocal); M3._realV = (M3._realV || 0) + 1; m3dPintar(); m3dPainelSel(); m3dChips(); }
+    toast(`${ok.toLocaleString('pt-BR')} apontamento(s) enviado(s).` + (recusados.length ? ` ${recusados.length} não aceito(s): ${recusados[0]}` : ''), !!recusados.length);
+  }
+  if (parou === 'sessao') toast('Sua sessão terminou: entre de novo no sistema. Os apontamentos continuam guardados no aparelho.', true);
+  m3dRede();
+}
+function m3dRede() {
+  const el = $('#m3dRede'), n = m3dFila().length, baixado = m3dCanteiroInfo();
+  let txt = '', cls = '';
+  if (M3._sincTxt) { txt = M3._sincTxt; cls = 'env'; }
+  else if (!navigator.onLine) { txt = 'Sem sinal' + (n ? ` · ${n} apontamento(s) guardado(s)` : ''); cls = 'off'; }
+  else if (n) { txt = `${n} apontamento(s) para enviar`; cls = 'env'; }
+  else if (baixado) { txt = 'Online · cópia no aparelho de ' + baixado; cls = 'on'; }
+  if (el) { el.hidden = !txt; el.className = 'm3d-rede ' + cls; el.textContent = txt; }
+  m3dBarraCampo();
+}
+function m3dCanteiroChave() { return 'm3dCanteiro:' + ((window.OBRA_ATUAL && OBRA_ATUAL.id) || 0); }
+function m3dCanteiroInfo() { try { const v = localStorage.getItem(m3dCanteiroChave()); return v ? fdA(v.slice(0, 10)) + ' ' + v.slice(11, 16) : ''; } catch (e) { return ''; } }
+/** "Baixar para o canteiro": registra o guardião (sw.js) e passa pela rede tudo o que a tela usa, para ficar guardado no aparelho. */
+async function m3dBaixarCanteiro() {
+  if (!('serviceWorker' in navigator) || !window.caches) { toast('Este navegador não guarda o sistema para uso sem internet. Use o Chrome, Edge ou Safari atualizados.', true); return; }
+  if (!navigator.onLine) { toast('Para baixar a cópia é preciso estar com internet.', true); return; }
+  const bt = $('#m3dBaixar');
+  try {
+    if (bt) { bt.disabled = true; bt.textContent = 'Baixando…'; }
+    await navigator.serviceWorker.register('sw.js', { scope: './' });
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) await new Promise(r => { navigator.serviceWorker.addEventListener('controllerchange', r, { once: true }); setTimeout(r, 4000); });
+    const urls = new Set([location.href, 'index.php?aba=m3d', 'index.php', 'manifest.webmanifest']);
+    document.querySelectorAll('script[src]').forEach(x => urls.add(x.getAttribute('src')));
+    document.querySelectorAll('link[rel="stylesheet"][href], link[rel~="icon"][href]').forEach(x => urls.add(x.getAttribute('href')));
+    urls.add('./vendor/m3d/three.m3d.js?v=' + M3D_VER);
+    ['dados', 'versao', 'regras-baixa', 'estoque-planilha', 'frentes-montagem', 'identidade', 'configuracoes', 'tarefas'].forEach(r => urls.add(API + r));
+    urls.add(`${M3D_URL}?acao=estado`);
+    (M3.estado ? M3.estado.modelos : []).forEach(m => {
+      urls.add(`${M3D_URL}?acao=grupos&modelo=${m.id}`);
+      urls.add(`${M3D_URL}?acao=apont&modelo=${m.id}`);
+      if (m.cache) { urls.add(`${M3D_URL}?acao=cache&id=${m.id}&tipo=geo`); urls.add(`${M3D_URL}?acao=cache&id=${m.id}&tipo=props`); }
+    });
+    let feitos = 0, falhas = 0;
+    const lista = [...urls].filter(Boolean);
+    for (const u of lista) {
+      try { const r = await fetch(u, { cache: 'no-store', credentials: 'same-origin' }); if (!r.ok) falhas++; await r.arrayBuffer(); } catch (e) { falhas++; }
+      feitos++;
+      if (bt) bt.textContent = `Baixando ${feitos} de ${lista.length}…`;
+    }
+    const agora = new Date(), iso = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000).toISOString();
+    try { localStorage.setItem(m3dCanteiroChave(), iso); } catch (e) { /* sem armazenamento */ }
+    toast(`Cópia para o canteiro pronta${falhas ? ` (${falhas} item(ns) opcionais não baixaram)` : ''}. Sem internet, abra este mesmo endereço no aparelho.`);
+  } catch (e) {
+    toast('Não foi possível guardar a cópia no aparelho: ' + e.message, true);
+  }
+  if (bt) { bt.disabled = false; bt.textContent = 'Baixar para o canteiro'; }
+  m3dRede();
+}
+function m3dModoCanteiro(liga) {
+  M3.canteiro = liga;
+  document.body.classList.toggle('m3d-canteiro', liga);
+  const b = $('#m3dBtnCanteiro');
+  if (b) b.textContent = liga ? 'Sair do modo canteiro' : 'Modo canteiro';
+  if (liga && M3.modo !== 'conj') { M3.modo = 'conj'; M3.sel.clear(); document.querySelectorAll('#m3dModo button').forEach(x => x.classList.toggle('ativa', x.dataset.m === 'conj')); }
+  if (liga && M3.cores !== 'real' && M3.ap) m3dDefinirCores('real');
+  try { localStorage.setItem('m3dModoCanteiro', liga ? '1' : ''); } catch (e) { /* sem armazenamento */ }
+  m3dBarraCampo();
+  setTimeout(() => { m3dRedimensionar(); m3dDesenhar(); }, 60);
+}
+/** Barra fixa do modo canteiro: seleção, botões grandes Içada / Torqueada e a cópia no aparelho. */
+function m3dBarraCampo() {
+  const bar = $('#m3dCBar');
+  if (!bar) return;
+  bar.hidden = !M3.canteiro;
+  if (!M3.canteiro) return;
+  const d = M3.d, ap = M3.ap || { ic: [], tq: [] }, ed = m3dPodeEditar() && !M3.juntos;
+  const raizes = d ? [...new Set([...M3.sel].map(i => d.raiz[i]))] : [];
+  const sIc = raizes.filter(i => !ap.ic[i]).length, sTq = raizes.filter(i => !ap.tq[i]).length;
+  const rede = $('#m3dRede');
+  bar.innerHTML = `<div class="m3d-cbar-info"><b>${raizes.length ? raizes.length.toLocaleString('pt-BR') + (raizes.length === 1 ? ' peça' : ' peças') : 'Toque numa peça'}</b>
+      <span>${raizes.length ? `${sIc.toLocaleString('pt-BR')} a içar · ${sTq.toLocaleString('pt-BR')} a torquear` : 'ou num eixo (filtros) para marcar o eixo inteiro'}</span>
+      <span class="m3d-rede ${rede ? rede.className.replace('m3d-rede', '') : ''}">${rede && !rede.hidden ? esc(rede.textContent) : (navigator.onLine ? 'Online' : 'Sem sinal')}</span></div>
+    ${ed ? `<button type="button" class="m3d-cbt ic" data-m3d="icar"${sIc ? '' : ' disabled'}>Içada</button><button type="button" class="m3d-cbt tq" data-m3d="torquear"${sTq ? '' : ' disabled'}>Torqueada</button>` : '<span class="nota">Somente leitura</span>'}
+    <div class="m3d-cbar-mais"><button type="button" class="btn" id="m3dBaixar">Baixar para o canteiro</button><button type="button" class="btn" data-m3d="limpar">Limpar</button><button type="button" class="btn" id="m3dSairCanteiro">Sair</button></div>`;
+}
+
+// ---------------------------------------------------------------- filtros rápidos (chips): situação, etapa, eixo
+function m3dEixoDe(i) { const m = m3dTxt('pos', i).match(/^(\d+)/); return m ? m[1].padStart(2, '0') : ''; }
+function m3dChipsPassa(i, R) {
+  const c = M3.chips;
+  if (c.st.size && !c.st.has(R.st[i])) return false;
+  if (c.fase.size && !c.fase.has(m3dTxt('fase', i))) return false;
+  if (c.eixo.size && !c.eixo.has(m3dEixoDe(i))) return false;
+  return true;
+}
+function m3dChipsAtivos() { const c = M3.chips; return c.st.size + c.fase.size + c.eixo.size; }
+function m3dAplicarChips() {
+  if (!M3.d) return;
+  if (!m3dChipsAtivos()) { M3.isolados = null; }
+  else { const R = m3dStatusReal(); M3.isolados = new Set(m3dSelRaizes(i => m3dChipsPassa(i, R))); }
+  m3dPintar();
+  m3dChips();
+}
+function m3dChips() {
+  const box = $('#m3dChipsBox');
+  if (!box) return;
+  if (!M3.d || !M3.ap || M3.juntos) { box.hidden = true; return; }
+  box.hidden = false;
+  const R = m3dStatusReal(), c = M3.chips, qSt = new Array(7).fill(0), qF = new Map(), qE = new Map();
+  let nFiltro = 0;
+  m3dSelRaizes(() => true).forEach(i => {
+    // cada bloco conta o que passa nos OUTROS blocos (assim o número mostra o que o toque vai isolar)
+    const okSt = !c.st.size || c.st.has(R.st[i]), f = m3dTxt('fase', i), okF = !c.fase.size || c.fase.has(f), e = m3dEixoDe(i), okE = !c.eixo.size || c.eixo.has(e);
+    if (okF && okE) qSt[R.st[i]]++;
+    if (okSt && okE) qF.set(f, (qF.get(f) || 0) + 1);
+    if (okSt && okF && e) qE.set(e, (qE.get(e) || 0) + 1);
+    if (okSt && okF && okE) nFiltro++;
+  });
+  const chip = (bloco, val, rot, n, cor) => `<button type="button" class="m3d-fchip${c[bloco].has(val) ? ' on' : ''}" data-chip="${bloco}" data-v="${esc(String(val))}"${n ? '' : ' disabled'}>${cor ? `<i style="background:${cor}"></i>` : ''}${esc(rot)} <b>${n.toLocaleString('pt-BR')}</b></button>`;
+  const fases = [...qF].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }));
+  const eixos = [...new Set([...qE.keys(), ...c.eixo])].sort();
+  box.innerHTML = `<div class="m3d-chips-cab"><h3>Filtros</h3>${m3dChipsAtivos() ? `<span class="nota">${nFiltro.toLocaleString('pt-BR')} peças</span><button type="button" class="m3d-link" data-m3d="chsel">selecionar estas</button><button type="button" class="m3d-link" data-m3d="chlimpar">limpar</button>` : '<span class="nota">toque para isolar no modelo</span>'}</div>
+    <div class="m3d-chips-t">Situação</div><div class="m3d-chips">${[3, 2, 1, 4, 5, 6, 0].filter(k => qSt[k] || c.st.has(k)).map(k => chip('st', k, M3D_RCURTO[k], qSt[k], M3D_RC[k])).join('')}</div>
+    <div class="m3d-chips-t">Etapa de montagem</div><div class="m3d-chips">${fases.map(([f, n]) => chip('fase', f, f || '(sem etapa)', n)).join('')}</div>
+    ${eixos.length ? `<div class="m3d-chips-t">Eixo</div><div class="m3d-chips m3d-chips-eixo">${eixos.map(e => chip('eixo', e, e, qE.get(e) || 0)).join('')}</div>` : ''}`;
 }
 
 // ---------------------------------------------------------------- painéis
-function m3dPaineis() { m3dPainelSel(); m3dPainelFiltro(); m3dListaGrupos(); m3dTempo(); }
+function m3dPaineis() { m3dPainelSel(); m3dChips(); m3dPainelFiltro(); m3dListaGrupos(); m3dTempo(); m3dBarraCampo(); }
 
 /** Peso em kg: o do IFC; peça montável sem peso próprio soma o dos componentes. */
 function m3dPeso(i) {
@@ -1159,6 +1366,7 @@ function m3dTxt(col, i) { const d = M3.d, c = d.e[col]; return c ? d.s[c[i]] || 
 function m3dRotulo(i) { return m3dTxt('marca', i) || m3dTxt('nome', i) || m3dTxt('cls', i) || M3.d.e.guid[i]; }
 
 function m3dPainelSel() {
+  m3dBarraCampo();
   const box = $('#m3dSelBox');
   if (!box) return;
   const d = M3.d;
@@ -1252,13 +1460,13 @@ function m3dPainelFiltro() {
   const cont = new Map();
   m3dItens().forEach(i => { const v = m3dTxt(tipo, i); cont.set(v, (cont.get(v) || 0) + 1); });
   const vals = [...cont].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }));
-  box.innerHTML = `<h3>Selecionar por</h3>
+  box.innerHTML = `<details class="m3d-tecf" id="m3dTecF"${M3.tecAberto ? ' open' : ''}><summary><h3>Filtros técnicos</h3></summary>
     <div class="m3d-filtro">
       <select id="m3dFTipo">${[['fase', 'Etapa de montagem'], ['pos', 'Eixo e posição'], ['nome', 'Tipo de peça'], ['marca', 'Marca'], ['pav', 'Pavimento'], ['cls', 'Tipo IFC (técnico)']].map(x => `<option value="${x[0]}"${x[0] === tipo ? ' selected' : ''}>${x[1]}</option>`).join('')}</select>
       <select id="m3dFValor">${vals.map(x => `<option value="${esc(x[0])}">${esc(x[0] || '(vazio)')} — ${x[1].toLocaleString('pt-BR')}</option>`).join('')}</select>
       <label class="m3d-chk"><input type="checkbox" id="m3dFSem"${M3.filtroSem ? ' checked' : ''}> só o que ainda não está em nenhuma frente</label>
       <div class="m3d-acoes"><button type="button" class="btn" data-m3d="fsel">Selecionar</button><button type="button" class="btn" data-m3d="fsomar">Somar à seleção</button></div>
-    </div>`;
+    </div></details>`;
 }
 function m3dFiltrar(somar) {
   const tipo = $('#m3dFTipo').value, val = $('#m3dFValor').value, sem = $('#m3dFSem').checked;
@@ -1596,6 +1804,24 @@ async function m3dRecarregarGrupos(mostrarNaSimulacao = false) {
 // ---------------------------------------------------------------- ações da tela
 function m3dLigar() {
   const corpo = $('#m3dCorpo');
+  window.addEventListener('online', () => { m3dRede(); m3dSincronizar(); });
+  window.addEventListener('offline', m3dRede);
+  setInterval(() => { if (navigator.onLine && m3dFila().length) m3dSincronizar(); }, 30000);
+  corpo.addEventListener('click', ev => {
+    const ch = ev.target.closest('[data-chip]');
+    if (ch) {
+      const bl = ch.dataset.chip, v = bl === 'st' ? parseInt(ch.dataset.v, 10) : ch.dataset.v, set = M3.chips[bl];
+      if (set.has(v)) set.delete(v); else set.add(v);
+      m3dAplicarChips();
+      return;
+    }
+    if (ev.target.closest('#m3dBtnCanteiro')) { m3dModoCanteiro(!M3.canteiro); return; }
+    if (ev.target.closest('#m3dSairCanteiro')) { m3dModoCanteiro(false); return; }
+    if (ev.target.closest('#m3dBaixar')) { m3dBaixarCanteiro(); return; }
+  });
+  corpo.addEventListener('toggle', ev => { if (ev.target.id === 'm3dTecF') M3.tecAberto = ev.target.open; }, true);
+  try { if (localStorage.getItem('m3dModoCanteiro') === '1') setTimeout(() => m3dModoCanteiro(true), 0); } catch (e) { /* sem armazenamento */ }
+  setTimeout(() => { m3dRede(); m3dSincronizar(); }, 1500);
   m3dLigarFerramentas();
   m3dLigarJuntar();
   $('#m3dModelo').addEventListener('change', async ev => {
@@ -1663,7 +1889,9 @@ function m3dLigar() {
     else if ((ac === 'isolar' || ac === 'ocultar') && !M3.sel.size) toast('Selecione uma ou mais peças primeiro.');
     else if (ac === 'isolar') { M3.isolados = new Set(M3.sel); M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
     else if (ac === 'ocultar') { M3.sel.forEach(i => M3.ocultos.add(i)); M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
-    else if (ac === 'mostrar') { M3.ocultos.clear(); M3.isolados = null; m3dPintar(); m3dPainelSel(); }
+    else if (ac === 'mostrar') { M3.ocultos.clear(); M3.isolados = null; M3.chips = { st: new Set(), fase: new Set(), eixo: new Set() }; m3dPintar(); m3dPainelSel(); m3dChips(); }
+    else if (ac === 'chlimpar') { M3.chips = { st: new Set(), fase: new Set(), eixo: new Set() }; m3dAplicarChips(); }
+    else if (ac === 'chsel') { const R = m3dStatusReal(); M3.sel = new Set(m3dSelRaizes(i => m3dChipsPassa(i, R))); m3dPintar(); m3dPainelSel(); m3dBarraCampo(); toast(M3.sel.size.toLocaleString('pt-BR') + ' peça(s) selecionada(s).'); }
     else if (ac === 'props') m3dMostrarProps();
     else if (ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq') m3dApontar(ac);
     else if (ac === 'vit') m3dVitrineSelecionar(b.dataset.k);

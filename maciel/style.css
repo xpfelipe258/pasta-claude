@@ -1934,3 +1934,53 @@ dialog.m3d-dlg { width: min(680px, calc(100vw - 24px)); }
   .m3d-vitrine { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .m3d-card b { font-size: 1.1rem; }
 }
+
+/* ---- Modelo 3D · etapa 3: filtros rápidos, conexão e modo canteiro (tablet, sem internet) ---- */
+.m3d-chips-cab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.m3d-chips-cab h3 { margin: 0; }
+.m3d-chips-t { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--fg3, #94a3b8); margin: 10px 0 5px; }
+.m3d-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.m3d-fchip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--linha-forte, #cbd5e1); border-radius: 999px; background: var(--card, #fff); color: var(--fg, #0f172a); font: inherit; font-size: .8rem; cursor: pointer; }
+.m3d-fchip i { width: 11px; height: 11px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, .18); }
+.m3d-fchip b { font-weight: 700; color: var(--fg2, #475569); }
+.m3d-fchip.on { background: var(--acento, #2563eb); border-color: var(--acento, #2563eb); color: #fff; }
+.m3d-fchip.on b { color: #fff; }
+.m3d-fchip:disabled { opacity: .4; cursor: default; }
+.m3d-chips-eixo .m3d-fchip { min-width: 54px; justify-content: center; }
+.m3d-tecf > summary { cursor: pointer; list-style: none; }
+.m3d-tecf > summary::-webkit-details-marker { display: none; }
+.m3d-tecf > summary h3 { display: inline; }
+.m3d-tecf > summary::after { content: " ▸"; color: var(--fg3, #94a3b8); }
+.m3d-tecf[open] > summary::after { content: " ▾"; }
+.m3d-rede { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .76rem; font-weight: 650; background: #e2e8f0; color: #334155; }
+.m3d-rede::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.m3d-rede.on { background: #dcfce7; color: #166534; }
+.m3d-rede.off { background: #e5e7eb; color: #374151; }
+.m3d-rede.env { background: #dbeafe; color: #1d4ed8; }
+.m3d-pend { color: #1d4ed8; font-weight: 650; }
+.m3d-cbar { display: none; }
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dCorpo { position: fixed; inset: 0; z-index: 900; background: var(--bg, #f8fafc); overflow: auto; padding: 10px 12px 112px; }
+body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-vista { height: 68vh; min-height: 360px; }
+body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-dica,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dFiltroBox,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dGruposBox,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dEnviar,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dExcluirModelo,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dJuntar,
+body.m3d-canteiro #aba-m3d:not([hidden]) #m3dModo { display: none !important; }
+body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 901; gap: 10px; align-items: center; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--card, #fff); border-top: 1px solid var(--linha-forte, #cbd5e1); box-shadow: 0 -6px 18px rgba(15, 23, 42, .12); }
+.m3d-cbar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; font-size: .82rem; }
+.m3d-cbar-info b { font-size: 1.05rem; }
+.m3d-cbar-info .m3d-rede { align-self: flex-start; }
+.m3d-cbt { flex: 0 0 auto; min-width: 150px; height: 56px; border: 0; border-radius: 12px; font: inherit; font-size: 1.15rem; font-weight: 800; color: #fff; cursor: pointer; }
+.m3d-cbt.ic { background: #16a34a; }
+.m3d-cbt.tq { background: #15803d; }
+.m3d-cbt:disabled { background: #cbd5e1; color: #64748b; cursor: default; }
+.m3d-cbar-mais { display: flex; flex-direction: column; gap: 4px; }
+.m3d-cbar-mais .btn { min-height: 30px; font-size: .78rem; }
+@media (max-width: 760px) {
+  body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { flex-wrap: wrap; }
+  .m3d-cbt { flex: 1 1 40%; min-width: 0; }
+  .m3d-cbar-info { flex-basis: 100%; }
+  .m3d-cbar-mais { flex-direction: row; flex-basis: 100%; }
+}
