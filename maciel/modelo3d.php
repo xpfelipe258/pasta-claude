@@ -166,6 +166,8 @@ try {
             $r = m3d_modelo_excluir($c);
         } elseif ($acao === 'grupo_salvar') {
             $r = m3d_grupo_salvar($c, $u);
+        } elseif ($acao === 'frentes_auto') {
+            $r = m3d_frentes_auto($c, $u);
         } elseif ($acao === 'grupo_excluir') {
             $r = m3d_grupo_excluir($c, $u);
         } elseif ($acao === 'soltar') {

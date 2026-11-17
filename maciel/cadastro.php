@@ -82,6 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$novoUsuario) { throw new RuntimeException('Usuário criado não encontrado.'); }
             $tokenVerificacao = verificacao_criar_token((int)$novoUsuario['id']);
             bd()->commit();
+            try {   // a conta de teste já nasce com a obra de demonstração (Galpão Exemplo); falha aqui não desfaz o cadastro
+                demo_criar_obra((int)$novoUsuario['id'], (int)$orgId);
+            } catch (Throwable $eDemo) {
+                error_log('demo_criar_obra: ' . $eDemo->getMessage());
+            }
             // Avisos por e-mail (falha de envio não desfaz o cadastro).
             $sistema = global_ler('nome_sistema', 'Núcleo de Obras');
             $plano = q_global('SELECT nome FROM planos_assinatura WHERE id = ?', [$v['plano_id']])->fetchColumn();

@@ -336,3 +336,6 @@ body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d
 .login-abas a { padding: 9px 24px; border-radius: 999px; color: #344054; font-weight: 700; font-size: .9rem; text-decoration: none; }
 .login-abas a.ativa { background: #fff; color: #101828; box-shadow: 0 2px 8px rgba(16,24,40,.12); }
 .login-abas a:not(.ativa):hover { color: var(--portal-primary); }
+
+/* obra de demonstração (Galpão Exemplo) na Central de obras */
+.demo-card { border: 2px dashed #d97706 !important; align-self: start; }

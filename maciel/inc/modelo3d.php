@@ -12,7 +12,7 @@ if (!class_exists('ErroValidacao')) {
     }
 }
 
-const M3D_CACHE_VERSAO = 1;          // muda quando o formato do modelo convertido muda (o navegador reconverte)
+const M3D_CACHE_VERSAO = 2;          // 2: peso e posição de cada elemento. Muda quando o formato do modelo convertido muda (o navegador reconverte)
 const M3D_TAMANHO_MAX = 524288000;   // 500 MB por IFC
 const M3D_PARTE_MAX = 16777216;      // 16 MB por parte enviada
 const M3D_GUIDS_MAX = 80000;         // elementos por gravação
@@ -21,7 +21,7 @@ function modelos_3d_sql($pk, $fim)
 {
     return "CREATE TABLE IF NOT EXISTS modelos_3d (id $pk, obra_id INT NOT NULL, nome VARCHAR(160) NOT NULL, arquivo VARCHAR(80) NULL, doc_id INT NULL,
         tamanho DOUBLE NULL, sha256 VARCHAR(64) NULL, cache_geo VARCHAR(80) NULL, cache_props VARCHAR(80) NULL, cache_v INT NOT NULL DEFAULT 0,
-        n_elementos INT NOT NULL DEFAULT 0, n_unidades INT NOT NULL DEFAULT 0, por VARCHAR(100) NULL, em VARCHAR(19) NULL)$fim";
+        n_elementos INT NOT NULL DEFAULT 0, n_unidades INT NOT NULL DEFAULT 0, frentes_auto INT NOT NULL DEFAULT 0, por VARCHAR(100) NULL, em VARCHAR(19) NULL)$fim";
 }
 
 function m3d_grupos_sql($pk, $longo, $fim)
@@ -51,6 +51,9 @@ function garantir_modelo3d()
     $pdo->exec(modelos_3d_sql($pk, $fim));
     $pdo->exec(m3d_grupos_sql($pk, $mysql ? 'MEDIUMTEXT' : 'TEXT', $fim));
     $pdo->exec(m3d_elementos_sql($fim));
+    if (!in_array('frentes_auto', colunas_tabela($pdo, $mysql ? 'mysql' : 'sqlite', 'modelos_3d'), true)) {   // bancos criados antes desta coluna
+        $pdo->exec('ALTER TABLE modelos_3d ADD COLUMN frentes_auto INT NOT NULL DEFAULT 0');
+    }
     $ok = true;
 }
 
@@ -92,7 +95,7 @@ function m3d_modelo($id)
 function m3d_modelo_publico(array $m)
 {
     return ['id' => (int)$m['id'], 'nome' => $m['nome'], 'tamanho' => (float)$m['tamanho'], 'por' => $m['por'], 'em' => $m['em'],
-        'cache' => ((int)$m['cache_v'] === M3D_CACHE_VERSAO && $m['cache_geo']) ? 1 : 0, 'elementos' => (int)$m['n_elementos'], 'unidades' => (int)$m['n_unidades']];
+        'cache' => ((int)$m['cache_v'] === M3D_CACHE_VERSAO && $m['cache_geo']) ? 1 : 0, 'frentes_auto' => (int)($m['frentes_auto'] ?? 0), 'elementos' => (int)$m['n_elementos'], 'unidades' => (int)$m['n_unidades']];
 }
 
 /** Modelos da obra + IFCs já guardados pela importação (que podem virar modelo sem novo envio). */
@@ -111,7 +114,7 @@ function m3d_estado(array $u)
     } catch (Throwable $e) {
         $docs = [];
     }
-    return ['modelos' => $modelos, 'docs_ifc' => $docs, 'pode_editar' => m3d_pode_editar($u) ? 1 : 0, 'empresa' => usuario_empresa_restrita($u),
+    return ['modelos' => $modelos, 'docs_ifc' => $docs, 'demo' => obra_eh_demo($obraId) ? 1 : 0, 'pode_editar' => m3d_pode_editar($u) ? 1 : 0, 'empresa' => usuario_empresa_restrita($u),
         'cache_versao' => M3D_CACHE_VERSAO, 'status' => m3d_status()];
 }
 
@@ -206,6 +209,40 @@ function m3d_grupo_salvar(array $c, array $u)
         if (!empty($c['adicionar'])) { m3d_vincular((int)$modelo['id'], $id, m3d_guids_validos($c['adicionar']), $rot); }
     }
     return ['ok' => true, 'id' => $id];
+}
+
+/** Etapas do IFC viram frentes de montagem: roda uma vez por modelo, só quando ele ainda não tem frente nenhuma.
+ *  Datas vêm do navegador (casadas com o cronograma pelo nome); sem casar, a frente nasce sem prazo. */
+function m3d_frentes_auto(array $c, array $u)
+{
+    $modelo = m3d_modelo($c['modelo_id'] ?? 0);
+    if (!$modelo) { throw new ErroValidacao('Modelo não encontrado.'); }
+    if ((int)$modelo['frentes_auto'] === 1 || q('SELECT COUNT(*) FROM m3d_grupos WHERE modelo_id = ?', [(int)$modelo['id']])->fetchColumn() > 0) {
+        q('UPDATE modelos_3d SET frentes_auto = 1 WHERE id = ?', [(int)$modelo['id']]);
+        return ['ok' => true, 'criadas' => 0];
+    }
+    $lista = is_array($c['frentes'] ?? null) ? array_slice($c['frentes'], 0, 300) : [];
+    $agora = m3d_agora();
+    $minha = usuario_empresa_restrita($u);
+    $criadas = 0;
+    $total = 0;
+    foreach ($lista as $f) {
+        $nome = mb_substr(trim((string)($f['nome'] ?? '')), 0, 160);
+        $guids = m3d_guids_validos($f['guids'] ?? []);
+        $total += count($guids);
+        if ($total > M3D_GUIDS_MAX) { throw new ErroValidacao('Modelo grande demais para criar as frentes de uma vez.'); }
+        if (mb_strlen($nome) < 2 || !$guids) { continue; }
+        $ini = (string)($f['inicio'] ?? '');
+        $fim = (string)($f['fim'] ?? '');
+        if (!data_valida($ini) || !data_valida($fim) || $fim < $ini) { $ini = null; $fim = null; }
+        q('INSERT INTO m3d_grupos (modelo_id, nome, atividade, empresa, responsavel, inicio, fim, status, concluido_em, obs, por, em, atualizado_por, atualizado_em) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?)',
+            [(int)$modelo['id'], $nome, mb_substr(trim((string)($f['atividade'] ?? '')), 0, 255), $minha, $ini, $fim, 'nao_iniciado',
+                'Criada automaticamente a partir da etapa do IFC.', (string)$u['nome'], $agora, (string)$u['nome'], $agora]);
+        m3d_vincular((int)$modelo['id'], (int)bd()->lastInsertId(), $guids, []);
+        $criadas++;
+    }
+    q('UPDATE modelos_3d SET frentes_auto = 1 WHERE id = ?', [(int)$modelo['id']]);
+    return ['ok' => true, 'criadas' => $criadas];
 }
 
 /** Liga os elementos ao grupo; quem já estava em outro grupo do modelo sai de lá (um elemento = um grupo). */

@@ -1573,6 +1573,7 @@ require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa t
 require_once __DIR__ . '/rdo_email.php';   // envio do RDO do cliente por e-mail
 require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
 require_once __DIR__ . '/modelo3d.php';   // modelo 3D / planejamento 4D (IFC)
+require_once __DIR__ . '/demo_obra.php';   // obra de demonstração (Galpão Exemplo, G200 anonimizada)
 require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
 require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)
 

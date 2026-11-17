@@ -4,7 +4,7 @@
 // O resultado é mostrado na tela e gravado no servidor: as próximas aberturas não reconvertem o IFC.
 import * as WebIFC from './vendor/m3d/web-ifc-api.js';
 
-const VERSAO = 1;
+const VERSAO = 2;   // 2: peso (kg) e posição (código do Tekla) de cada elemento
 const ESPACIAIS = new Set(['IFCPROJECT', 'IFCSITE', 'IFCBUILDING', 'IFCBUILDINGSTOREY', 'IFCSPACE']);
 
 class Cresce {   // vetor tipado que dobra de tamanho quando enche
@@ -156,7 +156,7 @@ function converter(api, bytes, prog) {
   const s = t => { t = t || ''; let i = sDe.get(t); if (i === undefined) { i = S.length; S.push(t); sDe.set(t, i); } return i; };
   const prop = (i, re) => { for (const sid of elSets[i]) { const o = sets[sid][1]; for (const k in o) if (re.test(k)) return String(o[k]); } return ''; };
   const n = elIds.length;
-  const guid = new Array(n), cls = new Array(n), nome = new Array(n), marca = new Array(n), fase = new Array(n), pav = new Array(n), xid = new Array(n);
+  const guid = new Array(n), cls = new Array(n), nome = new Array(n), marca = new Array(n), fase = new Array(n), pav = new Array(n), xid = new Array(n), posTxt = new Array(n), peso = new Array(n);
   for (let i = 0; i < n; i++) {
     const l = lerEl(elIds[i]) || {};
     xid[i] = elIds[i];
@@ -166,13 +166,16 @@ function converter(api, bytes, prog) {
     marca[i] = s(prop(i, /^ASSEMBLY MARK$|^Assembly\/Cast unit Mark$/i) || limpo(l.Tag));
     fase[i] = s(prop(i, /^PHASE\.NAME$/i));
     pav[i] = s(pavDe.get(elIds[i]) || '');
+    posTxt[i] = s(prop(i, /^Assembly\/Cast unit position code$|^POSITION_CODE$/i).trim());
+    const pz = parseFloat(String(prop(i, /^WEIGHT_GROSS$|^Assembly\/Cast unit weight$|^Weight$|^Peso$/i)).replace(',', '.'));
+    peso[i] = isFinite(pz) && pz > 0 ? Math.round(pz * 100) / 100 : 0;
   }
   const raiz = i => { let g = 0; while (pai[i] >= 0 && g++ < 20) i = pai[i]; return i; };
   let unidades = 0; const vistas = new Set();
   for (let i = 0; i < nGeoEls; i++) {   // peça herda fase e pavimento do conjunto
     const r = raiz(i);
     if (!vistas.has(r)) { vistas.add(r); unidades++; }
-    if (r !== i) { if (!fase[i]) fase[i] = fase[r]; if (!pav[i]) pav[i] = pav[r]; } else if (!pav[i]) pav[i] = 0;
+    if (r !== i) { if (!fase[i]) fase[i] = fase[r]; if (!pav[i]) pav[i] = pav[r]; if (!posTxt[i]) posTxt[i] = posTxt[r]; } else if (!pav[i]) pav[i] = 0;
   }
   let coord = null;
   try { coord = Array.from(api.GetCoordinationMatrix(m)); } catch (e) { coord = null; }
@@ -180,7 +183,7 @@ function converter(api, bytes, prog) {
 
   // ---------------------------------------------------------------- empacota
   const cab = { v: VERSAO, coord, n_inst: nInst, n_geo: gVert.n, n_el: n, n_el_geo: nGeoEls, n_unid: unidades, tris: Math.round(tris),
-    s: S, els: { xid, guid, cls, nome, marca, fase, pav, pai }, secs: [] };
+    s: S, els: { xid, guid, cls, nome, marca, fase, pav, pai, pos: posTxt, peso }, secs: [] };
   const partes = [['pos', pos.fim()], ['nor', nor.fim()], ['idx', idx.fim()], ['gvert', gVert.fim()], ['gidx', gIdx.fim()],
     ['igeo', iGeo.fim()], ['iel', iEl.fim()], ['imat', iMat.fim()], ['icor', iCor.fim()]];
   let total = 0;

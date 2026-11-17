@@ -37,7 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             definir_obra_atual($id);
             registrar_global('obra_aberta', ['obra_id' => $id]);
             $destinos = ['pessoal' => 'index.php?aba=dp&reg=colaboradores'];   // atalhos dos painéis da Central (lista fechada)
-            header('Location: ' . ($destinos[$_POST['destino'] ?? ''] ?? 'index.php'));
+            header('Location: ' . ($destinos[$_POST['destino'] ?? ''] ?? ((string)$obra['codigo'] === DEMO_CODIGO ? 'index.php?aba=m3d' : 'index.php')));
+            exit;
+        }
+        if ($acao === 'criar_demo') {   // obra de demonstração (Galpão Exemplo): não conta no limite do plano
+            if (!$podeCriar) { throw new InvalidArgumentException('Seu perfil não pode criar obras.'); }
+            $orgDemo = (int)($eu['organizacao_id'] ?? 0);
+            $id = demo_criar_obra((int)$eu['id'], $orgDemo);
+            definir_obra_atual($id);
+            header('Location: index.php?aba=m3d');
             exit;
         }
         if (in_array($acao, ['identidade', 'permissoes'], true) && !$admin) { throw new InvalidArgumentException('Apenas administradores podem alterar o portfólio.'); }
@@ -363,6 +371,14 @@ pagina_inicio('Central de obras');
           <label>Logo / ícone<input type="file" name="logo_global" accept="image/png,image/jpeg,image/webp"></label>
           <label class="check"><input type="checkbox" name="remover_logo" value="1"> Remover logo atual</label><button class="btn primario">Salvar identidade</button>
         </form><?php endif; ?>
+        <?php if ($podeCriar && demo_disponivel()): $demoId = demo_obra_do_usuario((int)$eu['id']); ?>
+        <form method="post" class="bloco painel-form demo-card">
+          <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="<?= $demoId ? 'abrir' : 'criar_demo' ?>"><?php if ($demoId): ?><input type="hidden" name="obra_id" value="<?= (int)$demoId ?>"><?php endif; ?>
+          <h3>Obra de demonstração</h3>
+          <p class="nota">Um galpão metálico pronto para explorar: modelo 3D com 46 mil peças, frentes de montagem e linha do tempo. Não conta no limite do seu plano e pode ser excluída quando quiser.</p>
+          <button class="btn primario"><?= $demoId ? 'Abrir a obra de demonstração' : 'Criar obra de demonstração' ?></button>
+        </form>
+        <?php endif; ?>
         <?php if ($podeCriar && $planoOk): ?>
         <form method="post" enctype="multipart/form-data" class="bloco painel-form">
           <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="criar_obra_importacao">

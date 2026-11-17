@@ -4,6 +4,15 @@
 // Usa utilidades do app.js: $, esc, toast, fdA, add, diasEntre, hoje, ref, M, cap.
 const M3D_URL = 'modelo3d.php';
 const M3D_PARTE = 4 * 1048576;
+const M3D_SVG = d => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const M3D_ICO = {
+  iso: M3D_SVG('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>'),
+  topo: M3D_SVG('<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/>'),
+  enq: M3D_SVG('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2.5"/>'),
+  isolar: M3D_SVG('<circle cx="12" cy="12" r="3.5"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/>'),
+  tudo: M3D_SVG('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'),
+  mais: M3D_SVG('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'),
+};
 const M3D_VER = ((document.currentScript && document.currentScript.src) || '').split('v=')[1] || '1';
 const M3D_COR = { sel: '#f59e0b', antes: '#d5d9e0', montando: '#2563eb', feito: '#16a34a', previsto: '#86d6a0', atrasado: '#dc2626', sem: '#c3c8d1' };
 const M3D_ROT = { antes: 'Não iniciado', montando: 'Em montagem', feito: 'Concluído', previsto: 'Concluído (previsto)', atrasado: 'Atrasado', sem: 'Sem prazo definido' };
@@ -72,7 +81,8 @@ function m3dEsqueleto() {
     <input type="file" id="m3dArq" accept=".ifc" hidden>
     <button type="button" class="btn perigo" id="m3dExcluirModelo" title="Excluir este modelo e os grupos dele">Excluir modelo</button>
     <span class="m3d-esp"></span>
-    <div class="seg" id="m3dModo" title="O que um clique seleciona"><button type="button" data-m="conj" class="ativa">Conjunto</button><button type="button" data-m="peca">Peça</button></div>
+    <span class="m3d-demo-selo" id="m3dDemoSelo" hidden>Obra de demonstração · dados fictícios <button type="button" class="m3d-link" data-m3d="tour">ver o tour</button></span>
+    <div class="seg" id="m3dModo" title="O que um clique seleciona"><button type="button" data-m="conj" class="ativa" title="A peça como é montada (viga, joist, terça…)">Peça montável</button><button type="button" data-m="peca" title="Cada componente da peça (chapa, perfil, parafuso…)">Componente</button></div>
     <div class="seg" id="m3dCores" title="Cores do modelo"><button type="button" data-c="orig" class="ativa">Cores do projeto</button><button type="button" data-c="4d">Simulação 4D</button></div>
   </div>
   <div class="m3d-area">
@@ -81,16 +91,24 @@ function m3dEsqueleto() {
         <canvas id="m3dCanvas"></canvas>
         <div class="m3d-caixa" id="m3dCaixaSel" hidden></div>
         <div class="m3d-aviso" id="m3dAviso"></div>
-        <div class="m3d-ferr">
-          <button type="button" class="btn" data-v="iso" title="Vista em perspectiva">Iso</button>
-          <button type="button" class="btn" data-v="topo" title="Vista de cima">Topo</button>
-          <button type="button" class="btn" data-v="frente" title="Vista de frente">Frente</button>
-          <button type="button" class="btn" data-v="lado" title="Vista lateral">Lado</button>
-          <button type="button" class="btn" data-v="enq" title="Enquadrar a seleção (ou o modelo todo)">Enquadrar</button>
-          <button type="button" class="btn" id="m3dBtnSomar" title="Cada clique soma à seleção (igual a segurar Shift)">Somar cliques</button>
-          <button type="button" class="btn" id="m3dBtnCaixa" title="Arrastar desenha uma caixa de seleção (igual a Shift + arrastar)">Caixa</button>
+        <div class="m3d-ferr" id="m3dFerr">
+          <button type="button" class="m3d-fb" data-v="iso" title="Perspectiva da obra inteira">${M3D_ICO.iso}<span>Vista geral</span></button>
+          <button type="button" class="m3d-fb" data-v="topo" title="Planta: vista de cima">${M3D_ICO.topo}<span>De cima</span></button>
+          <button type="button" class="m3d-fb" data-v="enq" title="Aproxima a câmera do que está selecionado">${M3D_ICO.enq}<span>Enquadrar seleção</span></button>
+          <button type="button" class="m3d-fb" data-m3d="isolar" title="Mostra só o que está selecionado">${M3D_ICO.isolar}<span>Isolar</span></button>
+          <button type="button" class="m3d-fb" data-m3d="mostrar" title="Volta a mostrar todas as peças">${M3D_ICO.tudo}<span>Mostrar tudo</span></button>
+          <details class="m3d-mais"><summary class="m3d-fb" title="Mais ferramentas">${M3D_ICO.mais}<span class="m3d-sr">Mais ferramentas</span></summary>
+            <div class="m3d-menu">
+              <button type="button" data-v="frente">Vista de frente</button>
+              <button type="button" data-v="lado">Vista lateral</button>
+              <button type="button" data-m3d="ocultar">Ocultar a seleção</button>
+              <button type="button" id="m3dBtnCaixa">Caixa de seleção ao arrastar</button>
+              <button type="button" id="m3dBtnSomar">Cada clique soma à seleção</button>
+            </div>
+          </details>
         </div>
-        <div class="m3d-dica" id="m3dDica">Arrastar gira · roda do mouse aproxima · botão direito desloca · clique seleciona · <b>Shift + clique</b> soma · <b>Shift + arrastar</b> = caixa de seleção</div>
+        <div class="m3d-dica" id="m3dDica">Arrastar gira · roda do mouse aproxima · botão direito desloca · clique seleciona · <b>Shift + clique</b> soma · <b>Shift + arrastar</b> = caixa</div>
+        <div class="m3d-tour" id="m3dTour" hidden></div>
       </div>
       <div class="bloco m3d-tempo" id="m3dTempo"></div>
     </div>
@@ -123,6 +141,7 @@ async function m3dCarregarEstado(manterId) {
   sel.innerHTML = (ms.length ? ms.map(m => `<option value="${m.id}">${esc(m.nome)}</option>`).join('') : '<option value="">(nenhum modelo enviado)</option>') +
     (docs.length && m3dPodeEditar() ? '<optgroup label="IFC já guardado na importação da obra — usar como modelo">' + docs.map(d => `<option value="doc:${d.id}">${esc(d.nome)}</option>`).join('') + '</optgroup>' : '');
   $('#m3dEnviar').hidden = $('#m3dExcluirModelo').hidden = !m3dPodeEditar();
+  $('#m3dDemoSelo').hidden = !M3.estado.demo;
   const alvo = ms.find(m => m.id === (manterId || M3.modeloId)) || ms[0];
   if (alvo) {
     sel.value = String(alvo.id);
@@ -131,7 +150,7 @@ async function m3dCarregarEstado(manterId) {
     M3.modeloId = 0;
     m3dLimparCena();
     m3dAviso(m3dPodeEditar()
-      ? '<b>Nenhum modelo 3D nesta obra.</b><br>Clique em <b>+ Enviar IFC</b> e escolha o arquivo .ifc exportado do Tekla ou do Trimble Connect.' + (docs.length ? '<br>Ou escolha, na lista <b>Modelo</b>, um IFC que a importação da obra já guardou.' : '')
+      ? '<b>Nenhum modelo 3D nesta obra.</b><br>Clique em <b>+ Enviar IFC</b> e escolha o arquivo .ifc exportado do Tekla ou do Trimble Connect.<br><small>As etapas de montagem do arquivo viram frentes sozinhas.</small>' + (docs.length ? '<br>Ou escolha, na lista <b>Modelo</b>, um IFC que a importação da obra já guardou.' : '')
       : '<b>Nenhum modelo 3D nesta obra.</b><br>A gestão da obra ainda não enviou o IFC.');
     m3dPaineis();
   }
@@ -173,10 +192,15 @@ async function m3dAbrirModelo(id, bufLocal) {
     await m3dMontarCena();
     const g = await m3dGet(`acao=grupos&modelo=${id}`);
     M3.grupos = g.grupos;
+    M3._pesoTot = null;
     m3dIndexarGrupos();
+    const modAtual = M3.estado.modelos.find(m => m.id === id);
+    if (m3dPodeEditar() && modAtual && !modAtual.frentes_auto && !M3.grupos.length) await m3dFrentesAuto(modAtual);
     m3dAviso('');
+    if (M3.estado.demo) { M3.cores = 'orig'; m3dDefinirCores('4d'); M3.dia = m3dHoje(); }
     m3dVistaPadrao('iso');
     m3dPintar();
+    if (M3.estado.demo) setTimeout(() => m3dTourIniciar(false), 400);
   } catch (e) {
     m3dAviso('<b>Não foi possível abrir o modelo.</b><br>' + esc(e.message), true);
   }
@@ -495,10 +519,11 @@ function m3dSituacaoEm(g, dia, hj) {
 /** Situação de hoje para a lista: concluido | atrasado | em_andamento | nao_iniciado (+ texto). */
 function m3dSituacaoHoje(g) {
   const hj = m3dHoje();
-  if (g.status === 'concluido') return ['concluido', 'Concluído' + (g.concluido_em ? ' em ' + fdA(g.concluido_em) : '')];
-  if (g.fim && hj > g.fim) return ['atrasado', 'Atrasado · ' + diasEntre(g.fim, hj) + ' dia(s) após o término'];
-  if (g.status === 'nao_iniciado' && g.inicio && hj > g.inicio) return ['atrasado', 'Atrasado · deveria ter iniciado em ' + fdA(g.inicio)];
-  return g.status === 'em_andamento' ? ['em_andamento', 'Em andamento'] : ['nao_iniciado', 'Não iniciado'];
+  if (g.status === 'concluido') return ['concluido', 'Concluída' + (g.concluido_em ? ' em ' + fdA(g.concluido_em) : '')];
+  if (!g.inicio) return ['sem', 'Sem prazo'];
+  if (g.fim && hj > g.fim) return ['atrasado', 'Atrasada · ' + diasEntre(g.fim, hj) + ' dia(s) após o término'];
+  if (g.status === 'nao_iniciado' && g.inicio && hj > g.inicio) return ['atrasado', 'Atrasada · deveria ter iniciado em ' + fdA(g.inicio)];
+  return g.status === 'em_andamento' ? ['em_andamento', 'Em andamento'] : ['nao_iniciado', 'Não iniciada'];
 }
 
 function m3dPintar() {
@@ -536,52 +561,79 @@ function m3dPintar() {
 // ---------------------------------------------------------------- painéis
 function m3dPaineis() { m3dPainelSel(); m3dPainelFiltro(); m3dListaGrupos(); m3dTempo(); }
 
-function m3dTxt(col, i) { const d = M3.d; return d.s[d.e[col][i]] || ''; }
+/** Peso em kg: o do IFC; peça montável sem peso próprio soma o dos componentes. */
+function m3dPeso(i) {
+  const d = M3.d, e = d.e;
+  if (e.peso && e.peso[i]) return e.peso[i];
+  if (!e.peso || e.pai[i] >= 0) return 0;
+  let t = 0;
+  for (let k = 0; k < d.nGeo; k++) if (d.raiz[k] === i && k !== i) t += e.peso[k] || 0;
+  return t;
+}
+function m3dPesoTotal() {
+  const d = M3.d, e = d.e;
+  if (!e.peso) return 0;
+  if (M3._pesoTot != null) return M3._pesoTot;
+  let t = 0;
+  for (let i = 0; i < d.n; i++) if (e.pai[i] < 0 && d.cRz[i + 1] > d.cRz[i]) t += m3dPeso(i);
+  return (M3._pesoTot = t);
+}
+function m3dFmtPeso(kg) { return !kg ? 'peso não informado no IFC' : kg >= 1000 ? `${nf(kg / 1000, 1)} t` : `${nf(kg, 0)} kg`; }
+function m3dTxt(col, i) { const d = M3.d, c = d.e[col]; return c ? d.s[c[i]] || '' : ''; }
 function m3dRotulo(i) { return m3dTxt('marca', i) || m3dTxt('nome', i) || m3dTxt('cls', i) || M3.d.e.guid[i]; }
 
 function m3dPainelSel() {
   const box = $('#m3dSelBox');
   if (!box) return;
   const d = M3.d;
-  if (!d) { box.innerHTML = '<h3>Seleção</h3><p class="nota">Abra um modelo para selecionar elementos.</p>'; return; }
+  if (!d) { box.innerHTML = '<h3>Peça</h3><p class="nota">Abra um modelo para ver as peças.</p>'; return; }
   const itens = [...M3.sel], n = itens.length, ed = m3dPodeEditar();
   if (!n) {
-    box.innerHTML = `<h3>Seleção</h3><p class="nota">Clique em um elemento do modelo. Para vários: <b>Shift + clique</b>, <b>Shift + arrastar</b> (caixa) ou use “Selecionar por” abaixo.</p>
-      <p class="nota">${d.cab.n_unid.toLocaleString('pt-BR')} conjuntos · ${d.nGeo.toLocaleString('pt-BR')} peças no modelo.</p>` +
-      (M3.ocultos.size || M3.isolados ? '<button type="button" class="btn" data-m3d="mostrar">Mostrar tudo</button>' : '');
+    box.innerHTML = `<h3>Peça</h3><p class="nota">Clique numa peça do modelo para ver etapa, frente, prazo e peso. Para várias: <b>Shift + clique</b> ou <b>Shift + arrastar</b>.</p>
+      <p class="nota">${d.cab.n_unid.toLocaleString('pt-BR')} peças montáveis · ${m3dFmtPeso(m3dPesoTotal())}</p>`;
     return;
   }
-  const porGrupo = new Map();
-  itens.forEach(i => { const g = m3dGrupoDeItem(i); porGrupo.set(g, (porGrupo.get(g) || 0) + 1); });
-  const linhasGrupo = [...porGrupo].map(([g, q]) => `<li>${g >= 0 ? '<b>' + esc(M3.grupos[g].nome) + '</b>' : '<i>sem grupo (sem prazo)</i>'} — ${q.toLocaleString('pt-BR')}</li>`).join('');
-  let det = '';
-  if (n === 1) {
-    const i = itens[0], g = m3dGrupoDeItem(i), pai = d.e.pai[i];
-    const lin = [['Nome', m3dTxt('nome', i)], ['Marca', m3dTxt('marca', i)], ['Classe IFC', m3dTxt('cls', i)], ['Fase', m3dTxt('fase', i)], ['Pavimento', m3dTxt('pav', i)],
-      ['Conjunto', pai >= 0 ? m3dRotulo(d.raiz[i]) : ''], ['GUID (GlobalId)', d.e.guid[i]]].filter(x => x[1]);
-    det = '<table class="m3d-props" data-sem-ferramentas data-sem-limite>' + lin.map(x => `<tr><th>${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join('') + '</table>';
-    if (g >= 0) {
-      const G = M3.grupos[g], s = m3dSituacaoHoje(G);
-      det += `<div class="m3d-prazo"><b>${esc(G.nome)}</b><br>${fdA(G.inicio)} a ${fdA(G.fim)} · <span class="m3d-chip s-${s[0]}">${esc(s[1])}</span>${G.empresa ? '<br>Equipe: ' + esc(G.empresa) : ''}${G.responsavel ? ' · ' + esc(G.responsavel) : ''}</div>`;
-    }
-    det += '<div id="m3dPropsTodas"><button type="button" class="btn" data-m3d="props">Ver todas as propriedades</button></div>';
-  } else {
-    const porNome = new Map();
-    itens.forEach(i => { const k = m3dTxt('nome', i) || m3dTxt('cls', i) || '—'; porNome.set(k, (porNome.get(k) || 0) + 1); });
-    const top = [...porNome].sort((a, b) => b[1] - a[1]);
-    det = '<ul class="m3d-lista">' + top.slice(0, 6).map(x => `<li>${esc(x[0])} — ${x[1].toLocaleString('pt-BR')}</li>`).join('') + (top.length > 6 ? `<li>… e mais ${top.length - 6} tipo(s)</li>` : '') + '</ul>';
-  }
   const opG = M3.grupos.map(g => `<option value="${g.id}">${esc(g.nome)}</option>`).join('');
-  box.innerHTML = `<h3>Seleção · ${n.toLocaleString('pt-BR')} ${M3.modo === 'conj' ? (n === 1 ? 'conjunto' : 'conjuntos') : (n === 1 ? 'peça' : 'peças')}</h3>${det}
-    <ul class="m3d-lista m3d-de-grupo">${linhasGrupo}</ul>
-    <div class="m3d-acoes">
-      ${ed ? `<button type="button" class="btn primario" data-m3d="novo">Definir prazo (novo grupo)</button>
-      ${opG ? `<select id="m3dAddGrupo"><option value="">Adicionar a um grupo…</option>${opG}</select>` : ''}
-      <button type="button" class="btn" data-m3d="soltar" title="Tira os elementos selecionados do grupo: ficam sem prazo">Tirar do grupo</button>` : ''}
-      <button type="button" class="btn" data-m3d="isolar">Isolar</button>
-      <button type="button" class="btn" data-m3d="ocultar">Ocultar</button>
-      ${M3.ocultos.size || M3.isolados ? '<button type="button" class="btn" data-m3d="mostrar">Mostrar tudo</button>' : ''}
-      <button type="button" class="btn" data-m3d="limpar">Limpar seleção</button>
+  const acoes = (gUnica) => ed ? `<div class="m3d-acoes">
+      ${gUnica ? `<button type="button" class="btn primario m3d-largo" data-m3d="geditar" data-id="${gUnica.id}">Editar esta frente</button>` : `<button type="button" class="btn primario m3d-largo" data-m3d="novo">Nova frente com ${n === 1 ? 'esta peça' : 'a seleção'}</button>`}
+      ${opG ? `<select id="m3dAddGrupo" aria-label="Mover para uma frente"><option value="">Mover para a frente…</option>${opG}</select>` : ''}
+      ${gUnica ? '<button type="button" class="btn" data-m3d="soltar" title="A peça sai da frente e fica sem prazo">Tirar da frente</button>' : ''}
+    </div>` : '';
+  if (n === 1) {
+    const i = itens[0], g = m3dGrupoDeItem(i), G = g >= 0 ? M3.grupos[g] : null, s = G ? m3dSituacaoHoje(G) : ['sem', 'Sem frente'];
+    const kg = m3dPeso(i), tipo = m3dTxt('nome', i), marca = m3dTxt('marca', i), semMarca = !marca || /^nd\d*/i.test(marca);
+    const linhas = [
+      ['Eixo e posição', m3dTxt('pos', i) || '—'],
+      ['Etapa de montagem', m3dTxt('fase', i) || '—'],
+      ['Frente e prazo', G ? `${G.nome}${G.inicio ? ' · ' + fdA(G.inicio) + ' a ' + fdA(G.fim) : ' · sem prazo'}` : 'Ainda não está em nenhuma frente'],
+      ['Última atualização', G && G.atualizado_em ? `${G.atualizado_por || '—'} em ${fdA(String(G.atualizado_em).slice(0, 10))}` : '—'],
+    ];
+    const pai = d.e.pai[i];
+    const tec = [['Nome no modelo', tipo], ['Tipo IFC', m3dTxt('cls', i)], ['Pavimento', m3dTxt('pav', i)], ['Peça montável', pai >= 0 ? m3dRotulo(d.raiz[i]) : ''], ['ID do modelo', d.e.guid[i]]].filter(x => x[1]);
+    box.innerHTML = `<div class="m3d-peca">
+        <div class="m3d-peca-cab"><span class="m3d-marca${semMarca ? ' m3d-marca-nome' : ''}">${esc(semMarca ? cap(tipo || 'Peça') : marca)}</span><span class="m3d-chip s-${s[0]}" title="${esc(s[1])}">${esc(s[1].split(' · ')[0])}</span></div>
+        <div class="m3d-peca-sub">${semMarca ? 'sem marca no modelo' : esc(tipo ? cap(tipo) : '')}${kg ? ' · ' + m3dFmtPeso(kg) : ''}</div>
+        <dl class="m3d-linhas">${linhas.map(x => `<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join('')}</dl>
+        ${acoes(G)}
+        <details class="m3d-tec" id="m3dTec"><summary>Dados técnicos do IFC</summary>
+          <table class="m3d-props" data-sem-ferramentas data-sem-limite>${tec.map(x => `<tr><th>${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join('')}</table>
+          <div id="m3dPropsTodas"><span class="nota">Carregando propriedades…</span></div>
+        </details>
+      </div>`;
+    return;
+  }
+  const porFase = new Map(), porGrupo = new Map();
+  let kg = 0;
+  itens.forEach(i => { const k = m3dTxt('fase', i) || 'Sem etapa'; porFase.set(k, (porFase.get(k) || 0) + 1); const g = m3dGrupoDeItem(i); porGrupo.set(g, (porGrupo.get(g) || 0) + 1); kg += m3dPeso(i); });
+  const top = [...porFase].sort((a, b) => b[1] - a[1]);
+  const gs = [...porGrupo.keys()], gUnica = gs.length === 1 && gs[0] >= 0 ? M3.grupos[gs[0]] : null;
+  box.innerHTML = `<div class="m3d-peca">
+      <div class="m3d-peca-cab"><span class="m3d-marca">${n.toLocaleString('pt-BR')}</span><span class="m3d-peca-un">${M3.modo === 'conj' ? 'peças montáveis' : 'componentes'}</span></div>
+      <div class="m3d-peca-sub">${kg ? m3dFmtPeso(kg) : 'peso não informado no IFC'}</div>
+      <dl class="m3d-linhas"><dt>Etapas</dt><dd>${top.slice(0, 4).map(x => `${esc(x[0])} — ${x[1].toLocaleString('pt-BR')}`).join('<br>')}${top.length > 4 ? `<br>… e mais ${top.length - 4}` : ''}</dd>
+        <dt>Frentes</dt><dd>${[...porGrupo].sort((a, b) => b[1] - a[1]).map(([g, q]) => `${g >= 0 ? esc(M3.grupos[g].nome) : 'sem frente'} — ${q.toLocaleString('pt-BR')}`).slice(0, 4).join('<br>')}${porGrupo.size > 4 ? `<br>… e mais ${porGrupo.size - 4}` : ''}</dd></dl>
+      ${acoes(gUnica)}
+      <button type="button" class="m3d-link" data-m3d="limpar">Limpar seleção</button>
     </div>`;
 }
 
@@ -600,7 +652,7 @@ async function m3dMostrarProps() {
       return s ? `<details><summary>${esc(titulo + s[0])}</summary><table class="m3d-props" data-sem-ferramentas data-sem-limite>${Object.keys(s[1]).map(k => `<tr><th>${esc(k)}</th><td>${esc(s[1][k])}</td></tr>`).join('')}</table></details>` : '';
     }).join('');
     const rz = d.raiz[i];
-    alvo.innerHTML = (bloco(i, '') + (rz !== i ? bloco(rz, 'Conjunto · ') : '')) || '<span class="nota">Este elemento não tem propriedades no IFC.</span>';
+    alvo.innerHTML = (bloco(i, '') + (rz !== i ? bloco(rz, 'Peça montável · ') : '')) || '<span class="nota">Este elemento não tem propriedades no IFC.</span>';
   } catch (e) {
     alvo.innerHTML = `<span class="nota">${esc(e.message)}</span>`;
   }
@@ -624,9 +676,9 @@ function m3dPainelFiltro() {
   const vals = [...cont].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }));
   box.innerHTML = `<h3>Selecionar por</h3>
     <div class="m3d-filtro">
-      <select id="m3dFTipo">${[['fase', 'Fase do projeto'], ['nome', 'Nome'], ['marca', 'Marca'], ['pav', 'Pavimento'], ['cls', 'Classe IFC']].map(x => `<option value="${x[0]}"${x[0] === tipo ? ' selected' : ''}>${x[1]}</option>`).join('')}</select>
+      <select id="m3dFTipo">${[['fase', 'Etapa de montagem'], ['pos', 'Eixo e posição'], ['nome', 'Tipo de peça'], ['marca', 'Marca'], ['pav', 'Pavimento'], ['cls', 'Tipo IFC (técnico)']].map(x => `<option value="${x[0]}"${x[0] === tipo ? ' selected' : ''}>${x[1]}</option>`).join('')}</select>
       <select id="m3dFValor">${vals.map(x => `<option value="${esc(x[0])}">${esc(x[0] || '(vazio)')} — ${x[1].toLocaleString('pt-BR')}</option>`).join('')}</select>
-      <label class="m3d-chk"><input type="checkbox" id="m3dFSem"${M3.filtroSem ? ' checked' : ''}> só o que ainda está sem prazo</label>
+      <label class="m3d-chk"><input type="checkbox" id="m3dFSem"${M3.filtroSem ? ' checked' : ''}> só o que ainda não está em nenhuma frente</label>
       <div class="m3d-acoes"><button type="button" class="btn" data-m3d="fsel">Selecionar</button><button type="button" class="btn" data-m3d="fsomar">Somar à seleção</button></div>
     </div>`;
 }
@@ -637,7 +689,7 @@ function m3dFiltrar(somar) {
   m3dItens().forEach(i => { if (m3dTxt(tipo, i) === val && (!sem || m3dGrupoDeItem(i) < 0)) { M3.sel.add(i); q++; } });
   m3dPintar();
   m3dPainelSel();
-  toast(q ? q.toLocaleString('pt-BR') + ' elemento(s) selecionado(s).' : 'Nenhum elemento com esse valor.');
+  toast(q ? q.toLocaleString('pt-BR') + (M3.modo === 'conj' ? ' peça(s) montável(is) selecionada(s).' : ' componente(s) selecionado(s).') : 'Nenhuma peça com esse valor.');
 }
 
 function m3dListaGrupos() {
@@ -651,16 +703,16 @@ function m3dListaGrupos() {
     const s = m3dSituacaoHoje(g), n = (g.itens || []).length;
     comPrazo += n;
     return `<li class="m3d-grupo" data-g="${g.id}">
-      <button type="button" class="m3d-g-nome" data-m3d="gsel" data-id="${g.id}" title="Selecionar os elementos deste grupo">${esc(g.nome)}</button>
+      <button type="button" class="m3d-g-nome" data-m3d="gsel" data-id="${g.id}" title="Selecionar as peças desta frente">${esc(g.nome)}</button>
       <span class="m3d-chip s-${s[0]}" title="${esc(s[1])}">${esc(s[1].split(' · ')[0])}</span>
-      <small>${fdA(g.inicio)} a ${fdA(g.fim)} · ${n.toLocaleString('pt-BR')} el.${g.empresa ? ' · ' + esc(g.empresa) : ''}${g.responsavel ? ' · ' + esc(g.responsavel) : ''}</small>
+      <small>${g.inicio ? fdA(g.inicio) + ' a ' + fdA(g.fim) : 'sem prazo — defina as datas'} · ${n.toLocaleString('pt-BR')} peças${g.empresa ? ' · ' + esc(g.empresa) : ''}${g.responsavel ? ' · ' + esc(g.responsavel) : ''}</small>
       ${g.atividade ? `<small>Atividade: ${esc(g.atividade)}</small>` : ''}
       ${m3dPodeEditar() ? `<button type="button" class="btn m3d-g-ed" data-m3d="geditar" data-id="${g.id}">Editar</button>` : ''}
     </li>`;
   }).join('');
-  box.innerHTML = `<h3>Grupos de montagem · ${M3.grupos.length}</h3>
-    <p class="nota">${M3.modo === 'conj' ? `${Math.min(comPrazo, tot).toLocaleString('pt-BR')} de ${tot.toLocaleString('pt-BR')} conjuntos com prazo definido.` : ''}</p>
-    ${linhas ? `<ul class="m3d-grupos">${linhas}</ul>` : '<p class="nota">Nenhum grupo ainda. Selecione elementos e clique em <b>Definir prazo (novo grupo)</b>.</p>'}`;
+  box.innerHTML = `<h3>Frentes de montagem · ${M3.grupos.length}</h3>
+    <p class="nota">${Math.min(comPrazo, tot).toLocaleString('pt-BR')} de ${tot.toLocaleString('pt-BR')} peças montáveis em alguma frente.</p>
+    ${linhas ? `<ul class="m3d-grupos">${linhas}</ul>` : '<p class="nota">Nenhuma frente ainda. Selecione peças e clique em <b>Nova frente com a seleção</b>.</p>'}`;
 }
 
 // ---------------------------------------------------------------- linha do tempo (4D)
@@ -684,7 +736,7 @@ function m3dTempo() {
   if (!M3.d) { box.hidden = true; return; }
   box.hidden = false;
   if (!lim) {
-    box.innerHTML = '<h3>Linha do tempo (4D)</h3><p class="nota">Defina o prazo de pelo menos um grupo de montagem para simular a obra no tempo.</p>';
+    box.innerHTML = '<h3>Linha do tempo (4D)</h3><p class="nota">Defina o prazo de pelo menos uma frente de montagem para simular a obra no tempo.</p>';
     return;
   }
   if (M3.dia < lim[0]) M3.dia = lim[0];
@@ -760,10 +812,10 @@ function m3dAbrirGrupo(g) {
   const emps = [...new Set((M && M.empresas ? M.empresas.map(e => e.nome) : []).concat(g.empresa ? [g.empresa] : []))];
   const travaEmp = !!M3.estado.empresa;
   dlg.innerHTML = `<form method="dialog" id="m3dForm">
-    <div class="bloco-cab"><h2>${novo ? 'Novo grupo de montagem' : 'Editar grupo de montagem'}</h2><button type="button" class="btn-icone" data-m3d-f="fechar" aria-label="Fechar">×</button></div>
-    <p class="nota">${novo ? `${n.toLocaleString('pt-BR')} elemento(s) selecionado(s) entram neste grupo.` : `${(g.itens || []).length.toLocaleString('pt-BR')} elemento(s) no grupo.`}</p>
+    <div class="bloco-cab"><h2>${novo ? 'Nova frente de montagem' : 'Editar frente de montagem'}</h2><button type="button" class="btn-icone" data-m3d-f="fechar" aria-label="Fechar">×</button></div>
+    <p class="nota">${novo ? `${n.toLocaleString('pt-BR')} peça(s) selecionada(s) entram nesta frente.` : `${(g.itens || []).length.toLocaleString('pt-BR')} peça(s) nesta frente.`}</p>
     <div class="campos">
-      <label class="largo"><span class="obrig">Nome do grupo / etapa de montagem</span><input type="text" name="nome" maxlength="160" required value="${esc(g.nome)}" placeholder="ex.: Vigas da cobertura — eixos 01 a 05"></label>
+      <label class="largo"><span class="obrig">Nome da frente</span><input type="text" name="nome" maxlength="160" required value="${esc(g.nome)}" placeholder="ex.: Vigas da cobertura — eixos 01 a 05"></label>
       ${ativ.length ? `<label class="largo"><span>Atividade do cronograma (puxa as datas)</span><select name="ativsel"><option value="">— escolher do cronograma do sistema —</option>${ativ.map((a, k) => `<option value="${k}">${esc(a.nome)}${a.ini ? ' · ' + fdA(a.ini) + ' a ' + fdA(a.fim) : ''}</option>`).join('')}</select></label>` : ''}
       <label class="largo"><span>Atividade vinculada</span><input type="text" name="atividade" maxlength="255" value="${esc(g.atividade)}" placeholder="nome da atividade do cronograma"></label>
       <label><span class="obrig">Início previsto</span><input type="date" name="inicio" required value="${esc(g.inicio)}"></label>
@@ -778,7 +830,7 @@ function m3dAbrirGrupo(g) {
     <p class="nota">“Atrasado” é calculado sozinho: término previsto vencido sem conclusão, ou início vencido sem iniciar.</p>
     <div class="m3d-acoes">
       <button type="submit" class="btn primario">Salvar</button>
-      ${novo ? '' : '<button type="button" class="btn" data-m3d-f="trocar" title="O grupo passa a ter exatamente os elementos selecionados agora">Trocar pelos selecionados (' + n.toLocaleString('pt-BR') + ')</button><button type="button" class="btn perigo" data-m3d-f="excluir">Excluir grupo</button>'}
+      ${novo ? '' : '<button type="button" class="btn" data-m3d-f="trocar" title="A frente passa a ter exatamente as peças selecionadas agora">Trocar pelas selecionadas (' + n.toLocaleString('pt-BR') + ')</button><button type="button" class="btn perigo" data-m3d-f="excluir">Excluir frente</button>'}
       <button type="button" class="btn" data-m3d-f="fechar">Cancelar</button>
     </div>
   </form>`;
@@ -803,7 +855,7 @@ function m3dAbrirGrupo(g) {
     try {
       const r = await m3dPost('grupo_salvar', corpo);
       dlg.close();
-      toast(novo ? 'Grupo criado: prazo definido para os elementos selecionados.' : 'Grupo salvo.');
+      toast(novo ? 'Frente criada: prazo definido para as peças selecionadas.' : 'Frente salva.');
       await m3dRecarregarGrupos();
       return r;
     } catch (e) {
@@ -817,13 +869,111 @@ function m3dAbrirGrupo(g) {
     if (b.dataset.m3dF === 'fechar') dlg.close();
     else if (b.dataset.m3dF === 'trocar') { if (!n) { toast('Selecione os elementos primeiro.', true); return; } gravar(m3dGuidsSel()); }
     else if (b.dataset.m3dF === 'excluir') {
-      if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = 'Confirmar: excluir o grupo'; return; }
-      try { await m3dPost('grupo_excluir', { id: g.id }); dlg.close(); toast('Grupo excluído. Os elementos ficaram sem prazo.'); await m3dRecarregarGrupos(); } catch (e) { toast(e.message, true); }
+      if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = 'Confirmar: excluir a frente'; return; }
+      try { await m3dPost('grupo_excluir', { id: g.id }); dlg.close(); toast('Frente excluída. As peças ficaram sem frente.'); await m3dRecarregarGrupos(); } catch (e) { toast(e.message, true); }
     }
   });
   dlg.showModal();
   if (typeof patchDatas === 'function') patchDatas();
 }
+// ---------------------------------------------------------------- etapas do IFC viram frentes (uma vez por modelo)
+function m3dNorm(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
+const M3D_PALAVRAS_FRACAS = new Set(['ESTRUTURA', 'METALICA', 'METALICAS', 'METALICO', 'GALPAO', 'PARA', 'PHASE', 'GERAL', 'ETAPA', 'FASE', 'OBRA', 'MONTAGEM', 'INSTALACAO']);
+/** Casa a etapa do IFC com as linhas do cronograma pelo nome: devolve {inicio, fim, atividade} ou null. */
+const M3D_LOCAL_GENERICO = new Set(['COBERTURA', 'FECHAMENTO', 'LATERAL', 'TELHAS', 'VIGAS']);
+function m3dCasarCronograma(fase, ativ) {
+  const base = m3dNorm(fase).replace(/\bE\.?\s?M\.?(?=\s|$)/g, ' VIGAS ').replace(/\bCOB\.?(?=\s|$)/g, ' COBERTURA ').replace(/\bEST\.?\s?MET\.?/g, ' VIGAS ');   // abreviações do Tekla
+  const toks = [...new Set(base.replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(t => t.length >= 4 && !M3D_PALAVRAS_FRACAS.has(t)))];
+  if (!toks.length || !ativ.length) return null;
+  const tem = (txt, t) => txt.includes(t.length > 5 ? t.slice(0, t.length - 1) : t);
+  const linhas = ativ.map(a => { const [serv, ...loc] = m3dNorm(a.nome).split(' · '); return { a, serv, local: loc.join(' ') }; });
+  // a palavra que nomeia o prédio (Refeitório, Portaria…) precisa casar com o local da linha do cronograma
+  const predio = toks.filter(t => !M3D_LOCAL_GENERICO.has(t) && linhas.some(l => tem(l.local, t)));
+  const cand = predio.length ? linhas.filter(l => predio.every(t => tem(l.local, t))) : linhas;
+  const resto = toks.filter(t => !predio.includes(t));
+  let melhor = 0, casadas = [];
+  cand.forEach(l => {
+    const hits = resto.filter(t => tem(l.serv + ' ' + l.local, t)).length;
+    if (hits > melhor) { melhor = hits; casadas = [l.a]; } else if (hits && hits === melhor) casadas.push(l.a);
+  });
+  if (!melhor && predio.length && cand.length === 1) casadas = [cand[0].a];
+  casadas = casadas.filter(a => a.ini && a.fim);
+  if (!casadas.length) return null;   // sem casar, a frente nasce sem prazo (melhor que pegar o prédio inteiro)
+  return { inicio: casadas.map(a => a.ini).sort()[0], fim: casadas.map(a => a.fim).sort().at(-1), atividade: casadas.slice(0, 2).map(a => a.nome).join(' + ') + (casadas.length > 2 ? ` e mais ${casadas.length - 2}` : '') };
+}
+async function m3dFrentesAuto(mod) {
+  const d = M3.d, porFase = new Map();
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0 || d.cRz[i + 1] === d.cRz[i] || !d.e.guid[i]) continue;
+    const f = m3dTxt('fase', i).trim();
+    if (!f || /^Phase \d+$/i.test(f)) continue;
+    if (!porFase.has(f)) porFase.set(f, []);
+    porFase.get(f).push(d.e.guid[i]);
+  }
+  if (!porFase.size) { await m3dPost('frentes_auto', { modelo_id: mod.id, frentes: [] }).catch(() => {}); mod.frentes_auto = 1; return; }
+  const ativ = m3dAtividades();
+  let comData = 0;
+  const frentes = [...porFase].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true })).map(([fase, guids]) => {
+    const c = m3dCasarCronograma(fase, ativ);
+    if (c) comData++;
+    return { nome: fase, guids, inicio: c ? c.inicio : '', fim: c ? c.fim : '', atividade: c ? c.atividade : '' };
+  });
+  try {
+    m3dAviso('<span class="m3d-gira"></span> Criando as frentes de montagem a partir das etapas do IFC…');
+    const r = await m3dPost('frentes_auto', { modelo_id: mod.id, frentes });
+    mod.frentes_auto = 1;
+    const g = await m3dGet(`acao=grupos&modelo=${mod.id}`);
+    M3.grupos = g.grupos;
+    m3dIndexarGrupos();
+    if (r.criadas) toast(`${r.criadas} frente(s) de montagem criadas a partir das etapas do IFC` + (comData ? ` (${comData} com datas do cronograma; confira).` : '. Defina as datas de cada uma.'), false, 8000);
+  } catch (e) {
+    toast('Não consegui criar as frentes automáticas: ' + e.message, true);
+  }
+}
+
+// ---------------------------------------------------------------- tour de 3 passos (obra de demonstração)
+const M3D_TOUR = [
+  { alvo: '#m3dCanvas', lado: 'centro', titulo: 'Clique numa peça do galpão', texto: 'Cada cor é a situação da frente de montagem hoje: <b style="color:#16a34a">verde</b> concluída, <b style="color:#2563eb">azul</b> em montagem, <b style="color:#dc2626">vermelho</b> atrasada.', espera: () => M3.sel.size > 0 },
+  { alvo: '#m3dSelBox', lado: 'esq', titulo: 'Tudo da peça num lugar só', texto: 'Marca, peso, eixo, etapa e a frente com o prazo. Os dados técnicos do IFC ficam recolhidos até você precisar.' },
+  { alvo: '#m3dTempo', lado: 'cima', titulo: 'Arraste a linha do tempo', texto: 'Leve o marcador para o início e aperte <b>Simular</b>: o galpão é montado frente por frente, até o término previsto. <b>Hoje</b> volta para a data atual.' },
+];
+function m3dTourChave() { return 'm3dTour:' + ((window.OBRA_ATUAL && OBRA_ATUAL.id) || 0); }
+function m3dTourIniciar(forcar) {
+  try { if (!forcar && localStorage.getItem(m3dTourChave())) return; } catch (e) { if (!forcar) return; }
+  M3.tour = 0;
+  m3dTourDesenhar();
+}
+function m3dTourFechar(feito) {
+  M3.tour = null;
+  clearInterval(M3._tourEspera);
+  document.querySelectorAll('.m3d-tour-alvo').forEach(x => x.classList.remove('m3d-tour-alvo'));
+  const t = $('#m3dTour');
+  if (t) t.hidden = true;
+  try { localStorage.setItem(m3dTourChave(), feito ? 'feito' : 'pulado'); } catch (e) { /* navegador sem armazenamento: o tour volta na próxima vez */ }
+}
+function m3dTourDesenhar() {
+  const t = $('#m3dTour'), p = M3D_TOUR[M3.tour];
+  if (!t || !p) return;
+  document.querySelectorAll('.m3d-tour-alvo').forEach(x => x.classList.remove('m3d-tour-alvo'));
+  const alvo = $(p.alvo);
+  if (alvo && p.lado !== 'centro') alvo.classList.add('m3d-tour-alvo');
+  const ult = M3.tour === M3D_TOUR.length - 1;
+  t.className = 'm3d-tour m3d-tour-' + p.lado;
+  t.innerHTML = `<div class="m3d-tour-passo">Passo ${M3.tour + 1} de ${M3D_TOUR.length}</div><div class="m3d-tour-tit">${esc(p.titulo)}</div><p>${p.texto}</p>
+    <div class="m3d-tour-bts"><button type="button" class="m3d-link" data-tour="pular">Pular</button>${p.espera ? '<span class="nota">esperando o clique…</span>' : ''}<button type="button" class="btn primario" data-tour="prox">${ult ? 'Concluir' : 'Próximo'}</button></div>`;
+  t.hidden = false;
+  const vista = $('#m3dVista').getBoundingClientRect();
+  if (p.lado === 'centro') { t.style.left = '16px'; t.style.top = ''; t.style.bottom = '44px'; t.style.right = ''; }
+  else if (alvo) {
+    const r = alvo.getBoundingClientRect();
+    if (p.lado === 'esq') { t.style.left = Math.max(8, r.left - vista.left - 336) + 'px'; t.style.top = Math.max(60, r.top - vista.top + 24) + 'px'; t.style.bottom = ''; }
+    else { t.style.left = '16px'; t.style.top = ''; t.style.bottom = '12px'; }
+  }
+  clearInterval(M3._tourEspera);
+  if (p.espera) M3._tourEspera = setInterval(() => { if (M3.tour !== null && p.espera()) { clearInterval(M3._tourEspera); M3.tour++; m3dTourDesenhar(); } }, 250);
+  if (ult) { m3dParar(); m3dDefinirCores('4d'); }
+}
+
 function m3dGuidsSel() {
   const d = M3.d, guids = [], rotulos = {};
   M3.sel.forEach(i => { const g = d.e.guid[i]; if (g) { guids.push(g); rotulos[g] = m3dRotulo(i); } });
@@ -893,6 +1043,7 @@ function m3dLigar() {
     if (!b || !M3.d) return;
     const ac = b.dataset.m3d;
     if (ac === 'limpar') { M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
+    else if ((ac === 'isolar' || ac === 'ocultar') && !M3.sel.size) toast('Selecione uma ou mais peças primeiro.');
     else if (ac === 'isolar') { M3.isolados = new Set(M3.sel); M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
     else if (ac === 'ocultar') { M3.sel.forEach(i => M3.ocultos.add(i)); M3.sel.clear(); m3dPintar(); m3dPainelSel(); }
     else if (ac === 'mostrar') { M3.ocultos.clear(); M3.isolados = null; m3dPintar(); m3dPainelSel(); }
@@ -903,8 +1054,15 @@ function m3dLigar() {
     else if (ac === 'gsel') { const g = M3.grupos.find(x => x.id === +b.dataset.id); if (g) { m3dSelGrupo(g); } }
     else if (ac === 'geditar') { const g = M3.grupos.find(x => x.id === +b.dataset.id); if (g) m3dAbrirGrupo(g); }
     else if (ac === 'soltar') {
-      try { await m3dPost('soltar', { modelo_id: M3.modeloId, guids: m3dGuidsSel().guids }); toast('Elementos tirados do grupo (sem prazo).'); await m3dRecarregarGrupos(); } catch (e) { toast(e.message, true); }
+      try { await m3dPost('soltar', { modelo_id: M3.modeloId, guids: m3dGuidsSel().guids }); toast('Peças tiradas da frente (sem prazo).'); await m3dRecarregarGrupos(); } catch (e) { toast(e.message, true); }
     }
+  });
+  corpo.addEventListener('toggle', ev => { if (ev.target.id === 'm3dTec' && ev.target.open) m3dMostrarProps(); }, true);
+  corpo.addEventListener('click', ev => {   // tour e menu "mais ferramentas"
+    const tb = ev.target.closest('[data-tour]');
+    if (tb) { if (tb.dataset.tour === 'pular') m3dTourFechar(false); else if (M3.tour >= M3D_TOUR.length - 1) m3dTourFechar(true); else { M3.tour++; m3dTourDesenhar(); } return; }
+    if (ev.target.closest('.m3d-menu button')) { const det = ev.target.closest('details'); if (det) det.open = false; }
+    if (ev.target.closest('[data-m3d="tour"]')) m3dTourIniciar(true);
   });
   corpo.addEventListener('change', async ev => {
     const t = ev.target;
@@ -917,7 +1075,7 @@ function m3dLigar() {
       const g = M3.grupos.find(x => x.id === +t.value), s = m3dGuidsSel();
       try {
         await m3dPost('grupo_salvar', Object.assign({}, g, { modelo_id: M3.modeloId, guids: undefined, itens: undefined, adicionar: s.guids, rotulos: s.rotulos }));
-        toast(`${s.guids.length.toLocaleString('pt-BR')} elemento(s) adicionados a “${g.nome}”.`);
+        toast(`${s.guids.length.toLocaleString('pt-BR')} peça(s) movidas para “${g.nome}”.`);
         await m3dRecarregarGrupos();
       } catch (e) { toast(e.message, true); }
     }

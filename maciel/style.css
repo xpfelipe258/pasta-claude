@@ -1865,3 +1865,43 @@ dialog.m3d-dlg { width: min(680px, calc(100vw - 24px)); }
   .m3d-dica { display: none; }
 }
 @media print { .m3d-ferr, .m3d-dica, .m3d-barra { display: none; } }
+/* Modelo 3D — etapa 1 do plano de UX: barra de 5 botões, painel da peça enxuto, selo da demonstração e tour */
+.m3d-ferr { gap: 6px; }
+.m3d-fb { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border: 1px solid var(--linha-forte); border-radius: 8px; background: var(--card); color: var(--fg);
+  font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); list-style: none; }
+.m3d-fb:hover { border-color: var(--acento); color: var(--acento); }
+.m3d-fb::-webkit-details-marker { display: none; }
+.m3d-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.m3d-mais { position: relative; }
+.m3d-mais[open] > .m3d-fb { border-color: var(--acento); color: var(--acento); }
+.m3d-menu { position: absolute; top: 40px; left: 0; z-index: 5; min-width: 230px; padding: 6px; background: var(--card); border: 1px solid var(--linha-forte); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); display: flex; flex-direction: column; }
+.m3d-menu button { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 6px; font: inherit; font-size: .82rem; color: var(--fg); cursor: pointer; }
+.m3d-menu button:hover { background: var(--acento-suave); }
+.m3d-menu button.ativo::before { content: "✓ "; color: var(--acento); font-weight: 700; }
+.m3d-peca-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.m3d-marca { font-size: 28px; font-weight: 750; letter-spacing: -.01em; line-height: 1.1; }
+.m3d-peca-un { font-size: .9rem; font-weight: 600; color: var(--fg2); }
+.m3d-peca-sub { margin: 2px 0 12px; color: var(--fg2); font-size: .85rem; }
+.m3d-linhas { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 0 0 14px; }
+.m3d-linhas dt { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--fg3); margin-top: 8px; }
+.m3d-linhas dd { margin: 0; font-size: .86rem; line-height: 1.4; }
+.m3d-largo { width: 100%; justify-content: center; }
+.m3d-peca .m3d-acoes { margin-bottom: 10px; }
+.m3d-peca .m3d-acoes select { width: 100%; }
+.m3d-tec { border-top: 1px solid var(--linha); padding-top: 8px; margin-top: 6px; }
+.m3d-tec > summary { font-size: .8rem; color: var(--fg2); }
+.m3d-link { background: none; border: 0; padding: 0; color: var(--acento); font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.m3d-chip.s-sem { background: var(--pend-bg); color: var(--pend); }
+.m3d-demo-selo { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: .76rem; font-weight: 650; }
+.m3d-tour { position: absolute; z-index: 6; width: 320px; max-width: calc(100% - 32px); padding: 14px 16px; background: var(--card); color: var(--fg); border-radius: 10px;
+  border: 2px solid var(--acento); box-shadow: 0 12px 32px rgba(0, 0, 0, .25); }
+.m3d-tour[hidden] { display: none; }
+.m3d-tour-passo { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--acento); }
+.m3d-tour-tit { font-size: 1.02rem; font-weight: 700; margin: 3px 0 4px; }
+.m3d-tour p { margin: 0 0 12px; font-size: .84rem; line-height: 1.45; color: var(--fg2); }
+.m3d-tour-bts { display: flex; align-items: center; gap: 10px; }
+.m3d-tour-bts .btn { margin-left: auto; }
+.m3d-tour-alvo { outline: 3px solid var(--acento); outline-offset: 3px; border-radius: 10px; }
+.demo-card { border: 2px dashed var(--acento, #d97706); }
+@media (max-width: 1100px) { .m3d-fb span:not(.m3d-sr) { display: none; } .m3d-fb { padding: 0 9px; } }
+.m3d-marca.m3d-marca-nome { font-size: 22px; }

@@ -247,7 +247,7 @@ function organizacao_modulos_do_usuario(array $u)
 
 function organizacao_obras_em_uso($orgId)
 {
-    return (int)q_global("SELECT COUNT(*) FROM obras WHERE organizacao_id = ? AND status IN ('ativa', 'rascunho') AND (origem_obra_id IS NULL OR origem_obra_id = 0)", [(int)$orgId])->fetchColumn();
+    return (int)q_global("SELECT COUNT(*) FROM obras WHERE organizacao_id = ? AND status IN ('ativa', 'rascunho') AND (origem_obra_id IS NULL OR origem_obra_id = 0) AND (codigo IS NULL OR codigo <> 'DEMO')", [(int)$orgId])->fetchColumn();
 }
 
 function organizacao_usuarios_em_uso($orgId)
@@ -259,7 +259,7 @@ function organizacao_usuarios_em_uso($orgId)
 function planos_obras_em_uso($usuarioId)
 {
     return (int)q_global("SELECT COUNT(*) FROM obras o JOIN usuarios_obras uo ON uo.obra_id = o.id
-        WHERE uo.usuario_id = ? AND uo.admin_obra = 1 AND o.status IN ('ativa', 'rascunho') AND (o.origem_obra_id IS NULL OR o.origem_obra_id = 0)", [(int)$usuarioId])->fetchColumn();
+        WHERE uo.usuario_id = ? AND uo.admin_obra = 1 AND o.status IN ('ativa', 'rascunho') AND (o.origem_obra_id IS NULL OR o.origem_obra_id = 0) AND (o.codigo IS NULL OR o.codigo <> 'DEMO')", [(int)$usuarioId])->fetchColumn();
 }
 
 /** Situação financeira da empresa: rótulo, classe de cor, dias (negativo = atraso) e se ainda pode criar obras/usuários. */
