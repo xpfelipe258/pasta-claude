@@ -1379,7 +1379,7 @@ function clienteComContratoAtual(c) {
 // ------------------------------------------------------------ FONTES DO DASHBOARD CLIENTE
 // Contrato = soma das atividades do catálogo do BM (EJ + CMM; Globo Aços); nome = nome do catálogo;
 // datas = cronograma do cliente (as mesmas do Gantt); meta/dia = contrato ÷ dias úteis entre início e prazo;
-// realizado = maior entre Lançamentos e BM. O catálogo de EJ/CMM cobre o galpão inteiro (Fase 1 + Fase 2) e fica na linha da Fase 1.
+// realizado = lançamentos de produção. O catálogo de EJ/CMM cobre o galpão inteiro (Fase 1 + Fase 2) e fica na linha da Fase 1.
 const CLIENTE_FONTES = [
   { chave: 'PREMONTAGEM', nome: 'Pré-montagem de joist', atividades: ['EJ-3.1.1-02', 'CMM-3.1.1-02'] },
   { chave: 'ICAMENTO JOIST', nome: 'Instalação de joist', atividades: ['EJ-3.1.1-03', 'CMM-3.1.1-03'] },
@@ -1387,9 +1387,9 @@ const CLIENTE_FONTES = [
   { chave: 'PERFILACAO', nome: 'Perfilagem de telhas', atividades: ['GLO-3.2.1-01'] },
   { chave: 'INSTALACAO DE TELHAS', nome: 'Instalação de telhas', atividades: ['GLO-3.2.1-02'] },
   { chave: 'FECHAMENTO', nome: 'Instalação das telhas (fechamento lateral)', atividades: ['GLO-3.2.2-01'] },
-  { chave: 'FECH LATERAL ESTRUTURA', nome: 'Fechamento lateral (estrutura) · % de avanço', percentual: true },
+  { chave: 'FECH LATERAL ESTRUTURA', nome: 'Fechamento lateral (estrutura)', unidade: 'vão' },
 ];
-function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'TELHAR') k = 'INSTALACAO DE TELHAS'; return CLIENTE_FONTES.find(f => f.chave === k) || null; }
+function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'FECHAMENTO LATERAL ESTRUTURA') k = 'FECH LATERAL ESTRUTURA'; if (k === 'TELHAR') k = 'INSTALACAO DE TELHAS'; return CLIENTE_FONTES.find(f => f.chave === k) || null; }
 function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
@@ -1403,65 +1403,56 @@ function clienteDatasCronograma(c) {
   return { inicio_plan: it.inicio_plan || null, prazo: it.prazo || null };
 }
 
+function clienteAtividadesCatalogo(c, fonte) {
+  if (fonte?.unidade === 'vão') {
+    return bmCatalogoServico(c.servico).filter(a => ['VAO', 'VAOS'].includes(ganNorm(a.unidade)));
+  }
+  if (fonte) return bmTab('bm_atividades').filter(a => fonte.atividades.includes(a.codigo));
+  if (c._eclusa) return bmTab('bm_atividades').filter(a => eclusaCodigos(c._eclusa).includes(a.codigo));
+  if (ehFrenteAnexa(c.frente)) {
+    return ganBmAtividades(c).filter(a => bmAtividadeDeAnexo(a));
+  }
+  return bmCatalogoServico(c.servico, faseItem(c.frente));
+}
+
+function clienteColunas(e, c) {
+  if (!c.contrato_total && ehFrenteAnexa(c.frente)) return servicosDaFrente(e, c);
+  const exatas = e.servicos.filter(s => {
+    if (!c.contrato_total && faseItem(s.frente) !== faseItem(c.frente)) return false;
+    if (c.unidade === 'vão') return /FECH(?:AMENTO)? LATERAL ESTRUTURA/.test(ganNorm(s.nome));
+    return !ehFrenteAnexa(s.frente) && (clienteFonte(s) === clienteFonte(c) && !!clienteFonte(c) || ganNorm(s.nome) === ganNorm(c.servico));
+  });
+  if (exatas.length || c.unidade === 'vão') return exatas;
+  return e.servicos.filter(s => !ehFrenteAnexa(s.frente) && (c.contrato_total || faseItem(s.frente) === faseItem(c.frente))
+    && ganServicoCombina(c.servico, s.nome) && (ganNorm(c.servico) !== 'FECHAMENTO' || !ganNorm(s.nome).includes('ESTRUTURA')));
+}
+
 function clienteComFontes(c0) {
-  const base = clienteComContratoAtual(c0);
-  let item = { ...base, ...clienteDatasCronograma(c0) };
   const fonte = clienteFonte(c0);
-  if (fonte && faseItem(c0.frente) !== '1') return { ...item, qtd: 0, peso: 0 };
-  if (fonte) {
-    const qtd = fonte.percentual ? 100 : catalogoQtd(fonte.atividades);
-    if (qtd > 0) item = { ...item, qtd, peso: Number(c0.peso) || 1, servico_exib: fonte.nome, fonte_catalogo: true, fonte_pct: !!fonte.percentual, contrato_total: true };
-  }
-  // Eclusa (telhas da cobertura, calhas): o item não tem contrato cadastrado; vale o catálogo do BM da própria Eclusa e o executado é o que foi
-  // lançado nessa atividade (ex.: "Instalação de telhas Eclusa" = 1.163,25 m²). Uma atividade só = quantidade dela (m²); várias = % de avanço.
-  if (!fonte && !c0._eclusa && !(Number(item.qtd) > 0) && ganNorm(c0.frente) === 'ECLUSA') {
-    const ats = ganBmAtividadesEspecificas(c0);
-    if (ats.length === 1 && Number(ats[0].qtd) > 0) item = { ...item, qtd: Number(ats[0].qtd), peso: Number(c0.peso) || 1, contrato_total: true };
-    else if (ats.length > 1) item = { ...item, qtd: 100, peso: Number(c0.peso) || 1, contrato_total: true };
-  }
-  // Contrato editado na tela do Dashboard cliente (vale sobre o catálogo; apagar volta ao catálogo)
-  const ov = Number((M.contratos_cliente || {})[contratoCliKey(c0)]);
-  if (ov > 0 && !item.fonte_pct) {
-    if (item.qtd > 0 && !item.fonte_catalogo) item.peso = (Number(item.peso) || item.qtd) * ov / item.qtd;
-    item = { ...item, qtd: ov, contrato_manual: true };
-  }
-  const porPrazo = metaDiaPorPrazo(item);
-  if (porPrazo) item.meta_dia = porPrazo;
-  return item;
+  const contratoTotal = !!fonte;
+  const item = { ...c0, ...clienteDatasCronograma(c0), contrato_total: contratoTotal, unidade: fonte?.unidade || '' };
+  if (contratoTotal && faseItem(c0.frente) !== '1') return { ...item, qtd: 0, peso: 0 };
+  const atividades = clienteAtividadesCatalogo(c0, fonte).filter(a => Number(a.qtd) > 0);
+  const unidades = [...new Set(atividades.map(a => {
+    const un = bmNormUn(a.unidade);
+    if (['UN', 'UND', 'UNIDADE', 'UNIDADES'].includes(un)) return 'un';
+    if (['VAO', 'VAOS'].includes(ganNorm(un))) return 'vão';
+    return ({ M2: 'm²', M3: 'm³', M: 'm', ML: 'm' })[un] || un.toLowerCase();
+  }).filter(Boolean))];
+  const qtdCatalogo = unidades.length > 1 ? 0 : fonte?.unidade === 'vão'
+    ? Math.max(0, ...atividades.map(a => Number(a.qtd)))
+    : soma0(atividades, a => Number(a.qtd));
+  const escopos = M.empresas.flatMap(e => clienteColunas(e, item).map(s => Number(s.escopo) || 0));
+  const qtdLancamento = fonte?.unidade === 'vão' ? Math.max(0, ...escopos) : soma0(escopos, q => q);
+  const qtdOrigem = qtdCatalogo || qtdLancamento;
+  const manual = Number((M.contratos_cliente || {})[contratoCliKey(c0)]);
+  const contratoManual = !qtdOrigem && manual > 0;
+  const qtd = qtdOrigem || (contratoManual ? manual : Number(c0.qtd)) || 0;
+  return { ...item, qtd, peso: Number(c0.peso) || qtd, unidade: fonte?.unidade || (unidades.length === 1 ? unidades[0] : ''),
+    servico_exib: fonte?.nome || '', fonte_catalogo: qtdCatalogo > 0, contrato_editavel: !qtdOrigem && fonte?.unidade !== 'vão', contrato_manual: contratoManual, meta_dia: metaDiaPorPrazo({ ...item, qtd }) || Number(c0.meta_dia) || 0 };
 }
 const contratoCliKey = c => `${ganNorm(c?.frente)}|${ganNorm(c?.servico)}`;
 
-function prodServicoGrade(servico, empresaNome, ini, fim) {
-  let t = 0;
-  M.empresas.forEach(e => {
-    if (empresaNome && e.nome !== empresaNome) return;
-    e.servicos.filter(s => servicoCompat(s.nome, servico) && servicoLancadoPermitido(s, servico, null)).forEach(s => t += producaoServicoValor(e, s, ini, fim));
-  });
-  return t;
-}
-function prodServicoMax(servico, empresaNome, ini, fim) {
-  return Math.max(prodServicoGrade(servico, empresaNome, ini, fim), prodServicoBm(servico, empresaNome, ini, fim));
-}
-function bmPorCodigos(codigos, servico, empresaNome, ini, fim) {
-  const ats = new Map(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo) && (!empresaNome || normEmp(a.empresa) === normEmp(empresaNome))).map(a => [a.codigo, a]));
-  let t = 0;
-  bmTab('bm_apontamentos').forEach(x => {
-    const a = ats.get(x.codigo);
-    if (a && x.data && x.data >= ini && x.data <= fim) t += bmApontamentoServicoValor(a, x.quantidade, servico);
-  });
-  return t;
-}
-// Fechamento lateral (estrutura): % de avanço de cada empresa (média das atividades pelo peso) e média das duas empresas
-function pctFechLat(ate, empresaNome = null) {
-  const minhaE = window.USUARIO_RESTRITO ? normEmp(window.USUARIO_RESTRITO) : '';   // empresa: só a própria entra na média
-  const porEmp = ['EJ', 'CMM'].filter(n => !minhaE || n === minhaE).map(nome => {
-    const ats = bmTab('bm_atividades').filter(a => normEmp(a.empresa) === nome && ganNorm(a.item_desc) === 'FECHAMENTO LATERAL');
-    const sp = soma0(ats, a => a.peso || 0);
-    return { nome, pct: sp ? soma0(ats, a => (a.peso || 0) * (a.qtd ? Math.min(1, Math.max(0, bmRealizado(a, ate) / a.qtd)) : 0)) / sp : 0 };
-  });
-  const sel = empresaNome ? porEmp.filter(x => x.nome === normEmp(empresaNome)) : porEmp;
-  return sel.length ? soma0(sel, x => x.pct) / sel.length : 0;
-}
 // ECLUSA – VIGAS E JOISTS separada em dois itens do cronograma, em unidades: Vigas (contrato = catálogo do BM EJ-3.3.1-01, 9 un) e Joists
 // (EJ-3.3.1-03, 18 un). O executado vem do que foi LANÇADO nas colunas da Eclusa de cada empresa, classificadas pelo nome (coluna com "viga"
 // = vigas; com "joist" = joists; pré-montagem não entra; coluna que junta as duas palavras não dá para separar e fica de fora).
@@ -1524,25 +1515,16 @@ function realizadoAnexo(c, empresaNome, ini, fim) {
   });
   return t;
 }
-// Quantidade equivalente ao avanço (%) das atividades do BM da frente (Eclusa), no período
-function realizadoAnexoBm(c, ini, fim) {
-  if (c._eclusa) return soma0(eclusaBmSerie(c._eclusa, fim).filter(([d]) => !ini || d >= ini), ([, v]) => v);   // Eclusa vigas/joists: apontado no catálogo do BM, em unidades
-  if (!(Number(c.qtd) > 0) || !ganBmAtividadesEspecificas(c).length) return 0;
-  const a = ganBmPercentual(c, fim), b = ini && ini > '0000-01-01' ? ganBmPercentual(c, add(ini, -1)) : null;
-  return Math.max(0, ((a ? a.pct : 0) - (b ? b.pct : 0)) * Number(c.qtd));
+function realizadoPeriodoItem(c, empresaNome, ini, fim) {
+  if (fim < ini || (clienteFonte(c) && faseItem(c.frente) !== '1')) return 0;
+  return soma0(M.empresas.filter(e => !empresaNome || e.nome === empresaNome), e =>
+    soma0(clienteColunas(e, c), sv => {
+      const fator = c._eclusa && eclusaTipoServico(sv.nome) === 'junta' ? eclusaFracao(c._eclusa) : 1;
+      return producaoServicoValor(e, sv, ini, fim) * fator;
+    }));
 }
 function realizadoItem(c, ate) {
-  if (c.fonte_pct) return pctFechLat(ate) * 100;
-  if (!c.fonte_catalogo && ehFrenteAnexa(c.frente)) return Math.max(realizadoAnexo(c, null, '0000', ate), realizadoAnexoBm(c, '0000', ate));
-  if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, null, '0000', ate), bmPorCodigos(clienteFonte(c).atividades, c.servico, null, '0000', ate));
-  return realizadoFase(c.servico, faseItem(c.frente), ate);
-}
-function realizadoPeriodoItem(c, empresaNome, ini, fim) {
-  if (c._eclusa && (!empresaNome || normEmp(empresaNome) === 'EJ')) return Math.max(realizadoAnexo(c, empresaNome, ini, fim), realizadoAnexoBm(c, ini, fim));   // Eclusa: maior entre grade e catálogo do BM
-  if (!c.fonte_catalogo && !c.fonte_pct && ehFrenteAnexa(c.frente)) return realizadoAnexo(c, empresaNome, ini, fim);
-  if (c.fonte_pct) return (pctFechLat(fim, empresaNome) - pctFechLat(add(ini, -1), empresaNome)) * 100;
-  if (c.fonte_catalogo) return Math.max(prodServicoGrade(c.servico, empresaNome, ini, fim), bmPorCodigos(clienteFonte(c).atividades, c.servico, empresaNome, ini, fim));
-  return prodServicoMax(c.servico, empresaNome, ini, fim);
+  return realizadoPeriodoItem(c, null, '0000', ate);
 }
 
 function contratoLinhas(ate = ref) {
@@ -2452,11 +2434,12 @@ function renderCliente() {
   // Agrupa itens por serviço para consolidar F1+F2
   const gruposServ = {};
   itens.forEach(it => {
-    const k = it.servico.trim();
+    const k = JSON.stringify([it.servico.trim(), it.unidade || '']);
     (gruposServ[k] ||= []).push(it);
   });
 
-  const linhas = Object.entries(gruposServ).map(([servNome, fases]) => {
+  const linhas = Object.values(gruposServ).map(fases => {
+    const servNome = fases[0].servico.trim();
     // Totais consolidados F1+F2
     const totQtd = soma0(fases, f => f.qtd || 0);
     const totInicioMin = fases.map(f => f.inicio_plan).filter(Boolean).sort()[0] || null;
@@ -2467,12 +2450,9 @@ function renderCliente() {
     // (respeita início, prazo e contrato de cada item; nunca passa do contrato)
     const prevAc = soma0(fases, f => prevCliente(f, c) || 0);
     const prevPer = Math.max(0, prevAc - soma0(fases, f => prevCliente(f, antes) || 0));
-    // REALIZADO PERÍODO: soma realizado de cada empresa (chamar prodServico UMA VEZ por serviço, não por fase)
-    const ref = fases.find(f => f.fonte_catalogo) || null;
-    const refAnexo = ref ? null : fases.find(f => ehFrenteAnexa(f.frente)) || null;
-    const porEmp = Object.fromEntries(emps.map(n => [n, c >= ini ? (ref ? realizadoPeriodoItem(ref, n, ini, c) : refAnexo ? realizadoPeriodoItem(refAnexo, n, ini, c) : prodServicoMax(servNome, n, ini, c)) : 0]));
-    const realPer = ref?.fonte_pct ? (c >= ini ? realizadoPeriodoItem(ref, null, ini, c) : 0) : refAnexo && c >= ini ? Math.max(soma0(Object.values(porEmp), v => v), realizadoAnexoBm(refAnexo, ini, c)) : soma0(Object.values(porEmp), v => v);
-    const realAc = soma0(fases, f => realizadoItem(f, c) || 0);
+    const porEmp = Object.fromEntries(emps.map(n => [n, soma0(fases, f => realizadoPeriodoItem(f, n, ini, c))]));
+    const realPer = soma0(Object.values(porEmp), v => v);
+    const realAc = soma0(fases, f => realizadoItem(f, c));
     const saldo = Math.max(totQtd - realAc, 0);
 
     // Situação pelo % do previsto no período: >= 100% adiantado, 95% a 100% no limite, abaixo de 95% atrasado
@@ -2484,7 +2464,7 @@ function renderCliente() {
     const p = projFases.length > 0 ? projFases[0] : {};
     const prazoMax = fases.map(f => f.prazo).filter(Boolean).sort().pop() || p.prazo || null;
 
-    const it = { servico: servNome, servico_exib: fases.find(f => f.servico_exib)?.servico_exib || '', fonte_catalogo: !!ref, fonte_pct: !!ref?.fonte_pct, qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
+    const it = { servico: servNome, servico_exib: fases.find(f => f.servico_exib)?.servico_exib || '', unidade: fases[0]?.unidade || '', qtd: totQtd, inicio_plan: totInicioMin, meta_dia: totMetaDia, prazo: prazoMax, peso: soma0(fases, f => f.peso || 0) || totQtd, frente: fases[0]?.frente || '' };
     return { it, prevPer, porEmp, realPer, prevAc, realAc, saldo, p, status, fases };
   });
 
@@ -2504,19 +2484,18 @@ function renderCliente() {
     tile('Término projetado', projFinal ? fdA(projFinal) : 'Indefinido', projFinal ? `Prazo contratual: ${fdA(prazoFinal)}` : `Sem ritmo de produção: ${semRitmo.map(x => cap(x.servico)).join(', ')} · prazo ${fdA(prazoFinal)}`, projFinal && prazoFinal ? `<span class="farol f-${projFinal <= prazoFinal ? 'verde' : 'vermelho'}">${projFinal <= prazoFinal ? 'NO PRAZO' : 'ATRASO'}</span>` : '') +
     tile('Serviços atrasados', String(atrasados.length), `de ${itens.length} serviços com quantidade contratada`, '', atrasados.length ? 'var(--vermelho)' : 'var(--verde)');
 
-  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · contrato = catálogo do BM · datas = cronograma do cliente (igual ao Gantt) · meta/dia = contrato ÷ dias úteis · realizado = maior entre Lançamentos e BM`;
-  let h = `<thead><tr><th>Serviço</th><th class="n" title="Soma das atividades do catálogo do BM (EJ + CMM; Globo Aços). Clique no valor para editar o contrato; apague para voltar ao catálogo.">Contrato</th><th title="Cronograma do cliente (mesmas datas do Gantt; ajuste em Gantt > Alterar datas)">Início cliente</th><th class="n" title="Contrato ÷ dias úteis entre início e prazo">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Saldo</th><th>Término projetado</th><th title="Cronograma do cliente (mesmas datas do Gantt)">Prazo</th><th title="% do previsto no período: 100% ou mais adiantado, 95% a 100% no limite, abaixo de 95% atrasado">Situação</th></tr></thead><tbody>`;
+  $('#cliNota').textContent = `Período ${fdA(ini)} a ${fdA(c)} · contrato = catálogo do BM ou escopo em Lançamentos · datas = cronograma do cliente (igual ao Gantt) · meta/dia = contrato ÷ dias úteis · realizado = lançamentos de produção`;
+  let h = `<thead><tr><th>Serviço</th><th class="n" title="Quantidade do catálogo de medição ou do escopo do lançamento">Contrato</th><th title="Cronograma do cliente (mesmas datas do Gantt; ajuste em Gantt > Alterar datas)">Início cliente</th><th class="n" title="Contrato ÷ dias úteis entre início e prazo">Meta cliente/dia</th><th class="n">Previsto período</th>${emps.map(n => `<th class="n">${esc(n)}</th>`).join('')}<th class="n">Realizado período</th><th class="n">GAP período</th><th class="n">% ating.</th><th class="n">Previsto acum.</th><th class="n">Realizado acum.</th><th class="n">Saldo</th><th>Término projetado</th><th title="Cronograma do cliente (mesmas datas do Gantt)">Prazo</th><th title="% do previsto no período: 100% ou mais adiantado, 95% a 100% no limite, abaixo de 95% atrasado">Situação</th></tr></thead><tbody>`;
   linhas.forEach(l => {
     const gp = l.realPer - l.prevPer;
     const pctAting = l.prevPer > 0 ? nf(l.realPer / l.prevPer * 100) + '%' : '—';
-    // Contrato editável direto na célula (grava à parte; apagar volta ao catálogo do BM). Em serviço com F1+F2 edita a linha da Fase 1.
-    const baseCtr = l.fases.find(f => f.fonte_catalogo) || (l.fases.length === 1 ? l.fases[0] : null);
-    const podeCtr = !!baseCtr && !l.it.fonte_pct;
     const nomeExib = l.it.servico_exib || cap(l.it.servico);
-    h += `<tr><td><b>${esc(nomeExib)}</b></td><td class="n${podeCtr ? ' editavel' : ''}"${podeCtr ? ` data-ctr-chave="${esc(contratoCliKey(baseCtr))}" data-ctr-val="${baseCtr.qtd ?? ''}" title="Clique para editar o contrato (apague o valor para voltar ao catálogo do BM)"` : ''}><b>${nf(l.it.qtd)}${l.it.fonte_pct ? '%' : ''}</b>${baseCtr?.contrato_manual ? ' <span class="nota" title="Contrato editado manualmente">✎</span>' : ''}</td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
+    const baseCtr = l.fases.length === 1 && l.fases[0].contrato_editavel ? l.fases[0] : null;
+    const unidade = l.it.unidade === 'vão' ? ' vãos' : l.it.unidade ? ' ' + esc(l.it.unidade) : '';
+    h += `<tr><td><b>${esc(nomeExib)}</b></td><td class="n${baseCtr ? ' editavel' : ''}"${baseCtr ? ` data-ctr-chave="${esc(contratoCliKey(baseCtr))}" data-ctr-val="${baseCtr.qtd ?? ''}" title="Clique para editar o contrato (apague o valor para voltar ao cadastro do cronograma)"` : ''}><b>${nf(l.it.qtd, Number.isInteger(l.it.qtd) ? 0 : 2)}${unidade}</b>${baseCtr?.contrato_manual ? ' <span class="nota" title="Contrato editado manualmente">✎</span>' : ''}</td><td>${fdA(l.it.inicio_plan)}</td><td class="n">${nf(l.it.meta_dia, 2)}</td><td class="n">${nf(l.prevPer, 1)}</td>
       ${emps.map(n => `<td class="n">${l.porEmp[n] ? nf(l.porEmp[n], 1) : '—'}</td>`).join('')}
       <td class="n"><b>${nf(l.realPer, 1)}</b></td><td class="n ${gp < 0 ? 'valor-neg' : ''}">${(gp > 0 ? '+' : '') + nf(gp, 1)}</td>
-      <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
+      <td class="n">${pctAting}</td><td class="n"><b>${nf(l.prevAc, 1)}</b></td><td class="n"><b>${nf(l.realAc, 1)}</b></td><td class="n">${nf(l.saldo, 1)}</td>
       <td>${fdA(l.p.projecao)}</td><td>${fdA(l.it.prazo)}</td><td><span class="farol f-${COR_STATUS[l.status]}">${l.status}</span></td></tr>`;
   });
   $('#tabCliente').innerHTML = h + '</tbody>';
@@ -2568,7 +2547,7 @@ function clienteConsolidacao() {
     if (!r.qtd) return;
     // O contrato NÃO é gravado: a rota de registro copia cliente.qtd para servicos.escopo (grade por empresa, em outra unidade).
     const novo = {
-      meta_dia: r.fonte_pct ? c0.meta_dia : Math.round(r.meta_dia * 10000) / 10000,
+      meta_dia: Math.round(r.meta_dia * 10000) / 10000,
       inicio_plan: r.inicio_plan || null, prazo: r.prazo || null,
     };
     const igual = (a, b) => (a ?? null) === (b ?? null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.0001);
@@ -4232,7 +4211,7 @@ function apSelecao(ctx) {
       nTelFech += nTel;
       m2TelFech += (cel && cel.m2) || apTelhaM2(cfgF);
     }
-    const gSel = grupo(f.emp, chave === 'contraventamento' ? null : (f.etapa || cfgF.servico || null));
+    const gSel = grupo(f.emp, chaveF === 'contraventamento' ? 'CONTRAVENTAMENTO' : (f.etapa || cfgF.servico || null));
     gSel.delta += nTel;
     if (f.tipo === 'TELHAFECH') gSel.m2 = (gSel.m2 || 0) + (((cfgF.partes || []).find(p => p.id === f.parte)?.celulas || []).find(c => c.trecho === f.trecho)?.m2 || apTelhaM2(cfgF));
     fixadoresDoTrecho(f.tipo, f.parte, f.trecho, f.etapa, regras).forEach(b => soma(b.codigo, b.quantidade));
@@ -4252,7 +4231,6 @@ function apEfeitosHtml(regras, ctx) {
   if (sel.semEmpresa) avisos.push('Indique a empresa que montou (barra no topo) antes de salvar.');
   sel.grupos.filter(g => g.emp).forEach(g => {
     if (!g.servico) {
-      itens.push(`<b>${esc(g.emp)}:</b> ${nf(g.delta)} trecho(s) de contraventamento registrados como controle (não há coluna no controle de produção, então não somam na produção nem no BM).`);
       return;
     }
     const e = empresa(g.emp), col = e && colDe(e, g.servico);
@@ -4427,77 +4405,183 @@ function apMapaSvg(ctx) {
 // Mapa na escala do projeto: as posições de cada eixo e de cada estação vêm da malha do IFC (mm),
 // então os vãos saem como no desenho — 9.000 e 13.500 m entre eixos, 8.380 entre estações e 4.190
 // junto às bordas. Três escalas mudam só quantos milímetros cabem em cada pixel.
-const APC_MM_PX = { compacto: 900, normal: 560, grande: 330 };
-const APC = { mEsq: 54, mTop: 40, mBase: 32 };
+const APC_MM_PX = { compacto: 420, normal: 350, grande: 245 };
+const APC = { mEsq: 54, mTop: 78, mBase: 32 };
 const APC_COR = { CTH01: 'var(--acento)', CTH02: 'var(--fg2)', CTH03: 'var(--acento)',
   CTH04: 'var(--fg2)', CTH05: 'var(--amarelo)' };
 const apcChave = (marca, rua, trecho) => `${marca}|${rua}|${trecho}`;
 
-function apContravSvg() {
-  const fr = apFrenteAtual(), el = fr && fr.elevacao;
-  if (!el) return '';
-  const malha = ((window._frentes || {}).malha || {});
-  const eixosMm = malha.eixos_mm || {}, estMm = malha.estacoes_mm || {};
-  const temMalha = Object.keys(eixosMm).length > 0;
-  const feitas = new Map();
-  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
-    .forEach(a => feitas.set(apcChave(a.faixa, a.rua, a.letra || ''), a));
-  const ruas = malha.ruas && malha.ruas.length ? malha.ruas : el.ruas;
-  const comCth = new Set(el.ruas);
-  const est = el.estacoes;
-  const mmPx = APC_MM_PX[apEst.zoom] || APC_MM_PX.normal;
-  const { mEsq, mTop, mBase } = APC;
-  // posição em px: da malha do IFC quando ela existe, senão espaçamento uniforme
+// Cruzamentos e inclinações extraídos das marcas da planta OF.198-MET-DM-001 R01.
+const APC_CRUZES = {
+  "01-02": {"CTH02|A-A1":[6661,1784],"CTH02|A-A2":[9553,1784],"CTH02|A1-A3":[13738,1712],"CTH02|A2-B":[17882,1784],"CTH02|A3-B":[22066,1784],"CTH02|A3-B1":[26260,1784],"CTH02|B-B1":[30506,1784],"CTH02|B-B2":[34620,1784],"CTH02|B1-B2":[38852,1784],"CTH02|B1-C":[43643,1784],"CTH02|B2-C":[47178,1784],"CTH02|B2-C1":[51377,1784],"CTH02|C-C1":[55552,1784],"CTH02|C-C2":[59763,1784],"CTH02|C1-C2":[63915,1784],"CTH02|C1-D":[68184,1784],"CTH02|C2-D":[72337,1784],"CTH02|C2-D1":[76550,1784],"CTH02|D-D1":[80774,1784],"CTH02|D-D2":[84885,1784],"CTH02|D1-E":[91255,1784],"CTH02|D2-E":[95404,1784],"CTH02|D2-E1":[99711,1784],"CTH02|E-E1":[103897,1784],"CTH02|E-E2":[108615,1784],"CTH02|E1-E2":[112244,1784],"CTH02|E1-F":[116444,1784],"CTH02|E2-F":[120614,1784],"CTH02|E2-F1":[124731,1784],"CTH02|F-F1":[128956,1784],"CTH02|F-F2":[133174,1784],"CTH02|F1-F2":[137294,1784],"CTH02|F1-G":[141532,1784],"CTH02|F2-G":[145750,1784],"CTH02|F2-G1":[149881,1784],"CTH02|G-G1":[154089,1784],"CTH02|G-G2":[158263,1784],"CTH02|G1-G3":[162420,1712],"CTH02|G2-H":[166517,1784],"CTH02|G3-H":[170635,1784],"CTH01|A-A1":[1306,1482],"CTH01|G3-H":[174608,1482]},
+  "04-05": {"CTH03|A-A2":[6032,4302],"CTH03|G2-H":[171399,4302],"CTH04|A1-B":[13721,3593],"CTH04|A3-B1":[22004,3664],"CTH04|B-B2":[30401,3664],"CTH04|B1-C":[38805,3664],"CTH04|B2-C1":[47117,3664],"CTH04|C-C2":[55558,3664],"CTH04|C1-D":[63929,3664],"CTH04|C2-D1":[72386,3664],"CTH04|D2-E1":[103819,3664],"CTH04|E-E2":[112197,3664],"CTH04|E1-F":[120569,3664],"CTH04|E2-F1":[128966,3664],"CTH04|F-F2":[137311,3664],"CTH04|F1-G":[145647,3664],"CTH04|F2-G1":[154080,3664],"CTH04|G-G3":[162196,3593],"CTH05|D-D2":[81772,4607],"CTH05|D1-E":[94358,4607]},
+  "07-08": {"CTH04|A1-B":[15186,3593],"CTH04|A3-B1":[23476,3664],"CTH04|B-B2":[31873,3664],"CTH04|B1-C":[40271,3664],"CTH04|B2-C1":[48616,3664],"CTH04|C-C2":[57013,3664],"CTH04|C1-D":[65385,3664],"CTH04|C2-D1":[73782,3664],"CTH04|D2-E1":[105139,3664],"CTH04|E-E2":[113521,3664],"CTH04|E1-F":[121883,3664],"CTH04|E2-F1":[130320,3664],"CTH04|F-F2":[138678,3664],"CTH04|F1-G":[147075,3664],"CTH04|F2-G1":[155525,3664],"CTH04|G-G3":[163840,3593],"CTH05|D-D2":[83139,4607],"CTH05|D1-E":[95738,4607],"CTH03|A-A2":[6074,4302],"CTH03|G2-H":[171306,4302]},
+  "09-10": {"CTH04|A1-B":[13707,3593],"CTH04|A3-B1":[21989,3664],"CTH04|B-B2":[30386,3664],"CTH04|B1-C":[38783,3664],"CTH04|B2-C1":[47129,3664],"CTH04|C-C2":[55497,3664],"CTH04|C1-D":[63868,3664],"CTH04|C2-D1":[72265,3664],"CTH04|D2-E1":[103770,3664],"CTH04|E-E2":[112167,3664],"CTH04|E1-F":[120538,3664],"CTH04|E2-F1":[128936,3664],"CTH04|F-F2":[137281,3664],"CTH04|F1-G":[145678,3664],"CTH04|F2-G1":[153986,3664],"CTH04|G-G3":[162340,3593],"CTH05|D-D2":[81716,4607],"CTH05|D1-E":[94317,4607],"CTH03|A-A2":[6051,4302],"CTH03|G2-H":[171417,4302]},
+  "11-12": {"CTH03|A-A2":[6109,4302],"CTH03|G2-H":[171180,4302],"CTH04|A1-B":[13562,3593],"CTH04|A3-B1":[21836,3664],"CTH04|B-B2":[30233,3664],"CTH04|B1-C":[38630,3664],"CTH04|B2-C1":[46976,3664],"CTH04|C-C2":[55373,3664],"CTH04|C1-D":[63744,3664],"CTH04|C2-D1":[72142,3664],"CTH04|D2-E1":[103507,3664],"CTH04|E-E2":[111905,3664],"CTH04|E1-F":[120276,3664],"CTH04|E2-F1":[128673,3664],"CTH04|F-F2":[137019,3664],"CTH04|F1-G":[145416,3664],"CTH04|F2-G1":[153813,3664],"CTH04|G-G3":[162040,3593],"CTH05|D-D2":[81316,4607],"CTH05|D1-E":[93998,4607]},
+  "13-14": {"CTH04|A1-B":[13679,3593],"CTH04|A3-B1":[22010,3664],"CTH04|B-B2":[30408,3664],"CTH04|B1-C":[38805,3664],"CTH04|B2-C1":[47150,3664],"CTH04|C-C2":[55548,3664],"CTH04|C1-D":[63919,3664],"CTH04|C2-D1":[72316,3664],"CTH04|D2-E1":[103772,3664],"CTH04|E-E2":[112190,3664],"CTH04|E1-F":[120562,3664],"CTH04|E2-F1":[128959,3664],"CTH04|F-F2":[137304,3664],"CTH04|F1-G":[145702,3664],"CTH04|F2-G1":[154099,3664],"CTH04|G-G3":[162458,3593],"CTH05|D-D2":[81705,4607],"CTH05|D1-E":[94332,4607],"CTH03|A-A2":[6085,4302],"CTH03|G2-H":[171414,4302]},
+  "16-17": {"CTH04|A1-B":[13717,3593],"CTH04|A3-B1":[21998,3664],"CTH04|B-B2":[30396,3664],"CTH04|B1-C":[38793,3664],"CTH04|B2-C1":[47138,3664],"CTH04|C-C2":[55536,3664],"CTH04|C1-D":[63854,3664],"CTH04|C2-D1":[72251,3664],"CTH04|D2-E1":[103697,3664],"CTH04|E-E2":[112094,3664],"CTH04|E1-F":[120465,3664],"CTH04|E2-F1":[128912,3664],"CTH04|F-F2":[137257,3664],"CTH04|F1-G":[145655,3664],"CTH04|F2-G1":[154052,3664],"CTH04|G-G3":[162411,3593],"CTH05|D-D2":[81156,4607],"CTH05|D1-E":[93755,4607],"CTH03|A-A2":[6112,4302],"CTH03|G2-H":[171358,4302]},
+  "19-20": {"CTH02|A-A1":[6616,1784],"CTH02|A-A2":[9556,1784],"CTH02|A1-A3":[13691,1712],"CTH02|A2-B":[17855,1784],"CTH02|A3-B":[21988,1784],"CTH02|A3-B1":[26162,1784],"CTH02|B-B1":[30360,1784],"CTH02|B-B2":[34559,1784],"CTH02|B1-B2":[38732,1784],"CTH02|B1-C":[42904,1784],"CTH02|B2-C":[47085,1784],"CTH02|B2-C1":[51284,1784],"CTH02|C-C1":[55483,1784],"CTH02|C-C2":[59655,1784],"CTH02|C1-C2":[63854,1784],"CTH02|C1-D":[68053,1784],"CTH02|C2-D":[72225,1784],"CTH02|C2-D1":[76424,1784],"CTH02|D-D1":[80623,1784],"CTH02|D-D2":[84849,1784],"CTH02|D1-E":[91165,1784],"CTH02|D2-E":[95333,1784],"CTH02|D2-E1":[99531,1784],"CTH02|E-E1":[103730,1784],"CTH02|E-E2":[107903,1784],"CTH02|E1-E2":[112092,1784],"CTH02|E1-F":[116300,1784],"CTH02|E2-F":[120473,1784],"CTH02|E2-F1":[124662,1784],"CTH02|F-F1":[128870,1784],"CTH02|F-F2":[133069,1784],"CTH02|F1-F2":[137241,1784],"CTH02|F1-G":[141414,1784],"CTH02|F2-G":[145613,1784],"CTH02|F2-G1":[149811,1784],"CTH02|G-G1":[154010,1784],"CTH02|G-G2":[158209,1784],"CTH02|G1-G3":[162371,1712],"CTH02|G2-H":[166446,1784],"CTH02|G3-H":[170801,1784],"CTH01|A-A1":[1589,1482],"CTH01|G3-H":[174692,1482]}
+};
+const APC_INCLINACOES = {
+  "01-02": {"TP07|H-1":9804,"TP03|H-1":-8009,"TP05|A-1":-9804,"TP01|A-1":8009},
+  "02-03": {"CTH06|EXT-A-1":5490,"CTH06|EXT-A-2":-5490,"TP02|A-1":-12144,"TP01|A-1":8009,"TP04|H-1":12144,"TP03|H-1":-8009,"CTH06|EXT-H-1":5490,"CTH06|EXT-H-2":-5490},
+  "03-04": {"TP01|A-1":8009,"TP03|H-1":-8009,"TP04|H-1":12144},
+  "04-05": {"TP04|H-1":12144,"CTH06|EXT-A-2":-5490,"TP02|A-1":-12144,"TP01|A-1":8009,"TP03|H-1":-8009,"CTH06|EXT-A-1":5490,"CTH06|EXT-H-1":5490,"CTH06|EXT-H-2":-5490},
+  "05-06": {"CTH06|EXT-A-1":5490,"CTH06|EXT-H-2":-5490,"CTH06|EXT-A-2":-5490,"TP02|A-1":-12144,"TP01|A-1":8009,"TP04|H-1":12144,"TP03|H-1":-8009,"CTH06|EXT-H-1":5490},
+  "06-07": {"TP02|A-1":-12144,"TP01|A-1":8009,"TP04|H-1":12144,"TP03|H-1":-8009},
+  "07-08": {"TP03|H-1":-8009,"CTH06|EXT-H-1":5490,"CTH06|EXT-A-2":-5490,"TP04|H-1":12144,"TP02|A-1":-12144,"TP01|A-1":8009,"CTH06|EXT-A-1":5490,"CTH06|EXT-H-2":-5490},
+  "08-09": {"TP02|A-1":-12144,"TP01|A-1":8009,"TP04|H-1":12144,"TP03|H-1":-8009},
+  "09-10": {"TP01|A-1":8009,"TP02|A-1":-12144,"TP04|H-1":12144,"TP03|H-1":-8009},
+  "10-11": {"CTH06|EXT-H-1":5490,"CTH06|EXT-H-2":-5490,"CTH06|EXT-A-2":-5490,"TP04|H-1":12144,"TP03|H-1":-8009,"TP02|A-1":-12144,"TP01|A-1":8009,"CTH06|EXT-A-1":5490},
+  "11-12": {"TP03|H-1":-8009,"TP01|A-1":8009,"TP04|H-1":12144,"TP02|A-1":-12144},
+  "12-13": {"CTH06|EXT-H-1":5490,"CTH06|EXT-A-1":5490,"CTH06|EXT-A-2":-5490,"TP04|H-1":12144,"TP03|H-1":-8009,"TP02|A-1":-12144,"TP01|A-1":8009,"CTH06|EXT-H-2":-5490},
+  "13-14": {"CTH06|EXT-A-2":-5490,"TP02|A-1":-12144,"TP01|A-1":8009,"CTH06|EXT-H-2":-5490,"TP04|H-1":12144,"TP03|H-1":-8009,"CTH06|EXT-A-1":5490,"CTH06|EXT-H-1":5490},
+  "14-15": {"TP02|A-1":-12144,"CTH06|EXT-A-2":-5490,"TP03|H-1":-8009,"CTH06|EXT-H-1":5490,"TP04|H-1":12144,"TP01|A-1":8009,"CTH06|EXT-A-1":5490,"CTH06|EXT-H-2":-5490},
+  "15-16": {"TP03|H-1":-8009,"TP01|A-1":8009,"TP04|H-1":12144,"TP02|A-1":-12144},
+  "16-17": {"TP02|A-1":-12144,"CTH06|EXT-A-1":5490,"TP03|H-1":-8009,"TP04|H-1":12144,"TP01|A-1":8009,"CTH06|EXT-A-2":-5490,"CTH06|EXT-H-1":5490,"CTH06|EXT-H-2":-5490},
+  "17-18": {"TP01|A-1":8009,"TP02|A-1":-12144,"TP04|H-1":12144,"TP03|H-1":-8009},
+  "18-19": {"TP01|A-1":8009,"CTH06|EXT-H-1":5490,"TP04|H-1":12144,"CTH06|EXT-A-2":-5490,"CTH06|EXT-A-1":5490,"TP02|A-1":-12144,"TP03|H-1":-8009,"CTH06|EXT-H-2":-5490},
+  "19-20": {"TP08|H-1":-6384,"TP04|H-1":12144,"TP02|A-1":-12144,"TP06|A-1":6384}
+};
+
+function apContravSvg(paineis, feitas) {
+  const el = apFrenteAtual().elevacao, malha = window._frentes.malha || {};
+  const ruas = malha.ruas?.length ? malha.ruas : el.ruas;
   const eixos = [...new Set(ruas.flatMap(r => r.split('-')))].sort();
-  const xEixo = e => temMalha ? mEsq + (eixosMm[e] || 0) / mmPx
-    : mEsq + eixos.indexOf(e) * (560 / mmPx) * 14;
-  const yEst = e => temMalha ? mTop + (estMm[e] || 0) / mmPx
-    : mTop + est.indexOf(e) * (560 / mmPx) * 14;
-  const larg = xEixo(eixos[eixos.length - 1]) - mEsq, alt = yEst(est[est.length - 1]) - mTop;
-  const W = mEsq + larg + 24, H = mTop + alt + mBase;
-  const minGap = (a, b) => Math.abs(yEst(a) - yEst(b));
-  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="apc">`;
-  let ultimoY = -99;
-  est.forEach(e => {
-    const y = yEst(e);
-    s += `<line x1="${mEsq}" y1="${y}" x2="${mEsq + larg}" y2="${y}" class="apc-est"/>`;
-    if (y - ultimoY >= 9 || /^[A-H]$/.test(e)) { s += `<text x="${mEsq - 7}" y="${y + 3.5}" class="apc-rot">${e}</text>`; ultimoY = y; }
-  });
-  let ultimoX = -99;
-  ruas.forEach(r => {
-    const [a, b] = r.split('-'), x0 = xEixo(a), x1 = xEixo(b), tem = comCth.has(r);
-    if (tem) s += `<rect x="${x0}" y="${mTop}" width="${x1 - x0}" height="${alt}" class="apc-bay"/>`;
-    s += `<line x1="${x0}" y1="${mTop}" x2="${x0}" y2="${mTop + alt}" class="apc-eixo"/>`;
-    if (tem || x0 - ultimoX >= 22) { s += `<text x="${x0}" y="${mTop - 8}" class="apc-rot n ${tem ? 'b' : 'peq'}">${esc(a)}</text>`; ultimoX = x0; }
-    if (tem) {
-      const n = Object.values((el.resumo_por_rua || {})[r] || {}).reduce((v, w) => v + w, 0);
-      s += `<text x="${(x0 + x1) / 2}" y="${mTop + alt + 14}" class="apc-rot n peq">${nf(n)}</text>`;
+  const escalaX = APC_MM_PX[apEst.zoom] || APC_MM_PX.normal;
+  const escalaY = { compacto: 240, normal: 200, grande: 145 }[apEst.zoom] || 200;
+  const x = mm => APC.mEsq + mm / escalaX;
+  const y = mm => APC.mTop + mm / escalaY;
+  const eixoMm = e => malha.eixos_mm?.[e] ?? eixos.indexOf(e) * 22500;
+  const estacaoMm = e => malha.estacoes_mm?.[e] ?? el.estacoes.indexOf(e) * 8380;
+  const fimX = x(eixoMm(eixos.at(-1))), fimY = y(estacaoMm(el.estacoes.at(-1)));
+  const w = fimX + 36, h = fimY + APC.mBase + 36;
+  const linha = (x0, y0, x1, y1, attrs = '') => `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" ${attrs}/>`;
+  let s = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="apc" aria-label="Mapa de contraventamento">`;
+  for (const e of eixos) {
+    const x0 = x(eixoMm(e)), sub = e + 'a', xSub = malha.eixos_mm?.[sub];
+    s += linha(x0, 23, x0, fimY + 25, 'class="apc-eixo"');
+    s += `<text x="${x0}" y="14" class="apc-rot n b">${esc(e)}</text>`;
+    if (Number.isFinite(xSub)) {
+      s += linha(x(xSub), 23, x(xSub), fimY + 25, 'class="apc-eixo" opacity=".45"');
+      s += `<text x="${x(xSub)}" y="29" class="apc-rot n peq">${esc(sub)}</text>`;
     }
-  });
-  const fimX = xEixo(eixos[eixos.length - 1]);
-  s += `<line x1="${fimX}" y1="${mTop}" x2="${fimX}" y2="${mTop + alt}" class="apc-eixo"/>` +
-    `<text x="${fimX}" y="${mTop - 8}" class="apc-rot n peq">${esc(eixos[eixos.length - 1])}</text>`;
-  el.paineis.forEach(p => {
-    if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
-    const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b);
-    const y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
-    const trecho = `${p.de}-${p.ate}`, k = apcChave(p.marca, p.rua, trecho);
-    const feita = feitas.get(k), emp = apEst.frente.get(`CONTRAVENTAMENTO|${k}`);
-    const cls = feita ? 'feita' : emp ? 'sel' : 'pend';
-    const corMontado = feita?.empresa ? corSelEmp(feita.empresa) : '';
-    const tit = `${p.marca} · rua ${p.rua} · ${trecho}\n${p.kits} kit (${p.pecas} peças)` +
-      (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
-    s += `<g class="apc-p ${cls}" style="--m:${APC_COR[p.marca] || 'var(--fg3)'}${emp ? `;--sel:${corSelEmp(emp)}` : ''}${corMontado ? `;--sel:${corMontado}` : ''}"` +
-      ` ${feita ? '' : `data-ap-frente="${esc(k)}"`} data-ap-info="${esc(tit)}">` +
-      `<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" class="apc-fundo"/>` +
-      `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}"/>` +
-      `<title>${esc(tit)}</title></g>`;
-  });
-  if (temMalha) {
-    const m = (v) => nf(v / 1000, 1).replace(',0', '') + ' m';
-    s += `<text x="${mEsq}" y="${H - 4}" class="apc-rot peq" text-anchor="start">Galpão ${m(malha.comprimento_mm)} × ${m(malha.largura_mm)} · desenhado na malha do IFC</text>`;
+  }
+  for (const e of el.estacoes) {
+    const yy = y(estacaoMm(e));
+    s += linha(APC.mEsq, yy, fimX, yy, 'class="apc-est"');
+    s += `<text x="${APC.mEsq - 12}" y="${yy + 3}" class="apc-rot">${esc(e)}</text>`;
+  }
+  const alvos = [];
+  const porRua = new Map();
+  for (const p of paineis) {
+    const k = apcPainelChave(p), feita = feitas.get(k), emp = apEst.frente.get('CONTRAVENTAMENTO|' + k);
+    const parte = p.marca + '|' + p.de + '-' + p.ate;
+    const [a, b] = p.rua.split('-'), ini = eixoMm(a), fim = eixoMm(b);
+    const sub = malha.eixos_mm?.[a + 'a'] ?? ini + (fim - ini) * .4;
+    const meio = (ini + fim) / 2;
+    const ehPeca = Number.isFinite(p.x) && Number.isFinite(p.y);
+    const cor = feita || emp ? corSelEmp(feita?.empresa || emp)
+      : p.marca.startsWith('TP') ? 'var(--azul, #3379bc)' : p.marca === 'CTH06' ? 'var(--amarelo)' : 'var(--fg3)';
+    const traco = `stroke="${cor}" stroke-width="${feita || emp ? 2.2 : 1.15}" opacity="${feita || emp ? 1 : .7}" pointer-events="none"`;
+    let alvoX, alvoY, grupo;
+    if (ehPeca) {
+      const ehCth = p.marca === 'CTH06';
+      const lado = ehCth || p.x < sub;
+      const de = lado ? ini : sub, ate = lado ? sub : fim;
+      const inclinacao = (APC_INCLINACOES[p.rua]?.[parte] ?? 0) / 10000;
+      const cy = p.y + inclinacao * ((de + ate) / 2 - p.x);
+      const dy = inclinacao * (ate - de) / 2;
+      s += linha(x(de), y(cy - dy), x(ate), y(cy + dy), traco);
+      alvoX = x(ini + (fim - ini) * (ehCth ? .16 : lado ? .23 : .78));
+      alvoY = y(cy);
+      grupo = ehCth ? (p.de === 'EXT-A' ? 'ext-a' : 'ext-h') : lado ? 'tp-esq' : 'tp-dir';
+    } else {
+      if (!el.estacoes.includes(p.de) || !el.estacoes.includes(p.ate)) continue;
+      const [cy, slope] = APC_CRUZES[p.rua]?.[parte] ?? [(estacaoMm(p.de) + estacaoMm(p.ate)) / 2,
+        Math.abs(estacaoMm(p.ate) - estacaoMm(p.de)) * 10000 / (fim - ini)];
+      const dy = slope * (fim - ini) / 20000;
+      s += linha(x(ini), y(cy - dy), x(fim), y(cy + dy), traco);
+      s += linha(x(ini), y(cy + dy), x(fim), y(cy - dy), traco);
+      alvoX = x(meio);
+      alvoY = y(cy);
+      grupo = 'kit';
+    }
+    const chaveRua = p.rua + '|' + grupo;
+    if (!porRua.has(chaveRua)) porRua.set(chaveRua, []);
+    const alvo = { p, k, cor, feita, emp, x: alvoX, y: alvoY };
+    porRua.get(chaveRua).push(alvo);
+    alvos.push(alvo);
+  }
+  // Cada marca tem um alvo próprio. Quando os centros ficam próximos, desloca
+  // só os alvos e mantém os traços na posição do projeto.
+  for (const [grupo, itens] of porRua) {
+    itens.sort((a, b) => a.y - b.y);
+    const intervalo = 15;
+    if (grupo.includes('|ext-') && itens.length === 2) {
+      itens[1].x += intervalo;
+      continue;
+    }
+    const ys = itens.map(a => a.y);
+    for (let i = 1; i < itens.length; i++) itens[i].y = Math.max(ys[i], itens[i - 1].y + intervalo);
+    const desloc = itens.reduce((soma, a, i) => soma + a.y - ys[i], 0) / itens.length;
+    itens.forEach(a => { a.y -= desloc; });
+  }
+  for (const a of alvos) {
+    const { p, k, cor, feita, emp } = a;
+    const titulo = apcRotulo(p) + (feita ? ` · ${feita.empresa || ''} · ${fdA(feita.data)}` : '');
+    const attrs = feita ? '' : `data-ap-frente="${esc(k)}" role="button" tabindex="0" aria-pressed="${!!emp}" style="cursor:pointer"`;
+    const simbolo = p.marca.startsWith('TP') ? 'T' : p.marca === 'CTH06' ? 'C' : '×';
+    s += `<g ${attrs} aria-label="${esc(titulo)}" data-ap-info="${esc(titulo)}"><title>${esc(titulo)}</title><circle cx="${a.x}" cy="${a.y}" r="6.3" fill="${feita || emp ? cor : 'var(--bg, white)'}" stroke="${cor}" stroke-width="1.4" pointer-events="all"/><text x="${a.x}" y="${a.y + 3}" text-anchor="middle" font-size="9" fill="${feita || emp ? 'white' : 'var(--fg)'}" pointer-events="none">${simbolo}</text></g>`;
   }
   return s + '</svg>';
+}
+
+const apcFiltro = { marca: '', rua: '', situacao: 'todos' };
+const apcPainelChave = p => apcChave(p.marca, p.rua, `${p.de}-${p.ate}`);
+const apcRotulo = p => `${p.marca} · Rua ${p.rua} · ${p.de}-${p.ate}`;
+function apcVisiveis(paineis, feitas) {
+  return paineis.filter(p => (!apcFiltro.marca || p.marca === apcFiltro.marca)
+    && (!apcFiltro.rua || p.rua === apcFiltro.rua)
+    && (apcFiltro.situacao === 'todos' || feitas.has(apcPainelChave(p)) === (apcFiltro.situacao === 'montado')));
+}
+function apContravHtml(fr, feitas, legenda) {
+  const paineis = fr.elevacao.paineis;
+  const visiveis = apcVisiveis(paineis, feitas);
+  const pendentes = visiveis.filter(p => !feitas.has(apcPainelChave(p)));
+  const todosMarcados = pendentes.length && pendentes.every(p => apEst.frente.has('CONTRAVENTAMENTO|' + apcPainelChave(p)));
+  const filtro = (campo, rotulo, opcoes) => `<label class="rot-sel">${rotulo} <select data-apc-filtro="${campo}">${opcoes.map(([k, v]) => `<option value="${esc(k)}" ${apcFiltro[campo] === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`;
+  const opcoes = (chave, todos) => [['', todos], ...[...new Set(paineis.map(p => p[chave]))].sort().map(v => [v, v])];
+  const lista = visiveis.map(p => {
+    const k = apcPainelChave(p), feita = feitas.get(k), emp = apEst.frente.get('CONTRAVENTAMENTO|' + k);
+    return `<tr><td>${esc(p.marca)}</td><td>${esc(p.rua)}</td><td>${esc(p.de + '-' + p.ate)}</td><td>${feita ? esc(feita.empresa || '') + ' · ' + fdA(feita.data) : esc(emp || 'Pendente')}</td><td>${feita ? 'Montado' : `<button type="button" class="btn ${emp ? 'primario' : ''}" data-ap-frente="${esc(k)}" aria-label="${emp ? 'Desmarcar' : 'Selecionar'} ${esc(apcRotulo(p))}" aria-pressed="${!!emp}">${emp ? 'Desmarcar' : 'Selecionar'}</button>`}</td></tr>`;
+  }).join('');
+  return `<div class="ap-linha ap-mapa-barra">
+    ${filtro('marca', 'Marca', opcoes('marca', 'Todas'))}
+    ${filtro('rua', 'Rua', opcoes('rua', 'Todas'))}
+    ${filtro('situacao', 'Situação', [['todos', 'Todos'], ['pendente', 'Pendentes'], ['montado', 'Montados']])}
+    <button type="button" class="btn" id="apcMarcarVisiveis" ${pendentes.length ? '' : 'disabled'}>${todosMarcados ? 'Desmarcar filtrados' : 'Selecionar pendentes filtrados'} (${nf(pendentes.length)})</button>
+    <div class="seg">${[['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']].map(([k, v]) => `<button type="button" class="${apEst.zoom === k ? 'ativa' : ''}" data-ap-zoom="${k}">${v}</button>`).join('')}</div>
+    <span class="nota"><b>${nf(paineis.filter(p => feitas.has(apcPainelChave(p))).length)} de ${nf(paineis.length)}</b> montados · ${nf(visiveis.length)} no filtro</span>
+    <div class="ap-legenda"><span>T · TP</span><span>C · CTH06</span><span>X · kit CTH</span>${legenda}</div></div>
+    <div class="tabela-rolagem apm-caixa">${apContravSvg(visiveis, feitas)}</div>
+    <details id="apcLista"><summary>Selecionar pela lista (${nf(visiveis.length)})</summary><div class="tabela-rolagem" style="max-height:24rem;overflow:auto"><table><thead><tr><th>Marca</th><th>Rua</th><th>Trecho</th><th>Empresa / data</th><th>Ação</th></tr></thead><tbody>${lista || '<tr><td colspan="5">Nenhum item com esses filtros.</td></tr>'}</tbody></table></div></details>
+    <p class="nota">Cada kit CTH ou peça individual TP/CTH06 selecionada soma uma unidade em Contraventamento nos Lançamentos. A regularização só atualiza o mapa.</p>`;
+}
+function apcFeitas() {
+  return new Map((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
+    .map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
+}
+function apcRenderSelecao() {
+  const foco = document.activeElement?.closest('svg [data-ap-frente]')?.dataset.apFrente;
+  const aberto = $('#apcLista')?.open;
+  const rolagem = $('#apcLista .tabela-rolagem')?.scrollTop || 0;
+  const mapa = $('#aba-apont .apm-caixa'), x = mapa?.scrollLeft || 0, y = mapa?.scrollTop || 0;
+  renderApont();
+  const lista = $('#apcLista'), novoMapa = $('#aba-apont .apm-caixa');
+  if (lista && aberto) { lista.open = true; lista.querySelector('.tabela-rolagem').scrollTop = rolagem; }
+  if (novoMapa) { novoMapa.scrollLeft = x; novoMapa.scrollTop = y; }
+  if (foco && novoMapa) [...novoMapa.querySelectorAll('svg [data-ap-frente]')].find(el => el.dataset.apFrente === foco)?.focus({ preventScroll: true });
 }
 
 // ---- telhas da cobertura (Globo Aços): uma faixa vertical por telha, do eixo A (topo) ao H (base), 0,485 m de largura, do eixo 01 ao 20
@@ -4670,26 +4754,7 @@ function apFrenteHtml(ctx) {
     ? `<div class="seg" id="segApEtapa">${etapas.map(e => `<button data-ap-etapa="${esc(e)}" class="${e === etapa ? 'ativa' : ''}">${esc(cap(e.replace(/^MARQUISE – /, '')))}</button>`).join('')}</div>` : '';
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
-  if (apEst.modo === 'cont' && fr.elevacao) {
-    const el = fr.elevacao, kits = el.paineis;
-    const chaveDe = k => apcChave(k.marca, k.rua, `${k.de}-${k.ate}`);
-    const mont = kits.filter(k => feitas.has(chaveDe(k))).length;
-    const porMarca = {};
-    kits.forEach(k => { const o = porMarca[k.marca] ||= { n: 0, f: 0 }; o.n++; if (feitas.has(chaveDe(k))) o.f++; });
-    const legM = Object.entries(porMarca).sort().map(([m, o]) =>
-      `<span><i class="apm-leg" style="background:${APC_COR[m] || 'var(--fg3)'}"></i>${m} ${o.f}/${o.n}</span>`).join('');
-    const seg = (id, lista, atual, attr) => `<div class="seg" id="${id}">${lista.map(([k, r]) => `<button ${attr}="${k}" class="${k === atual ? 'ativa' : ''}">${r}</button>`).join('')}</div>`;
-    return `<div class="ap-linha ap-mapa-barra">
-      ${seg('segApZoom', [['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']], apEst.zoom, 'data-ap-zoom')}
-      <span class="nota"><b>${nf(mont)} de ${nf(kits.length)} kits</b> montados · ${nf(el.ruas.length)} de ${nf(((window._frentes || {}).malha || {}).ruas?.length || el.ruas.length)} ruas contraventadas</span>
-      <div class="ap-legenda">${legM}${leg('joist feita', 'montado')}${selLeg}</div></div>
-      <div class="tabela-rolagem apm-caixa">${apContravSvg()}</div>
-      <p class="nota">Planta do galpão inteiro, como no OF.198-MET-DM-001: eixos na horizontal, estações de letra de A (topo) a H (base).
-      As ruas contraventadas ficam destacadas (o número embaixo é a quantidade de kits da rua); as demais aparecem vazias, na proporção real.
-      Cada X é um kit de ${nf(el.pecas_por_kit)} diagonais cruzadas, com a marca do projeto: as ruas 1 e 19 levam CTH01 nas bordas e CTH02 ao
-      longo da rua; as ruas 4, 7, 9, 11, 13 e 16 levam CTH03 nas bordas, CTH04 no miolo e CTH05 na cumeeira. Clique no X para selecionar.
-      O contraventamento não tem coluna no controle de produção, então o apontamento serve de controle e não soma na produção.</p>`;
-  }
+  if (apEst.modo === 'cont' && fr.elevacao) return apContravHtml(fr, feitas, selLeg);
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${ehTF ? `${nf(nFeitas)} de ${nf(nTotal)} trechos · <b>${nf(telFeitas)} de ${nf(fr.total)} telhas</b> ≈ ${nf(telFeitas * m2TF, 1)} de ${nf(fr.total * m2TF, 1)} m² (${nf(fr.total ? telFeitas / fr.total * 100 : 0, 1)}%)` : `${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC`}</span>
     <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
@@ -4891,13 +4956,15 @@ function renderApont() {
 }
 
 // "Últimos apontamentos": filtros por empresa, tipo, produção, período e texto (valem para todo o histórico; a lista continua mostrando 40 até "Ver todos").
+const apHistSomaProducao = a => (a.lanca_producao || '').toUpperCase() === 'SIM'
+  && ((a.tipo || '').toUpperCase() !== 'CONTRAVENTAMENTO' || a.viga_id === 'producao:contraventamento');
 const apHistTipoRot = a => ({ FECHAMENTO: 'Fechamento', MARQUISE: 'Marquise', CONTRAVENTAMENTO: 'Contravent.', TELHA: 'Telha', PERFILAGEM: 'Perfilagem', TELHAFECH: 'Telha fech.', JOIST: 'Joist', VIGA: 'Viga' })[(a.tipo || '').toUpperCase()] || 'Viga';
 function apHistPassa(a) {
   const f = apEst.histFiltro;
   if (window.USUARIO_RESTRITO && normEmp(a.empresa) !== normEmp(window.USUARIO_RESTRITO)) return false;   // empresa só vê os próprios apontamentos na lista
   if (f.emp && a.empresa !== f.emp) return false;
   if (f.tipo && apHistTipoRot(a) !== f.tipo) return false;
-  if (f.prod && ((a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização') !== f.prod) return false;
+  if (f.prod && (apHistSomaProducao(a) ? 'soma' : 'regularização') !== f.prod) return false;
   if (f.ini && (!a.data || a.data < f.ini)) return false;
   if (f.fim && (!a.data || a.data > f.fim)) return false;
   if (f.q) {
@@ -4937,7 +5004,7 @@ function apHistRender(ctx, manterFiltros) {
       return `<tr class="${apEst.histSel.has(String(a.linha)) ? 'ap-hist-sel' : ''}"><td><input type="checkbox" data-ap-hist-sel="${a.linha}" ${apEst.histSel.has(String(a.linha)) ? 'checked' : ''} aria-label="Selecionar apontamento"></td><td>${fdA(a.data)}</td><td><span class="emp-tag" style="--c:${corEmp(a.empresa)}">${esc(a.empresa)}</span></td><td>${rotFrente || (joist ? 'Joist' : 'Viga')}</td>
         <td>${rotFrente ? `${esc(a.faixa)} · ${esc(a.rua)}${a.letra ? ' · ' + esc(cap(a.letra)) : ''}`
           : joist ? `Rua ${esc(a.rua)} · ${a.slot ? 'joist ' + a.slot + ' · ' : ''}faixa ${esc(a.faixa)} · apoio ${esc(a.letra)} (${esc(c.viga || '')})` : `${esc(a.viga_id)} · ${esc(AP_TIPO[c.evento_viga] || '')}`}</td>
-        <td class="n">${nf(a.qtd)}</td><td>${(a.lanca_producao || '').toUpperCase() === 'SIM' ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
+        <td class="n">${nf(a.qtd)}</td><td>${apHistSomaProducao(a) ? 'soma' : 'regularização'}</td><td class="sub">${esc(a.obs || '')}</td>
         <td><button class="link" data-ap-excluir="${a.linha}">Excluir</button></td></tr>`;
     }).join('') : `<tr><td colspan="9" class="vazio">${todasSemFiltro.length ? 'Nenhum apontamento com esses filtros.' : 'Nenhum apontamento ainda.'}</td></tr>`) + '</tbody>';
   apHistBarra(histTodas.length, hist.length);
@@ -4998,7 +5065,7 @@ async function salvarApontamento() {
   sel.vigas.forEach(v => {
     const k = `${v.eixo}|${v.emp}`;
     if (!porEixo.has(k)) porEixo.set(k, { tipo: 'VIGA', empresa: v.emp, eixo: v.eixo, letras: [] });
-    porEixo.get(k).letras.push(v.letra);
+porEixo.get(k).letras.push(v.letra);
   });
   const porFrente = new Map();
   sel.frente.forEach(f => {
@@ -5117,6 +5184,13 @@ async function baixarMapa() {
 
 function ligarApontamento() {
   const sec = document.getElementById('aba-apont');
+  sec.addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const alvo = ev.target.closest('.apc [data-ap-frente]');
+    if (!alvo) return;
+    ev.preventDefault();
+    alvo.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
   const regras = () => window._regras_baixa;
   sec.addEventListener('click', async ev => {
     const emp = ev.target.closest('[data-ap-emp]');
@@ -5153,11 +5227,24 @@ function ligarApontamento() {
       return renderApont();
     }
     if (ev.target.closest('[data-ap-telha]')) return;   // telhas são tratadas em mousedown/arraste
+    if (ev.target.id === 'apcMarcarVisiveis' && apFrenteAtual()?.elevacao) {
+      if (!apExigirEmpresa()) return;
+      const feitas = apcFeitas();
+      const chaves = apcVisiveis(apFrenteAtual().elevacao.paineis, feitas).map(apcPainelChave)
+        .filter(k => !feitas.has(k)).map(k => 'CONTRAVENTAMENTO|' + k);
+      const desmarcar = chaves.every(k => apEst.frente.has(k));
+      chaves.forEach(k => {
+        if (desmarcar) apEst.frente.delete(k);
+        else if (!apEst.frente.has(k)) apEst.frente.set(k, apEst.empresa);
+      });
+      return apcRenderSelecao();
+    }
     const cel = ev.target.closest('[data-ap-frente]');
     if (cel) {
       if (!apExigirEmpresa()) return;
       const k = `${AP_FRENTE[apEst.modo]}|${cel.dataset.apFrente}`;
       if (apEst.frente.get(k) === apEst.empresa) apEst.frente.delete(k); else apEst.frente.set(k, apEst.empresa);
+      if (apEst.modo === 'cont') return apcRenderSelecao();
       return renderApont();
     }
     const fase = ev.target.closest('[data-ap-fase]');
@@ -5222,6 +5309,8 @@ function ligarApontamento() {
       return;
     }
     if (id === 'apData') { if (ehISO(ev.target.value)) apEst.data = ev.target.value; return apAtualizarSelecao(false); }
+    const filtroCont = ev.target.dataset.apcFiltro;
+    if (filtroCont) { apcFiltro[filtroCont] = ev.target.value; return apcRenderSelecao(); }
     if (id === 'apRegular') { apEst.regular = ev.target.checked; return apAtualizarSelecao(false); }
     if (id === 'apEixo') { apEst.eixo = ev.target.value; apEst.sel = new Set(); return renderApont(); }
     const hf = { apHfEmp: 'emp', apHfTipo: 'tipo', apHfProd: 'prod', apHfIni: 'ini', apHfFim: 'fim' }[id];
@@ -6938,12 +7027,12 @@ function baixarRelImpactoCliente(ini, fim, valorHD) {
   reAbrirPrevia(html, `relatorio_impactos_cliente_${ini}_${fim}.html`, `Relatório de impactos do cliente · ${fdA(ini)} a ${fdA(fim)}`);
 }
 // Perfilagem, instalação de telhas e fechamento (telhas) da Globo são medidos em m² pelo catálogo do BM. O relatório usa o mesmo previsto e realizado
-// do Dashboard cliente e do Avanço físico (item do cronograma do cliente: contrato em m² ÷ dias úteis; realizado = maior entre lançamentos e BM).
+// do Dashboard cliente e do Avanço físico (item do cronograma do cliente: contrato em m² ÷ dias úteis; realizado = lançamentos de produção).
 function relItemCatalogoM2(serv) {
   const s = ganNorm(serv);
   const chave = s.includes('PERFILAG') || s.includes('PERFILAC') ? 'PERFILACAO' : ehTelhar(s) || s.includes('INSTALACAO DE TELHA') ? 'INSTALACAO DE TELHAS' : s === 'FECHAMENTO' || s.includes('FECHAMENTO LATERAL TELHA') ? 'FECHAMENTO' : null;
   if (!chave) return null;
-  const achado = (M.cliente || []).map(clienteComFontes).find(c => c.fonte_catalogo && !c.fonte_pct && c.qtd > 0 && (clienteFonte(c)?.chave || ganNorm(c.servico)) === chave);
+  const achado = (M.cliente || []).map(clienteComFontes).find(c => c.fonte_catalogo && c.qtd > 0 && (clienteFonte(c)?.chave || ganNorm(c.servico)) === chave);
   if (achado) return achado;
   // cadastro do cliente com outro nome (ex.: "PERFILAGEM DE TELHAS"): aplica a mesma fonte do catálogo, com as datas e a meta da própria linha
   const c0 = (M.cliente || []).find(c => faseItem(c.frente) === '1' && (chave === 'PERFILACAO' ? /PERFILAG|PERFILAC/.test(ganNorm(c.servico)) : (clienteFonte(c)?.chave || ganNorm(c.servico)).includes(chave)));

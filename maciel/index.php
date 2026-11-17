@@ -32,6 +32,8 @@ foreach (ui_catalogo() as $areaCat) {
         $html = preg_replace($padrao, '<div class="sidebar-grupo" hidden>$1', $html, 1);
     }
 }
+// Retorno fixo, independente das áreas ou abas liberadas para o usuário.
+$html = str_replace('<nav class="sidebar-nav" id="abas">', '<nav class="sidebar-nav" id="abas"><div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><button type="button" onclick="location.href=\'obras.php?lista=1&amp;todas=1\'">← Central de obras</button></div></div>', $html);
 $prefs = preferencias_usuario((int)$u['id']);
 $html = str_replace('<html lang="pt-BR">', '<html lang="' . h($prefs['idioma']) . '"' . tema_attr() . menu_attr() . ($prefs['tam_texto'] !== 'normal' ? ' data-texto="' . h($prefs['tam_texto']) . '"' : '') . '>', $html);
 $html = str_replace('<!--ICONES-->', icones_html(), $html);
@@ -58,20 +60,20 @@ $html = str_replace('src="cronograma_imp.js"', 'src="cronograma_imp.js?v=' . @fi
 $html = str_replace('src="contas_pagar.js"', 'src="contas_pagar.js?v=' . @filemtime(__DIR__ . '/contas_pagar.js') . '"', $html);
 $html = str_replace('src="vinculos.js"', 'src="vinculos.js?v=' . @filemtime(__DIR__ . '/vinculos.js') . '"', $html);
 $html = str_replace('src="toque.js"', 'src="toque.js?v=' . @filemtime(__DIR__ . '/toque.js') . '"', $html);
-foreach (['i18n.js', 'config.js', 'tutorial.js', 'modelo3d.js'] as $arqNovo) {
+foreach (['i18n.js', 'config.js', 'tutorial.js', 'tarefas_redmine.js', 'modelo3d.js'] as $arqNovo) {
     $html = str_replace('src="' . $arqNovo . '"', 'src="' . $arqNovo . '?v=' . @filemtime(__DIR__ . '/' . $arqNovo) . '"', $html);
 }
 $html = str_replace('src="projecao.js"', 'src="projecao.js?v=' . @filemtime(__DIR__ . '/projecao.js') . '"', $html);
 $primaria = cor_segura($obra['cor_primaria'] ?? '', global_ler('cor_primaria', '#d97706'));
 $secundaria = cor_segura($obra['cor_secundaria'] ?? '', global_ler('cor_secundaria', '#111827'));
 $oe = obra_empresa_info((int)$obra['id']);
-$contexto = '<div class="obra-contexto">' . ($u['perfil'] === 'admin' || !$oe ? '<a href="obras.php?todas=1">← Todas as obras</a>' : '') . '<span>' . h($obra['nome']) . '</span>' .
+$contexto = '<div class="obra-contexto">' . '<a href="obras.php?lista=1&amp;todas=1">← Central de obras</a>' . '<span>' . h($obra['nome']) . '</span>' .
     ($oe ? '<em class="obra-empresa-aviso" title="Esta obra é uma cópia só da ' . h($oe['empresa']) . '. O que você lança ou altera aqui não muda a obra principal.">Visão da empresa ' . h($oe['empresa']) . ' · dados independentes</em>' : '') .
     (usuario_admin_da_obra($u, (int)$obra['id']) ? '<a href="admin.php">Administrar obra</a>' : '') . '</div>';
 $html = str_replace('<body>', '<body style="--marca:' . h($primaria) . ';--marca2:' . h($secundaria) . '">' . $contexto, $html);
 $html = str_replace('<title>Obra 198 · Gestão de Obras</title>', '<title>' . h($obra['nome']) . ' · Gestão de Obras</title>', $html);
 $html = str_replace('<span class="marca-sigla">198</span>', !empty($obra['logo']) ? '<img class="marca-logo" src="' . h($obra['logo']) . '" alt="Logo">' : '<span class="marca-sigla">' . h(strtoupper(substr($obra['nome'], 0, 3))) . '</span>', $html);
-$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";window.UI_OCULTOS=" . json_encode($uiOcultos) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
+$html = str_replace('<script src="chart.umd.js"></script>', "<script>window.API_BASE='api.php?r=';window.CSRF_TOKEN=" . json_encode(token_csrf()) . ";window.IDIOMA=" . json_encode($prefs['idioma']) . ";window.OBRA_ATUAL=" . json_encode(['id'=>(int)$obra['id'],'nome'=>$obra['nome']], JSON_UNESCAPED_UNICODE) . ";window.EMPRESA_USUARIO=" . json_encode(usuario_identidade_empresa($u), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ";window.EMPRESAS_RELATORIO=" . json_encode(identidade_contexto_relatorio($u), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ";window.UI_OCULTOS=" . json_encode($uiOcultos) . ";</script>\n<script src=\"chart.umd.js\"></script>", $html);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 echo $html;

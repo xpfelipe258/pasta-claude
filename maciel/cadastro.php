@@ -6,6 +6,7 @@
 // Proteções: CSRF, campo-isca, tempo mínimo de preenchimento, limite por IP (3 por hora) e total por dia, e chave "Cadastro público aberto"
 // (Comercial › Regra) para fechar o cadastro quando quiser.
 require __DIR__ . '/inc/nucleo.php';
+require_once __DIR__ . '/inc/organizacao_estrutura.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 if (!config()) {
@@ -13,6 +14,7 @@ if (!config()) {
     exit;
 }
 iniciar_sessao();
+garantir_organizacao_estrutura();
 
 function cd_rs($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
 
@@ -75,12 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($e) {
                 throw new InvalidArgumentException(implode(' ', $e));
             }
+            $adminEstrutura = q_global('SELECT id, perfil FROM usuarios WHERE organizacao_id = ? AND admin_organizacao = 1', [$orgId])->fetch();
+            if (!$adminEstrutura) { throw new RuntimeException('Administrador da empresa não encontrado.'); }
+            org_estrutura_salvar($orgId, $_POST, $adminEstrutura, true);
             q_global('INSERT INTO auditoria_global (quando, usuario, acao, detalhe) VALUES (?, ?, ?, ?)', [
                 agora(), $v['admin_login'], 'cadastro_publico', json_encode(['org' => $orgId, 'nome' => $v['nome'], 'plano' => $v['plano_id'], 'ciclo' => $v['ciclo'], 'ip' => $ip], JSON_UNESCAPED_UNICODE)]);
-            require_once __DIR__ . '/inc/verificacao_email.php';
-            $novoUsuario = q_global('SELECT id FROM usuarios WHERE login = ?', [$v['admin_login']])->fetch();
-            if (!$novoUsuario) { throw new RuntimeException('Usuário criado não encontrado.'); }
-            $tokenVerificacao = verificacao_criar_token((int)$novoUsuario['id']);
             bd()->commit();
             try {   // a conta de teste já nasce com a obra de demonstração (Galpão Exemplo); falha aqui não desfaz o cadastro
                 demo_criar_obra((int)$novoUsuario['id'], (int)$orgId);
@@ -92,23 +93,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $plano = q_global('SELECT nome FROM planos_assinatura WHERE id = ?', [$v['plano_id']])->fetchColumn();
             $link = url_base_sistema() . '/login.php';
             try {
-                require_once __DIR__ . '/inc/cadastro_emails.php';
-                $dadosEmail = [
-                    'sistema' => $sistema, 'empresa' => $v['nome'], 'admin_nome' => $v['admin_nome'],
-                    'documento' => $v['documento'], 'telefone' => $v['telefone'], 'email' => $v['email'],
-                    'login' => $v['admin_login'], 'plano' => $plano, 'ciclo' => $v['ciclo'],
-                    'vencimento' => date('d/m/Y', strtotime($venc)), 'link' => $link,
-                    'link_verificacao' => url_base_sistema() . '/verificar_email.php?token=' . urlencode($tokenVerificacao),
-                    'link_admin' => url_base_sistema() . '/admin_planos.php',
-                ];
-                enviar_email_sistema($v['email'], 'Boas-vindas ao ' . $sistema . ' — confirme seu e-mail',
-                    cadastro_email_boas_vindas($dadosEmail), true);
+                enviar_email_sistema($v['email'], 'Bem-vindo ao ' . $sistema . ' — seu teste começou',
+                    "Olá, {$v['admin_nome']}.\n\nA empresa {$v['nome']} foi cadastrada no {$sistema} com o {$plano}.\nO período de teste vai até " . date('d/m/Y', strtotime($venc)) . ".\n\nSeu login de acesso: {$v['admin_login']}\nEntre em: {$link}\n\nPor lá você cria as obras e cadastra a equipe da empresa.");
                 foreach (q_global("SELECT email FROM usuarios WHERE perfil = 'admin' AND ativo = 1 AND email IS NOT NULL AND email <> ''")->fetchAll(PDO::FETCH_COLUMN) as $para) {
-                    enviar_email_sistema($para, 'Novo cliente cadastrado: ' . $v['nome'],
-                        cadastro_email_aviso_admin($dadosEmail), true);
+                    enviar_email_sistema($para, 'Novo cadastro de empresa: ' . $v['nome'],
+                        "Uma empresa se cadastrou pela tela de login.\n\nEmpresa: {$v['nome']}\nCNPJ: " . ($v['documento'] ?: '—') . "\nResponsável: {$v['admin_nome']} ({$v['email']})\nTelefone: " . ($v['telefone'] ?: '—') . "\nPlano: {$plano} · ciclo " . strtolower($v['ciclo']) . "\nTeste até: " . date('d/m/Y', strtotime($venc)) . "\n\nAcompanhe em Comercial (admin_planos.php).");
                 }
             } catch (Throwable $e) { /* sem e-mail configurado: segue */ }
-            header('Location: verificar_email.php?enviado=1');
+            // Entra direto (a menos que o sistema esteja em manutenção).
+            if (empty(manutencao_info()['ativo'])) {
+                $u = q_global('SELECT id, login FROM usuarios WHERE login = ?', [$v['admin_login']])->fetch();
+                if ($u && session_regenerate_id(true)) {
+                    $_SESSION['uid'] = (int)$u['id'];
+                    $_SESSION['ultimo'] = time();
+                    $_SESSION['obra_id'] = 0;
+                    $_SESSION['csrf'] = bin2hex(random_bytes(16));
+                    registrar_global('login', ['login' => $u['login'], 'origem' => 'cadastro']);
+                    header('Location: obras.php');
+                    exit;
+                }
+            }
+            header('Location: login.php');
             exit;
         }
     } catch (InvalidArgumentException $e) {
@@ -222,6 +227,7 @@ echo '<link rel="stylesheet" href="cadastro.css?v=' . (int)@filemtime(__DIR__ . 
       <?php if (!empty($erros['geral'])): ?><div class="cad-aviso erro" role="alert"><?= h($erros['geral']) ?></div><?php elseif ($erros): ?><div class="cad-aviso erro" role="alert">Confira os campos em vermelho e envie novamente.</div><?php endif; ?>
       <div class="cad-grade">
         <fieldset><legend>Empresa</legend>
+          <?php org_estrutura_campos(0, true); ?>
           <label class="<?= isset($erros['nome']) ? 'tem-erro' : '' ?>">Nome da empresa *<input name="nome" value="<?= h($v['nome']) ?>" maxlength="120" required autocomplete="organization"><?= $campoErro('nome') ?></label>
           <label>CNPJ <small>(opcional)</small><input name="documento" value="<?= h($v['documento']) ?>" maxlength="30" inputmode="numeric" placeholder="00.000.000/0000-00"></label>
           <label>Telefone <small>(opcional)</small><input name="telefone" value="<?= h($v['telefone']) ?>" maxlength="30" inputmode="tel" autocomplete="tel"></label>

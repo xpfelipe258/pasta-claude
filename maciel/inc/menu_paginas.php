@@ -21,7 +21,8 @@ function menu_paginas_html(array $eu, array $ocultos, $atual = '', $sesmt = '')
 {
     $pode = function ($m) use ($eu) { return usuario_pode_modulo($eu, $m); };
     $b = function ($aba, $txt) use ($ocultos) { return menu_pagina_botao($aba, $txt, $ocultos); };
-    $o = '<div class="sidebar-grupo sidebar-dashboard sidebar-tarefas"><div class="sidebar-itens aberto">' . $b('tarefas', 'Tarefas a fazer') . '</div></div>' . "\n";
+    $o = '<div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto"><button type="button" onclick="location.href=\'obras.php?lista=1&amp;todas=1\'">← Central de obras</button></div></div>';
+    $o .= '<div class="sidebar-grupo sidebar-dashboard sidebar-tarefas"><div class="sidebar-itens aberto">' . $b('tarefas', 'Tarefas a fazer') . '</div></div>' . "\n";
     if ($atual !== '') {
         $o .= '<div class="sidebar-grupo sidebar-dashboard"><div class="sidebar-itens aberto">' . $atual . '</div></div>' . "\n";
     }

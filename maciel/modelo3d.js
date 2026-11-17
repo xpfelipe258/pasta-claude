@@ -20,8 +20,31 @@ const M3D_ROT = { antes: 'Não iniciado', montando: 'Em montagem', feito: 'Concl
 const M3D_RC = ['#e7e5e4', '#cbd5e1', '#7dd3fc', '#facc15', '#86efac', '#15803d', '#dc2626'];
 const M3D_RR = ['Sem dado de carga', 'Na fábrica', 'A caminho', 'No canteiro · pronta para içar', 'Içada', 'Torqueada', 'Atrasada (não içada no prazo)'];
 const M3D_RCURTO = ['Sem dado de carga', 'Na fábrica', 'A caminho', 'No canteiro', 'Içada', 'Torqueada', 'Atrasada'];
-const M3 = { pronto: false, estado: null, modeloId: 0, grupos: [], d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
-  cores: 'orig', dia: '', antes: false, semPrazo: true, ocultos: new Set(), isolados: null, tocando: null, vel: 1, refVista: '', props: null, carregando: false };
+
+const M3D_CORES_CHAVE = 'obras.modelo3d.cores';
+function m3dLerCores() {
+  try {
+    const salvas = JSON.parse(localStorage.getItem(M3D_CORES_CHAVE)) || {};
+    return Object.fromEntries(Object.keys(M3D_ROT)
+      .filter(k => typeof salvas[k] === 'string' && /^#[0-9a-f]{6}$/i.test(salvas[k]))
+      .map(k => [k, salvas[k]]));
+  } catch {
+    return {};
+  }
+}
+let m3dCoresPersonalizadas = m3dLerCores();
+const m3dCor = situacao => m3dCoresPersonalizadas[situacao] || M3D_COR[situacao];
+
+function m3dSalvarCores() {
+  try {
+    localStorage.setItem(M3D_CORES_CHAVE, JSON.stringify(m3dCoresPersonalizadas));
+  } catch {
+    toast('As cores foram aplicadas nesta sessão. O navegador não permitiu guardar a preferência.', true);
+  }
+}
+
+const M3 = { juntos: false, corte: null, medindo: false, pontos: [], pronto: false, estado: null, modeloId: 0, grupos: [], filtroGrupos: new Set(), d: null, sel: new Set(), modo: 'conj', somar: false, caixa: false,
+  cores: 'orig', dia: '', antes: true, semPrazo: true, ocultos: new Set(), isolados: null, tocando: null, vel: 1, refVista: '', props: null, carregando: false };
 
 // ---------------------------------------------------------------- servidor
 async function m3dGet(q) {
@@ -72,7 +95,9 @@ function renderModelo3d() {
     m3dCarregarEstado();
     return;
   }
-  if (M3.refVista !== m3dHoje()) { M3.refVista = m3dHoje(); m3dPintar(); m3dListaGrupos(); }
+  M3.refVista = m3dHoje();
+  m3dPintar();
+  m3dListaGrupos();
   m3dRedimensionar();
 }
 function m3dHoje() { return (typeof ref === 'string' && ref) || hoje(); }
@@ -84,16 +109,30 @@ function m3dEsqueleto() {
     <button type="button" class="btn primario" id="m3dEnviar">+ Enviar IFC</button>
     <input type="file" id="m3dArq" accept=".ifc" hidden>
     <button type="button" class="btn perigo" id="m3dExcluirModelo" title="Excluir este modelo e os grupos dele">Excluir modelo</button>
+    <button type="button" class="btn" id="m3dJuntar" disabled>Juntar IFCs</button>
+    <span id="m3dTotalJuntos" class="nota" role="status"></span>
     <span class="m3d-esp"></span>
     <span class="m3d-demo-selo" id="m3dDemoSelo" hidden>Obra de demonstração · dados fictícios <button type="button" class="m3d-link" data-m3d="tour">ver o tour</button></span>
     <div class="seg" id="m3dModo" title="O que um clique seleciona"><button type="button" data-m="conj" class="ativa" title="A peça como é montada (viga, joist, terça…)">Peça montável</button><button type="button" data-m="peca" title="Cada componente da peça (chapa, perfil, parafuso…)">Componente</button></div>
     <div class="seg" id="m3dCores" title="O que as cores mostram"><button type="button" data-c="real" title="Situação de cada peça: carga e apontamento de campo">Situação real</button><button type="button" data-c="4d" title="Prazos das frentes de montagem">Planejado (4D)</button><button type="button" data-c="orig" class="ativa">Cores do projeto</button></div>
   </div>
   <div class="m3d-vitrine" id="m3dVitrine" hidden></div>
+  <dialog id="m3dDlgJuntar" aria-labelledby="m3dTituloJuntar">
+    <form id="m3dFormJuntar">
+      <h3 id="m3dTituloJuntar">Juntar IFCs</h3>
+      <p class="nota">Marque os modelos que quer abrir na mesma cena. Use IFCs com a mesma referência de coordenadas.</p>
+      <fieldset id="m3dListaJuntar" style="max-height:50vh;overflow:auto"><legend>Modelos da obra</legend></fieldset>
+      <div class="barra-acoes" style="margin-top:12px">
+        <button class="btn" type="button" id="m3dCancelaJuntar">Cancelar</button>
+        <button class="btn primario" type="submit" id="m3dConfirmaJuntar" disabled>Visualizar selecionados</button>
+      </div>
+    </form>
+  </dialog>
   <div class="m3d-area">
     <div class="m3d-col">
       <div class="m3d-vista" id="m3dVista">
         <canvas id="m3dCanvas"></canvas>
+        <canvas id="m3dCotas" aria-hidden="true" style="pointer-events:none"></canvas>
         <div class="m3d-caixa" id="m3dCaixaSel" hidden></div>
         <div class="m3d-aviso" id="m3dAviso"></div>
         <div class="m3d-ferr" id="m3dFerr">
@@ -102,6 +141,8 @@ function m3dEsqueleto() {
           <button type="button" class="m3d-fb" data-v="enq" title="Aproxima a câmera do que está selecionado">${M3D_ICO.enq}<span>Enquadrar seleção</span></button>
           <button type="button" class="m3d-fb" data-m3d="isolar" title="Mostra só o que está selecionado">${M3D_ICO.isolar}<span>Isolar</span></button>
           <button type="button" class="m3d-fb" data-m3d="mostrar" title="Volta a mostrar todas as peças">${M3D_ICO.tudo}<span>Mostrar tudo</span></button>
+          <button type="button" class="m3d-fb" id="m3dCortar" aria-expanded="false" aria-controls="m3dPainelCorte" disabled title="Plano de corte">✂<span>Corte</span></button>
+          <button type="button" class="m3d-fb" id="m3dMedir" aria-pressed="false" disabled title="Medir distância entre dois pontos">↔<span>Medir</span></button>
           <details class="m3d-mais"><summary class="m3d-fb" title="Mais ferramentas">${M3D_ICO.mais}<span class="m3d-sr">Mais ferramentas</span></summary>
             <div class="m3d-menu">
               <button type="button" data-v="frente">Vista de frente</button>
@@ -118,6 +159,17 @@ function m3dEsqueleto() {
       <div class="bloco m3d-tempo" id="m3dTempo"></div>
     </div>
     <aside class="m3d-painel">
+      <div class="bloco" id="m3dPainelCorte" hidden>
+        <h3>Plano de corte</h3>
+        <label class="m3d-campo">Eixo <select id="m3dEixoCorte"><option value="x">X</option><option value="y" selected>Y (altura)</option><option value="z">Z</option></select></label>
+        <label style="display:block;margin:8px 0">Posição <input type="range" id="m3dPosCorte" min="0" max="1000" value="500" style="width:100%"></label>
+        <button type="button" class="btn" id="m3dInverterCorte" aria-pressed="false">Inverter lado</button>
+      </div>
+      <div class="bloco" id="m3dPainelMedida" hidden>
+        <h3>Medição de distância</h3>
+        <p class="nota" id="m3dMedidaStatus" aria-live="polite"></p>
+        <button type="button" class="btn" id="m3dLimparMedida">Limpar medida</button>
+      </div>
       <div class="bloco" id="m3dSelBox"></div>
       <div class="bloco" id="m3dFiltroBox"></div>
       <div class="bloco" id="m3dGruposBox"></div>
@@ -141,6 +193,7 @@ async function m3dCarregarEstado(manterId) {
     m3dAviso(esc(e.message), true);
     return;
   }
+  $('#m3dJuntar').disabled = M3.estado.modelos.length < 2;
   const ms = M3.estado.modelos, sel = $('#m3dModelo');
   const docs = M3.estado.docs_ifc || [];
   sel.innerHTML = (ms.length ? ms.map(m => `<option value="${m.id}">${esc(m.nome)}</option>`).join('') : '<option value="">(nenhum modelo enviado)</option>') +
@@ -159,7 +212,7 @@ async function m3dCarregarEstado(manterId) {
       : '<b>Nenhum modelo 3D nesta obra.</b><br>A gestão da obra ainda não enviou o IFC.');
     m3dPaineis();
   }
-  $('#m3dExcluirModelo').disabled = !alvo;
+  $('#m3dExcluirModelo').disabled = !alvo || M3.juntos;
 }
 
 // ---------------------------------------------------------------- abrir e converter o modelo
@@ -167,30 +220,16 @@ async function m3dAbrirModelo(id, bufLocal) {
   if (M3.carregando) return;
   M3.carregando = true;
   M3.modeloId = id;
-  M3.sel.clear(); M3.ocultos.clear(); M3.isolados = null; M3.props = null; M3.grupos = [];
+  M3.juntos = false;
+  $('#m3dTotalJuntos').textContent = '';
+  $('#m3dExcluirModelo').disabled = false;
+  M3.sel.clear(); M3.ocultos.clear(); M3.isolados = null; M3.props = null; M3.grupos = []; M3.filtroGrupos.clear();
   m3dLimparCena();
   m3dPaineis();
   const mod = M3.estado.modelos.find(m => m.id === id);
   try {
-    let geo;
-    if (mod && mod.cache && !bufLocal) {
-      m3dAviso('<span class="m3d-gira"></span> Baixando o modelo…');
-      const r = await fetch(`${M3D_URL}?acao=cache&id=${id}&tipo=geo`);
-      if (!r.ok) throw new Error('Não consegui baixar o modelo convertido.');
-      geo = await m3dDescompactar(await r.arrayBuffer());
-    } else {
-      let ifc = bufLocal;
-      if (!ifc) {
-        m3dAviso('<span class="m3d-gira"></span> Baixando o IFC…');
-        const r = await fetch(`${M3D_URL}?acao=arquivo&id=${id}`);
-        if (!r.ok) throw new Error('Não consegui baixar o IFC deste modelo.');
-        ifc = await r.arrayBuffer();
-      }
-      const conv = await m3dConverter(ifc);
-      geo = conv.geo;
-      M3.props = JSON.parse(new TextDecoder().decode(conv.props));
-      if (m3dPodeEditar()) m3dGravarCache(id, conv);   // em segundo plano: as próximas aberturas não reconvertem
-    }
+    const { geo, props } = await m3dBaixarModelo(mod, bufLocal);
+    M3.props = props;
     m3dAviso('<span class="m3d-gira"></span> Montando a cena 3D…');
     await new Promise(r => setTimeout(r, 30));
     M3.d = m3dLerGeo(geo);
@@ -213,6 +252,144 @@ async function m3dAbrirModelo(id, bufLocal) {
   }
   M3.carregando = false;
   m3dPaineis();
+}
+
+
+async function m3dBaixarModelo(mod, ifc) {
+  if (mod.cache && !ifc) {
+    m3dAviso('<span class="m3d-gira"></span> Baixando o modelo…');
+    const r = await fetch(M3D_URL + '?acao=cache&id=' + mod.id + '&tipo=geo');
+    if (!r.ok) throw new Error('Não consegui baixar o modelo convertido.');
+    return { geo: await m3dDescompactar(await r.arrayBuffer()), props: null };
+  }
+  if (!ifc) {
+    m3dAviso('<span class="m3d-gira"></span> Baixando o IFC…');
+    const r = await fetch(M3D_URL + '?acao=arquivo&id=' + mod.id);
+    if (!r.ok) throw new Error('Não consegui baixar o IFC deste modelo.');
+    ifc = await r.arrayBuffer();
+  }
+  const conv = await m3dConverter(ifc);
+  if (m3dPodeEditar()) m3dGravarCache(mod.id, conv);
+  return { geo: conv.geo, props: JSON.parse(new TextDecoder().decode(conv.props)) };
+}
+
+function m3dCombinarDados(fontes, TH) {
+  const primeiro = fontes[0].dados;
+  const total = chave => fontes.reduce((n, f) => n + f.dados[chave], 0);
+  const a = Object.fromEntries(Object.entries(primeiro.a).map(([k, v]) =>
+    [k, new v.constructor(fontes.reduce((n, f) => n + f.dados.a[k].length, 0))]));
+  const e = Object.fromEntries(Object.keys(primeiro.e).map(k => [k, []]));
+  const offsets = Object.fromEntries(Object.keys(a).map(k => [k, 0]));
+  const s = [], raiz = new Int32Array(total('n')), guidPorModelo = new Map();
+  const cab = { n_unid: 0 };
+  let elementos = 0, geometrias = 0;
+  const origem = dados => {
+    const matriz = dados.cab.coord;
+    if (!Array.isArray(matriz) || matriz.length !== 16 || !matriz.every(Number.isFinite)) {
+      throw new Error('Um dos modelos precisa ser reconvertido para recuperar sua referência de coordenadas.');
+    }
+    return new TH.Matrix4().fromArray(matriz);
+  };
+  const referencia = origem(primeiro);
+  const instancia = new TH.Matrix4();
+  for (const { mod, dados } of fontes) {
+    const correcao = referencia.clone().multiply(origem(dados).invert());
+    const inicioMatrizes = offsets.imat;
+    for (const k of Object.keys(a)) {
+      a[k].set(dados.a[k], offsets[k]);
+      if (k === 'iel' || k === 'igeo') {
+        const ajuste = k === 'iel' ? elementos : geometrias;
+        for (let i = offsets[k]; i < offsets[k] + dados.a[k].length; i++) a[k][i] += ajuste;
+      }
+      offsets[k] += dados.a[k].length;
+    }
+    for (let i = inicioMatrizes; i < offsets.imat; i += 12) {
+      const m = a.imat;
+      instancia.set(m[i],m[i+3],m[i+6],m[i+9],m[i+1],m[i+4],m[i+7],m[i+10],m[i+2],m[i+5],m[i+8],m[i+11],0,0,0,1);
+      instancia.premultiply(correcao);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 3; r++) m[i+c*3+r] = instancia.elements[c*4+r];
+    }
+    const offsetTexto = s.length;
+    for (const texto of dados.s) s.push(texto);
+    for (let i = 0; i < dados.n; i++) {
+      for (const k of ['cls', 'nome', 'marca', 'fase', 'pav', 'pos']) if (e[k] && dados.e[k]) e[k].push(dados.e[k][i] + offsetTexto);
+      if (e.peso && dados.e.peso) e.peso.push(dados.e.peso[i] || 0);
+      e.xid.push(dados.e.xid[i]);
+      e.guid.push(dados.e.guid[i]);
+      e.pai.push(dados.e.pai[i] < 0 ? -1 : dados.e.pai[i] + elementos);
+      raiz[elementos + i] = dados.raiz[i] + elementos;
+    }
+    guidPorModelo.set(mod.id, new Map(Array.from(dados.guidDe, ([guid, i]) => [guid, i + elementos])));
+    cab.n_unid += dados.cab.n_unid;
+    elementos += dados.n;
+    geometrias += dados.a.gvert.length;
+  }
+  return { a, e, s, raiz, guidPorModelo, cab, n: elementos, nInst: total('nInst'), nGeo: total('nGeo') };
+}
+
+async function m3dAbrirJuntos(modelos) {
+  if (M3.carregando || modelos.length < 2) return;
+  M3.carregando = true;
+  M3.juntos = true;
+  M3.ap = null; M3.carga = null; M3._real = null;   // vista conjunta: sem apontamento de campo (cada modelo tem os seus)
+  if (M3.cores === 'real') M3.cores = 'orig';
+  M3.modeloId = 0;
+  M3.sel.clear(); M3.ocultos.clear(); M3.isolados = null; M3.props = null;
+  M3.grupos = []; M3.filtroGrupos.clear();
+  m3dLimparCena();
+  $('#m3dModelo').selectedIndex = -1;
+  $('#m3dExcluirModelo').disabled = true;
+  $('#m3dTotalJuntos').textContent = 'Abrindo ' + modelos.length + ' IFCs…';
+  m3dPaineis();
+  try {
+    const TH = M3.TH || (M3.TH = await import('./vendor/m3d/three.m3d.js?v=' + M3D_VER));
+    const fontes = [], grupos = [];
+    for (const mod of modelos) {
+      const { geo } = await m3dBaixarModelo(mod);
+      fontes.push({ mod, dados: m3dLerGeo(geo) });
+      const r = await m3dGet('acao=grupos&modelo=' + mod.id);
+      grupos.push(...r.grupos.map(g => ({ ...g, modeloVista: mod.id })));
+    }
+    m3dAviso('<span class="m3d-gira"></span> Montando a visualização conjunta…');
+    M3.d = m3dCombinarDados(fontes, TH);
+    fontes.length = 0;
+    await m3dMontarCena();
+    M3.grupos = grupos;
+    m3dIndexarGrupos();
+    m3dVistaPadrao('iso');
+    m3dPintar();
+    m3dAviso('');
+    $('#m3dTotalJuntos').textContent = modelos.length + ' IFCs na vista conjunta';
+  } catch (e) {
+    m3dLimparCena();
+    $('#m3dTotalJuntos').textContent = '';
+    m3dAviso('<b>Não foi possível abrir os modelos juntos.</b><br>' + esc(e.message), true);
+  } finally {
+    M3.carregando = false;
+    m3dPaineis();
+  }
+}
+
+function m3dLigarJuntar() {
+  const dlg = $('#m3dDlgJuntar'), lista = $('#m3dListaJuntar'), confirmar = $('#m3dConfirmaJuntar');
+  const marcados = () => [...lista.querySelectorAll('input:checked')].map(el => Number(el.value));
+  $('#m3dJuntar').addEventListener('click', () => {
+    if (M3.carregando) return;
+    lista.innerHTML = '<legend>Modelos da obra</legend>' + M3.estado.modelos.map(m =>
+      '<label style="display:block;padding:4px"><input type="checkbox" value="' + m.id + '"' +
+      (m.id === M3.modeloId ? ' checked' : '') + '> ' + esc(m.nome) + '</label>').join('');
+    confirmar.disabled = true;
+    dlg.showModal();
+  });
+  lista.addEventListener('change', () => { confirmar.disabled = marcados().length < 2; });
+  $('#m3dCancelaJuntar').addEventListener('click', () => dlg.close());
+  $('#m3dFormJuntar').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const ids = new Set(marcados());
+    if (ids.size < 2) return;
+    dlg.close();
+    m3dAbrirJuntos(M3.estado.modelos.filter(m => ids.has(m.id)));
+  });
 }
 
 function m3dConverter(ifc) {
@@ -271,6 +448,8 @@ function m3dLimparCena() {
   const T = M3.T;
   if (T && T.malha) { T.cena.remove(T.malha); T.malha.dispose(); T.malha = null; }
   M3.d = null;
+  M3.corte = null; M3.medindo = false; M3.pontos = [];
+  m3dAtualizarFerramentas();
   if (T) m3dDesenhar();
 }
 
@@ -280,6 +459,7 @@ async function m3dMontarCena() {
   if (!T) {
     const canvas = $('#m3dCanvas');
     const rend = new TH.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    rend.localClippingEnabled = true;
     rend.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const cena = new TH.Scene();
     const cam = new TH.PerspectiveCamera(45, 1, 0.1, 5000);
@@ -305,6 +485,7 @@ async function m3dMontarCena() {
   malha.sortObjects = false;
   // caixa de cada forma (no espaço dela) → centro e raio de cada instância no mundo: usados na caixa de seleção e no enquadramento
   const gCx = new Float32Array(nG * 4), gid = new Int32Array(nG);
+  const limitesFormas = [];
   let ov = 0, oi = 0;
   for (let g = 0; g < nG; g++) {
     const nv = a.gvert[g], ni = a.gidx[g];
@@ -320,6 +501,7 @@ async function m3dMontarCena() {
     geo.setAttribute('position', new TH.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new TH.BufferAttribute(a.nor.subarray(ov * 3, (ov + nv) * 3), 3, true));
     geo.setIndex(new TH.BufferAttribute(a.idx.subarray(oi, oi + ni), 1));
+    limitesFormas[g] = new TH.Box3(new TH.Vector3(x0, y0, z0), new TH.Vector3(x1, y1, z1));
     gid[g] = malha.addGeometry(geo);
     ov += nv; oi += ni;
     if (g % 400 === 399) await new Promise(r => setTimeout(r, 0));
@@ -327,6 +509,7 @@ async function m3dMontarCena() {
   const m4 = new TH.Matrix4(), v = new TH.Vector3(), cor = new TH.Color();
   const centro = new Float32Array(d.nInst * 4), base = new Float32Array(d.nInst * 3);
   const caixa = new TH.Box3();
+  const limitesCorte = new TH.Box3(), limiteInst = new TH.Box3();
   for (let i = 0; i < d.nInst; i++) {
     const t = a.imat, o = i * 12, g = a.igeo[i];
     m4.set(t[o], t[o + 3], t[o + 6], t[o + 9], t[o + 1], t[o + 4], t[o + 7], t[o + 10], t[o + 2], t[o + 5], t[o + 8], t[o + 11], 0, 0, 0, 1);
@@ -339,6 +522,7 @@ async function m3dMontarCena() {
     const esc3 = Math.cbrt(Math.abs(m4.determinant())) || 1;
     centro[i * 4] = v.x; centro[i * 4 + 1] = v.y; centro[i * 4 + 2] = v.z; centro[i * 4 + 3] = gCx[g * 4 + 3] * esc3;
     caixa.expandByPoint(v);
+    limitesCorte.union(limiteInst.copy(limitesFormas[g]).applyMatrix4(m4));
   }
   // instâncias de cada elemento e de cada conjunto (raiz), em listas compactas
   const nEl = d.n, cEl = new Uint32Array(nEl + 1), cRz = new Uint32Array(nEl + 1);
@@ -346,11 +530,12 @@ async function m3dMontarCena() {
   for (let i = 0; i < nEl; i++) { cEl[i + 1] += cEl[i]; cRz[i + 1] += cRz[i]; }
   const lEl = new Uint32Array(d.nInst), lRz = new Uint32Array(d.nInst), pE = cEl.slice(0, nEl), pR = cRz.slice(0, nEl);
   for (let i = 0; i < d.nInst; i++) { lEl[pE[a.iel[i]]++] = i; lRz[pR[d.raiz[a.iel[i]]]++] = i; }
-  Object.assign(d, { centro, base, caixa, cEl, lEl, cRz, lRz, iel: a.iel.slice() });
+  Object.assign(d, { centro, base, caixa, limitesCorte, cEl, lEl, cRz, lRz, iel: a.iel.slice() });
   d.a = null;   // solta a geometria crua: a placa de vídeo já tem a cópia
   d.grupoDeEl = new Int32Array(nEl).fill(-1);
   T.malha = malha;
   T.cena.add(malha);
+  m3dAtualizarFerramentas();
   m3dRedimensionar();
 }
 
@@ -369,7 +554,12 @@ function m3dDesenhar() {
   const T = M3.T;
   if (!T || T.pend) return;
   T.pend = true;
-  requestAnimationFrame(() => { T.pend = false; if ($('#m3dVista').clientWidth) T.rend.render(T.cena, T.cam); });
+  requestAnimationFrame(() => {
+    T.pend = false;
+    if (!$('#m3dVista').clientWidth) return;
+    T.rend.render(T.cena, T.cam);
+    m3dDesenharCota();
+  });
 }
 function m3dPlanos() {   // perto/longe acompanham a distância: evita "serrilhado de profundidade" em modelos grandes
   const T = M3.T, d = M3.d;
@@ -417,6 +607,143 @@ function m3dVistaPadrao(qual) {
   m3dDesenhar();
 }
 
+
+function m3dAtualizarFerramentas() {
+  const pronto = !!M3.T?.malha && !!M3.d?.limitesCorte;
+  $('#m3dCortar').disabled = !pronto;
+  $('#m3dMedir').disabled = !pronto;
+  $('#m3dCortar').classList.toggle('ativo', !!M3.corte);
+  $('#m3dCortar').setAttribute('aria-expanded', String(!!M3.corte));
+  $('#m3dPainelCorte').hidden = !M3.corte;
+  $('#m3dMedir').classList.toggle('ativo', M3.medindo);
+  $('#m3dMedir').setAttribute('aria-pressed', String(M3.medindo));
+  $('#m3dPainelMedida').hidden = !M3.medindo;
+  $('#m3dCanvas').style.cursor = M3.medindo ? 'crosshair' : '';
+  const [a, b] = M3.pontos;
+  $('#m3dMedidaStatus').textContent = b ? m3dDistancia(a, b) + ' · clique para iniciar outra medida.'
+    : a ? 'Clique no segundo ponto do modelo.' : 'Clique no primeiro ponto do modelo.';
+  $('#m3dLimparMedida').disabled = !a;
+}
+
+function m3dAplicarCorte() {
+  const T = M3.T, corte = M3.corte;
+  if (!T?.malha) return;
+  if (!corte) {
+    T.malha.material.clippingPlanes = null;
+  } else {
+    const eixo = $('#m3dEixoCorte').value;
+    const proporcao = Number($('#m3dPosCorte').value) / 1000;
+    const { min, max } = M3.d.limitesCorte;
+    const margem = Math.max(0.000001, (max[eixo] - min[eixo]) * 0.000001);
+    const posicao = min[eixo] - margem + (max[eixo] - min[eixo] + 2 * margem) * proporcao;
+    const sentido = corte.invertido ? -1 : 1;
+    corte.plano.normal.set(0, 0, 0);
+    corte.plano.normal[eixo] = sentido;
+    corte.plano.constant = -posicao * sentido;
+    T.malha.material.clippingPlanes = [corte.plano];
+  }
+  m3dDesenhar();
+}
+
+function m3dIntersecao(p) {
+  const T = M3.T, TH = M3.TH;
+  if (!T?.malha || !T.w || !T.h) return null;
+  T.cam.updateMatrixWorld();
+  T.raio.setFromCamera(new TH.Vector2(p[0] / T.w * 2 - 1, 1 - p[1] / T.h * 2), T.cam);
+  const plano = M3.corte?.plano;
+  return T.raio.intersectObject(T.malha, false).find(hit =>
+    T.malha.getVisibleAt(hit.batchId) && (!plano || (plano.normal.dot(hit.point) + plano.constant) >= -0.000001)
+  ) || null;
+}
+
+function m3dDistancia(a, b) {
+  const metros = a.distanceTo(b);
+  return metros < 1 ? nf(metros * 1000, 2) + ' mm' : nf(metros, 3) + ' m';
+}
+
+function m3dAlternarMedida(ativa) {
+  M3.medindo = ativa;
+  M3.pontos = [];
+  m3dAtualizarFerramentas();
+  m3dDesenhar();
+}
+
+function m3dMarcarMedida(p) {
+  const hit = m3dIntersecao(p);
+  if (!hit) {
+    toast('Clique em uma superfície visível do modelo.');
+    return;
+  }
+  if (M3.pontos.length === 2) M3.pontos = [];
+  M3.pontos.push(hit.point.clone());
+  m3dAtualizarFerramentas();
+  m3dDesenhar();
+}
+
+function m3dDesenharCota() {
+  const T = M3.T, canvas = $('#m3dCotas'), ctx = canvas.getContext('2d');
+  if (!ctx || !T.w || !T.h) return;
+  const escala = T.rend.getPixelRatio();
+  const w = Math.round(T.w * escala), h = Math.round(T.h * escala);
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  ctx.setTransform(escala, 0, 0, escala, 0, 0);
+  ctx.clearRect(0, 0, T.w, T.h);
+  const [a, b] = M3.pontos.map(p => {
+    const ndc = p.clone().project(T.cam);
+    return ndc.z < -1 || ndc.z > 1 ? null : [(ndc.x + 1) * T.w / 2, (1 - ndc.y) * T.h / 2];
+  });
+  if (a && b) {
+    ctx.beginPath();
+    ctx.moveTo(...a);
+    ctx.lineTo(...b);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = '#1d4ed8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    const x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2 - 10;
+    ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'center';
+    const texto = m3dDistancia(...M3.pontos), largura = ctx.measureText(texto).width + 14;
+    ctx.fillStyle = '#172554';
+    ctx.fillRect(x - largura / 2, y - 14, largura, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(texto, x, y);
+  }
+  for (const ponto of [a, b]) {
+    if (!ponto) continue;
+    ctx.beginPath();
+    ctx.arc(ponto[0], ponto[1], 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function m3dLigarFerramentas() {
+  const inverter = $('#m3dInverterCorte');
+  $('#m3dCortar').addEventListener('click', () => {
+    M3.corte = M3.corte ? null : { plano: { normal: new M3.TH.Vector3(), constant: 0 }, invertido: false };
+    inverter.setAttribute('aria-pressed', 'false');
+    m3dAtualizarFerramentas();
+    m3dAplicarCorte();
+  });
+  $('#m3dEixoCorte').addEventListener('change', m3dAplicarCorte);
+  $('#m3dPosCorte').addEventListener('input', m3dAplicarCorte);
+  inverter.addEventListener('click', () => {
+    if (!M3.corte) return;
+    M3.corte.invertido = !M3.corte.invertido;
+    inverter.setAttribute('aria-pressed', String(M3.corte.invertido));
+    m3dAplicarCorte();
+  });
+  $('#m3dMedir').addEventListener('click', () => m3dAlternarMedida(!M3.medindo));
+  $('#m3dLimparMedida').addEventListener('click', () => m3dAlternarMedida(true));
+}
+
 // ---------------------------------------------------------------- seleção (clique, Shift, caixa)
 function m3dEventosVista(canvas) {
   let ini = null, caixa = false;
@@ -425,7 +752,7 @@ function m3dEventosVista(canvas) {
   canvas.addEventListener('pointerdown', ev => {
     if (ev.button !== 0 || !M3.d) return;
     ini = local(ev);
-    caixa = ev.shiftKey || M3.caixa;
+    caixa = !M3.medindo && (ev.shiftKey || M3.caixa);
     if (caixa) {   // a caixa de seleção toma o arrasto: a câmera fica parada
       M3.T.ctrl.enabled = false;
       ev.stopImmediatePropagation();
@@ -449,22 +776,23 @@ function m3dEventosVista(canvas) {
     if (ev.type === 'pointercancel') return;
     const somar = ev.shiftKey || M3.somar, alternar = ev.ctrlKey || ev.metaKey;
     if (caixa && arrastou) m3dSelCaixa(a, p, somar || M3.caixa && M3.somar, alternar);
+    else if (!arrastou && M3.medindo) m3dMarcarMedida(p);
     else if (!arrastou) m3dSelClique(p, somar, alternar);
   };
   canvas.addEventListener('pointerup', fim);
   canvas.addEventListener('pointercancel', fim);
   vista.addEventListener('contextmenu', ev => ev.preventDefault());
   document.addEventListener('keydown', ev => {
-    if (ev.key !== 'Escape' || !M3.sel.size || $('#aba-m3d').hidden || document.querySelector('dialog[open]')) return;
+    if (ev.key !== 'Escape' || $('#aba-m3d').hidden || document.querySelector('dialog[open]')) return;
+    if (M3.medindo) { m3dAlternarMedida(false); return; }
+    if (!M3.sel.size) return;
     M3.sel.clear(); m3dPintar(); m3dPainelSel();
   });
 }
 
 function m3dSelClique(p, somar, alternar) {
-  const T = M3.T, TH = M3.TH;
-  T.raio.setFromCamera(new TH.Vector2(p[0] / T.w * 2 - 1, -(p[1] / T.h) * 2 + 1), T.cam);
-  const hits = T.raio.intersectObject(T.malha, false);
-  const item = hits.length ? m3dItemDeInst(hits[0].batchId) : -1;
+  const hit = m3dIntersecao(p);
+  const item = hit ? m3dItemDeInst(hit.batchId) : -1;
   if (item < 0) {
     if (somar || alternar) return;
     M3.sel.clear();
@@ -484,9 +812,11 @@ function m3dSelCaixa(a, b, somar, alternar) {   // tudo o que está visível e t
   const mp = new TH.Matrix4().multiplyMatrices(T.cam.projectionMatrix, T.cam.matrixWorldInverse).elements;
   if (!somar && !alternar) M3.sel.clear();
   const achados = new Set();
+  const plano = M3.corte?.plano, centro = plano ? new TH.Vector3() : null;
   for (let i = 0; i < d.nInst; i++) {
     if (!T.malha.getVisibleAt(i)) continue;
     const x = d.centro[i * 4], y = d.centro[i * 4 + 1], z = d.centro[i * 4 + 2];
+    if (plano && (plano.normal.dot(centro.set(x, y, z)) + plano.constant) < 0) continue;
     const w = mp[3] * x + mp[7] * y + mp[11] * z + mp[15];
     if (w <= 0) continue;
     const sx = ((mp[0] * x + mp[4] * y + mp[8] * z + mp[12]) / w + 1) / 2 * T.w, sy = (1 - (mp[1] * x + mp[5] * y + mp[9] * z + mp[13]) / w) / 2 * T.h;
@@ -505,7 +835,7 @@ function m3dIndexarGrupos() {
   d.grupoDeEl.fill(-1);
   M3.grupos.forEach((g, k) => {
     g.itens = [];
-    g.guids.forEach(gu => { const i = d.guidDe.get(gu); if (i !== undefined) { d.grupoDeEl[i] = k; g.itens.push(i); } });
+    g.guids.forEach(gu => { const i = (g.modeloVista ? d.guidPorModelo.get(g.modeloVista) : d.guidDe).get(gu); if (i !== undefined) { d.grupoDeEl[i] = k; g.itens.push(i); } });
   });
 }
 function m3dGrupoDeItem(item) {   // peça sem vínculo próprio segue o grupo do conjunto
@@ -533,34 +863,49 @@ function m3dSituacaoHoje(g) {
   return g.status === 'em_andamento' ? ['em_andamento', 'Em andamento'] : ['nao_iniciado', 'Não iniciada'];
 }
 
+function m3dPecasApontadas() {
+  return new Set(((typeof T !== 'undefined' && T?.apontamentos) || [])
+    .filter(a => a.tipo === 'PECA' && a.letra && a.data && a.data <= M3.dia)
+    .map(a => a.letra));
+}
+
 function m3dPintar() {
   const T = M3.T, d = M3.d;
   if (!T || !T.malha || !d) return;
   const TH = M3.TH, cores = {}, hj = m3dHoje(), q = { antes: 0, montando: 0, feito: 0, previsto: 0, atrasado: 0, sem: 0 };
-  Object.keys(M3D_COR).forEach(k => { cores[k] = new TH.Color(M3D_COR[k]); });
+  Object.keys(M3D_COR).forEach(k => { cores[k] = new TH.Color(m3dCor(k)); });
   const sit = M3.grupos.map(g => m3dSituacaoEm(g, M3.dia, hj));
+  const montadas = m3dPecasApontadas();
+  const destacandoGrupos = M3.filtroGrupos.size > 0;
+  const contexto = new TH.Color('#87929f');
   const c = new TH.Color(), sel = M3.sel, m4 = M3.cores === '4d', mr = M3.cores === 'real', contou = new Uint8Array(d.n);
   const R = m3dStatusReal(), rc = M3D_RC.map(x => new TH.Color(x));
   for (let i = 0; i < d.nInst; i++) {
     const el = d.iel[i], rz = d.raiz[el];
+    const grupo = m3dGrupoDeItem(el);
+    const fora = destacandoGrupos && !M3.filtroGrupos.has(M3.grupos[grupo]?.id);
+    const montada = montadas.has(d.e.guid[el]) || montadas.has(d.e.guid[rz]);
+    const situacao = montada ? 'feito' : (sit[grupo] || 'sem');
     let vis = true;
-    if (sel.has(el) || sel.has(rz)) {
+    if (fora) {
+      c.copy(contexto);
+    } else if (!montada && (sel.has(el) || sel.has(rz))) {
       c.copy(cores.sel);
     } else {
       if (M3.ocultos.has(el) || M3.ocultos.has(rz) || (M3.isolados && !M3.isolados.has(el) && !M3.isolados.has(rz))) vis = false;
       if (mr) {
         c.copy(rc[R.st[rz]]);
       } else if (m4) {
-        const g = d.grupoDeEl[el] >= 0 ? d.grupoDeEl[el] : d.grupoDeEl[rz], s = g >= 0 ? sit[g] : 'sem';
-        if (s === 'antes' && !M3.antes) vis = false;
-        if (s === 'sem' && !M3.semPrazo) vis = false;
+        const s = situacao;
+        if (!destacandoGrupos && s === 'antes' && !M3.antes) vis = false;
+        if (!destacandoGrupos && s === 'sem' && !M3.semPrazo) vis = false;
         c.copy(cores[s]);
       } else {
         c.setRGB(d.base[i * 3], d.base[i * 3 + 1], d.base[i * 3 + 2]);
       }
     }
-    if (m4 && !contou[rz]) { contou[rz] = 1; const g = d.grupoDeEl[el] >= 0 ? d.grupoDeEl[el] : d.grupoDeEl[rz]; q[g >= 0 ? sit[g] : 'sem']++; }
-    T.malha.setVisibleAt(i, vis);
+    if (m4 && !fora && !contou[el]) { contou[el] = 1; q[situacao]++; }
+    T.malha.setVisibleAt(i, destacandoGrupos || vis);
     T.malha.setColorAt(i, c);
   }
   M3.contagem = q;
@@ -818,7 +1163,7 @@ function m3dPainelSel() {
   if (!box) return;
   const d = M3.d;
   if (!d) { box.innerHTML = '<h3>Peça</h3><p class="nota">Abra um modelo para ver as peças.</p>'; return; }
-  const itens = [...M3.sel], n = itens.length, ed = m3dPodeEditar();
+  const itens = [...M3.sel], n = itens.length, ed = m3dPodeEditar() && !M3.juntos;
   if (!n) {
     box.innerHTML = `<h3>Peça</h3><p class="nota">Clique numa peça do modelo para ver etapa, frente, prazo e peso. Para várias: <b>Shift + clique</b> ou <b>Shift + arrastar</b>.</p>
       <p class="nota">${d.cab.n_unid.toLocaleString('pt-BR')} peças montáveis · ${m3dFmtPeso(m3dPesoTotal())}</p>`;
@@ -936,15 +1281,17 @@ function m3dListaGrupos() {
     const s = m3dSituacaoHoje(g), n = (g.itens || []).length;
     comPrazo += n;
     return `<li class="m3d-grupo" data-g="${g.id}">
+      <label class="m3d-g-chk" title="Destacar esta frente no modelo"><input type="checkbox" data-m3d-grupo="${g.id}" ${M3.filtroGrupos.has(g.id) ? 'checked' : ''}></label>
       <button type="button" class="m3d-g-nome" data-m3d="gsel" data-id="${g.id}" title="Selecionar as peças desta frente">${esc(g.nome)}</button>
       <span class="m3d-chip s-${s[0]}" title="${esc(s[1])}">${esc(s[1].split(' · ')[0])}</span>
       <small>${g.inicio ? fdA(g.inicio) + ' a ' + fdA(g.fim) : 'sem prazo — defina as datas'} · ${n.toLocaleString('pt-BR')} peças${g.empresa ? ' · ' + esc(g.empresa) : ''}${g.responsavel ? ' · ' + esc(g.responsavel) : ''}</small>
       ${g.atividade ? `<small>Atividade: ${esc(g.atividade)}</small>` : ''}
-      ${m3dPodeEditar() ? `<button type="button" class="btn m3d-g-ed" data-m3d="geditar" data-id="${g.id}">Editar</button>` : ''}
+      ${m3dPodeEditar() && !M3.juntos ? `<button type="button" class="btn m3d-g-ed" data-m3d="geditar" data-id="${g.id}">Editar</button>` : ''}
     </li>`;
   }).join('');
   box.innerHTML = `<h3>Frentes de montagem · ${M3.grupos.length}</h3>
     <p class="nota">${Math.min(comPrazo, tot).toLocaleString('pt-BR')} de ${tot.toLocaleString('pt-BR')} peças montáveis em alguma frente.</p>
+    <p class="nota">Marque as caixas para destacar frentes no modelo; clique no nome para selecionar as peças.</p>
     ${linhas ? `<ul class="m3d-grupos">${linhas}</ul>` : '<p class="nota">Nenhuma frente ainda. Selecione peças e clique em <b>Nova frente com a seleção</b>.</p>'}`;
 }
 
@@ -986,7 +1333,14 @@ function m3dTempo() {
     </div>
     <input type="range" id="m3dSlider" min="0" max="${total}" step="1" value="${diasEntre(lim[0], M3.dia)}" aria-label="Data da simulação">
     <div class="m3d-t-esc"><span>${fdA(lim[0])}</span><span>${fdA(lim[1])}</span></div>
-    <div class="m3d-legenda" id="m3dCont"></div>`;
+    <div class="m3d-legenda" id="m3dCont"></div>
+    <details>
+      <summary>Configurar cores da legenda</summary>
+      <div class="m3d-legenda">${Object.entries(M3D_ROT).map(([k, nome]) =>
+        `<label class="m3d-leg"><input type="color" data-m3d-cor="${k}" value="${m3dCor(k)}"> ${nome}</label>`).join('')}
+        <button type="button" class="btn" data-m3d-cor-padrao>Restaurar cores padrão</button>
+      </div>
+    </details>`;
   M3.lim = lim;
   m3dContagem();
 }
@@ -1003,7 +1357,7 @@ function m3dContagem() {
   if (M3.cores !== '4d') { c.innerHTML = '<span class="nota">Arraste a linha do tempo (ou clique em Simular) para ver a obra em cada data.</span>'; return; }
   const q = M3.contagem || {};
   c.innerHTML = ['montando', 'feito', 'previsto', 'atrasado', 'antes', 'sem'].map(k =>
-    `<span class="m3d-leg"><i style="background:${M3D_COR[k]}"></i>${M3D_ROT[k]}${k === 'antes' && !M3.antes ? ' (oculto)' : ''}: <b>${(q[k] || 0).toLocaleString('pt-BR')}</b></span>`).join('');
+    `<span class="m3d-leg"><i style="background:${m3dCor(k)}"></i>${M3D_ROT[k]}${k === 'antes' && !M3.antes && !M3.filtroGrupos.size ? ' (oculto)' : ''}: <b>${(q[k] || 0).toLocaleString('pt-BR')}</b></span>`).join('');
 }
 function m3dIrDia(dia) {
   M3.dia = dia;
@@ -1096,7 +1450,7 @@ function m3dAbrirGrupo(g) {
       const r = await m3dPost('grupo_salvar', corpo);
       dlg.close();
       toast(novo ? 'Frente criada: prazo definido para as peças selecionadas.' : 'Frente salva.');
-      await m3dRecarregarGrupos();
+      await m3dRecarregarGrupos(!!extra);
       return r;
     } catch (e) {
       toast(e.message, true);
@@ -1221,18 +1575,29 @@ function m3dGuidsSel() {
   M3.sel.forEach(i => { const g = d.e.guid[i]; if (g) { guids.push(g); rotulos[g] = m3dRotulo(i); } });
   return { guids, rotulos };
 }
-async function m3dRecarregarGrupos() {
-  const g = await m3dGet(`acao=grupos&modelo=${M3.modeloId}`);
+async function m3dRecarregarGrupos(mostrarNaSimulacao = false) {
+  const modeloId = M3.modeloId;
+  const g = await m3dGet(`acao=grupos&modelo=${modeloId}`);
+  if (modeloId !== M3.modeloId) return;
   M3.grupos = g.grupos;
+  const ids = new Set(M3.grupos.map(grupo => grupo.id));
+  for (const id of M3.filtroGrupos) if (!ids.has(id)) M3.filtroGrupos.delete(id);
   m3dIndexarGrupos();
+  if (mostrarNaSimulacao) {
+    M3.sel.clear();
+    M3.antes = true;
+  }
   if (M3.ap) m3dPrepararCarga();
-  m3dPintar();
   m3dPaineis();
+  if (mostrarNaSimulacao) m3dDefinirCores('4d');
+  else m3dPintar();
 }
 
 // ---------------------------------------------------------------- ações da tela
 function m3dLigar() {
   const corpo = $('#m3dCorpo');
+  m3dLigarFerramentas();
+  m3dLigarJuntar();
   $('#m3dModelo').addEventListener('change', async ev => {
     const v = ev.target.value;
     if (v.startsWith('doc:')) {
@@ -1276,6 +1641,15 @@ function m3dLigar() {
   });
   $('#m3dCores').addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) { m3dParar(); m3dDefinirCores(b.dataset.c); } });
   corpo.addEventListener('click', async ev => {
+    if (ev.target.closest('[data-m3d-cor-padrao]')) {
+      m3dCoresPersonalizadas = {};
+      m3dSalvarCores();
+      corpo.querySelectorAll('[data-m3d-cor]').forEach(campo => {
+        campo.value = m3dCor(campo.dataset.m3dCor);
+      });
+      m3dPintar();
+      return;
+    }
     const v = ev.target.closest('[data-v]');
     if (v) { m3dVistaPadrao(v.dataset.v); return; }
     if (ev.target.closest('#m3dBtnSomar')) { M3.somar = !M3.somar; $('#m3dBtnSomar').classList.toggle('ativo', M3.somar); return; }
@@ -1296,7 +1670,7 @@ function m3dLigar() {
     else if (ac === 'novo') m3dAbrirGrupo(null);
     else if (ac === 'fsel') m3dFiltrar(false);
     else if (ac === 'fsomar') m3dFiltrar(true);
-    else if (ac === 'gsel') { const g = M3.grupos.find(x => x.id === +b.dataset.id); if (g) { m3dSelGrupo(g); } }
+    else if (ac === 'gsel') { const g = M3.grupos.find(x => x.id === +b.dataset.id); if (g) m3dSelGrupo(g); }
     else if (ac === 'geditar') { const g = M3.grupos.find(x => x.id === +b.dataset.id); if (g) m3dAbrirGrupo(g); }
     else if (ac === 'soltar') {
       try { await m3dPost('soltar', { modelo_id: M3.modeloId, guids: m3dGuidsSel().guids }); toast('Peças tiradas da frente (sem prazo).'); await m3dRecarregarGrupos(); } catch (e) { toast(e.message, true); }
@@ -1311,6 +1685,16 @@ function m3dLigar() {
   });
   corpo.addEventListener('change', async ev => {
     const t = ev.target;
+    if (t.dataset.m3dGrupo) {
+      const id = Number(t.dataset.m3dGrupo);
+      if (t.checked) M3.filtroGrupos.add(id); else M3.filtroGrupos.delete(id);
+      M3.sel.clear();
+      M3.antes = true;
+      const antes = $('#m3dAntes');
+      if (antes) antes.checked = true;
+      m3dDefinirCores('4d');
+      return;
+    }
     if (t.id === 'm3dFTipo') { M3.filtroTipo = t.value; m3dPainelFiltro(); }
     else if (t.id === 'm3dFSem') M3.filtroSem = t.checked;
     else if (t.id === 'm3dVel') M3.vel = parseInt(t.value, 10) || 1;
@@ -1321,17 +1705,28 @@ function m3dLigar() {
       try {
         await m3dPost('grupo_salvar', Object.assign({}, g, { modelo_id: M3.modeloId, guids: undefined, itens: undefined, adicionar: s.guids, rotulos: s.rotulos }));
         toast(`${s.guids.length.toLocaleString('pt-BR')} peça(s) movidas para “${g.nome}”.`);
-        await m3dRecarregarGrupos();
+        await m3dRecarregarGrupos(true);
       } catch (e) { toast(e.message, true); }
     }
   });
   corpo.addEventListener('input', ev => {
+    const situacao = ev.target.dataset.m3dCor;
+    if (Object.hasOwn(M3D_ROT, situacao)) {
+      const cor = ev.target.value;
+      if (/^#[0-9a-f]{6}$/i.test(cor)) {
+        m3dCoresPersonalizadas[situacao] = cor;
+        m3dSalvarCores();
+        if (M3.cores === '4d') m3dPintar();
+        else m3dDefinirCores('4d');
+      }
+      return;
+    }
     if (ev.target.id !== 'm3dSlider' || !M3.lim) return;
     m3dParar();
     m3dIrDia(add(M3.lim[0], parseInt(ev.target.value, 10) || 0));
   });
 }
-function m3dSelGrupo(g) {   // seleciona os elementos do grupo no modo atual (conjunto inteiro ou as peças dele)
+function m3dSelGrupo(g) {   // seleciona as peças da frente no modo atual (peça montável inteira ou os componentes dela)
   const d = M3.d, itens = g.itens || [];
   M3.sel.clear();
   if (M3.modo === 'conj') {

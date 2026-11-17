@@ -49,7 +49,7 @@ try {
                 'arquivo' => obra_info()['nome'] . ' · sistema online',
                 'obra' => obra_ficha(),
                 'modificado' => sistema_ler('modificado', date('c')),
-                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'empresa_restrita' => usuario_empresa_restrita($usuario), 'papel' => usuario_papel($usuario), 'modulos_edicao' => modulos_edicao_usuario($usuario), 'modulos' => modulos_usuario($usuario)],
+                'usuario' => ['nome' => $usuario['nome'], 'perfil' => $usuario['perfil'], 'admin_obra' => usuario_admin_da_obra($usuario), 'empresa' => $usuario['empresa'], 'empresa_nome' => usuario_identidade_empresa($usuario)['empresa_nome'], 'empresa_restrita' => usuario_empresa_restrita($usuario), 'papel' => usuario_papel($usuario), 'modulos_edicao' => modulos_edicao_usuario($usuario), 'modulos' => modulos_usuario($usuario)],
                 'recursos' => ['importar_mensal' => false, 'exportar' => false, 'online' => true],
                 'modelo' => montar_modelo(),
             ]);
@@ -123,7 +123,7 @@ try {
             if ($via_token) {
                 responder_json(403, ['erro' => 'Não disponível por token de máquina.']);
             }
-            responder_json(200, ['dados' => identidade_mapa($usuario), 'obra_logo' => identidade_logo_da_obra()]);
+            responder_json(200, ['dados' => identidade_mapa($usuario), 'obra_logo' => identidade_logo_da_obra(), 'logos_relatorio' => identidade_logos_relatorio()]);
         }
         if ($rota === 'tarefas-msgs') {
             if ($via_token) {
@@ -234,7 +234,7 @@ try {
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','cronograma-importado'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
-        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro',
+        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao',
         'qualidade'=>'qualidade'
     ];
@@ -251,7 +251,7 @@ try {
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
-        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir',
+        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia',
         'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
@@ -312,11 +312,11 @@ function tarefas_listar(array $usuario)
     garantir_tarefas();
     $admin = ($usuario['perfil'] ?? '') === 'admin';
     $eu = (int)$usuario['id'];
-    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome,
+    $sql = 'SELECT t.*, r.nome AS responsavel_nome, c.nome AS criado_por_nome, ro.nome AS responsavel_empresa, co.nome AS criado_por_empresa,
         (SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS n_msgs, (SELECT MAX(m.id) FROM tarefas_msgs m WHERE m.tarefa_id = t.id) AS ult_msg_id,
         (SELECT m2.usuario_id FROM tarefas_msgs m2 WHERE m2.id = (SELECT MAX(m3.id) FROM tarefas_msgs m3 WHERE m3.tarefa_id = t.id)) AS ult_msg_usuario,
         (SELECT COUNT(*) FROM tarefas_msgs m4 WHERE m4.tarefa_id = t.id AND m4.usuario_id <> ? AND m4.id > COALESCE((SELECT l.ultimo_id FROM tarefas_lidas l WHERE l.usuario_id = ? AND l.tarefa_id = t.id), 0)) AS nao_lidas FROM tarefas t
-        LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por';
+        LEFT JOIN usuarios r ON r.id = t.responsavel_id LEFT JOIN usuarios c ON c.id = t.criado_por LEFT JOIN organizacoes ro ON ro.id=r.organizacao_id LEFT JOIN organizacoes co ON co.id=c.organizacao_id';
     $params = [$eu, $eu];
     if (!$admin) {
         $sql .= ' WHERE t.responsavel_id = ? OR t.criado_por = ?';
@@ -328,11 +328,13 @@ function tarefas_listar(array $usuario)
         foreach (['id', 'criado_por', 'responsavel_id', 'aviso_dias', 'n_msgs', 'ult_msg_id', 'ult_msg_usuario', 'nao_lidas'] as $k) {
             $l[$k] = (int)$l[$k];
         }
+        $l['responsavel_empresa'] = $l['responsavel_empresa'] ?: 'Sem empresa vinculada';
+        $l['criado_por_empresa'] = $l['criado_por_empresa'] ?: 'Sem empresa vinculada';
         $l['pessoal'] = $l['criado_por'] === $l['responsavel_id'];
         $l['pode_editar'] = $admin || $l['criado_por'] === $eu;
     }
     unset($l);
-    $mural = q_global('SELECT id, usuario_id FROM tarefas_msgs WHERE tarefa_id = 0 ORDER BY id DESC LIMIT 1')->fetch();
+    $mural = q_global('SELECT id, usuario_id FROM tarefas_msgs m WHERE tarefa_id = 0 AND '.mural_visibilidade_sql($usuario).' ORDER BY id DESC LIMIT 1')->fetch();
     return ['usuario_id' => $eu, 'admin' => $admin, 'rotula' => tarefa_usuario_rotula($usuario), 'usuarios' => tarefa_destinos($usuario), 'tarefas' => $linhas,
         'mural_ultimo' => $mural ? (int)$mural['id'] : 0, 'mural_ultimo_usuario' => $mural ? (int)$mural['usuario_id'] : 0,
         'mural_nao_lidas' => tarefa_nao_lidas_conversa($eu, 0)];
@@ -340,7 +342,7 @@ function tarefas_listar(array $usuario)
 
 function tarefa_nao_lidas_conversa($eu, $tarefaId)
 {
-    return (int)q_global('SELECT COUNT(*) FROM tarefas_msgs m WHERE m.tarefa_id = ? AND m.usuario_id <> ? AND m.id > COALESCE((SELECT l.ultimo_id FROM tarefas_lidas l WHERE l.usuario_id = ? AND l.tarefa_id = ?), 0)',
+    return (int)q_global('SELECT COUNT(*) FROM tarefas_msgs m WHERE '.mural_filtro_por_usuario_id($eu).' AND m.tarefa_id = ? AND m.usuario_id <> ? AND m.id > COALESCE((SELECT l.ultimo_id FROM tarefas_lidas l WHERE l.usuario_id = ? AND l.tarefa_id = ?), 0)',
         [(int)$tarefaId, (int)$eu, (int)$eu, (int)$tarefaId])->fetchColumn();
 }
 
@@ -363,14 +365,14 @@ function tarefas_chat_resumo(array $usuario, $todas = false)
         $lidas[(int)$l['tarefa_id']] = (int)$l['ultimo_id'];
     }
     $conv = [];
-    foreach (q_global('SELECT tarefa_id, COUNT(*) AS n, MAX(id) AS ult FROM tarefas_msgs GROUP BY tarefa_id')->fetchAll() as $g) {
+    foreach (q_global('SELECT tarefa_id, COUNT(*) AS n, MAX(id) AS ult FROM tarefas_msgs m WHERE '.mural_visibilidade_sql($usuario).' GROUP BY tarefa_id')->fetchAll() as $g) {
         $tid = (int)$g['tarefa_id'];
         if ($tid !== 0 && !isset($tarefas[$tid])) { continue; }
         $conv[$tid] = ['n' => (int)$g['n'], 'ult' => (int)$g['ult']];
     }
     $nao = [];
     foreach (q_global('SELECT m.tarefa_id, COUNT(*) AS n FROM tarefas_msgs m LEFT JOIN tarefas_lidas l ON l.tarefa_id = m.tarefa_id AND l.usuario_id = ?
-        WHERE m.usuario_id <> ? AND m.id > COALESCE(l.ultimo_id, 0) GROUP BY m.tarefa_id', [$eu, $eu])->fetchAll() as $g) {
+        WHERE '.mural_visibilidade_sql($usuario).' AND m.usuario_id <> ? AND m.id > COALESCE(l.ultimo_id, 0) GROUP BY m.tarefa_id', [$eu, $eu])->fetchAll() as $g) {
         $nao[(int)$g['tarefa_id']] = (int)$g['n'];
     }
     uasort($conv, function ($a, $b) { return $b['ult'] <=> $a['ult']; });
@@ -408,7 +410,7 @@ function acao_tarefas_chat(array $corpo, array $usuario)
     $eu = (int)$usuario['id'];
     if ((string)($corpo['acao'] ?? '') === 'lidas_tudo') {   // marca como lidas todas as conversas em que estou envolvido
         $sql = 'SELECT m.tarefa_id, MAX(m.id) AS ult FROM tarefas_msgs m LEFT JOIN tarefas t ON t.id = m.tarefa_id
-            WHERE m.tarefa_id = 0 OR t.criado_por = ? OR t.responsavel_id = ? GROUP BY m.tarefa_id';
+            WHERE '.mural_visibilidade_sql($usuario).' AND (m.tarefa_id = 0 OR t.criado_por = ? OR t.responsavel_id = ?) GROUP BY m.tarefa_id';
         foreach (q_global($sql, [$eu, $eu])->fetchAll() as $g) {
             tarefa_marcar_lida($eu, (int)$g['tarefa_id'], (int)$g['ult']);
         }
@@ -425,8 +427,8 @@ function tarefas_msgs_listar(array $usuario, $tarefaId)
     if (!tarefa_conversa_acesso($usuario, $tarefaId)) {
         throw new ErroValidacao('Você não participa desta tarefa.');
     }
-    $l = q_global('SELECT id, tarefa_id, usuario_id, autor, texto, arquivo_nome, arquivo_tipo, arquivo_tam, (arquivo IS NOT NULL) AS tem_arquivo, criado_em
-        FROM tarefas_msgs WHERE tarefa_id = ? ORDER BY id DESC LIMIT 300', [$tarefaId])->fetchAll();
+    $l = q_global('SELECT m.id,m.tarefa_id,m.usuario_id,m.autor,m.texto,m.arquivo_nome,m.arquivo_tipo,m.arquivo_tam,(m.arquivo IS NOT NULL) AS tem_arquivo,m.criado_em,m.organizacao_id,COALESCE(m.empresa_snapshot,o.nome) AS autor_empresa
+        FROM tarefas_msgs m LEFT JOIN usuarios u ON u.id=m.usuario_id LEFT JOIN organizacoes o ON o.id=u.organizacao_id WHERE '.mural_visibilidade_sql($usuario).' AND m.tarefa_id = ? ORDER BY m.id DESC LIMIT 300', [$tarefaId])->fetchAll();
     $admin = ($usuario['perfil'] ?? '') === 'admin';
     foreach ($l as &$m) {
         foreach (['id', 'tarefa_id', 'usuario_id', 'arquivo_tam'] as $k) {
@@ -440,7 +442,7 @@ function tarefas_msgs_listar(array $usuario, $tarefaId)
     if ($l) {   // quem abre a conversa leu até a última mensagem
         tarefa_marcar_lida((int)$usuario['id'], $tarefaId, max(array_map(function ($x) { return (int)$x['id']; }, $l)));
     }
-    return ['tarefa' => $tarefaId, 'mensagens' => array_reverse($l), 'usuario_id' => (int)$usuario['id']];
+    return ['tarefa' => $tarefaId, 'mensagens' => array_reverse($l), 'usuario_id' => (int)$usuario['id'], 'empresas_mural' => $tarefaId===0?mural_empresas_opcoes($usuario):[], 'mural_empresa_padrao' => usuario_identidade_empresa($usuario)['organizacao_id']];
 }
 
 function acao_tarefas_msgs(array $corpo, array $usuario)
@@ -457,8 +459,9 @@ function acao_tarefas_msgs(array $corpo, array $usuario)
         if ($texto === '' || mb_strlen($texto) > 4000) {
             throw new ErroValidacao('Escreva a mensagem (até 4.000 caracteres).');
         }
-        q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em) VALUES (?, ?, ?, ?, ?)',
-            [$tarefaId, (int)$usuario['id'], mb_substr((string)$usuario['nome'], 0, 100), $texto, tarefa_agora_brt()]);
+        try{$empresaMsg=mensagem_empresa_snapshot($usuario,$tarefaId,$corpo);}catch(InvalidArgumentException $e){throw new ErroValidacao($e->getMessage());}
+        q_global('INSERT INTO tarefas_msgs (tarefa_id, usuario_id, autor, texto, criado_em,organizacao_id,empresa_snapshot) VALUES (?, ?, ?, ?, ?,?,?)',
+            [$tarefaId,(int)$usuario['id'],mb_substr((string)$usuario['nome'],0,100),$texto,tarefa_agora_brt(),$empresaMsg['id'],$empresaMsg['nome']]);
         if ($tarefaId > 0) {   // conversa da tarefa avisa a outra ponta por e-mail; o mural (todos os usuários) não manda e-mail
             $tt = q_global('SELECT * FROM tarefas WHERE id = ?', [$tarefaId])->fetch();
             if ($tt) { $avisosMsg = tarefa_notificar($tt, $usuario, 'mensagem', ['Mensagem: ' . mb_substr($texto, 0, 600) . (mb_strlen($texto) > 600 ? '…' : '')]); }
@@ -492,7 +495,7 @@ function configuracoes_ler(array $usuario)
     $mods = modulos_usuario($usuario);
     $ult = q_global("SELECT quando FROM auditoria_global WHERE usuario = ? AND acao = 'senha_alterada' ORDER BY id DESC LIMIT 1", [$u['login']])->fetchColumn();
     return [
-        'nome' => $u['nome'], 'login' => $u['login'], 'perfil' => $u['perfil'], 'empresa' => $u['empresa'], 'email' => (string)($u['email'] ?? ''),
+        'nome' => $u['nome'], 'login' => $u['login'], 'perfil' => $u['perfil'], 'empresa' => usuario_identidade_empresa($u)['empresa_nome'], 'email' => (string)($u['email'] ?? ''),
         'idioma' => $pref['idioma'], 'tam_texto' => $pref['tam_texto'], 'email_tarefas' => $pref['email_tarefas'],
         'tema' => in_array((string)$u['tema'], TEMAS_VALIDOS, true) ? $u['tema'] : '',
         'menu' => ($u['menu_pos'] ?? '') === 'topo' ? 'topo' : 'lateral',
@@ -508,6 +511,18 @@ function configuracoes_ler(array $usuario)
 // Fica em config_global.identidade_empresas = { "EJ": { logo: "data:image/png;base64,…", cor: "#rrggbb", por, em } }.
 // Logo cadastrado na obra aberta (portal de obras › Editar dados da obra): vai no lado "Cliente" da capa dos relatórios, no lugar da Rótula.
 // Reduzido para até 480 × 160 px (quando o servidor tem GD) para não pesar em toda abertura; sem logo na obra devolve '' (a capa usa a Rótula).
+function identidade_logos_relatorio(): array
+{
+    $logos = [];
+    $campos = ['logo_relatorio_gestao' => 'gestao', 'logo_relatorio_cliente' => 'cliente'];
+    $linhas = q_global('SELECT chave, valor FROM obra_config WHERE obra_id = ? AND chave IN (?, ?)',
+        array_merge([obra_atual_id()], array_keys($campos)));
+    foreach ($linhas as $linha) {
+        $logos[$campos[$linha['chave']]] = identidade_normalizar_logo((string)$linha['valor']);
+    }
+    return $logos;
+}
+
 function identidade_logo_da_obra()
 {
     try {
@@ -515,6 +530,11 @@ function identidade_logo_da_obra()
     } catch (Throwable $e) {
         return '';
     }
+    return identidade_normalizar_logo($logo);
+}
+
+function identidade_normalizar_logo(string $logo): string
+{
     if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', $logo, $m)) { return ''; }
     if (function_exists('imagecreatefromstring') && function_exists('imagepng')) {
         $bin = base64_decode($m[2], true);
@@ -545,31 +565,18 @@ function identidade_chave($e)
 // Empresas cuja identidade o usuário pode editar: o administrador, todas; o editor de uma empresa, só a dele; leitura e Rótula sem empresa, nenhuma.
 function identidade_empresas_editaveis(array $u)
 {
-    if (($u['perfil'] ?? '') === 'admin') {
-        return array_values(array_unique(array_map('identidade_chave', q_global("SELECT DISTINCT nome FROM empresas WHERE nome <> ''")->fetchAll(PDO::FETCH_COLUMN))));
-    }
-    $e = identidade_chave($u['empresa'] ?? '');
-    return ($e !== '' && ($u['perfil'] ?? '') !== 'leitura' && !tarefa_usuario_rotula($u)) ? [$e] : [];
+    if(($u['perfil']??'')==='admin')return array_map('identidade_chave',q_global('SELECT nome FROM organizacoes ORDER BY nome')->fetchAll(PDO::FETCH_COLUMN));
+    $v=usuario_identidade_empresa($u);
+    return $v['vinculada'] && ($u['perfil']??'')!=='leitura'?[identidade_chave($v['empresa_nome'])]:[];
 }
-// O que o usuário precisa para montar relatórios: a Rótula (e o administrador) vê todas as empresas; usuário de empresa, só a dele.
 function identidade_mapa(array $u)
 {
-    $todas = identidade_todas();
-    $out = [];
-    $meu = identidade_chave($u['empresa'] ?? '');
-    foreach ($todas as $emp => $d) {
-        if (tarefa_usuario_rotula($u) || identidade_chave($emp) === $meu) {
-            $out[identidade_chave($emp)] = ['logo' => (string)($d['logo'] ?? ''), 'cor' => (string)($d['cor'] ?? ''), 'cor2' => (string)($d['cor2'] ?? '')];
-        }
+    $out=(array)identidade_contexto_relatorio($u);$legado=identidade_todas();
+    foreach($out as $chave=>&$d){
+        $ant=$legado[$chave]??($legado[identidade_chave($d['nome']??'')]??[]);
+        foreach(['logo','cor','cor2'] as $campo)if(($d[$campo]??'')==='' && !empty($ant[$campo]))$d[$campo]=$ant[$campo];
     }
-    // Identidade da empresa cliente (Configurações da Central): serve de padrão quando o relatório não é de uma empresa terceirizada com identidade própria
-    list($orgId) = usuario_organizacao_id($u);
-    if ($orgId) {
-        $o = organizacao_ler($orgId);
-        $d = cfg_identidade_ler($orgId);
-        if ($o && ($d['logo'] !== '' || $d['cor'] !== '' || $d['cor2'] !== '')) { $out['__ORG__'] = ['logo' => $d['logo'], 'cor' => $d['cor'], 'cor2' => $d['cor2'], 'nome' => mb_strtoupper((string)$o['nome'])]; }
-    }
-    return (object)$out;
+    unset($d);return (object)$out;
 }
 function acao_identidade(array $corpo, array $usuario)
 {
@@ -616,6 +623,11 @@ function acao_identidade(array $corpo, array $usuario)
         }
         registrar_global('identidade_salva', ['empresa' => $emp, 'por' => $usuario['login'] ?? '', 'logo' => $logo !== '', 'cor' => $cor, 'cor2' => $cor2]);
     }
+    $orgsIdent=[];foreach(q_global('SELECT id,nome FROM organizacoes')->fetchAll() as $o)if(identidade_chave($o['nome'])===$emp)$orgsIdent[]=(int)$o['id'];
+    if(count($orgsIdent)!==1)throw new ErroValidacao('Não foi possível identificar uma única empresa cadastrada. Revise o vínculo no painel administrativo.');
+    $porOrg=cfg_json_ler('identidade_organizacoes');$chaveOrg=(string)$orgsIdent[0];
+    if(isset($todas[$emp]))$porOrg[$chaveOrg]=$todas[$emp];else unset($porOrg[$chaveOrg]);
+    global_gravar('identidade_organizacoes',json_encode($porOrg,JSON_UNESCAPED_UNICODE));
     global_gravar('identidade_empresas', json_encode($todas, JSON_UNESCAPED_UNICODE));
     return ['ok' => true, 'identidade' => ['empresas' => identidade_empresas_editaveis($usuario), 'dados' => identidade_mapa($usuario)]];
 }
@@ -773,7 +785,7 @@ function acao_tarefas(array $corpo, array $usuario)
                     throw new ErroValidacao('Responsável inválido.');
                 }
                 if (!in_array($novo, array_column(tarefa_destinos($usuario), 'id'), true)) {
-                    throw new ErroValidacao('Você não pode enviar tarefa para este usuário: usuários de empresa só enviam para a própria empresa e para a Rótula.');
+                    throw new ErroValidacao('Você não pode enviar tarefa para este usuário. Confira o vínculo da sua empresa e os destinatários permitidos.');
                 }
             }
             $resp = $novo;
@@ -1320,19 +1332,19 @@ function qualidade_notificar(array $nc, $evento, array $autor)
 
 function acao_qualidade(array $corpo, array $usuario)
 {
-    return qualidade_na_obra(function () use ($corpo, $usuario) {
-        $r = acao_qualidade_exec($corpo, $usuario);
+    $minhaEmp = usuario_empresa_restrita($usuario);
+    return qualidade_na_obra(function () use ($corpo, $usuario, $minhaEmp) {
+        $r = acao_qualidade_exec($corpo, $usuario, $minhaEmp);
         qualidade_versao_subir();
         return $r;
     });
 }
 
-function acao_qualidade_exec(array $corpo, array $usuario)
+function acao_qualidade_exec(array $corpo, array $usuario, string $minhaEmp)
 {
     $acao = (string)($corpo['acao'] ?? 'salvar');
     $id = isset($corpo['id']) && $corpo['id'] !== null && $corpo['id'] !== '' ? (int)$corpo['id'] : null;
-    $minhaEmp = trim((string)($usuario['empresa'] ?? ''));
-    $admin = usuario_admin_da_obra($usuario);   // administrador do sistema ou da obra
+    $admin = usuario_admin_da_obra($usuario);   // administrador do sistema ou da obra principal
     $agoraBrt = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
     $hoje = $agoraBrt->format('Y-m-d');
     $carimbo = $agoraBrt->format('Y-m-d H:i:s');
@@ -1420,7 +1432,7 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         return ['id' => $id, 'codigo' => $atual['codigo']];
     }
 
-    if ($acao === 'responder') {   // a empresa (ou o administrador por ela) responde: texto + ao menos uma foto "depois"
+    if ($acao === 'responder') {   // a empresa (ou o administrador por ela) envia a resposta escrita; as fotos da correção são opcionais
         if ($minhaEmp === '' && !$admin) {
             throw new ErroValidacao('A resposta é dada pela empresa responsável.');
         }
@@ -1434,11 +1446,6 @@ function acao_qualidade_exec(array $corpo, array $usuario)
         $emp = $empResp();
         if ($multi && $respDe($emp)['respondida_em']) {
             throw new ErroValidacao('A empresa ' . $emp . ' já respondeu. Aguarde a validação ou a devolução do administrador.');
-        }
-        $fotosDepois = $multi ? (int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois' AND empresa = ?", [$id, $emp])->fetchColumn()
-            : (int)q("SELECT COUNT(*) FROM nc_fotos WHERE nc_id = ? AND tipo = 'depois'", [$id])->fetchColumn();
-        if ($fotosDepois < 1) {
-            throw new ErroValidacao('Anexe ao menos uma foto da correção ("depois"' . ($multi ? ' de ' . $emp : '') . ') antes de enviar a resposta.');
         }
         if (!$multi) {
             gravar_linha('nao_conformidades', $id, ['acao' => $resp, 'situacao' => 'respondida', 'respondida_em' => $carimbo, 'respondida_por' => (string)$usuario['nome']]);
@@ -1921,14 +1928,37 @@ function acao_bm_fechar(array $corpo)
     if (!data_valida((string)($corpo['fechado_em'] ?? ''))) {
         throw new ErroValidacao('Data de fechamento inválida.');
     }
-    q('INSERT INTO bm_fechamentos (empresa, bm, fechado_em, equip, comb, litros) VALUES (?, ?, ?, ?, ?, ?)',
-        [$emp, $n, $corpo['fechado_em'], round(numero($corpo['equip'] ?? 0) ?: 0, 2), round(numero($corpo['comb'] ?? 0) ?: 0, 2), numero($corpo['litros'] ?? 0) ?: 0]);
+    $competencia = $corpo['competencia'] ?? '';
+    if (!is_string($competencia) || !preg_match('/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/D', $competencia)) {
+        throw new ErroValidacao('Informe o mês de competência do fechamento.');
+    }
+    q('INSERT INTO bm_fechamentos (empresa, bm, fechado_em, competencia, equip, comb, litros) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$emp, $n, $corpo['fechado_em'], $competencia, round(numero($corpo['equip'] ?? 0) ?: 0, 2), round(numero($corpo['comb'] ?? 0) ?: 0, 2), numero($corpo['litros'] ?? 0) ?: 0]);
     foreach ($ativs as $a) {
         q('INSERT INTO bm_fech_atividades (empresa, bm, codigo, item, realizado, qtd, peso, valor_qpc, valor_rotula) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$emp, $n, $a['codigo'], $a['item'] ?? null, numero($a['realizado'] ?? 0) ?: 0, numero($a['qtd'] ?? null), numero($a['peso'] ?? null),
                 numero($a['valor_qpc'] ?? null), numero($a['valor_rotula'] ?? null)]);
     }
     return count($ativs) + 1;
+}
+
+function acao_bm_competencia(array $corpo, array $usuario)
+{
+    $empresa = (string)($corpo['empresa'] ?? '');
+    $bm = filter_var($corpo['bm'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $competencia = $corpo['competencia'] ?? '';
+    if (!is_string($competencia) || !preg_match('/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/D', $competencia)) {
+        throw new ErroValidacao('Informe um mês de referência válido.');
+    }
+    $restrita = usuario_empresa_restrita($usuario);
+    if ($restrita !== '' && $restrita !== $empresa) {
+        responder_json(403, ['erro' => 'Você só pode alterar BMs da sua empresa.']);
+    }
+    if (!$bm || !q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$empresa, $bm])->fetchColumn()) {
+        throw new ErroValidacao('Este BM não está fechado.');
+    }
+    return q('UPDATE bm_fechamentos SET competencia = ? WHERE empresa = ? AND bm = ?',
+        [$competencia, $empresa, $bm])->rowCount();
 }
 
 function acao_bm_reabrir(array $corpo)
@@ -3020,6 +3050,163 @@ function telhafech_m2_linha(array $r)
     return (float)($r['qtd'] ?? 1) * ((float)($t['m2_legado'] ?? 0) ?: telha_cfg('TELHAFECH')['m2']);
 }
 
+// Complemento da planta OF.198-MET-DM-001 R01. Os pontos representam as marcas na planta,
+// em milímetros na malha da G200. Os kits CTH01–05 conservam as chaves do histórico.
+function frente_contraventamento_g200(array $d)
+{
+    $el = $d['frentes']['contraventamento']['elevacao'] ?? null;
+    if (empty($el['paineis'])) {
+        return $d;
+    }
+    $fonte = (string)($d['fonte'] ?? '');
+    if (stripos($fonte, 'LSF-MET-EX-200-200') === false && !preg_match('/\\bG\\s*[- ]?200\\b/i', obra_info()['nome'])) {
+        return $d;
+    }
+    $pecas = json_decode(<<<'PLANTA'
+[
+["TP01","01-02","A","1",14225,3705],
+["TP05","01-02","A","1",3221,6080],
+["TP07","01-02","H","1",2617,171106],
+["TP03","01-02","H","1",12985,172829],
+["CTH06","02-03","EXT-A","1",25744,-4312],
+["CTH06","02-03","EXT-A","2",25209,-2358],
+["TP02","02-03","A","1",27824,4728],
+["TP01","02-03","A","1",38991,5669],
+["TP04","02-03","H","1",27481,170559],
+["TP03","02-03","H","1",38648,170618],
+["CTH06","02-03","EXT-H","1",25661,178472],
+["CTH06","02-03","EXT-H","2",25187,180630],
+["TP01","03-04","A","1",61407,5468],
+["TP03","03-04","H","1",61284,170450],
+["TP04","03-04","H","1",49995,170625],
+["CTH06","04-05","EXT-A","1",71269,-4033],
+["CTH06","04-05","EXT-A","2",70286,-2240],
+["TP02","04-05","A","1",72204,5423],
+["TP01","04-05","A","1",84173,5802],
+["TP04","04-05","H","1",72560,170763],
+["TP03","04-05","H","1",82649,171422],
+["CTH06","04-05","EXT-H","1",70485,178366],
+["CTH06","04-05","EXT-H","2",70087,180714],
+["CTH06","05-06","EXT-A","1",93939,-3905],
+["CTH06","05-06","EXT-A","2",92461,-2082],
+["TP02","05-06","A","1",94769,5463],
+["TP01","05-06","A","1",106471,5565],
+["TP03","05-06","H","1",105193,170983],
+["TP04","05-06","H","1",95590,171143],
+["CTH06","05-06","EXT-H","1",92640,178164],
+["CTH06","05-06","EXT-H","2",92675,180753],
+["TP02","06-07","A","1",117259,5519],
+["TP01","06-07","A","1",128970,5609],
+["TP03","06-07","H","1",128660,170555],
+["TP04","06-07","H","1",117619,170671],
+["CTH06","07-08","EXT-A","1",138503,-4219],
+["CTH06","07-08","EXT-A","2",137929,-2304],
+["TP02","07-08","A","1",139886,5275],
+["TP01","07-08","A","1",151385,5490],
+["TP03","07-08","H","1",152893,170959],
+["TP04","07-08","H","1",138587,171104],
+["CTH06","07-08","EXT-H","1",137970,178373],
+["CTH06","07-08","EXT-H","2",137760,180628],
+["TP02","08-09","A","1",163279,6348],
+["TP01","08-09","A","1",172995,6607],
+["TP03","08-09","H","1",173707,170494],
+["TP04","08-09","H","1",162559,170601],
+["TP02","09-10","A","1",185796,6391],
+["TP01","09-10","A","1",195439,6517],
+["TP04","09-10","H","1",185181,170733],
+["TP03","09-10","H","1",197132,171958],
+["CTH06","10-11","EXT-A","1",206029,-4199],
+["CTH06","10-11","EXT-A","2",205317,-2164],
+["TP02","10-11","A","1",207283,5515],
+["TP01","10-11","A","1",219399,5744],
+["TP03","10-11","H","1",220276,170976],
+["TP04","10-11","H","1",206281,171330],
+["CTH06","10-11","EXT-H","1",205441,178411],
+["CTH06","10-11","EXT-H","2",205225,180673],
+["TP02","11-12","A","1",230277,4855],
+["TP01","11-12","A","1",241295,5469],
+["TP04","11-12","H","1",229968,170553],
+["TP03","11-12","H","1",242014,171991],
+["CTH06","12-13","EXT-A","1",250503,-4488],
+["CTH06","12-13","EXT-A","2",249961,-2082],
+["TP02","12-13","A","1",252317,5335],
+["TP01","12-13","A","1",263962,5580],
+["TP03","12-13","H","1",263656,170598],
+["TP04","12-13","H","1",252517,170635],
+["CTH06","12-13","EXT-H","1",250619,178320],
+["CTH06","12-13","EXT-H","2",250331,180609],
+["CTH06","13-14","EXT-A","1",272862,-4766],
+["CTH06","13-14","EXT-A","2",272538,-2055],
+["TP02","13-14","A","1",274926,5196],
+["TP01","13-14","A","1",286665,5531],
+["TP04","13-14","H","1",273857,171412],
+["TP03","13-14","H","1",287138,171437],
+["CTH06","13-14","EXT-H","1",272782,178318],
+["CTH06","13-14","EXT-H","2",272656,180669],
+["CTH06","14-15","EXT-A","1",296051,-4294],
+["CTH06","14-15","EXT-A","2",295321,-2187],
+["TP02","14-15","A","1",297559,5054],
+["TP01","14-15","A","1",308984,5619],
+["TP03","14-15","H","1",308699,170520],
+["TP04","14-15","H","1",297571,170663],
+["CTH06","14-15","EXT-H","1",295547,178236],
+["CTH06","14-15","EXT-H","2",295333,180551],
+["TP02","15-16","A","1",319903,5148],
+["TP01","15-16","A","1",331384,5483],
+["TP03","15-16","H","1",331161,170644],
+["TP04","15-16","H","1",320145,170716],
+["CTH06","16-17","EXT-A","1",340448,-4518],
+["CTH06","16-17","EXT-A","2",340038,-2055],
+["TP02","16-17","A","1",342241,5411],
+["TP01","16-17","A","1",354206,5745],
+["TP04","16-17","H","1",341360,171368],
+["TP03","16-17","H","1",354629,171529],
+["CTH06","16-17","EXT-H","1",340681,178442],
+["CTH06","16-17","EXT-H","2",340251,180592],
+["TP02","17-18","A","1",365079,4879],
+["TP01","17-18","A","1",376350,5389],
+["TP03","17-18","H","1",375931,170768],
+["TP04","17-18","H","1",365201,170805],
+["CTH06","18-19","EXT-A","1",385923,-4181],
+["CTH06","18-19","EXT-A","2",385359,-2279],
+["TP02","18-19","A","1",387501,5107],
+["TP01","18-19","A","1",399019,5535],
+["TP03","18-19","H","1",398477,170658],
+["TP04","18-19","H","1",387802,170967],
+["CTH06","18-19","EXT-H","1",385883,178530],
+["CTH06","18-19","EXT-H","2",385305,180522],
+["TP02","19-20","A","1",409446,5938],
+["TP06","19-20","A","1",423765,6023],
+["TP08","19-20","H","1",419033,172898],
+["TP04","19-20","H","1",412129,173046]
+]
+PLANTA
+    , true);
+    $existentes = [];
+    foreach ($el['paineis'] as $p) {
+        $existentes[$p['marca'] . '|' . $p['rua'] . '|' . $p['de'] . '-' . $p['ate']] = true;
+    }
+    foreach ($pecas as list($marca, $rua, $de, $ate, $x, $y)) {
+        $chave = "$marca|$rua|$de-$ate";
+        if (!isset($existentes[$chave])) {
+            $el['paineis'][] = compact('marca', 'rua', 'de', 'ate', 'x', 'y') + ['kits' => 1, 'pecas' => 1];
+        }
+    }
+    $d['frentes']['contraventamento']['elevacao'] = $el;
+    return $d;
+}
+
+function contraventamento_servico($empresaId)
+{
+    $nome = q("SELECT nome FROM servicos WHERE empresa_id = ? AND UPPER(nome) = 'CONTRAVENTAMENTO' ORDER BY ordem, id LIMIT 1", [$empresaId])->fetchColumn();
+    if ($nome !== false) {
+        return $nome;
+    }
+    require_once __DIR__ . '/inc/empresas_obra.php';
+    eo_servico_criar((int)$empresaId, 'CONTRAVENTAMENTO');
+    return 'CONTRAVENTAMENTO';
+}
+
 function frentes_montagem()
 {
     $d = null;
@@ -3048,7 +3235,7 @@ function frentes_montagem()
     if (!empty($d['frentes']['fechamento'])) {   // regra do sistema: o mapa da estrutura do fechamento lateral NÃO leva telha (a telha é da Globo Aços, apontada em "Telhas de fechamento")
         $d['frentes']['fechamento'] = frente_fechamento_sem_telha($d['frentes']['fechamento']);
     }
-    return $d;
+    return frente_contraventamento_g200($d);
 }
 
 // Estrutura do fechamento lateral = só terças e espaçadores (os suportes de terça baixam junto com as terças, ver regras_baixa.json › estrutura_por_peca).
@@ -3403,6 +3590,10 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
 
 function acao_apontamento(array $corpo, array $usuario)
 {
+    // Serializa os apontamentos da mesma obra antes de verificar duplicidades.
+    if (bd()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        q_global('SELECT id FROM obras WHERE id = ? FOR UPDATE', [obra_atual_id()])->fetchColumn();
+    }
     $spec = tabelas_spec()['apontamentos'];
     $aps = linhas_tabela('apontamentos', $spec);
     $regras = carregar_regras_baixa() ?: [];
@@ -3467,7 +3658,8 @@ function acao_apontamento(array $corpo, array $usuario)
     foreach (($corpo['lote'] ?? [$corpo]) as $item) {
         $tipo = mb_strtoupper((string)($item['tipo'] ?? ''));
         $empNome = (string)($item['empresa'] ?? $corpo['empresa'] ?? '');
-        if ($empNome === '' || !q('SELECT id FROM empresas WHERE nome = ?', [$empNome])->fetch()) {
+        $empId = $empNome === '' ? false : q('SELECT id FROM empresas WHERE nome = ?', [$empNome])->fetchColumn();
+        if ($empId === false) {
             throw new ErroValidacao('Indique a empresa que montou.');
         }
         $base = ['data' => $data, 'empresa' => $empNome, 'lanca_producao' => $lanca ? 'SIM' : 'NÃO',
@@ -3482,7 +3674,19 @@ function acao_apontamento(array $corpo, array $usuario)
             if (!$doItem) {
                 continue;
             }
-            // Frentes externas (fechamento, marquise, contraventamento) sem separação de fase por ora.
+            if ($tipo === 'CONTRAVENTAMENTO') {
+                $servico = null;
+                if (!empty($usuario['empresa']) && $usuario['empresa'] !== $empNome) {
+                    throw new ErroValidacao('Seu usuário só pode apontar montagem da empresa ' . $usuario['empresa'] . '.');
+                }
+                if ($lanca) {
+                    $servico = contraventamento_servico($empId);
+                    foreach ($doItem as &$linhaCont) {
+                        $linhaCont['viga_id'] = 'producao:contraventamento';
+                    }
+                    unset($linhaCont);
+                }
+            }
         } elseif ($tipo === 'JOIST') {
             $rua = (string)($item['rua'] ?? '');
             if (!rua_valida($rua, $cfg['eixos'])) {
@@ -3657,7 +3861,12 @@ function apontamento_excluir(array $aps, array $corpo, array $cfg, array $usuari
                 $fechMov[$kf]['suportes'] = ($fechMov[$kf]['suportes'] ?? 0) - fechamento_tercas(frentes_montagem(), $r['faixa'] ?? '', $r['rua'] ?? '');
             }
             $frente = null;
-            if (isset(tipos_frente()[$t])) {
+            if ($t === 'CONTRAVENTAMENTO') {
+                if (($r['viga_id'] ?? '') !== 'producao:contraventamento') {
+                    continue;
+                }
+                $servico = 'CONTRAVENTAMENTO';
+            } elseif (isset(tipos_frente()[$t])) {
                 $fs = (frentes_montagem()['frentes'] ?? [])[tipos_frente()[$t]] ?? [];
                 $servico = $r['letra'] ?: ($fs['servico'] ?? null);
                 if (!$servico) {

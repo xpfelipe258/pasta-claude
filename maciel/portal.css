@@ -16,7 +16,7 @@ body:has(.login-premium), body:has(.portal-shell) {
   background: var(--portal-bg);
   color: var(--portal-text);
   font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  color-scheme: light;
+  color-scheme: inherit;
 }
 body:has(.login-premium) *, body:has(.portal-shell) * { box-sizing: border-box; }
 body:has(.login-premium) h1, body:has(.login-premium) h2,
@@ -172,12 +172,12 @@ body:has(.portal-shell) h3 { margin: 0; text-transform: none; letter-spacing: no
   background: rgba(255,255,255,.92);
   backdrop-filter: blur(18px);
 }
-.portal-brand img, .portal-brand > .brand-mark { width: 48px; height: 48px; flex-basis: 48px; box-shadow: none; background: #f2f4f7; }
+.portal-brand img, .portal-brand > .brand-mark { width: 48px; height: 48px; flex-basis: 48px; box-shadow: none; background:var(--portal-bg); }
 .portal-brand > div { display: flex; flex-direction: column; line-height: 1.25; }
-.portal-brand strong { color: #101828; font-size: 1rem; }
-.portal-brand small { margin-top: 3px; color: #98a2b3; font-size: .72rem; }
-.portal-user { display: flex; align-items: center; gap: 18px; color: #475467; font-size: .85rem; }
-.portal-user .btn { padding: 9px 15px; border-radius: 10px; text-decoration: none; background: #fff; }
+.portal-brand strong { color:var(--portal-text); font-size: 1rem; }
+.portal-brand small { margin-top: 3px; color:var(--portal-muted); font-size: .72rem; }
+.portal-user { display: flex; align-items: center; gap: 18px; color:var(--portal-text); font-size: .85rem; }
+.portal-user .btn { padding: 9px 15px; border-radius: 10px; text-decoration: none; background:var(--portal-card); }
 .portal-main {
   width: min(1420px, calc(100% - 40px)) !important;
   max-width: none !important;
@@ -224,50 +224,50 @@ body:has(.portal-shell) h3 { margin: 0; text-transform: none; letter-spacing: no
 .obra-card::before { content:""; position:absolute; inset:0 0 auto; height:4px; background:var(--obra-cor); }
 .obra-card:hover { transform: translateY(-4px); box-shadow: var(--portal-shadow); }
 .obra-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.obra-card-head img, .obra-avatar { width:54px; height:54px; display:grid; place-items:center; object-fit:contain; padding:7px; border-radius:15px; background:#f2f4f7; color:var(--obra-cor); font-weight:900; }
-.status { padding:6px 10px; border-radius:999px; background:#f2f4f7; color:#667085; font-size:.65rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.obra-card-head img, .obra-avatar { width:54px; height:54px; display:grid; place-items:center; object-fit:contain; padding:7px; border-radius:15px; background:var(--portal-bg); color:var(--obra-cor); font-weight:900; }
+.status { padding:6px 10px; border-radius:999px; background:var(--portal-bg); color:var(--portal-muted); font-size:.65rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .status.ativa { background:#ecfdf3; color:#027a48; }
-.status.arquivada { background:#f2f4f7; color:#667085; }
-.obra-card h2 { margin:20px 0 7px !important; color:#101828 !important; font-size:1.3rem !important; font-weight:760; letter-spacing:-.025em !important; }
-.obra-card > p { min-height:39px; margin:0; color:#667085; font-size:.85rem; line-height:1.5; }
+.status.arquivada { background:var(--portal-bg); color:var(--portal-muted); }
+.obra-card h2 { margin:20px 0 7px !important; color:var(--portal-text) !important; font-size:1.3rem !important; font-weight:760; letter-spacing:-.025em !important; }
+.obra-card > p { min-height:39px; margin:0; color:var(--portal-muted); font-size:.85rem; line-height:1.5; }
 .obra-meta { margin:17px 0 12px; display:flex; flex-wrap:wrap; gap:8px; }
-.obra-meta span { padding:6px 9px; border-radius:8px; background:#f8fafc; color:#667085; font-size:.72rem; }
+.obra-meta span { padding:6px 9px; border-radius:8px; background:var(--portal-bg); color:var(--portal-muted); font-size:.72rem; }
 .obra-insights { margin-bottom:12px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-.obra-insights span { min-width:0; padding:9px 5px; border-radius:9px; background:#f8fafc; color:#667085; font-size:.63rem; line-height:1.25; text-align:center; }
-.obra-insights b { display:block; margin-bottom:2px; color:#344054; font-size:.92rem; }
+.obra-insights span { min-width:0; padding:9px 5px; border-radius:9px; background:var(--portal-bg); color:var(--portal-muted); font-size:.63rem; line-height:1.25; text-align:center; }
+.obra-insights b { display:block; margin-bottom:2px; color:var(--portal-text); font-size:.92rem; }
 .obra-insights .tem-alerta { background:#fff7ed; color:#c2410c; }
 .obra-insights .tem-alerta b { color:#c2410c; }
-.ultima-atividade { min-height:18px; display:block; margin-bottom:15px; color:#98a2b3; font-size:.7rem; }
+.ultima-atividade { min-height:18px; display:block; margin-bottom:15px; color:var(--portal-muted); font-size:.7rem; }
 .obra-card form { margin:0; }
 .obra-card .largura { width:100%; min-height:43px; padding:0 15px; display:flex; align-items:center; justify-content:space-between; border:0; border-radius:11px; background:var(--obra-cor)!important; color:#fff; font-weight:750; }
 
 .portal-admin { padding-top:55px; border-top:1px solid #dfe3e8; }
 .section-title { margin-bottom:26px; }
-.section-title h2 { color:#101828!important; font-size:2rem!important; font-weight:760; letter-spacing:-.04em!important; }
+.section-title h2 { color:var(--portal-text)!important; font-size:2rem!important; font-weight:760; letter-spacing:-.04em!important; }
 .portal-columns { margin-bottom:22px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
-.portal-admin .bloco, .painel-form { margin:0; padding:27px; border:1px solid var(--portal-line); border-radius:18px; background:#fff; box-shadow:0 7px 25px rgba(16,24,40,.045); }
-.painel-form h3 { margin-bottom:5px!important; color:#101828!important; font-size:1.16rem!important; font-weight:750; }
-.painel-form > .nota, .painel-form > p.nota { margin:0 0 20px; color:#98a2b3; }
-.painel-form label { min-width:0; color:#475467; font-size:.78rem; font-weight:700; }
+.portal-admin .bloco, .painel-form { margin:0; padding:27px; border:1px solid var(--portal-line); border-radius:18px; background:var(--portal-card); box-shadow:0 7px 25px rgba(16,24,40,.045); }
+.painel-form h3 { margin-bottom:5px!important; color:var(--portal-text)!important; font-size:1.16rem!important; font-weight:750; }
+.painel-form > .nota, .painel-form > p.nota { margin:0 0 20px; color:var(--portal-muted); }
+.painel-form label { min-width:0; color:var(--portal-text); font-size:.78rem; font-weight:700; }
 .painel-form label > input:not([type=checkbox]):not([type=color]), .painel-form label > select {
-  width:100%; min-width:0; height:44px; margin-top:7px; padding:0 12px; border:1px solid #d0d5dd; border-radius:10px; background:#fff; color:#101828;
+  width:100%; min-width:0; height:44px; margin-top:7px; padding:0 12px; border:1px solid #d0d5dd; border-radius:10px; background:var(--portal-card); color:var(--portal-text);
 }
 .painel-form input[type=file] { height:auto!important; padding:10px!important; }
 .painel-form .campos { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; gap:14px!important; }
 .color-row { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:17px 0; }
 .color-row label { display:flex; align-items:center; gap:9px; }
-.color-row input[type=color] { width:46px; height:38px; padding:3px; border:1px solid #d0d5dd; border-radius:9px; background:#fff; }
+.color-row input[type=color] { width:46px; height:38px; padding:3px; border:1px solid #d0d5dd; border-radius:9px; background:var(--portal-card); }
 .painel-form .check { display:flex; align-items:center; gap:8px; margin:14px 0; font-weight:600; }
 .painel-form .btn { min-height:41px; padding:0 15px; border-radius:10px; }
 .painel-form .btn.primario { border-color:var(--portal-primary); background:var(--portal-primary); }
 .portal-admin > .painel-form { margin-top:22px; }
 .manage-grid { margin-top:17px; display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
 .manage-grid details, .user-access { padding:16px; border:1px solid var(--portal-line); border-radius:13px; background:#fbfcfd; }
-.manage-grid summary { display:flex; justify-content:space-between; gap:12px; color:#344054; cursor:pointer; }
-.manage-grid summary span { color:#98a2b3; font-size:.72rem; text-transform:uppercase; }
+.manage-grid summary { display:flex; justify-content:space-between; gap:12px; color:var(--portal-text); cursor:pointer; }
+.manage-grid summary span { color:var(--portal-muted); font-size:.72rem; text-transform:uppercase; }
 .manage-grid details form { margin-top:18px; }
 .user-access { display:flex; flex-direction:column; gap:5px; }
-.user-access small { color:#98a2b3; }
+.user-access small { color:var(--portal-muted); }
 .access-checks { display:flex; flex-wrap:wrap; gap:8px 14px; margin:12px 0; }
 .access-checks .check { margin:0; }
 
@@ -299,29 +299,29 @@ body:has(.portal-shell) h3 { margin: 0; text-transform: none; letter-spacing: no
 }
 
 /* Dados cadastrais da obra: lista no cartão e janela de edição */
-.obra-info { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:5px; font-size:.78rem; color:#344054; }
+.obra-info { margin:13px 0 0; padding:0; list-style:none; display:grid; gap:5px; font-size:.78rem; color:var(--portal-text); }
 .obra-info li { display:flex; gap:8px; align-items:baseline; }
-.obra-info b { flex:0 0 96px; color:#98a2b3; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.obra-info b { flex:0 0 96px; color:var(--portal-muted); font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
 .obra-info .falta { color:#b42318; font-style:normal; }
 .obra-card > .btn.ghost.largura { margin-top:9px; background:transparent!important; color:var(--obra-cor)!important; border:1px solid var(--obra-cor); justify-content:center; }
 .obra-dialog { width:min(760px,calc(100vw - 24px)); max-height:92vh; padding:0; border:0; border-radius:18px; box-shadow:0 24px 70px rgba(16,24,40,.35); overflow:auto; }
 .obra-dialog::backdrop { background:rgba(16,24,40,.55); }
 .obra-dialog .painel-form { border:0; box-shadow:none; }
 .obra-grupo { margin:0 0 16px; padding:14px 16px 16px; border:1px solid var(--portal-line); border-radius:12px; }
-.obra-grupo legend { padding:0 6px; color:#344054; font-size:.8rem; font-weight:750; }
-.obra-grupo legend small { color:#98a2b3; font-weight:600; }
+.obra-grupo legend { padding:0 6px; color:var(--portal-text); font-size:.8rem; font-weight:750; }
+.obra-grupo legend small { color:var(--portal-muted); font-weight:600; }
 .obra-grupo textarea { width:100%; margin-top:5px; padding:9px 11px; border:1px solid var(--portal-line); border-radius:10px; font:inherit; resize:vertical; }
-.obra-dialog-acoes { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; position:sticky; bottom:0; padding:10px 0; background:#fff; }
+.obra-dialog-acoes { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; position:sticky; bottom:0; padding:10px 0; background:var(--portal-card); }
 @media (max-width:640px){ .painel-form .campos { grid-template-columns:1fr!important; } }
 
 /* Botões legíveis em qualquer aparelho (inclusive iPhone no modo escuro): fundo claro e texto escuro; o principal, texto branco. */
-body:has(.login-premium) .btn, body:has(.portal-shell) .btn { background: #fff; color: var(--portal-text); border-color: #d0d5dd; }
+body:has(.login-premium) .btn, body:has(.portal-shell) .btn { background:var(--portal-card); color: var(--portal-text); border-color: #d0d5dd; }
 body:has(.login-premium) .btn.primario, body:has(.portal-shell) .btn.primario { background: var(--portal-primary); border-color: var(--portal-primary); color: #fff; }
 body:has(.portal-shell) .btn.perigo { color: #b42318; border-color: #fda29b; }
-body:has(.portal-shell) .btn:disabled { color: #98a2b3; background: #f2f4f7; }
+body:has(.portal-shell) .btn:disabled { color:var(--portal-muted); background:var(--portal-bg); }
 /* Contraste: texto branco sobre laranja mais escuro (≥ 4,5:1) e botões secundários em texto escuro, nunca laranja claro */
 body:has(.login-premium) .btn.primario, body:has(.portal-shell) .btn.primario { background: color-mix(in srgb, var(--portal-primary) 76%, #000); border-color: color-mix(in srgb, var(--portal-primary) 76%, #000); color: #fff; }
-body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d0d5dd; background: #fff; }
+body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d0d5dd; background:var(--portal-card); }
 @media (max-width: 640px) {
   .portal-topo { height:auto; min-height:70px; padding:8px 12px; flex-wrap:wrap; gap:8px; }
   .portal-user { flex-wrap:wrap; gap:8px; justify-content:flex-end; }
@@ -333,9 +333,17 @@ body:has(.portal-shell) .btn.ghost { color: var(--portal-text); border-color: #d
 
 /* Abas Entrar | Cadastro da tela de login */
 .login-abas { display: inline-flex; padding: 4px; margin-bottom: 26px; border-radius: 999px; background: #e9edf2; }
-.login-abas a { padding: 9px 24px; border-radius: 999px; color: #344054; font-weight: 700; font-size: .9rem; text-decoration: none; }
-.login-abas a.ativa { background: #fff; color: #101828; box-shadow: 0 2px 8px rgba(16,24,40,.12); }
+.login-abas a { padding: 9px 24px; border-radius: 999px; color:var(--portal-text); font-weight: 700; font-size: .9rem; text-decoration: none; }
+.login-abas a.ativa { background:var(--portal-card); color:var(--portal-text); box-shadow: 0 2px 8px rgba(16,24,40,.12); }
 .login-abas a:not(.ativa):hover { color: var(--portal-primary); }
 
 /* obra de demonstração (Galpão Exemplo) na Central de obras */
 .demo-card { border: 2px dashed #d97706 !important; align-self: start; }
+/* A Central usa o mesmo tema pessoal do Dashboard e de Tarefas. */
+:root[data-portal-theme] {
+  --portal-bg:var(--bg); --portal-card:var(--card); --portal-text:var(--fg);
+  --portal-muted:var(--fg2); --portal-line:var(--linha); --portal-shadow:var(--sombra);
+}
+:root[data-portal-theme] .portal-shell :is(input,select,textarea,dialog) {background:var(--campo);color:var(--fg);border-color:var(--linha-forte);}
+:root[data-portal-theme] .portal-shell :is(.dp-kpi,.dp-obra,.dp-tabela-box,.ce-bloco,.ce-card,.ce-num) {background:var(--portal-card);color:var(--portal-text);}
+:root[data-portal-theme] .portal-shell :is(.dp-data input,.obra-dialog-acoes) {background:var(--portal-card);color:var(--portal-text);}

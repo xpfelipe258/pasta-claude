@@ -117,7 +117,7 @@ function tabelas_spec()
         'bm_apontamentos' => ['data' => 'data', 'empresa' => 'txt', 'codigo' => 'txt', 'quantidade' => 'num', 'obs' => 'txt'],
         'bm_deducoes' => ['empresa' => 'txt', 'bm' => 'num', 'data' => 'data', 'tipo' => 'txt', 'descricao' => 'txt',
             'valor' => 'num', 'contrato' => 'txt', 'percentual' => 'num'],
-        'bm_fechamentos' => ['empresa' => 'txt', 'bm' => 'num', 'fechado_em' => 'data', 'equip' => 'num', 'comb' => 'num',
+        'bm_fechamentos' => ['empresa' => 'txt', 'bm' => 'num', 'fechado_em' => 'data', 'competencia' => 'txt', 'equip' => 'num', 'comb' => 'num',
             'litros' => 'num', 'obs' => 'txt'],
         'bm_fech_atividades' => ['empresa' => 'txt', 'bm' => 'num', 'codigo' => 'txt', 'item' => 'txt', 'realizado' => 'num',
             'qtd' => 'num', 'peso' => 'num', 'valor_qpc' => 'num', 'valor_rotula' => 'num'],
@@ -150,7 +150,7 @@ function tabelas_spec()
 
 // 14: impactos.setor (setor responsável) e usuarios.tema (tema de cada usuário). A versão precisa subir para o criar_esquema() rodar em bancos já instalados.
 // 15: o serviço "TELHAR" passa a se chamar "Instalação de telhas" (nome do catálogo do BM, GLO-3.2.1-02) em todos os cadastros.
-const ESQUEMA_VERSAO = 36;   // 36: modelo 3D / 4D (modelos_3d, m3d_grupos, m3d_elementos, m3d_apontamentos; arquivos em dados_obras/{obra}/modelo3d, servidos por modelo3d.php); 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
+const ESQUEMA_VERSAO = 37;   // 37: modelo 3D / 4D (m3d_apontamentos é criada por garantir_modelo3d); 34: usuarios_obras.nivel (administrador, editor ou leitor DAQUELA obra) e obras.criador_id (o criador é sempre o administrador da obra); 33: usuarios.papel (admin_geral, admin_empresa, editor_empresa, editor_sistema); 32: não conformidade com mais de uma empresa (tabela nc_respostas e nc_fotos.empresa); 31: equipamento_docs (anexos do cadastro de equipamentos: ART, laudos, planos de manutenção e de rigging; arquivos em dados_obras/{obra}/equipamentos, servidos por equip_doc.php); 30: planos por EMPRESA (organizacoes, organizacoes_pagamentos; planos_assinatura com nível, preço mensal/anual, limite de usuários e áreas; usuarios.organizacao_id/admin_organizacao e obras.organizacao_id); 29: tabelas contas_pagar, contas_pagar_baixas (Financeiro › Contas a pagar) e planos_assinatura, assinaturas, assinaturas_pagamentos (planos e limite de obras por usuário); 28: usuarios_obras.admin_obra (quem cria uma obra é o administrador DELA, sem acesso total ao sistema); 27: bm_periodos.sinal_perc (% de sinal de contrato de cada BM, em Períodos e deduções); 26: Qualidade com resposta da empresa e validação (situações aberta/respondida/concluida; nc_fotos.tipo antes/depois); 25: tabelas nao_conformidades e nc_fotos (área Qualidade); 24: rdo_dias.clima_manha e clima_tarde (clima do RDO por período); 23: tarefas_msgs (conversa e arquivos da aba Tarefas); 22: obras.origem_obra_id e obras.empresa_vinculada (obra própria da empresa)
 const NOME_INSTALACAO_TELHAS = 'Instalação de telhas';
 
 // Instalações antigas ganham as tabelas novas (ex.: medição BM) sem precisar reinstalar.
@@ -280,23 +280,13 @@ function tarefa_conversa_acesso(array $u, $tarefaId)
 // usuário de empresa só envia para a própria empresa e para a Rótula, nunca para outra empresa terceira.
 function tarefa_usuario_rotula(array $u)
 {
-    $e = trim((string)($u['empresa'] ?? ''));
-    return ($u['perfil'] ?? '') === 'admin' || $e === '' || preg_match('/^R[OÓ]TULA$/u', mb_strtoupper($e)) === 1;
+    if(($u['perfil']??'')==='admin')return true;
+    $v=usuario_identidade_empresa($u);
+    return $v['vinculada'] && identidade_tem_estrutura() && q_global('SELECT tipo FROM organizacao_estrutura WHERE organizacao_id=?',[$v['organizacao_id']])->fetchColumn()==='GERENCIADORA';
 }
 function tarefa_destinos(array $u)
 {
-    $eu = (int)$u['id'];
-    $minha = mb_strtoupper(trim((string)($u['empresa'] ?? '')));
-    $rotula = tarefa_usuario_rotula($u);
-    $out = [];
-    foreach (q_global('SELECT id, nome, empresa, perfil FROM usuarios WHERE ativo = 1 ORDER BY nome')->fetchAll() as $d) {
-        $id = (int)$d['id'];
-        if ($id !== $eu && !$rotula && !tarefa_usuario_rotula($d) && mb_strtoupper(trim((string)$d['empresa'])) !== $minha) {
-            continue;
-        }
-        $out[] = ['id' => $id, 'nome' => $d['nome'], 'empresa' => $d['empresa'] ?: null, 'grupo' => tarefa_usuario_rotula($d) ? 'RÓTULA' : trim((string)$d['empresa'])];
-    }
-    return $out;
+    return tarefa_destinos_por_empresa($u);
 }
 // Marca a conversa como lida (até a última mensagem dela) para o usuário; nunca volta para trás.
 function tarefa_marcar_lida($uid, $tarefaId, $ultimoId)
@@ -432,6 +422,10 @@ function garantir_tarefas()
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
     bd()->exec(tarefas_msgs_sql($driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY',
         $driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT', $driver === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4' : ''));
+    foreach(['organizacao_id'=>'INT NULL','empresa_snapshot'=>'VARCHAR(120) NULL'] as $col=>$def){
+        try{bd()->query("SELECT $col FROM tarefas_msgs LIMIT 1")->fetchAll();}
+        catch(Throwable $e){bd()->exec("ALTER TABLE tarefas_msgs ADD COLUMN $col $def");}
+    }
     $ok = true;
 }
 
@@ -611,17 +605,6 @@ function garantir_autenticacao_estendida(PDO $pdo, $driver)
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
     if (!in_array('email', colunas_tabela($pdo, $driver, 'usuarios'), true)) {
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN email VARCHAR(150) NULL");
-    }
-    foreach ([
-        'email_verificacao_pendente' => 'INT NOT NULL DEFAULT 0',
-        'email_verificado_em' => 'VARCHAR(19) NULL',
-        'email_verificacao_hash' => 'VARCHAR(64) NULL',
-        'email_verificacao_expira_em' => 'VARCHAR(19) NULL',
-        'email_verificacao_enviado_em' => 'VARCHAR(19) NULL',
-    ] as $coluna => $tipo) {
-        if (!in_array($coluna, colunas_tabela($pdo, $driver, 'usuarios'), true)) {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN $coluna $tipo");
-        }
     }
     if (!in_array('tema', colunas_tabela($pdo, $driver, 'usuarios'), true)) {   // tema visual de cada usuário: light | dark | space (vazio = automático)
         $pdo->exec("ALTER TABLE usuarios ADD COLUMN tema VARCHAR(20) NULL");
@@ -1015,7 +998,9 @@ function obras_proprias_do_usuario(array $u)
     } catch (Throwable $e) {
         return null;   // banco ainda sem as colunas da obra própria
     }
-    $minhas = array_values(array_filter($lista, function ($o) use ($alvo) {
+    $vinculos = array_map('intval', q_global('SELECT obra_id FROM usuarios_obras WHERE usuario_id = ?', [(int)$u['id']])->fetchAll(PDO::FETCH_COLUMN));
+    $minhas = array_values(array_filter($lista, function ($o) use ($alvo, $vinculos) {
+        if (!in_array((int)$o['id'], $vinculos, true)) { return false; }
         return (function_exists('oe_norm') ? oe_norm($o['empresa_vinculada']) : mb_strtoupper(trim((string)$o['empresa_vinculada']))) === $alvo;
     }));
     return $minhas ?: null;
@@ -1186,7 +1171,7 @@ function papel_modulo_da_rota($rota, array $corpo)
 function ui_catalogo()
 {
     return [
-        ['tarefas', 'Tarefas', [['tarefas', 'Tarefas a fazer', [['tarefas', 'Tarefas'], ['mural', 'Mural da equipe']]]]],
+        ['tarefas', 'Tarefas', [['tarefas', 'Tarefas a fazer', [['tarefas', 'Tarefas'], ['mural', 'Mural da equipe'], ['redmine', 'Redmine']]]]],
         ['producao', 'Produção', [
             ['painel', 'Painel', []], ['semana', 'Programação semanal', []], ['lanc', 'Lançamentos', []],
             ['apont', 'Apontar montagem', [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'], ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']]],
@@ -1306,10 +1291,6 @@ function usuario_atual()
             }
         }
         $u = $linha ?: null;
-        if ($u && (int)q_global('SELECT email_verificacao_pendente FROM usuarios WHERE id = ?', [(int)$u['id']])->fetchColumn() === 1) {
-            $_SESSION = [];
-            return null;
-        }
         if ($u && trim((string)($u['empresa'] ?? '')) === '' && ($ef = empresa_do_vinculo_obra_propria($u)) !== '') {   // conta ligada só à obra própria de uma terceirizada = usuário dessa empresa
             $u['empresa'] = $ef;
             $u['empresa_por_obra'] = 1;
@@ -1487,11 +1468,13 @@ function pagina_inicio($titulo, $app = false)
     $primaria = cor_segura(config() ? global_ler('cor_primaria', '#d97706') : '#d97706', '#d97706');
     $secundaria = cor_segura(config() ? global_ler('cor_secundaria', '#111827') : '#111827', '#111827');
     $fundo = cor_segura(config() ? global_ler('cor_fundo', '#f4f6f8') : '#f4f6f8', '#f4f6f8');
-    echo '<!doctype html><html lang="pt-BR"' . ($app ? tema_attr() . menu_attr() : ' data-theme="light"') . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    $tema = ($app || usuario_atual()) ? tema_attr() : ' data-theme="light"';
+    $aparencia = $tema . ($app ? menu_attr() : (usuario_atual() ? ' data-portal-theme' : ''));
+    echo '<!doctype html><html lang="pt-BR"' . $aparencia . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($titulo) . ' · ' . h($nome) . '</title>';
     echo icones_html();
     echo '<script src="datas_br.js?v=' . @filemtime(dirname(__DIR__) . '/datas_br.js') . '" defer></script>';
-    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=20261103v8">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
+    echo '<link rel="stylesheet" href="style.css?v=' . @filemtime(dirname(__DIR__) . '/style.css') . '">' . ($app ? '' : '<link rel="stylesheet" href="portal.css?v=' . @filemtime(dirname(__DIR__) . '/portal.css') . '">') . '<style>:root{--marca:' . $primaria . ';--marca2:' . $secundaria . ';--app-fundo:' . $fundo . ';}</style></head><body>';
 }
 
 
@@ -1504,7 +1487,7 @@ function url_base_sistema()
     return $scheme . '://' . $host . ($dir ? $dir : '');
 }
 
-function enviar_email_sistema($para, $assunto, $mensagem, $html = false)
+function enviar_email_sistema($para, $assunto, $mensagem)
 {
     $para = trim((string)$para);
     if (!filter_var($para, FILTER_VALIDATE_EMAIL)) { return false; }
@@ -1513,7 +1496,7 @@ function enviar_email_sistema($para, $assunto, $mensagem, $html = false)
     $dom = preg_replace('/^www\./', '', $host);
     $headers = [
         'MIME-Version: 1.0',
-        'Content-Type: ' . ($html ? 'text/html' : 'text/plain') . '; charset=UTF-8',
+        'Content-Type: text/plain; charset=UTF-8',
         'From: ' . $nome . ' <no-reply@' . $dom . '>',
         'Reply-To: no-reply@' . $dom,
         'X-Mailer: PHP/' . phpversion(),
@@ -1571,11 +1554,13 @@ function imagem_upload_para_data_uri($campo, $atual = '')
 
 
 require_once __DIR__ . '/obra_empresa.php';   // obra própria de cada empresa terceirizada
-require_once __DIR__ . '/rdo_email.php';   // envio do RDO do cliente por e-mail
 require_once __DIR__ . '/rh_custos.php';   // custo mensal dos colaboradores (folha) — alimenta Financeiro › Contas a pagar
 require_once __DIR__ . '/modelo3d.php';   // modelo 3D / planejamento 4D (IFC)
 require_once __DIR__ . '/demo_obra.php';   // obra de demonstração (Galpão Exemplo, G200 anonimizada)
 require_once __DIR__ . '/contas_pagar.php';   // contas a pagar da obra (imposto, folha, outros)
+require_once __DIR__ . '/modelo3d.php';   // modelo 3D / planejamento 4D (IFC)
+require_once __DIR__ . '/identidade_empresa.php';
+require_once __DIR__ . '/rdo_email.php';   // envio do RDO do cliente por e-mail
 require_once __DIR__ . '/planos_assinatura.php';   // planos, limites de obras e assinaturas (comercialização)
 
 

@@ -3,10 +3,13 @@ require __DIR__ . '/inc/nucleo.php';
 require __DIR__ . '/inc/importacao.php';
 require __DIR__ . '/inc/dash_obras.php';
 require_once __DIR__ . '/inc/central.php';
+require_once __DIR__ . '/inc/obra_responsabilidade.php';
+require_once __DIR__ . '/inc/obra_executor_vinculo.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 $eu = exigir_login_pagina();
+garantir_obra_executoras();
 $admin = $eu['perfil'] === 'admin';
 $podeCriar = usuario_pode_criar_obra($eu);   // administrador ou editor sem empresa: quem cria a obra passa a ser o administrador DELA (não do sistema todo)
 $minhasAdm = $admin ? [] : obras_que_administra($eu);
@@ -61,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($acao === 'criar_obra' || $acao === 'criar_obra_importacao') {
             $comImportacao = $acao === 'criar_obra_importacao';   // obra nova com importação automática: nasce em rascunho até os documentos serem enviados
             $d = dados_obra_do_post();
+            $orgDestino = obra_responsabilidade_destino($eu, $_POST);
+            bd()->beginTransaction();
             $nome = $d['nome'];
             $ini = $d['data_inicio'] ?: date('Y-m-d');
             $fim = $d['data_fim'] ?: date('Y-m-d', strtotime('+1 year'));
@@ -70,21 +75,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q_global('INSERT INTO obras (' . implode(',', $cols) . ", data_inicio, data_fim, status, importacao, cor_primaria, cor_secundaria, logo, criado_em) VALUES (" . implode(',', array_fill(0, count($cols), '?')) . ", ?, ?, ?, ?, ?, ?, ?, ?)",
                 array_merge($vals, [$ini, $fim, $comImportacao ? 'rascunho' : 'ativa', $comImportacao ? 'rascunho' : null, cor_segura($_POST['cor_primaria'] ?? '', '#d97706'), cor_segura($_POST['cor_secundaria'] ?? '', '#111827'), $logo, agora()]));
             $id = (int)bd()->lastInsertId();
+            salvar_logos_relatorio_obra($id);
             foreach (['obra_nome' => $nome, 'data_inicio' => $ini, 'data_fim' => $fim, 'versao' => '0', 'modificado' => date('c'), 'dados_legados' => '0'] as $k => $v) {
                 q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$id, $k, $v]);
             }
             obra_ligar_usuario((int)$eu['id'], $id, 'admin');   // quem cria é o administrador da obra (e fica registrado como criador: ninguém tira esse papel dele)
             q_global('UPDATE obras SET criador_id = ? WHERE id = ?', [(int)$eu['id'], $id]);
-            if (!empty($planoInfo['org_id'])) { organizacao_vincular_obra((int)$planoInfo['org_id'], $id); }   // obra da empresa cliente: conta no plano dela e os administradores da empresa a controlam
+            obra_responsabilidade_gravar($id, 0, $orgDestino);
             $minhasAdm[] = $id;
             if ($comImportacao) {
+                obra_executoras_salvar($id, $_POST, $eu);
                 registrar_global('obra_criada_rascunho', ['obra_id' => $id, 'nome' => $nome]);
+                bd()->commit();
                 header('Location: obra_importar.php?obra=' . $id);
                 exit;
             }
             if (!empty($_POST['copiar_estrutura']) && obra_atual_id() > 0) {
                 copiar_estrutura_obra(obra_atual_id(), $id);
             }
+            obra_executoras_salvar($id, $_POST, $eu);
             registrar_global('obra_criada', ['obra_id' => $id, 'nome' => $nome]);
             $msg = 'Obra criada. Ela começa sem produção, estoque, medições ou apontamentos.';
         } elseif ($acao === 'editar_obra') {
@@ -92,6 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $atual = q_global('SELECT * FROM obras WHERE id = ?', [$id])->fetch();
             if (!$atual) { throw new InvalidArgumentException('Obra não encontrada.'); }
             $d = dados_obra_do_post();
+            $orgDestino = obra_responsabilidade_destino($eu, $_POST, $atual);
+            bd()->beginTransaction();
             $nome = $d['nome'];
             $logo = !empty($_POST['remover_logo']) ? '' : imagem_upload_para_data_uri('logo_obra', $atual['logo'] ?? '');
             $cols = ['nome', 'responsavel', 'codigo', 'cliente', 'responsavel_cliente', 'cidade', 'endereco', 'encarregado', 'valor_contrato', 'contrato_numero', 'data_inicio', 'data_fim', 'duracao_meses', 'art', 'area_m2', 'telefone', 'email', 'observacoes'];
@@ -102,7 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 q_global('DELETE FROM obra_config WHERE obra_id=? AND chave=?', [$id, $k]);
                 q_global('INSERT INTO obra_config (obra_id,chave,valor) VALUES (?,?,?)', [$id, $k, $v]);
             }
-            registrar_global('obra_editada', ['obra_id' => $id]);
+            salvar_logos_relatorio_obra($id);
+            obra_responsabilidade_gravar($id, (int)($atual['organizacao_id'] ?? 0), $orgDestino);
+            obra_executoras_salvar($id, $_POST, $eu);
+            registrar_global('obra_editada', ['obra_id' => $id, 'organizacao_anterior' => (int)($atual['organizacao_id'] ?? 0), 'organizacao_id' => $orgDestino]);
             $msg = 'Dados e identidade da obra atualizados.';
         } elseif ($acao === 'status_obra') {
             $id = (int)($_POST['obra_id'] ?? 0);
@@ -130,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach (['obra_config', 'usuarios_obras', 'obra_documentos'] as $t) {
                     q_global("DELETE FROM `$t` WHERE obra_id = ?", [$id]);
                 }
+                q_global('DELETE FROM obra_executoras WHERE obra_id = ? OR espelho_id = ?', [$id, $id]);
                 q_global('DELETE FROM obras WHERE id = ?', [$id]);
                 $pdo->commit();
             } catch (Throwable $e) {
@@ -162,7 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             registrar_global('permissoes_obras', ['usuario_id' => $uid]);
             $msg = 'Acesso do usuário às obras atualizado.';
         }
-    } catch (Exception $e) {
+        if (bd()->inTransaction()) { bd()->commit(); }
+    } catch (Throwable $e) {
+        if (bd()->inTransaction()) { bd()->rollBack(); }
         $erro = $e->getMessage();
     }
 }
@@ -174,6 +191,31 @@ function numero_ou_nulo($v)
     if (strpos($t, ',') !== false) { $t = str_replace(',', '.', str_replace('.', '', $t)); }
     if (!is_numeric($t)) { throw new InvalidArgumentException('Valor numérico inválido: ' . $v); }
     return (float)$t;
+}
+
+function salvar_logos_relatorio_obra(int $obraId): void
+{
+    foreach (['logo_relatorio_gestao', 'logo_relatorio_cliente'] as $campo) {
+        $remover = !empty($_POST['remover_' . $campo]);
+        $logo = $remover ? '' : imagem_upload_para_data_uri($campo);
+        if (!$remover && $logo === '') { continue; }
+        q_global('DELETE FROM obra_config WHERE obra_id = ? AND chave = ?', [$obraId, $campo]);
+        if ($logo !== '') {
+            q_global('INSERT INTO obra_config (obra_id, chave, valor) VALUES (?, ?, ?)', [$obraId, $campo, $logo]);
+        }
+    }
+}
+
+function campos_logos_relatorio(bool $edicao = false): string
+{
+    $html = '<fieldset><legend>Logotipos da capa dos relatórios</legend>';
+    foreach (['logo_relatorio_gestao' => 'Gestão', 'logo_relatorio_cliente' => 'Cliente'] as $campo => $nome) {
+        $html .= '<label>Logo de ' . $nome . '<input type="file" name="' . $campo . '" accept="image/png,image/jpeg,image/webp"></label>';
+        if ($edicao) {
+            $html .= '<label class="check"><input type="checkbox" name="remover_' . $campo . '" value="1"> Voltar à logo padrão de ' . $nome . '</label>';
+        }
+    }
+    return $html . '</fieldset>';
 }
 
 // Dados cadastrais da obra vindos do formulário: só nome e responsável são obrigatórios.
@@ -205,12 +247,15 @@ function fmt_numero_br($v, $casas = 2)
 // Campos cadastrais da obra (formulário de nova obra e de edição). Só nome e responsável são obrigatórios.
 function campos_obra(array $o = [])
 {
+    global $eu;
     $v = function ($c) use ($o) { return h($o[$c] ?? ''); };
     $num = function ($c, $casas = 2) use ($o) { return h(fmt_numero_br($o[$c] ?? null, $casas)); };
     return '<fieldset class="obra-grupo"><legend>Identificação <small>(obrigatório)</small></legend><div class="campos">'
         . '<label>Nome da obra *<input name="nome" value="' . $v('nome') . '" required></label>'
         . '<label>Responsável da obra *<input name="responsavel" value="' . $v('responsavel') . '" required placeholder="Engenheiro / gestor"></label>'
+        . obra_responsabilidade_campo($eu, $o)
         . '<label>Código<input name="codigo" value="' . $v('codigo') . '"></label></div></fieldset>'
+        . campos_executoras_obra($eu, $o)
         . '<fieldset class="obra-grupo"><legend>Cliente e local <small>(opcional)</small></legend><div class="campos">'
         . '<label>Cliente<input name="cliente" value="' . $v('cliente') . '"></label>'
         . '<label>Responsável do cliente<input name="responsavel_cliente" value="' . $v('responsavel_cliente') . '"></label>'
@@ -228,6 +273,11 @@ function campos_obra(array $o = [])
         . '<label>Área (m²)<input name="area_m2" inputmode="decimal" value="' . $num('area_m2') . '"></label>'
         . '<label>ART / CREA<input name="art" value="' . $v('art') . '"></label></div>'
         . '<label>Observações<textarea name="observacoes" rows="3">' . $v('observacoes') . '</textarea></label></fieldset>';
+}
+
+function campos_executoras_obra(array $eu, array $obra)
+{
+    ob_start(); obra_executoras_campos($eu, $obra); return ob_get_clean();
 }
 
 function copiar_estrutura_obra($origem, $destino)
@@ -284,7 +334,7 @@ pagina_inicio('Central de obras');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small>Central inteligente de gestão</small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Comercial</a><?php endif; ?><?php if (!empty($planoInfo['admin_empresa'])): ?><a class="btn ghost" href="empresa_usuarios.php">Usuários da empresa</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
+    <div class="portal-user"><span>Olá, <?= h(usuario_rotulo_empresa($eu)) ?></span><?php if (dashobras_obras_do_usuario($eu)): ?><a class="btn ghost" href="dashboard_obras.php">Painel financeiro</a><?php endif; ?><?php if ($admin): ?><a class="btn ghost" href="admin_planos.php">Comercial</a><?php endif; ?><?php if (!empty($planoInfo['admin_empresa'])): ?><a class="btn ghost" href="empresa_usuarios.php">Usuários da empresa</a><?php endif; ?><a class="btn ghost" href="sair.php">Sair</a></div>
   </header>
   <?= central_abas('obras', $eu) ?>
   <main class="portal-main">
@@ -323,6 +373,8 @@ pagina_inicio('Central de obras');
         </div>
         <h2><?= h($o['nome']) ?></h2><?php if (!empty($o['empresa_vinculada'])): ?><p><span class="status ativa" title="Cópia isolada da obra principal: o que a empresa altera aqui não muda a obra principal">Obra da empresa <?= h($o['empresa_vinculada']) ?></span></p><?php endif; ?><p><?= h($o['cliente'] ?: 'Cliente não informado') ?> · <?= h($o['cidade'] ?: 'Local não informado') ?></p>
         <ul class="obra-info">
+          <?php $empresaResp = !empty($o['organizacao_id']) ? organizacao_ler((int)$o['organizacao_id']) : null; ?>
+          <li><b>Empresa responsável</b><?= h($empresaResp ? $empresaResp['nome'] : 'Administração do sistema') ?></li>
           <li><b>Responsável</b><?= !empty($o['responsavel']) ? h($o['responsavel']) : '<em class="falta">não informado</em>' ?></li>
           <?php if (!empty($o['encarregado'])): ?><li><b>Encarregado</b><?= h($o['encarregado']) ?></li><?php endif; ?>
           <?php if (!empty($o['responsavel_cliente'])): ?><li><b>Resp. cliente</b><?= h($o['responsavel_cliente']) ?></li><?php endif; ?>
@@ -342,6 +394,7 @@ pagina_inicio('Central de obras');
           <?= campos_obra($o) ?>
           <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="<?= h(cor_segura($o['cor_primaria'],'#d97706')) ?>"></label><label>Cor escura<input type="color" name="cor_secundaria" value="<?= h(cor_segura($o['cor_secundaria'],'#111827')) ?>"></label></div>
           <label>Nova logo<input type="file" name="logo_obra" accept="image/png,image/jpeg,image/webp"></label><label class="check"><input type="checkbox" name="remover_logo" value="1"> Remover logo</label>
+          <?= campos_logos_relatorio(true) ?>
           <div class="obra-dialog-acoes"><button type="button" class="btn ghost" data-obra-fechar>Cancelar</button><button class="btn primario">Salvar dados</button></div>
         </form></dialog><?php endif; ?>
       </article>
@@ -386,6 +439,7 @@ pagina_inicio('Central de obras');
           <?= campos_obra() ?>
           <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="#d97706"></label><label>Cor escura<input type="color" name="cor_secundaria" value="#111827"></label></div>
           <label>Logo da obra<input type="file" name="logo_obra" accept="image/png,image/jpeg,image/webp"></label>
+          <?= campos_logos_relatorio() ?>
           <button class="btn primario">Criar e enviar documentos →</button>
         </form>
         <form method="post" enctype="multipart/form-data" class="bloco painel-form">
@@ -395,6 +449,7 @@ pagina_inicio('Central de obras');
           <?= campos_obra() ?>
           <div class="color-row"><label>Cor principal<input type="color" name="cor_primaria" value="#d97706"></label><label>Cor escura<input type="color" name="cor_secundaria" value="#111827"></label></div>
           <label>Logo da obra<input type="file" name="logo_obra" accept="image/png,image/jpeg,image/webp"></label>
+          <?= campos_logos_relatorio() ?>
           <?php if (obra_atual_id()): ?><label class="check"><input type="checkbox" name="copiar_estrutura" value="1"> Copiar apenas empresas e serviços da obra aberta (sem produção)</label><?php endif; ?>
           <button class="btn">Criar obra vazia</button></details>
         </form>

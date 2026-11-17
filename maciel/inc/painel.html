@@ -167,7 +167,7 @@
   <!-- TAREFAS A FAZER (aba fixa: primeira tela ao entrar) -->
   <section id="aba-tarefas">
     <div class="bloco-cab"><h2>Tarefas a fazer</h2><div class="acoes"><button class="btn" id="btnRelTarefas">Relatório de tarefas</button><button class="btn primario" id="btnNovaTarefa">+ Nova tarefa</button></div></div>
-    <div class="barra-acoes"><div class="seg" id="tfAbas"><button type="button" data-tf-aba="tarefas" class="ativa">Tarefas</button><button type="button" data-tf-aba="mural">Mural da equipe <span class="tf-novo" id="tfMuralNovo" hidden>novas</span></button></div></div>
+    <div class="barra-acoes"><div class="seg" id="tfAbas"><button type="button" data-tf-aba="tarefas" class="ativa">Tarefas</button><button type="button" data-tf-aba="mural">Mural da equipe <span class="tf-novo" id="tfMuralNovo" hidden>novas</span></button><button type="button" data-tf-aba="redmine">Redmine</button></div></div>
     <div id="tfTarefasView">
     <div id="tfAlertas"></div>
     <div class="tiles" id="tfCards"></div>
@@ -190,6 +190,37 @@
         <div class="bloco-cab"><h2>Mural da equipe</h2><span class="nota">Conversa aberta a todos os usuários do sistema, só para comunicação e troca de arquivos. Não altera tarefas nem dados da obra.</span></div>
         <div class="tf-conv" data-cv="0"></div>
       </div>
+    </div>
+    <style>
+      #tfRedDialogo { width: min(780px, 94vw); max-height: 85vh; overflow: auto; }
+      .tf-redmine-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .tf-redmine-form label { display: grid; gap: 4px; }
+      .tf-redmine-largo { grid-column: 1 / -1; }
+      @media (max-width: 580px) { .tf-redmine-form { grid-template-columns: 1fr; } }
+    </style>
+    <div id="tfRedView" hidden>
+      <div class="bloco">
+        <div class="bloco-cab"><h2>Redmine</h2><span class="nota" id="tfRedConta"></span>
+          <div class="acoes"><button type="button" class="btn" id="tfRedAtualizar">Atualizar</button>
+            <button type="button" class="btn primario" id="tfRedNova" hidden>+ Nova tarefa no Redmine</button></div>
+        </div>
+        <div class="barra-acoes">
+          <label>Exibir <select id="tfRedEscopo"><option value="minhas">Atribuídas a mim</option><option value="visiveis">Todas que posso ver</option></select></label>
+          <label>Situação <select id="tfRedSituacao"><option value="open">Abertas</option><option value="closed">Fechadas</option><option value="*" selected>Todas</option></select></label>
+        </div>
+        <p id="tfRedEstado" class="nota" role="status"></p>
+        <div id="tfRedLista"></div>
+        <div class="acoes" id="tfRedPaginacao" hidden>
+          <button type="button" class="btn" id="tfRedAnterior">Página anterior</button>
+          <button type="button" class="btn" id="tfRedProxima">Próxima página</button>
+        </div>
+      </div>
+      <dialog id="tfRedDialogo" class="bloco">
+        <div class="bloco-cab"><h2 id="tfRedDialogoTitulo"></h2>
+          <form method="dialog"><button type="submit" class="btn">Fechar</button></form>
+        </div>
+        <div id="tfRedDialogoCorpo"></div>
+      </dialog>
     </div>
   </section>
 
@@ -995,6 +1026,7 @@
 <script src="cff.js"></script>
 <script src="cronograma_imp.js"></script>
 <script src="contas_pagar.js"></script>
+<script src="tarefas_redmine.js"></script>
 <script src="tarefas.js"></script>
 <script src="mapa_obra.js"></script>
 <script src="vinculos.js"></script>
@@ -1005,4 +1037,3 @@
 <script src="toque.js"></script>
 </body>
 </html>
-
