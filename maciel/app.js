@@ -1604,7 +1604,6 @@ const GAN_CRONOGRAMA_CLIENTE = [
   { frente: 'GALPÃO F1 – FECHAMENTO LATERAL', fase: '1', servico: 'Fech. Lateral – Estrutura', inicio_plan: '2026-09-17', prazo: '2026-12-07', fontes: ['Fech. Lateral – Estrutura', 'Fechamento Lateral Estrutura', 'Fechamento Lateral'] },
   { frente: 'GALPÃO F1 – FECHAMENTO LATERAL', fase: '1', servico: 'Fechamento', inicio_plan: '2026-09-30', prazo: '2026-12-18', fontes: ['Fechamento', 'Fechamento Lateral Telha PIR', 'Telha PIR'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Vigas', inicio_plan: '2026-09-24', prazo: '2026-12-07', fontes: ['Marquise - Vigas', 'Vigas'] },
-  { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Premontagem Terças', inicio_plan: '2026-09-29', prazo: '2026-12-10', fontes: ['Marquise - Premontagem Terças', 'Premontagem', 'Terças'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Montagem Terças', inicio_plan: '2026-10-06', prazo: '2026-12-17', fontes: ['Marquise - Montagem Terças', 'Terças'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Calhas', inicio_plan: '2026-10-07', prazo: '2026-12-18', fontes: ['Marquise - Calhas', 'Calhas'] },
   { frente: 'GALPÃO F1 – MARQUISE', fase: '1', servico: 'Marquise - Telhas', inicio_plan: '2026-10-15', prazo: '2026-12-28', fontes: ['Marquise - Telhas', 'Telhas', 'Instalação de telhas'] },
@@ -1851,7 +1850,7 @@ function ganQtdRef(cr) {
 }
 
 function ganItensCliente() {
-  const base = (M.cliente || []).map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
+  const base = (M.cliente || []).filter(c => !(/MARQUISE/.test(ganNorm(c.frente + ' ' + c.servico)) && /PRE.*MONT/.test(ganNorm(c.servico)) && /TERCAS/.test(ganNorm(c.servico)))).map(clienteComContratoAtual).filter(c => c.qtd && (!faseFiltro || ganFaseNumero(c) === faseFiltro)).map(c => ({ ...c, fontes: [c.servico] }));
   const impMapa = ganImpMapa(), impSubstitui = !!(impMapa && ganImp().substituir);
   (M.cronograma_padrao === false ? [] : GAN_CRONOGRAMA_CLIENTE).forEach(cr => {   // as linhas fixas da G200 não entram em obra nova
     if (faseFiltro && cr.fase !== faseFiltro) return;
@@ -2064,7 +2063,7 @@ function ganBmMarquise(it) {
   const fr = ganNorm(it.frente);
   if (!fr.includes('MARQUISE') || !fr.includes('GALPAO F1')) return null;
   const sv = ganNorm(it.servico), item = a => ganNorm(a.item_desc), ativ = a => ganNorm(a.atividade);
-  if (sv.includes('PREMONTAGEM') || sv.includes('PRE MONT')) return null;   // o catálogo não tem atividade de pré-montagem de terças
+  if (/PRE.*MONT/.test(sv) && sv.includes('TERCAS')) return () => false;
   if (sv.includes('VIGAS')) return a => item(a) === 'MARQUISES' && ativ(a).includes('VIGAS PRINCIPAIS');
   if (sv.includes('TERCAS')) return a => item(a) === 'MARQUISES' && (ativ(a).includes('TERCAMENTO') || ativ(a).includes('ALINHAMENTO DAS TERCAS'));
   if (sv.includes('CALHAS')) return a => item(a).includes('CALHAS METALICAS PARA AS MARQUISES');
@@ -3772,7 +3771,8 @@ const FRENTE_CHAVE = { FECHAMENTO: 'fechamento', MARQUISE: 'marquise', CONTRAVEN
 // O contraventamento não tem baixa. Devolve [] quando o mapa do IFC ainda não foi carregado.
 function fixadoresDoTrecho(tipo, parte, trecho, etapa, regras) {
   const chave = FRENTE_CHAVE[String(tipo || '').toUpperCase()];
-  const fr = chave && ((window._frentes || {}).frentes || {})[chave];
+  const base = chave && ((window._frentes || {}).frentes || {})[chave];
+  const fr = base?.por_etapa?.[etapa] || base;
   if (!fr || chave === 'contraventamento') return [];
   const conf = (regras.consumo_por_servico || {})[chave === 'marquise' ? 'MARQUISE' : (etapa || fr.servico)] || {};
   const porPeca = conf.por_peca || (conf.por_etapa || {})[etapa] || {};
@@ -4097,7 +4097,9 @@ function frentesMontagem(refazer) {
 }
 const apFrenteAtual = () => {
   const f = window._frentes && window._frentes.frentes;
-  return f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento', telha: 'telha', perfil: 'perfilagem', tfech: 'telha_fechamento' }[apEst.modo]] : null;
+  const frente = f ? f[{ fech: 'fechamento', marq: 'marquise', cont: 'contraventamento', telha: 'telha', perfil: 'perfilagem', tfech: 'telha_fechamento' }[apEst.modo]] : null;
+  const etapa = frente?.etapas?.includes(apEst.etapa) ? apEst.etapa : frente?.etapas?.[0];
+  return frente?.por_etapa?.[etapa] || frente;
 };
 const AP_TIPO = { VIGA_APOIO_MONTADA: 'Apoio', VIGA_INTERM_MONTADA: 'Intermediária', VIGA_VC01_MONTADA: 'VC01', VIGA_OITAO_MONTADA: 'Oitão' };
 // geometria do mapa (px): cada rua tem 43 retângulos (joists); `passo` é a altura de cada um, em três tamanhos
@@ -4203,7 +4205,7 @@ function apSelecao(ctx) {
   let nTelFech = 0, m2TelFech = 0;   // telhas do fechamento lateral selecionadas e o m² delas (cada telha vale o m² do comprimento dela)
   frente.forEach(f => {
     const chaveF = FRENTE_CHAVE[f.tipo];
-    const cfgF = fs[chaveF] || {};
+    const cfgF = fs[chaveF]?.por_etapa?.[f.etapa] || fs[chaveF] || {};
     // no contraventamento a "etapa" guarda o trecho do kit, não um serviço
     let nTel = 1;
     if (f.tipo === 'TELHAFECH') {   // telhas do fechamento lateral: a célula é o trecho e leva todas as telhas dele
@@ -4767,11 +4769,11 @@ function apFrenteHtml(ctx) {
       const k = `${p.id}|${c.trecho}|${etapa}`;
       const feita = feitas.get(k), emp = apEst.frente.get(`${tipo}|${k}`);
       const det = Object.entries(c.pecas).map(([n, q]) => `${n}: ${q}`).join('\n');
-      const tit = `${p.nome} · ${c.trecho}${etapa ? ' · ' + etapa : ''}\n${c.total} ${ehTF ? `telhas ≈ ${nf(c.total * m2TF, 1)} m²` : 'peças'}${det && !ehTF ? '\n' + det : ''}` +
+      const tit = `${p.nome} · ${c.trecho}${c.posicao_ifc ? ' · IFC ' + c.posicao_ifc + ' · ' + c.guid : ''}${etapa ? ' · ' + etapa : ''}\n${c.total} ${ehTF ? `telhas ≈ ${nf(c.total * m2TF, 1)} m²` : 'peças'}${det && !ehTF ? '\n' + det : ''}` +
         (feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : '');
       const estilo = emp ? `style="--sel:${corSelEmp(emp)}"` : feita?.empresa ? `style="--sel:${corSelEmp(feita.empresa)}"` : '';
       h += `<td><button type="button" class="apf-cel ${feita ? 'feita' : emp ? 'sel' : 'pend'}" ${estilo}
-        data-ap-frente="${esc(k)}" ${feita ? 'disabled' : ''} title="${esc(tit)}"><b>${esc(c.trecho)}</b><small>${c.total || '—'}</small></button></td>`;
+        data-ap-frente="${esc(k)}" ${feita ? 'disabled' : ''} title="${esc(tit)}"><b>${fr.por_eixo ? 'Eixo ' : ''}${esc(c.trecho)}</b><small>${fr.por_eixo ? esc(c.marca) + ' · ' : ''}${c.total || '—'}</small></button></td>`;
     });
     h += '</tr>';
   });
@@ -4779,6 +4781,7 @@ function apFrenteHtml(ctx) {
   if (ehTF) h += `<p class="nota"><b>Telhas do fechamento lateral (Globo Aços).</b> Cada telha é uma peça ${esc(fr.familias.join(', '))} do IFC, contada por vão entre eixos nos lados A e H e por faixa nos oitões 01 e 20. Cada telha vale ${nf(m2TF, 2)} m² (${nf(fr.telha.m2_total_contrato, 1)} m² do contrato ÷ ${nf(fr.total)} telhas do projeto).</p>`;
   h += `<p class="nota">Cada célula é um trecho montável deste mapa, extraído do IFC (${esc(fr.familias.join(', '))}). O número embaixo é a quantidade de peças do trecho; passe o mouse para ver a composição. ` +
     (fr.servico && ganNorm(fr.servico).includes('FECH LATERAL ESTRUTURA') ? 'A telha do fechamento não faz parte desta estrutura: é apontada pela Globo Aços em "Telhas de fechamento". Ao apontar, baixam do estoque as terças, os espaçadores e os suportes de terça (ST). ' : '') +
+    (fr.por_eixo ? 'As vigas são identificadas pelo eixo do pilar, lado, TAG e GUID originais do IFC. ' : '') +
     (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
       'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
   return h;
