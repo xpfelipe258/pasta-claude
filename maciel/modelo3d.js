@@ -1068,9 +1068,14 @@ async function m3dLerAba() {
       // demais eixos: por QUANTIDADE e LOCAÇÃO. O código de posição do Tekla não segue a letra do projeto, então as vigas de
       // cada eixo são ordenadas pela posição real (centro da peça) de A para H; eixo com as 13 vigas recebe as letras na ordem
       // (A, B, BC, C… H); eixo incompleto usa a letra mais próxima pela régua medida nos eixos completos.
-      M3._vigasMapa = m3dVigasPorLocacao(vcEixo, ordem, posLetra, poe);
+      const ptsLoc = [];
+      M3._vigasMapa = m3dVigasPorLocacao(vcEixo, ordem, posLetra, (k, i) => {
+        poe(k, i);
+        const [e, L] = k.split('|'), c = m3dCentroRaiz(i);
+        if (c && eix[e] !== undefined) ptsLoc.push([c, eix[e], posLetra(L)]);
+      });
       // joists: o modelo não tem a joist, só os suportes dela; cada suporte vai para a rua e a posição de joist mais próximas
-      const cal = suportes.length ? m3dCalibrar(eix, est, vigasEixo) : null;
+      const cal = suportes.length || cel.has('TELHA') ? m3dCalibrar(eix, est, vigasEixo, ptsLoc) : null;
       const joistDe = new Map();
       if (cal && rg && rg.layout_joists) {
         const slots = [];
@@ -1097,7 +1102,12 @@ async function m3dLerAba() {
       const contaTf = new Map();
       outros.forEach(a => {
         const t = String(a.tipo).toUpperCase(), dia = a.data;
-        if (t === 'VIGA') (vigaDe.get(`${a.eixo}|${a.letra}`) || []).forEach(i => marcar(i, dia, `viga eixo ${a.eixo} · ${a.letra}`));
+        if (t === 'VIGA') {
+          // o mapa de vigas identifica a viga pelo código E{eixo}-{letra}-{marca} (viga_id); eixo e letra podem vir vazios
+          const m = String(a.viga_id || '').match(/^E(\d{1,2})-(.+)-VC\d+$/i);
+          const eixo = String((m && m[1]) || a.eixo || '').padStart(2, '0'), letra = String((m && m[2]) || a.letra || '').toUpperCase();
+          (vigaDe.get(`${eixo}|${letra}`) || []).forEach(i => marcar(i, dia, `viga eixo ${eixo} · ${letra}`));
+        }
         else if (t === 'JOIST') (joistDe.get(`${a.rua}|${a.slot}`) || []).forEach(i => marcar(i, dia, `joist rua ${a.rua} nº ${a.slot} (suporte)`));
         else if (t === 'TELHA') (telhaDe.get(parseInt(a.rua, 10)) || []).forEach(i => marcar(i, dia, `telha nº ${a.rua}`));
         else if (t === 'TELHAFECH') { const [tr] = String(a.rua).split('/'); const k = `TELHAFECH|${a.faixa}|${tr}`; contaTf.set(k, (contaTf.get(k) || []).concat([dia])); }
@@ -1110,6 +1120,30 @@ async function m3dLerAba() {
   const n = data.filter(Boolean).length;
   M3.aba = n ? { data, orig, n } : null;
   M3._real = null;
+}
+/** Vigas de cobertura de cada eixo (marca VCnn na fase 1.1.1): Map eixo → [[índice, trecho do código, meio em mm]]. */
+function m3dVcEixo(est) {
+  const d = M3.d, vc = new Map();
+  for (let i = 0; i < d.n; i++) {
+    if (d.e.pai[i] >= 0) continue;
+    if (!/^VC\d+$/.test(m3dTxt('marca', i).trim().toUpperCase()) || !/^1\.1\.1/.test(m3dTxt('fase', i))) continue;
+    const p = m3dPosParse(m3dTxt('pos', i));
+    if (!p || p.e1 !== p.e2) continue;
+    const mm = p.est.map(x => est[x]).filter(x => x !== undefined);
+    if (!vc.has(p.e1)) vc.set(p.e1, []);
+    vc.get(p.e1).push([i, p.est.join('-'), mm.length ? (Math.min(...mm) + Math.max(...mm)) / 2 : null]);
+  }
+  return vc;
+}
+/** Pares [eixo mm, estação mm, centro na cena] das vigas locadas por quantidade e posição real (para ajustar a malha). */
+function m3dPtsLocados(eix, est) {
+  const ordem = ['A', 'B', 'BC', 'C', 'CD', 'D', 'DE', 'E', 'EF', 'F', 'FG', 'G', 'H'];
+  const posLetra = l => l.length === 1 ? est[l] : (est[l[0]] + est[l[1]]) / 2, pts = [];
+  m3dVigasPorLocacao(m3dVcEixo(est), ordem, posLetra, (k, i) => {
+    const [e, L] = k.split('|'), c = m3dCentroRaiz(i);
+    if (c && eix[e] !== undefined && posLetra(L) !== undefined) pts.push([eix[e], posLetra(L), c]);
+  });
+  return pts;
 }
 /** Liga as vigas de cobertura dos eixos 02…19 às letras do Apontar montagem pela ordem real ao longo do eixo (A → H). */
 function m3dVigasPorLocacao(vcEixo, ordem, posLetra, poe) {
@@ -1173,9 +1207,9 @@ function m3dCentroRaiz(r) {
   return n ? [x / n, y / n, z / n] : null;
 }
 /** Ajusta (mínimos quadrados) a cena 3D à malha do projeto usando as vigas de cobertura, cuja posição no projeto é conhecida pelo código. */
-function m3dCalibrar(eix, est, vigasEixo) {
-  const pts = [];
-  vigasEixo.forEach((lista, e) => lista.forEach(([i, , meio]) => { if (eix[e] !== undefined && meio !== null) { const c = m3dCentroRaiz(i); if (c) pts.push([c, eix[e], meio]); } }));
+function m3dCalibrar(eix, est, vigasEixo, ptsLoc) {
+  const pts = ptsLoc && ptsLoc.length >= 12 ? ptsLoc.slice() : [];   // vigas locadas por quantidade e posição real (exato)
+  if (!pts.length) vigasEixo.forEach((lista, e) => lista.forEach(([i, , meio]) => { if (eix[e] !== undefined && meio !== null) { const c = m3dCentroRaiz(i); if (c) pts.push([c, eix[e], meio]); } }));
   if (pts.length < 12) return null;
   const resolver = alvo => {   // a·x + b·y + c·z + d = alvo
     const A = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], B = [0, 0, 0, 0];
@@ -1210,9 +1244,11 @@ async function m3dEixosMontar() {
   if (!fm) fm = await fetch(API + 'frentes-montagem', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
   const malha = fm && fm.malha, eix = malha && malha.eixos_mm, est = malha && malha.estacoes_mm;
   if (!eix || !est || M3.d !== d) return;
-  // pares (cena × projeto) das vigas de cobertura
-  const pts = [];
-  for (let i = 0; i < d.n; i++) {
+  // pares (cena × projeto) das vigas de cobertura: primeiro as locadas por quantidade e posição real (13 por eixo, marca VC);
+  // sem elas, o código de posição do Tekla (que em alguns modelos não confere com a malha)
+  const pts = m3dPtsLocados(eix, est);
+  const locadas = pts.length >= 12;
+  if (pts.length < 12) for (let i = 0; i < d.n; i++) {
     if (d.e.pai[i] >= 0 || m3dTxt('nome', i).toUpperCase() !== 'VIGA COBERTURA') continue;
     const p = m3dPosParse(m3dTxt('pos', i));
     if (!p || p.e1 !== p.e2 || eix[p.e1] === undefined) continue;
@@ -1247,7 +1283,8 @@ async function m3dEixosMontar() {
   if (!kx || !kz) return;
   r = resid(); med = r.slice().sort((a, b) => a - b)[Math.floor(r.length / 2)];
   M3._eixosDiag = { mediana_m: med / L, n: pts.length };
-  if (!(L > 0) || med > L) return;   // erro típico acima de 1 m: modelo fora da malha, não desenha
+  // erro típico acima de 1 m (3 m com as vigas locadas: o centro de cada viga fica no meio do vão, não sobre a letra): não desenha
+  if (!(L > 0) || med > (locadas ? 3 : 1) * L) return;
   let y0 = Infinity;
   for (let i = 0; i < d.nInst; i++) if (d.centro[i * 4 + 1] < y0) y0 = d.centro[i * 4 + 1];
   const P = (u, v) => new TH.Vector3(kx[0] * u + kx[1] * v + kx[2], y0, kz[0] * u + kz[1] * v + kz[2]);
