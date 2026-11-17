@@ -768,7 +768,7 @@ function m3dCampoHtml(itens) {
     const desf = [n - sTq ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', n - sIc ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
     bts = (prim || sec ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${prim}${sec}</div>` : '<p class="nota">Montagem concluída nesta seleção.</p>') + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
   }
-  return `<div class="m3d-campo"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
+  return `<div class="m3d-cmp"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
 }
 async function m3dApontar(acao) {
   const d = M3.d, guids = [...new Set([...M3.sel].map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];

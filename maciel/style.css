@@ -1918,7 +1918,7 @@ dialog.m3d-dlg { width: min(680px, calc(100vw - 24px)); }
 .m3d-card.ruim b { color: #b91c1c; }
 .m3d-card.alerta { border-left-color: #f59e0b; }
 .m3d-card.amarelo { border-left-color: #facc15; }
-.m3d-campo { border: 1px solid var(--borda, #e2e8f0); border-radius: 10px; padding: 10px; margin: 10px 0; background: rgba(250, 204, 21, .06); }
+.m3d-cmp { border: 1px solid var(--borda, #e2e8f0); border-radius: 10px; padding: 10px; margin: 10px 0; background: rgba(250, 204, 21, .06); }
 .m3d-campo-tit { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--muted, #64748b); margin-bottom: 6px; }
 .m3d-campo-sit { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .m3d-campo-sit i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .15); flex: none; }
