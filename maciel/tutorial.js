@@ -219,7 +219,7 @@ const TUT_TOPICOS = [
       { t: '"selecionar estas" seleciona todas as peças filtradas (por exemplo, o eixo 13 inteiro). Também dá para clicar numa peça ou usar Shift + arrastar para fazer uma caixa.' },
       { t: 'Peça cinza (na fábrica) que já chegou na obra: selecione e clique em "Chegou: no canteiro". Ela fica amarela, pronta para içar. No modo canteiro o botão é "No canteiro".' },
       { t: 'No painel da peça, confira a data e clique em "Marcar como içada". Depois do torque, clique em "Marcar como torqueada".' },
-      { t: 'Errou? Use "desfazer içamento" ou "desfazer torque". Dia com RDO validado não aceita mudança.' },
+      { t: 'Errou? Clique em "← Voltar para a etapa anterior": torqueada volta para içada, içada volta para no canteiro (ou fábrica) e no canteiro volta para fábrica. Vale para várias peças de uma vez. Dia com RDO validado não aceita mudança.' },
     ],
     dica: 'Torque marcado sem içamento registra o içamento no mesmo dia, automaticamente.' },
 
