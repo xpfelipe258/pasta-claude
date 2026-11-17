@@ -1315,7 +1315,7 @@ async function m3dEixosMontar() {
 }
 async function m3dCarregarCampo(id) {
   const d = M3.d;
-  M3.ap = { ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
+  M3.ap = { ca: new Array(d.n).fill(''), ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
   try {
     const a = await m3dGet(`acao=apont&modelo=${id}`);
     M3.vigasAba = Array.isArray(a.vigas_aba) ? a.vigas_aba : [];   // vigas da aba Apontar montagem, lidas direto do banco
@@ -1323,7 +1323,7 @@ async function m3dCarregarCampo(id) {
       const i = d.guidDe.get(g);
       if (i === undefined) return;
       const r = d.raiz[i];
-      if (et === 2) M3.ap.tq[r] = dia; else { M3.ap.ic[r] = dia; if (inf) M3.ap.inf[r] = 1; }
+      if (et === 2) M3.ap.tq[r] = dia; else if (et === 3) M3.ap.ca[r] = dia; else { M3.ap.ic[r] = dia; if (inf) M3.ap.inf[r] = 1; }
       M3.ap.por[r + ':' + et] = por;
       M3.ap.n++;
     });
@@ -1394,6 +1394,9 @@ function m3dStatusReal() {
       if (livre > 0) { st[i] = 3; livre--; } else if (cam > 0) { st[i] = 2; cam--; } else st[i] = 1;
     });
   });
+  if (ap.ca) for (let i = 0; i < d.n; i++) {   // marcada à mão como "no canteiro" (chegou na obra)
+    if (d.e.pai[i] < 0 && st[i] < 3 && ap.ca[i] && ap.ca[i] <= dia) st[i] = 3;
+  }
   for (let i = 0; i < d.n; i++) {   // frente com término vencido e peça ainda não içada = atrasada
     if (d.e.pai[i] >= 0 || st[i] >= 4) continue;
     const g = d.grupoDeEl[i];
@@ -1464,16 +1467,18 @@ function m3dVitrineSelecionar(k) {
 }
 /** Bloco "Campo" do painel da peça: situação real, apontamentos e botões de içar / torquear. */
 function m3dCampoHtml(itens) {
-  const d = M3.d, R = m3dStatusReal(), ap = M3.ap || { ic: [], tq: [], inf: [], por: {} };
+  const d = M3.d, R = m3dStatusReal(), ap = M3.ap || { ca: [], ic: [], tq: [], inf: [], por: {} };
   const raizes = [...new Set(itens.map(i => d.raiz[i]))];
   const ed = m3dPodeEditar(), dataPad = m3dHoje() > hoje() ? hoje() : m3dHoje();
   const pelaAba = i => !!(M3.aba && M3.aba.data[i]);
   const sIc = raizes.filter(i => !ap.ic[i] && !pelaAba(i)).length, sTq = raizes.filter(i => !ap.tq[i] && !pelaAba(i)).length;
+  const sCa = raizes.filter(i => R.st[i] !== 3 && R.st[i] < 4 && !ap.ic[i] && !pelaAba(i)).length, nCaProp = raizes.filter(i => ap.ca && ap.ca[i]).length;
   const nIcProp = raizes.filter(i => ap.ic[i]).length, nTqProp = raizes.filter(i => ap.tq[i]).length;   // só o que foi apontado aqui pode ser desfeito aqui
   let info = '';
   if (raizes.length === 1) {
     const i = raizes[0], s = R.st[i];
     const l = [];
+    if (ap.ca && ap.ca[i]) l.push(`Marcada no canteiro em <b>${fdA(ap.ca[i])}</b>${ap.por[i + ':3'] ? ' · ' + esc(ap.por[i + ':3']) : ''}`);
     if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
     if (M3.aba && M3.aba.data[i]) l.push(`Montada pela aba <b>Apontar montagem</b> ${M3.aba.data[i] === M3D_SEM_DATA ? '<b>(apontamento sem data)</b>' : `em <b>${fdA(M3.aba.data[i])}</b>`} · ${esc(M3.aba.orig[i] || '')}`);
     if (ap.pend && ap.pend.has(i)) l.push('<span class="m3d-pend">⏱ guardado no aparelho, aguardando envio</span>');
@@ -1496,23 +1501,25 @@ function m3dCampoHtml(itens) {
     const prim = sIc ? `<button type="button" class="btn primario m3d-ap-bt" data-m3d="icar">${um ? 'Marcar como içada' : `Marcar ${sIc.toLocaleString('pt-BR')} como içadas`}</button>`
       : sTq ? `<button type="button" class="btn primario m3d-ap-bt m3d-ap-tq" data-m3d="torquear">${um ? 'Marcar como torqueada' : `Marcar ${sTq.toLocaleString('pt-BR')} como torqueadas`}</button>` : '';
     const sec = sIc && sTq ? `<button type="button" class="btn" data-m3d="torquear">${um ? 'Já torqueada' : 'Torqueadas'}</button>` : '';
-    const desf = [nTqProp ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', nIcProp ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
+    const ca = sCa ? `<button type="button" class="btn m3d-ap-ca" data-m3d="canteiro" title="Peça chegou na obra (fica amarela: pronta para içar)">${um ? 'Chegou: no canteiro' : `${sCa.toLocaleString('pt-BR')} no canteiro`}</button>` : '';
+    const desf = [nCaProp ? `<button type="button" class="m3d-link" data-m3d="descanteiro">desfazer canteiro</button>` : '', nTqProp ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', nIcProp ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
     const nAba = raizes.filter(pelaAba).length;
-    bts = (prim || sec ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${prim}${sec}</div>` : `<p class="nota">Montagem concluída nesta seleção${nAba ? ' (apontada na aba Apontar montagem: para corrigir, use aquela aba)' : ''}.</p>`) + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
+    bts = (prim || sec || ca ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${ca}${prim}${sec}</div>` : `<p class="nota">Montagem concluída nesta seleção${nAba ? ' (apontada na aba Apontar montagem: para corrigir, use aquela aba)' : ''}.</p>`) + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
   }
   return `<div class="m3d-cmp"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
 }
 async function m3dApontar(acao) {
   const d = M3.d, guids = [...new Set([...M3.sel].map(i => d.e.guid[d.raiz[i]]).filter(Boolean))];
   if (!guids.length) return;
-  const etapa = acao === 'icar' || acao === 'desicar' ? 'icada' : 'torqueada', des = acao.startsWith('des');
+  const etapa = acao === 'icar' || acao === 'desicar' ? 'icada' : acao === 'canteiro' || acao === 'descanteiro' ? 'canteiro' : 'torqueada', des = acao.startsWith('des');
+  const nomeEt = { icada: 'içada(s)', torqueada: 'torqueada(s)', canteiro: 'marcada(s) no canteiro' }[etapa];
   const dia = ($('#m3dApData') && $('#m3dApData').value) || (m3dHoje() > hoje() ? hoje() : m3dHoje());
   if (dia > hoje()) { toast('Não é possível apontar em data futura.', true); return; }
   const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), acao: des ? 'desapontar' : 'apontar', modelo_id: M3.modeloId, etapa, guids, data: dia, em: new Date().toISOString() };
   if (!navigator.onLine || m3dFila().length) {   // sem sinal (ou fila ainda pendente): guarda no aparelho e pinta na hora
     m3dFilaAdd(item);
     m3dAplicarLocal(item);
-    toast(`Sem sinal: ${guids.length.toLocaleString('pt-BR')} peça(s) ${des ? 'desfeita(s)' : etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} guardada(s) no aparelho. Envio automático quando a internet voltar.`);
+    toast(`Sem sinal: ${guids.length.toLocaleString('pt-BR')} peça(s) ${des ? 'desfeita(s)' : nomeEt} guardada(s) no aparelho. Envio automático quando a internet voltar.`);
     m3dDepoisApontar(des);
     if (navigator.onLine) m3dSincronizar();
     return;
@@ -1521,7 +1528,7 @@ async function m3dApontar(acao) {
     const r = await m3dPost(item.acao, item);
     await m3dCarregarCampo(M3.modeloId);
     if (des) toast(`Desfeito: ${r.removidos.toLocaleString('pt-BR')} registro(s).`);
-    else toast(`${r.novos.toLocaleString('pt-BR')} peça(s) ${etapa === 'icada' ? 'içada(s)' : 'torqueada(s)'} em ${fdA(dia)}${r.inferidas ? ` · ${r.inferidas} içamento(s) registrado(s) junto` : ''}${r.ja_feitos ? ` · ${r.ja_feitos} já estava(m) registrada(s)` : ''}.`);
+    else toast(`${r.novos.toLocaleString('pt-BR')} peça(s) ${nomeEt} em ${fdA(dia)}${r.inferidas ? ` · ${r.inferidas} içamento(s) registrado(s) junto` : ''}${r.ja_feitos ? ` · ${r.ja_feitos} já estava(m) registrada(s)` : ''}.`);
     m3dDepoisApontar(des);
   } catch (e) {
     if (e.status) { toast(e.message, true); return; }   // o servidor recusou: não guarda
@@ -1557,7 +1564,9 @@ function m3dAplicarLocal(it) {
     const i = d.guidDe.get(g);
     if (i === undefined) return;
     const r = d.raiz[i];
-    if (it.acao === 'desapontar') {
+    if (it.etapa === 'canteiro') {
+      if (ap.ca) ap.ca[r] = it.acao === 'desapontar' ? '' : (ap.ca[r] || it.data);
+    } else if (it.acao === 'desapontar') {
       ap.tq[r] = '';
       if (it.etapa === 'icada') { ap.ic[r] = ''; ap.inf[r] = 0; }
     } else if (it.etapa === 'icada') {
@@ -1674,11 +1683,12 @@ function m3dBarraCampo() {
   const raizes = d ? [...new Set([...M3.sel].map(i => d.raiz[i]))] : [];
   const ab = i => !!(M3.aba && M3.aba.data[i]);
   const sIc = raizes.filter(i => !ap.ic[i] && !ab(i)).length, sTq = raizes.filter(i => !ap.tq[i] && !ab(i)).length;
+  const Rst = d && raizes.length ? m3dStatusReal().st : null, sCa = Rst ? raizes.filter(i => Rst[i] !== 3 && Rst[i] < 4 && !ap.ic[i] && !ab(i)).length : 0;
   const rede = $('#m3dRede');
   bar.innerHTML = `<div class="m3d-cbar-info"><b>${raizes.length ? raizes.length.toLocaleString('pt-BR') + (raizes.length === 1 ? ' peça' : ' peças') : 'Toque numa peça'}</b>
       <span>${raizes.length ? `${sIc.toLocaleString('pt-BR')} a içar · ${sTq.toLocaleString('pt-BR')} a torquear` : 'ou num eixo (filtros) para marcar o eixo inteiro'}</span>
       <span class="m3d-rede ${rede ? rede.className.replace('m3d-rede', '') : ''}">${rede && !rede.hidden ? esc(rede.textContent) : (navigator.onLine ? 'Online' : 'Sem sinal')}</span></div>
-    ${ed ? `<button type="button" class="m3d-cbt ic" data-m3d="icar"${sIc ? '' : ' disabled'}>Içada</button><button type="button" class="m3d-cbt tq" data-m3d="torquear"${sTq ? '' : ' disabled'}>Torqueada</button>` : '<span class="nota">Somente leitura</span>'}
+    ${ed ? `<button type="button" class="m3d-cbt ca" data-m3d="canteiro"${sCa ? '' : ' disabled'}>No canteiro</button><button type="button" class="m3d-cbt ic" data-m3d="icar"${sIc ? '' : ' disabled'}>Içada</button><button type="button" class="m3d-cbt tq" data-m3d="torquear"${sTq ? '' : ' disabled'}>Torqueada</button>` : '<span class="nota">Somente leitura</span>'}
     <div class="m3d-cbar-mais"><button type="button" class="btn" id="m3dBaixar">Baixar para o canteiro</button><button type="button" class="btn" data-m3d="limpar">Limpar</button><button type="button" class="btn" id="m3dSairCanteiro">Sair</button></div>`;
 }
 
@@ -2278,7 +2288,7 @@ function m3dLigar() {
     else if (ac === 'chlimpar') { M3.chips = { st: new Set(), fase: new Set(), eixo: new Set() }; m3dAplicarChips(); }
     else if (ac === 'chsel') { const R = m3dStatusReal(); M3.sel = new Set(m3dSelRaizes(i => m3dChipsPassa(i, R))); m3dPintar(); m3dPainelSel(); m3dBarraCampo(); toast(M3.sel.size.toLocaleString('pt-BR') + ' peça(s) selecionada(s).'); }
     else if (ac === 'props') m3dMostrarProps();
-    else if (ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq') m3dApontar(ac);
+    else if (ac === 'icar' || ac === 'torquear' || ac === 'desicar' || ac === 'destorq' || ac === 'canteiro' || ac === 'descanteiro') m3dApontar(ac);
     else if (ac === 'vit') m3dVitrineSelecionar(b.dataset.k);
     else if (ac === 'novo') m3dAbrirGrupo(null);
     else if (ac === 'fsel') m3dFiltrar(false);

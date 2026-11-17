@@ -211,12 +211,13 @@ const TUT_TOPICOS = [
     ],
     dica: 'O que é apontado na aba Apontar montagem aparece sozinho no 3D como montado. Não precisa apontar duas vezes.' },
 
-  { id: 'm3dapontar', mod: 'm3d', aba: 'm3d', titulo: 'Modelo 3D: apontar peças içadas e torqueadas', novo: '2026-11-17',
+  { id: 'm3dapontar', mod: 'm3d', aba: 'm3d', titulo: 'Modelo 3D: marcar no canteiro, içadas e torqueadas', novo: '2026-11-17',
     resumo: 'Marcar no próprio 3D as peças que foram içadas e torqueadas. Funciona para uma peça ou para centenas de uma vez.',
     quem: 'Encarregado e equipe de campo', quando: 'No fim do dia (ou na hora), depois de içar ou torquear.',
     passos: [
       { t: 'Use os Filtros da direita para achar as peças: por situação, etapa de montagem ou eixo. Tocar num filtro isola as peças; tocar de novo solta.', alvo: '#m3dChipsBox' },
       { t: '"selecionar estas" seleciona todas as peças filtradas (por exemplo, o eixo 13 inteiro). Também dá para clicar numa peça ou usar Shift + arrastar para fazer uma caixa.' },
+      { t: 'Peça cinza (na fábrica) que já chegou na obra: selecione e clique em "Chegou: no canteiro". Ela fica amarela, pronta para içar. No modo canteiro o botão é "No canteiro".' },
       { t: 'No painel da peça, confira a data e clique em "Marcar como içada". Depois do torque, clique em "Marcar como torqueada".' },
       { t: 'Errou? Use "desfazer içamento" ou "desfazer torque". Dia com RDO validado não aceita mudança.' },
     ],

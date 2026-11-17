@@ -2035,3 +2035,6 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .tut-bv-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .tut-card p { font-size: .98rem; line-height: 1.55; }
 @media (max-width: 900px) { .tut-termos > div { grid-template-columns: minmax(0, 1fr); gap: 2px; } .tut-passo { flex-wrap: wrap; } }
+/* Modelo 3D: marcar peça como "no canteiro" (2026-11-17) */
+.m3d-cbt.ca { background: #ca8a04; }
+.m3d-ap-ca { background: #fef3c7; border-color: #eab308; color: #713f12; font-weight: 700; }

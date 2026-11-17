@@ -278,7 +278,7 @@ function m3d_desvincular($modeloId, array $guids, $soDoGrupo)
 // ---------------------------------------------------------------- apontamento de campo por peça (Içada, Torqueada)
 function m3d_etapas_campo()
 {
-    return ['icada' => 'Içada', 'torqueada' => 'Torqueada'];
+    return ['canteiro' => 'No canteiro', 'icada' => 'Içada', 'torqueada' => 'Torqueada'];
 }
 
 /** Apontamentos do modelo: lista compacta [guid, 1 = içada | 2 = torqueada, data, empresa, inferida]. */
@@ -286,7 +286,7 @@ function m3d_apont_ler($modeloId)
 {
     $out = [];
     foreach (q('SELECT guid, etapa, data, empresa, inferida, por FROM m3d_apontamentos WHERE modelo_id = ? ORDER BY data, id', [(int)$modeloId])->fetchAll() as $a) {
-        $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : 1, substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
+        $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : ($a['etapa'] === 'canteiro' ? 3 : 1), substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
     }
     return ['itens' => $out, 'vigas_aba' => m3d_vigas_da_aba((int)$modeloId)];
 }
@@ -399,7 +399,7 @@ function m3d_desapontar(array $c, array $u)
     if (!isset(m3d_etapas_campo()[$etapa])) { throw new ErroValidacao('Etapa inválida.'); }
     $guids = m3d_guids_validos($c['guids'] ?? []);
     m3d_conferir_guids_empresa($u, (int)$modelo['id'], $guids);
-    $etapas = $etapa === 'icada' ? ['icada', 'torqueada'] : ['torqueada'];
+    $etapas = $etapa === 'icada' ? ['icada', 'torqueada'] : [$etapa];
     $n = 0;
     foreach (array_chunk($guids, 400) as $lote) {
         $st = bd()->prepare('SELECT DISTINCT data FROM m3d_apontamentos WHERE obra_id = ? AND modelo_id = ? AND etapa IN (' . implode(',', array_fill(0, count($etapas), '?')) . ') AND guid IN (' . implode(',', array_fill(0, count($lote), '?')) . ')');
