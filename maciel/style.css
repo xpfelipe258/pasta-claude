@@ -2005,3 +2005,33 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .m3d-aviso:has(.m3d-conv) { max-width: min(640px, 92%); }
 .m3d-vazio p { margin: 8px 0 14px; font-size: .88rem; color: var(--fg2, #475569); }
 .m3d-vazio-bt { min-height: 48px; padding: 0 28px; font-size: 1rem; font-weight: 700; display: block; margin: 0 auto 10px; }
+
+/* ---- Tutorial mais fácil de ler (2026-11-17): passos numerados, quem usa/quando, glossário, selo NOVO, boas-vindas */
+.tut-detalhe { max-width: 860px; }
+.tut-detalhe h3 { font-size: 1.35rem; line-height: 1.3; }
+.tut-sub { margin: 16px 0 6px; font-size: .74rem; text-transform: uppercase; letter-spacing: .07em; color: var(--fg2); }
+.tut-resumo { font-size: 1.02rem; line-height: 1.6; }
+.tut-perfil { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 6px; }
+.tut-perfil > div { flex: 1 1 220px; padding: 9px 12px; border-radius: 8px; background: var(--acento-suave); }
+.tut-perfil dt { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--fg2); }
+.tut-perfil dd { margin: 2px 0 0; font-size: .95rem; font-weight: 600; }
+.tut-passo { flex-wrap: nowrap; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+.tut-num { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--acento); color: #fff; font-weight: 700; font-size: .9rem; }
+.tut-passo.feito .tut-num { background: #1a7f37; }
+.tut-passo label { font-size: 1rem; line-height: 1.55; }
+.tut-passo input { margin-top: 5px; }
+.tut-mostrar { align-self: center; }
+.tut-termos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 4px 0 12px; border: 1px solid var(--linha); border-radius: 8px; overflow: hidden; }
+.tut-termos > div { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 12px; padding: 10px 14px; border-top: 1px solid var(--linha); }
+.tut-termos > div:first-child { border-top: 0; }
+.tut-termos > div:nth-child(even) { background: var(--campo); }
+.tut-termos dt { font-weight: 700; }
+.tut-termos dd { margin: 0; line-height: 1.5; }
+.tut-novo { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #d1242f; color: #fff; font-style: normal; font-size: .62rem; font-weight: 700; letter-spacing: .05em; vertical-align: middle; }
+.tut-item .tut-novo { margin-left: auto; }
+.tut-bv { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-bottom: 14px; border-left: 4px solid var(--acento); }
+.tut-bv b { font-size: 1.05rem; }
+.tut-bv p { margin: 4px 0 0; line-height: 1.5; max-width: 640px; }
+.tut-bv-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.tut-card p { font-size: .98rem; line-height: 1.55; }
+@media (max-width: 900px) { .tut-termos > div { grid-template-columns: minmax(0, 1fr); gap: 2px; } .tut-passo { flex-wrap: wrap; } }

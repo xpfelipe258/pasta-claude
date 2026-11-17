@@ -2014,6 +2014,7 @@ const M3D_TOUR = [
 function m3dTourChave() { return 'm3dTour:' + ((window.OBRA_ATUAL && OBRA_ATUAL.id) || 0); }
 function m3dTourIniciar(forcar) {
   try { if (!forcar && localStorage.getItem(m3dTourChave())) return; } catch (e) { if (!forcar) return; }
+  if (!forcar && typeof TUT !== 'undefined' && TUT.tour) return;   // a visita guiada do Tutorial já está mostrando a tela
   M3.tour = 0;
   m3dTourDesenhar();
 }
