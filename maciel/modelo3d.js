@@ -98,6 +98,9 @@ function renderModelo3d() {
   M3.refVista = m3dHoje();
   m3dPintar();
   m3dListaGrupos();
+  if (M3.d && M3.ap && !M3.carregando && M3._abaSig !== m3dAbaAssinatura()) {   // houve apontamento na aba Apontar montagem: relê e repinta
+    m3dLerAba().then(() => { M3._realV = (M3._realV || 0) + 1; m3dPintar(); m3dPaineis(); });
+  }
   m3dRedimensionar();
 }
 function m3dHoje() { return (typeof ref === 'string' && ref) || hoje(); }
@@ -939,6 +942,161 @@ function m3dIsoBr(t) {
   const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : '';
 }
+// ---------------------------------------------------------------- integração com a aba Apontar montagem
+// O que é apontado na aba (joists por rua, vigas por eixo, contraventamento, fechamento lateral, marquise, telhas e peças do
+// mapa da obra importada) vale no 3D como peça MONTADA (içada e torqueada) na data do apontamento. A ligação usa o código de
+// posição do Tekla de cada peça ("05/C-B", "12-12a/H", "01/F2-E2"…) e a malha do projeto (eixos e estações em mm).
+function m3dPosParse(t) {
+  const m = String(t || '').match(/^([0-9]{2}a?)(?:-([0-9]{2}a?))?\/(.+)$/);
+  if (!m) return null;
+  const est = m[3].replace(/[<>]/g, '').split('-').filter(Boolean);
+  return { e1: m[1], e2: m[2] || m[1], est, lado: /^</.test(m[3]) ? '<H' : />$/.test(m[3]) ? 'A>' : '' };
+}
+function m3dRuaDe(p) {   // eixos "12-12a", "12a-13", "11-12" ou "12" → rua 12-13 (só o eixo 20 vira 19-20)
+  const n = t => parseInt(t, 10) + (/a$/.test(t) ? 0.5 : 0);
+  const base = Math.min(19, Math.max(1, Math.floor(Math.min(n(p.e1), n(p.e2)))));
+  const f = x => String(x).padStart(2, '0');
+  return `${f(base)}-${f(base + 1)}`;
+}
+function m3dFaixaDe(mm, est) {   // posição transversal (mm) → faixa AB…GH
+  const L = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  for (let k = 0; k < 7; k++) if (mm <= est[L[k + 1]]) return L[k] + L[k + 1];
+  return 'GH';
+}
+function m3dAbaAssinatura() {
+  const a = (typeof T !== 'undefined' && T && T.apontamentos) || [];
+  return a.length + '|' + a.reduce((m, x) => Math.max(m, +x.linha || +x.id || 0), 0) + '|' + a.reduce((m, x) => (x.data > m ? x.data : m), '');
+}
+async function m3dLerAba() {
+  M3._abaSig = m3dAbaAssinatura();
+  M3.aba = null;
+  const d = M3.d, apts = (typeof T !== 'undefined' && T && T.apontamentos) || [];
+  if (!d || !apts.length || M3.juntos) return;
+  const data = new Array(d.n).fill(''), orig = new Array(d.n).fill('');
+  const marcar = (i, dia, txt) => { if (!data[i] || dia < data[i]) { data[i] = dia; orig[i] = txt; } };
+  // peças do mapa da obra importada: o apontamento guarda o GUID da peça
+  const peca = apts.filter(a => String(a.tipo).toUpperCase() === 'PECA' && a.data);
+  peca.forEach(a => [a.letra, a.viga_id].forEach(g => { const i = g && d.guidDe.get(g); if (i !== undefined && i !== null && i !== '') marcar(d.raiz[i], a.data, 'peça do mapa'); }));
+  const outros = apts.filter(a => String(a.tipo).toUpperCase() !== 'PECA' && a.data);
+  if (outros.length) {
+    let fm = null, rg = null;
+    try {
+      [fm, rg] = await Promise.all([
+        window._frentes ? window._frentes : fetch(API + 'frentes-montagem', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+        window._regras_baixa ? window._regras_baixa : fetch(API + 'regras-baixa', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)]);
+    } catch (e) { fm = null; }
+    const malha = fm && fm.malha, est = malha && malha.estacoes_mm, eix = malha && malha.eixos_mm;
+    if (est && eix) {
+      // índice das peças montáveis por posição
+      const cel = new Map(), add = (k, i) => { if (!cel.has(k)) cel.set(k, []); cel.get(k).push(i); };
+      const vigasEixo = new Map(), suportes = [];
+      for (let i = 0; i < d.n; i++) {
+        if (d.e.pai[i] >= 0 || d.cRz[i + 1] <= d.cRz[i]) continue;
+        const p = m3dPosParse(m3dTxt('pos', i));
+        if (!p) continue;
+        const nome = m3dTxt('nome', i).toUpperCase(), fase = m3dTxt('fase', i);
+        const mm = p.est.map(x => est[x]).filter(x => x !== undefined), meio = mm.length ? (Math.min(...mm) + Math.max(...mm)) / 2 : null;
+        if (nome === 'VIGA COBERTURA' && p.e1 === p.e2) {
+          if (!vigasEixo.has(p.e1)) vigasEixo.set(p.e1, []);
+          vigasEixo.get(p.e1).push([i, p.est.join('-'), meio]);
+        } else if (nome === 'SUPORTE JOIST') {
+          suportes.push(i);
+        } else if (/^1\.1\.1/.test(fase) && /CONTRAVENTAMENTO|SUPORTE CONT/.test(nome) && meio !== null) {
+          add(`CONTRAVENTAMENTO|${m3dFaixaDe(meio, est)}|${m3dRuaDe(p)}`, i);
+        } else if (/^1\.1\.2/.test(fase) || /FECHAMENTO/.test(nome)) {
+          const telha = /TELHA/.test(nome), tipo = telha ? 'TELHAFECH' : 'FECHAMENTO';
+          if (p.e1 === p.e2 && (p.e1 === '01' || p.e1 === '20') && meio !== null) add(`${tipo}|OITÃO ${p.e1}|${m3dFaixaDe(meio, est)}`, i);
+          else if (p.est.length === 1 && (p.est[0] === 'A' || p.est[0] === 'H')) add(`${tipo}|${p.est[0]}|${m3dRuaDe(p)}`, i);
+        } else if (p.lado && /MARQUISE|MÃO FRANCESA|TESTEIRA|RUFO|GRAPA/.test(nome + ' ' + fase.toUpperCase())) {
+          add(`MARQUISE|${p.lado}|${m3dRuaDe(p)}`, i);
+        } else if (nome === 'TELHA COBERTURA') {
+          add('TELHA', i);
+        }
+      }
+      // vigas: oitão = trecho exato do projeto; demais eixos = letra mais próxima do centro da peça (A, B, BC, C… H)
+      const crit = (rg && rg.criterio_por_letra) || {}, ordem = (rg && rg.letras_ordem) || ['A', 'B', 'BC', 'C', 'CD', 'D', 'DE', 'E', 'EF', 'F', 'FG', 'G', 'H'];
+      const posLetra = l => l.length === 1 ? est[l] : (est[l[0]] + est[l[1]]) / 2;
+      const vigaDe = new Map();
+      vigasEixo.forEach((lista, e) => lista.forEach(([i, trecho, meio]) => {
+        let letra = trecho;
+        if (e !== '01' && e !== '20' && meio !== null) letra = ordem.reduce((m, l) => Math.abs(posLetra(l) - meio) < Math.abs(posLetra(m) - meio) ? l : m, ordem[0]);
+        const k = `${e}|${letra}`;
+        if (!vigaDe.has(k)) vigaDe.set(k, []);
+        vigaDe.get(k).push(i);
+      }));
+      // joists: o modelo não tem a joist, só os suportes dela; cada suporte vai para a rua e a posição de joist mais próximas
+      const cal = suportes.length ? m3dCalibrar(eix, est, vigasEixo) : null;
+      const joistDe = new Map();
+      if (cal && rg && rg.layout_joists) {
+        const slots = [];
+        Object.keys(rg.layout_joists).filter(f => f !== 'nota').forEach(f => {
+          const n = rg.layout_joists[f].length, a = est[f[0]], b = est[f[1]];
+          for (let j = 0; j < n; j++) slots.push(a + (j + 0.5) * (b - a) / n);
+        });
+        const eixosPrinc = Object.keys(eix).filter(k => !/a$/.test(k)).sort();
+        suportes.forEach(i => {
+          const c = m3dCentroRaiz(i), q = cal(c);
+          if (!q) return;
+          let r = 0;
+          while (r < eixosPrinc.length - 2 && q[0] > eix[eixosPrinc[r + 1]]) r++;
+          let k = 0;
+          slots.forEach((y, j) => { if (Math.abs(y - q[1]) < Math.abs(slots[k] - q[1])) k = j; });
+          const key = `${eixosPrinc[r]}-${eixosPrinc[r + 1]}|${k + 1}`;
+          if (!joistDe.has(key)) joistDe.set(key, []);
+          joistDe.get(key).push(i);
+        });
+      }
+      // telhas da cobertura: faixa de 0,485 m a partir do eixo 01
+      const telhaDe = new Map();
+      if (cal && cel.has('TELHA')) cel.get('TELHA').forEach(i => { const q = cal(m3dCentroRaiz(i)); if (!q) return; const k = Math.max(1, Math.floor(q[0] / 485) + 1); if (!telhaDe.has(k)) telhaDe.set(k, []); telhaDe.get(k).push(i); });
+      const contaTf = new Map();
+      outros.forEach(a => {
+        const t = String(a.tipo).toUpperCase(), dia = a.data;
+        if (t === 'VIGA') (vigaDe.get(`${a.eixo}|${a.letra}`) || []).forEach(i => marcar(i, dia, `viga eixo ${a.eixo} · ${a.letra}`));
+        else if (t === 'JOIST') (joistDe.get(`${a.rua}|${a.slot}`) || []).forEach(i => marcar(i, dia, `joist rua ${a.rua} nº ${a.slot} (suporte)`));
+        else if (t === 'TELHA') (telhaDe.get(parseInt(a.rua, 10)) || []).forEach(i => marcar(i, dia, `telha nº ${a.rua}`));
+        else if (t === 'TELHAFECH') { const [tr] = String(a.rua).split('/'); const k = `TELHAFECH|${a.faixa}|${tr}`; contaTf.set(k, (contaTf.get(k) || []).concat([dia])); }
+        else if (t === 'CONTRAVENTAMENTO' || t === 'FECHAMENTO' || t === 'MARQUISE') (cel.get(`${t}|${a.faixa}|${a.rua}`) || []).forEach(i => marcar(i, dia, `${t.toLowerCase()} ${a.faixa} · ${a.rua}`));
+      });
+      // telhas do fechamento: o apontamento conta telhas do trecho; vale para as primeiras peças do trecho
+      contaTf.forEach((dias, k) => { dias.sort(); (cel.get(k) || []).slice(0, dias.length).forEach((i, j) => marcar(i, dias[j], 'telha do fechamento ' + k.split('|').slice(1).join(' · '))); });
+    }
+  }
+  const n = data.filter(Boolean).length;
+  M3.aba = n ? { data, orig, n } : null;
+  M3._real = null;
+}
+/** Centro (coordenadas da cena) de uma peça montável: média dos centros dos seus componentes. */
+function m3dCentroRaiz(r) {
+  const d = M3.d;
+  let x = 0, y = 0, z = 0, n = 0;
+  m3dInstDe(r, i => { x += d.centro[i * 4]; y += d.centro[i * 4 + 1]; z += d.centro[i * 4 + 2]; n++; });
+  return n ? [x / n, y / n, z / n] : null;
+}
+/** Ajusta (mínimos quadrados) a cena 3D à malha do projeto usando as vigas de cobertura, cuja posição no projeto é conhecida pelo código. */
+function m3dCalibrar(eix, est, vigasEixo) {
+  const pts = [];
+  vigasEixo.forEach((lista, e) => lista.forEach(([i, , meio]) => { if (eix[e] !== undefined && meio !== null) { const c = m3dCentroRaiz(i); if (c) pts.push([c, eix[e], meio]); } }));
+  if (pts.length < 12) return null;
+  const resolver = alvo => {   // a·x + b·y + c·z + d = alvo
+    const A = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], B = [0, 0, 0, 0];
+    pts.forEach(p => { const v = [p[0][0], p[0][1], p[0][2], 1]; for (let r = 0; r < 4; r++) { B[r] += v[r] * p[alvo]; for (let c = 0; c < 4; c++) A[r][c] += v[r] * v[c]; } });
+    for (let c = 0; c < 4; c++) {   // eliminação de Gauss com pivô
+      let pv = c;
+      for (let r = c + 1; r < 4; r++) if (Math.abs(A[r][c]) > Math.abs(A[pv][c])) pv = r;
+      if (Math.abs(A[pv][c]) < 1e-12) return null;
+      [A[c], A[pv]] = [A[pv], A[c]]; [B[c], B[pv]] = [B[pv], B[c]];
+      for (let r = 0; r < 4; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k]; B[r] -= f * B[c]; }
+    }
+    return B.map((b, k) => b / A[k][k]);
+  };
+  const ka = resolver(1), kb = resolver(2);
+  if (!ka || !kb) return null;
+  const f = c => c ? [ka[0] * c[0] + ka[1] * c[1] + ka[2] * c[2] + ka[3], kb[0] * c[0] + kb[1] * c[1] + kb[2] * c[2] + kb[3]] : null;
+  const erro = pts.reduce((s, p) => { const q = f(p[0]); return Math.max(s, Math.abs(q[0] - p[1])); }, 0);
+  M3._calErro = erro;
+  return erro < 3000 ? f : null;   // mais de 3 m de erro no eixo = modelo fora da malha: não liga joists e telhas
+}
 async function m3dCarregarCampo(id) {
   const d = M3.d;
   M3.ap = { ic: new Array(d.n).fill(''), tq: new Array(d.n).fill(''), inf: new Uint8Array(d.n), por: {}, n: 0 };
@@ -954,6 +1112,7 @@ async function m3dCarregarCampo(id) {
     });
   } catch (e) { /* sem apontamentos: segue só com o planejado */ }
   m3dFila().forEach(m3dAplicarLocal);   // o que foi apontado sem internet e ainda não subiu
+  await m3dLerAba();
   if (typeof EP !== 'undefined' && !EP && typeof API !== 'undefined') {
     try { const j = await fetch(API + 'estoque-planilha', { cache: 'no-store' }).then(r => r.ok ? r.json() : null); if (j) EP = j; } catch (e) { /* sem acesso a Suprimentos */ }
   }
@@ -998,12 +1157,13 @@ function m3dPrepararCarga() {
 function m3dStatusReal() {
   const d = M3.d, hj = m3dHoje(), dia = M3.dia && M3.dia < hj ? M3.dia : hj;
   if (M3._real && M3._real.dia === dia && M3._real.v === M3._realV) return M3._real;
-  const st = new Uint8Array(d.n), ap = M3.ap || { ic: [], tq: [] };
+  const st = new Uint8Array(d.n), ap = M3.ap || { ic: [], tq: [] }, ab = M3.aba;
   const fimDe = new Array(M3.grupos.length);
   M3.grupos.forEach((g, k) => { fimDe[k] = g.status === 'concluido' ? '' : (g.fim || ''); });
   for (let i = 0; i < d.n; i++) {
     if (d.e.pai[i] >= 0) continue;
     if (ap.tq[i] && ap.tq[i] <= dia) st[i] = 5;
+    else if (ab && ab.data[i] && ab.data[i] <= dia) st[i] = 5;   // montada pela aba Apontar montagem
     else if (ap.ic[i] && ap.ic[i] <= dia) st[i] = 4;
   }
   if (M3.carga) M3.carga.pecas.forEach((lista, tag) => {
@@ -1090,12 +1250,15 @@ function m3dCampoHtml(itens) {
   const d = M3.d, R = m3dStatusReal(), ap = M3.ap || { ic: [], tq: [], inf: [], por: {} };
   const raizes = [...new Set(itens.map(i => d.raiz[i]))];
   const ed = m3dPodeEditar(), dataPad = m3dHoje() > hoje() ? hoje() : m3dHoje();
-  const sIc = raizes.filter(i => !ap.ic[i]).length, sTq = raizes.filter(i => !ap.tq[i]).length;
+  const pelaAba = i => !!(M3.aba && M3.aba.data[i]);
+  const sIc = raizes.filter(i => !ap.ic[i] && !pelaAba(i)).length, sTq = raizes.filter(i => !ap.tq[i] && !pelaAba(i)).length;
+  const nIcProp = raizes.filter(i => ap.ic[i]).length, nTqProp = raizes.filter(i => ap.tq[i]).length;   // só o que foi apontado aqui pode ser desfeito aqui
   let info = '';
   if (raizes.length === 1) {
     const i = raizes[0], s = R.st[i];
     const l = [];
     if (ap.ic[i]) l.push(`Içada em <b>${fdA(ap.ic[i])}</b>${ap.inf[i] ? ' (registrada junto com o torque)' : ''}${ap.por[i + ':1'] ? ' · ' + esc(ap.por[i + ':1']) : ''}`);
+    if (M3.aba && M3.aba.data[i]) l.push(`Montada pela aba <b>Apontar montagem</b> em <b>${fdA(M3.aba.data[i])}</b> · ${esc(M3.aba.orig[i] || '')}`);
     if (ap.pend && ap.pend.has(i)) l.push('<span class="m3d-pend">⏱ guardado no aparelho, aguardando envio</span>');
     if (ap.tq[i]) l.push(`Torqueada em <b>${fdA(ap.tq[i])}</b>${ap.por[i + ':2'] ? ' · ' + esc(ap.por[i + ':2']) : ''}`);
     const t = m3dChaveCarga(i), cg = M3.carga && M3.carga.porTag.get(t);
@@ -1116,8 +1279,9 @@ function m3dCampoHtml(itens) {
     const prim = sIc ? `<button type="button" class="btn primario m3d-ap-bt" data-m3d="icar">${um ? 'Marcar como içada' : `Marcar ${sIc.toLocaleString('pt-BR')} como içadas`}</button>`
       : sTq ? `<button type="button" class="btn primario m3d-ap-bt m3d-ap-tq" data-m3d="torquear">${um ? 'Marcar como torqueada' : `Marcar ${sTq.toLocaleString('pt-BR')} como torqueadas`}</button>` : '';
     const sec = sIc && sTq ? `<button type="button" class="btn" data-m3d="torquear">${um ? 'Já torqueada' : 'Torqueadas'}</button>` : '';
-    const desf = [n - sTq ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', n - sIc ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
-    bts = (prim || sec ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${prim}${sec}</div>` : '<p class="nota">Montagem concluída nesta seleção.</p>') + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
+    const desf = [nTqProp ? `<button type="button" class="m3d-link" data-m3d="destorq">desfazer torque</button>` : '', nIcProp ? `<button type="button" class="m3d-link" data-m3d="desicar">desfazer içamento</button>` : ''].filter(Boolean).join(' · ');
+    const nAba = raizes.filter(pelaAba).length;
+    bts = (prim || sec ? `<div class="m3d-ap"><label class="m3d-ap-data">Data <input type="date" id="m3dApData" value="${dataPad}" max="${hoje()}"></label>${prim}${sec}</div>` : `<p class="nota">Montagem concluída nesta seleção${nAba ? ' (apontada na aba Apontar montagem: para corrigir, use aquela aba)' : ''}.</p>`) + (desf ? `<div class="m3d-ap-desf">${desf}</div>` : '');
   }
   return `<div class="m3d-cmp"><div class="m3d-campo-tit">Campo</div>${info}${bts}</div>`;
 }
@@ -1291,7 +1455,8 @@ function m3dBarraCampo() {
   if (!M3.canteiro) return;
   const d = M3.d, ap = M3.ap || { ic: [], tq: [] }, ed = m3dPodeEditar() && !M3.juntos;
   const raizes = d ? [...new Set([...M3.sel].map(i => d.raiz[i]))] : [];
-  const sIc = raizes.filter(i => !ap.ic[i]).length, sTq = raizes.filter(i => !ap.tq[i]).length;
+  const ab = i => !!(M3.aba && M3.aba.data[i]);
+  const sIc = raizes.filter(i => !ap.ic[i] && !ab(i)).length, sTq = raizes.filter(i => !ap.tq[i] && !ab(i)).length;
   const rede = $('#m3dRede');
   bar.innerHTML = `<div class="m3d-cbar-info"><b>${raizes.length ? raizes.length.toLocaleString('pt-BR') + (raizes.length === 1 ? ' peça' : ' peças') : 'Toque numa peça'}</b>
       <span>${raizes.length ? `${sIc.toLocaleString('pt-BR')} a içar · ${sTq.toLocaleString('pt-BR')} a torquear` : 'ou num eixo (filtros) para marcar o eixo inteiro'}</span>
