@@ -82,6 +82,45 @@ $atualizarObra = <<<'HTML'
   const botao = document.getElementById('obraAtualizarSistema');
   const status = document.getElementById('obraAtualizarStatus');
   if (!botao || !status) return;
+  const chaveRetorno = 'obra-atualizar-retorno:' + location.pathname + ':' + (window.OBRA_ATUAL?.id || '');
+  const navegacao = secao => [...secao.querySelectorAll('button.ativa')].flatMap(el =>
+    [...el.attributes].filter(a => a.name.startsWith('data-') && (/sub/.test(a.name) ||
+        ['data-ap-modo', 'data-ap-etapa', 'data-ap-fase', 'data-ap-zoom', 'data-ap-emp'].includes(a.name)))
+      .map(a => ({ atributo: a.name, valor: a.value }))
+  );
+  const urlAtual = new URL(location.href);
+  try {
+    const salvo = JSON.parse(sessionStorage.getItem(chaveRetorno) || 'null');
+    if (salvo && salvo.token === urlAtual.searchParams.get('_atualizacao')) {
+      sessionStorage.removeItem(chaveRetorno);
+      const pendentes = salvo.subabas;
+      const rolagens = salvo.rolagens || [];
+      const restaurar = () => {
+        const secao = document.getElementById('aba-' + salvo.aba);
+        if (!secao || secao.hidden) return;
+        while (pendentes.length) {
+          const proxima = pendentes[0];
+          const alvo = [...secao.querySelectorAll('button')].find(b =>
+            b.getAttribute(proxima.atributo) === proxima.valor && b.getClientRects().length && !b.disabled
+          );
+          if (!alvo) return;
+          pendentes.shift();
+          if (!alvo.classList.contains('ativa')) alvo.click();
+        }
+        for (const pos of rolagens) {
+          const el = document.getElementById(pos.id);
+          if (el) { el.scrollTop = pos.top; el.scrollLeft = pos.left; }
+        }
+        window.scrollTo(salvo.scrollX || 0, salvo.scrollY || 0);
+        observador.disconnect();
+        clearTimeout(limiteRetorno);
+      };
+      const observador = new MutationObserver(restaurar);
+      const limiteRetorno = setTimeout(() => observador.disconnect(), 15000);
+      observador.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+      restaurar();
+    }
+  } catch { /* a aba principal é restaurada pela URL, mesmo sem armazenamento */ }
   const informar = texto => {
     status.hidden = !texto;
     status.textContent = texto;
@@ -89,15 +128,30 @@ $atualizarObra = <<<'HTML'
   botao.addEventListener('click', async () => {
     if (botao.disabled) return;
     const destino = new URL(location.href);
-    destino.searchParams.set('_atualizacao', Date.now().toString(36));
     const controle = new AbortController();
     const limite = setTimeout(() => controle.abort(), 10000);
     botao.disabled = true;
     informar('Verificando conexão…');
     try {
-      // O modo canteiro não intercepta HEAD. Verifica a rede antes de recarregar.
       const resposta = await fetch(destino, { method: 'HEAD', cache: 'no-store', signal: controle.signal });
       if (!resposta.ok) throw new Error('Servidor indisponível');
+      // A navegação da obra é interna e pode diferir da aba que consta na URL.
+      const aba = typeof abaAtual === 'string' ? abaAtual
+        : document.querySelector('main > section:not([hidden])[id^="aba-"]')?.id.slice(4);
+      const token = Date.now().toString(36);
+      destino.searchParams.set('_atualizacao', token);
+      if (aba) {
+        destino.searchParams.set('aba', aba);
+        const secao = document.getElementById('aba-' + aba);
+        try {
+          sessionStorage.setItem(chaveRetorno, JSON.stringify({
+            token, aba, subabas: secao ? navegacao(secao) : [],
+            scrollX: window.scrollX, scrollY: window.scrollY,
+            rolagens: secao ? [...secao.querySelectorAll('[id]')].filter(el => el.scrollLeft || el.scrollTop)
+              .map(el => ({ id: el.id, top: el.scrollTop, left: el.scrollLeft })) : []
+          }));
+        } catch { /* a aba continua na URL */ }
+      }
       informar('');
       location.replace(destino.href);
     } catch {

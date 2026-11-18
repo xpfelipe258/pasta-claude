@@ -1,0 +1,896 @@
+{
+  "fonte": "Posições dos conjuntos VIGA MARQUISE do IFC convertido da obra G200",
+  "modelo": "G200",
+  "total": 73,
+  "partes": [
+    {
+      "id": "A>",
+      "nome": "Marquise lado A",
+      "celulas": [
+        {
+          "trecho": "02",
+          "eixo": "02",
+          "posicao_ifc": "02/A>",
+          "guid": "3VFyhgvcP0oBx1l9u_Vd2i",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "02a",
+          "eixo": "02a",
+          "posicao_ifc": "02a/A>",
+          "guid": "1QHyk4_d11bhBQ8iN04TZd",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "03",
+          "eixo": "03",
+          "posicao_ifc": "03/A>",
+          "guid": "1qcDh$U$XAvBhyuvvJx4J5",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "03a",
+          "eixo": "03a",
+          "posicao_ifc": "03a/A>",
+          "guid": "3_9WAfyhb0MRV$d88yXwCY",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "04",
+          "eixo": "04",
+          "posicao_ifc": "04/A>",
+          "guid": "3KpDLlUlv4VREY6E37DTVl",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "04a",
+          "eixo": "04a",
+          "posicao_ifc": "04a/A>",
+          "guid": "2iZGoxVdH3Ue_$RvrsKTLc",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "05",
+          "eixo": "05",
+          "posicao_ifc": "05/A>",
+          "guid": "3LoL1q_fX0RONgc_7omdPB",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "05a",
+          "eixo": "05a",
+          "posicao_ifc": "05a/A>",
+          "guid": "16e8lnCevEZQTHefiPqarr",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "06",
+          "eixo": "06",
+          "posicao_ifc": "06/A>",
+          "guid": "1wxRKSulfFXOY3_1ZI0B2I",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "06a",
+          "eixo": "06a",
+          "posicao_ifc": "06a/A>",
+          "guid": "2$5T3$ff17efZmBohFwp6w",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "07",
+          "eixo": "07",
+          "posicao_ifc": "07/A>",
+          "guid": "3pVTCGPRr3_vcNtBBWJbPk",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "07a",
+          "eixo": "07a",
+          "posicao_ifc": "07a/A>",
+          "guid": "1BQWOuBM5BUAn3fYo_Xc6E",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "08",
+          "eixo": "08",
+          "posicao_ifc": "08/A>",
+          "guid": "3DZOIzwvz1XeQGsWuIkN6W",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "08a",
+          "eixo": "08a",
+          "posicao_ifc": "08a/A>",
+          "guid": "0s_9L2b3XDfRRo$dJbWp9r",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "09",
+          "eixo": "09",
+          "posicao_ifc": "09/A>",
+          "guid": "00T95bCor4mwlAOX8Okwqz",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "09a",
+          "eixo": "09a",
+          "posicao_ifc": "09a/A>",
+          "guid": "2G2T3MLqr8qOpThAlDJhni",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "10",
+          "eixo": "10",
+          "posicao_ifc": "10/A>",
+          "guid": "3im4yNVAD38QDt7l82Fzww",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "10a",
+          "eixo": "10a",
+          "posicao_ifc": "10a/A>",
+          "guid": "16ySoY7KL57ety7Cv7xyBd",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "11",
+          "eixo": "11",
+          "posicao_ifc": "11/A>",
+          "guid": "2QQQPUsBL7zwi3Iqog3ARh",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "11a",
+          "eixo": "11a",
+          "posicao_ifc": "11a/A>",
+          "guid": "0ANj3jw71FpvlgjAOgNQXn",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "12",
+          "eixo": "12",
+          "posicao_ifc": "12/A>",
+          "guid": "0RH5KlhOf7XRAIUyFlxreC",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "12a",
+          "eixo": "12a",
+          "posicao_ifc": "12a/A>",
+          "guid": "2q8FPrRXH1g8GDsB9hpdLC",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "13",
+          "eixo": "13",
+          "posicao_ifc": "13/A>",
+          "guid": "06rHA0sXHCBBhwjT3k8Ms2",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "13a",
+          "eixo": "13a",
+          "posicao_ifc": "13a/A>",
+          "guid": "2ASsdbt75CVwYcQoVc2_X_",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "14",
+          "eixo": "14",
+          "posicao_ifc": "14/A>",
+          "guid": "0ikMUTDIHBh9mXmPgG8H8y",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "14a",
+          "eixo": "14a",
+          "posicao_ifc": "14a/A>",
+          "guid": "1tf7AsIK502f62Gvc8Il6o",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "15",
+          "eixo": "15",
+          "posicao_ifc": "15/A>",
+          "guid": "0IdAFAEZnEDB9dFANUcflG",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "15a",
+          "eixo": "15a",
+          "posicao_ifc": "15a/A>",
+          "guid": "0000wI5uj2yv5rhEMr8PtL",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "16",
+          "eixo": "16",
+          "posicao_ifc": "16/A>",
+          "guid": "1Pru1VyrXFSOi7690a8brV",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "16a",
+          "eixo": "16a",
+          "posicao_ifc": "16a/A>",
+          "guid": "2b8dXoLh1DT9CQr9ziDNE4",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "17",
+          "eixo": "17",
+          "posicao_ifc": "17/A>",
+          "guid": "3JyhzQ2HL4qwqxVI_qHGpz",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "17a",
+          "eixo": "17a",
+          "posicao_ifc": "17a/A>",
+          "guid": "3sfFVurM142vc9rNs99jTc",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "18",
+          "eixo": "18",
+          "posicao_ifc": "18/A>",
+          "guid": "02g35NZ8r47uLyB0dEkTg6",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "18a",
+          "eixo": "18a",
+          "posicao_ifc": "18a/A>",
+          "guid": "0jD8R18QT2t80JDxCErnUT",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "19",
+          "eixo": "19",
+          "posicao_ifc": "19/A>",
+          "guid": "2zhSVXg9j21fMrBtlio$pj",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "19a",
+          "eixo": "19a",
+          "posicao_ifc": "19a/A>",
+          "guid": "0J4ggIpob5f9vS91kuEojr",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        }
+      ],
+      "total": 36
+    },
+    {
+      "id": "<H",
+      "nome": "Marquise lado H",
+      "celulas": [
+        {
+          "trecho": "01a-02",
+          "eixo": "01a-02",
+          "posicao_ifc": "01a-02/<H",
+          "guid": "3GACsAbuf9Lhz4auUBgqMv",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "02",
+          "eixo": "02",
+          "posicao_ifc": "02/<H",
+          "guid": "3sG0DAWiD2KvtxE6uUsHPZ",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "02a",
+          "eixo": "02a",
+          "posicao_ifc": "02a/<H",
+          "guid": "0GerPEd6jCtQ00TwNXuc2n",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "03",
+          "eixo": "03",
+          "posicao_ifc": "03/<H",
+          "guid": "1wcT0Fwhf5auPZRcGpbCar",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "03a",
+          "eixo": "03a",
+          "posicao_ifc": "03a/<H",
+          "guid": "2G0gT8ygzBKPYNjSDlgPSz",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "04",
+          "eixo": "04",
+          "posicao_ifc": "04/<H",
+          "guid": "0EAzBFkdj53uiNNmieAOLL",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "04a",
+          "eixo": "04a",
+          "posicao_ifc": "04a/<H",
+          "guid": "0ccNW0NvP0rvPg1FyNpwuM",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "05",
+          "eixo": "05",
+          "posicao_ifc": "05/<H",
+          "guid": "0YHJOr5yzFcgp28uPnb3AB",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "05a",
+          "eixo": "05a",
+          "posicao_ifc": "05a/<H",
+          "guid": "2MFTDv5tXDMAbKi4B7O3QS",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "06",
+          "eixo": "06",
+          "posicao_ifc": "06/<H",
+          "guid": "1AmYaCNSn3jgZBtIiauhyT",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "06a",
+          "eixo": "06a",
+          "posicao_ifc": "06a/<H",
+          "guid": "190NXmEFv9Z9nQ9L3iqnGO",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "07",
+          "eixo": "07",
+          "posicao_ifc": "07/<H",
+          "guid": "0M9OtEOWz3xO5xeWwo1OvQ",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "07a",
+          "eixo": "07a",
+          "posicao_ifc": "07a/<H",
+          "guid": "3zE1gyEvX4jfrUmdtc47QD",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "08",
+          "eixo": "08",
+          "posicao_ifc": "08/<H",
+          "guid": "3hAOHdyrrDwhQS_P9In4kD",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "08a",
+          "eixo": "08a",
+          "posicao_ifc": "08a/<H",
+          "guid": "10ArKRinD4HAME90wEIyF_",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "09",
+          "eixo": "09",
+          "posicao_ifc": "09/<H",
+          "guid": "1RpT4$OTb9Kx2CbC1agRtZ",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "09a",
+          "eixo": "09a",
+          "posicao_ifc": "09a/<H",
+          "guid": "1rAEweGfz7Qe95Xl92N8rV",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "10",
+          "eixo": "10",
+          "posicao_ifc": "10/<H",
+          "guid": "04QLLbL0DDOvH3MpWSWzJ0",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "10a",
+          "eixo": "10a",
+          "posicao_ifc": "10a/<H",
+          "guid": "3JkqC$w3r08OWctRQXB3eF",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "11",
+          "eixo": "11",
+          "posicao_ifc": "11/<H",
+          "guid": "3BBVFUv59D3fsrEd5_WKow",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "11a",
+          "eixo": "11a",
+          "posicao_ifc": "11a/<H",
+          "guid": "0OssJbMg9FBuYKWnYa51R2",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "12",
+          "eixo": "12",
+          "posicao_ifc": "12/<H",
+          "guid": "3jcAjO2r95sfiWUvThT83q",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "12a",
+          "eixo": "12a",
+          "posicao_ifc": "12a/<H",
+          "guid": "2SM10SD3LF_hbrldRVjILc",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "13",
+          "eixo": "13",
+          "posicao_ifc": "13/<H",
+          "guid": "2YFLoadbD4Pv0txgUlVqMf",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "13a",
+          "eixo": "13a",
+          "posicao_ifc": "13a/<H",
+          "guid": "0J8chO6ojF8gY3enWxXASg",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "14",
+          "eixo": "14",
+          "posicao_ifc": "14/<H",
+          "guid": "36vd6nhwLBbeSHpEk90Ecr",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "14a",
+          "eixo": "14a",
+          "posicao_ifc": "14a/<H",
+          "guid": "1puaq0djv3peuIWXg2jNL8",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "15",
+          "eixo": "15",
+          "posicao_ifc": "15/<H",
+          "guid": "3SfFhARkvC8BCa4kt1XysR",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "15a",
+          "eixo": "15a",
+          "posicao_ifc": "15a/<H",
+          "guid": "2MpYJ5CzPC2hdzGAHaQdfl",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "16",
+          "eixo": "16",
+          "posicao_ifc": "16/<H",
+          "guid": "2si2Zf3r5DDOt5IOiH8FXz",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "16a",
+          "eixo": "16a",
+          "posicao_ifc": "16a/<H",
+          "guid": "0cSsa7p_9FkPBuDLpaArwo",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "17",
+          "eixo": "17",
+          "posicao_ifc": "17/<H",
+          "guid": "0yhjy_kTP4kfnboSWs3oEL",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "17a",
+          "eixo": "17a",
+          "posicao_ifc": "17a/<H",
+          "guid": "3AKS7BQRj4cBQvOVZ_W0Ph",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "18",
+          "eixo": "18",
+          "posicao_ifc": "18/<H",
+          "guid": "3yjXXwdSrEqvDnPkCS3rrM",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "18a",
+          "eixo": "18a",
+          "posicao_ifc": "18a/<H",
+          "guid": "3NSlbYADbFnBTYgbE_Xsyo",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 4
+          },
+          "total": 1
+        },
+        {
+          "trecho": "19",
+          "eixo": "19",
+          "posicao_ifc": "19/<H",
+          "guid": "0zfl8KnlfC8vasL70qiCEh",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1,
+            "MÃO FRANCESA": 2
+          },
+          "total": 1
+        },
+        {
+          "trecho": "20",
+          "eixo": "20",
+          "posicao_ifc": "20/<H",
+          "guid": "3TgT0houHF4wAmsobArTY6",
+          "marca": "VM01",
+          "pecas": {
+            "VIGA MARQUISE": 1
+          },
+          "total": 1
+        }
+      ],
+      "total": 37
+    }
+  ]
+}

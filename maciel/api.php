@@ -3235,7 +3235,8 @@ function frentes_montagem()
     if (!empty($d['frentes']['fechamento'])) {   // regra do sistema: o mapa da estrutura do fechamento lateral NÃO leva telha (a telha é da Globo Aços, apontada em "Telhas de fechamento")
         $d['frentes']['fechamento'] = frente_fechamento_sem_telha($d['frentes']['fechamento']);
     }
-    return frente_contraventamento_g200($d);
+    require_once __DIR__ . '/inc/marquise_mapa.php';
+    return frente_contraventamento_g200(marquise_mapa_etapas($d));
 }
 
 // Estrutura do fechamento lateral = só terças e espaçadores (os suportes de terça baixam junto com as terças, ver regras_baixa.json › estrutura_por_peca).
@@ -3512,6 +3513,15 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         throw new ErroValidacao("Mapa da frente $tipo não publicado.");
     }
     $parte = null;
+    if ($tipo === 'MARQUISE') {
+        $escolhida = trim((string)($item['etapa'] ?? ($frente['etapas'][0] ?? '')));
+        if (marquise_etapa_premontagem($escolhida)) {
+            throw new ErroValidacao('A marquise não possui pré-montagem de terças no catálogo.');
+        }
+        if (isset($frente['por_etapa'][$escolhida])) {
+            $frente = $frente['por_etapa'][$escolhida];
+        }
+    }
     $elev = $frente['elevacao'] ?? null;
     if ($elev) {
         // Vista elevada: o kit é identificado pela marca do Tekla (parte), pela rua (trecho) e pelo
@@ -3570,6 +3580,18 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
         $vistos[$trecho] = true;
         if (!in_array($trecho, $validos, true)) {
             throw new ErroValidacao("{$frente['titulo']} · {$parte['nome']}: trecho '$trecho' não existe no mapa.");
+        }
+        if ($tipo === 'MARQUISE' && !empty($frente['por_eixo'])) {
+            foreach ($ja as $antiga => $registroAntigo) {
+                $prefixo = "MARQUISE|{$parte['id']}|";
+                if (strpos($antiga, $prefixo) !== 0) continue;
+                $campos = explode('|', $antiga);
+                if (($campos[3] ?? '') !== $etapa || !preg_match('/^(\d{2})-(\d{2})$/', $campos[2] ?? '', $m)) continue;
+                $eixo = (int)$trecho + (strpos($trecho, 'a') !== false ? 0.5 : 0);
+                if ($eixo >= (int)$m[1] && $eixo <= (int)$m[2]) {
+                    throw new ErroValidacao('Há um apontamento antigo de vigas por vão neste local. Revise esse registro antes de apontar a viga por eixo.');
+                }
+            }
         }
         $chave = "$tipo|{$parte['id']}|$trecho|$etapa";
         if ($telhaFech && strpos($trecho, '/') !== false) {
