@@ -16,6 +16,59 @@ obra_override($obraId);   // só nesta requisição: a sessão continua na obra 
 
 $msg = '';
 $erro = '';
+// Pop-up "Importar orçamento" da aba Medição (BM): mesmas regras desta página, respondendo em JSON.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
+    conferir_csrf();
+    header('Content-Type: application/json; charset=utf-8');
+    $acao = (string)($_POST['acao'] ?? '');
+    try {
+        $arq = (!empty($_FILES['planilha']['tmp_name']) && is_uploaded_file($_FILES['planilha']['tmp_name'])) ? $_FILES['planilha']['tmp_name'] : null;
+        if ($arq && ($_FILES['planilha']['size'] ?? 0) > 15 * 1024 * 1024) { throw new InvalidArgumentException('A planilha passa de 15 MB.'); }
+        if ($arq && !preg_match('/\.(xlsx|xlsm)$/i', (string)($_FILES['planilha']['name'] ?? ''))) { throw new InvalidArgumentException('Envie a planilha em .xlsx ou .xlsm (no Excel: Arquivo › Salvar como › Pasta de Trabalho do Excel).'); }
+        $empId = (int)($_POST['empresa_id'] ?? 0);
+        $emp = $empId ? q('SELECT * FROM empresas WHERE id = ?', [$empId])->fetch() : null;
+        if ($empId && !$emp) { throw new InvalidArgumentException('Empresa não encontrada nesta obra.'); }
+        if ($acao === 'dados') {
+            $props = [];
+            try { $props = eo_propostas_validas($obra, $eu); } catch (Throwable $e) { }
+            $lista = array_map(function ($e) { return ['id' => (int)$e['id'], 'nome' => $e['nome'], 'atividades' => $e['atividades'], 'servicos' => $e['servicos'], 'prefixo' => eo_prefixo_da_empresa($e)]; }, eo_listar());
+            echo json_encode(['ok' => true, 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if ($acao === 'previa') {
+            $nome = $emp ? $emp['nome'] : eo_nome_valido($_POST['nome'] ?? '');
+            $prefixo = eo_prefixo($_POST['prefixo'] ?? '', $nome);
+            echo json_encode(['ok' => true] + eo_previa_planilha($arq, $prefixo, $emp ? $emp['nome'] : null), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if ($acao === 'aplicar') {
+            $modo = ($_POST['modo'] ?? '') === 'proposta' ? 'proposta' : 'planilha';
+            if ($emp) {
+                $pref = eo_prefixo($_POST['prefixo'] ?? '', $emp['nome']);
+                $r = eo_transacao(function () use ($emp, $arq, $obra, $eu, $modo, $pref) {
+                    return $modo === 'proposta'
+                        ? eo_importar_proposta((int)$emp['id'], $emp['nome'], $pref, (int)($_POST['orc_id'] ?? 0), $obra, $eu, !empty($_POST['criar_colunas']))
+                        : eo_importar_catalogo((int)$emp['id'], $emp['nome'], $pref, $arq, !empty($_POST['criar_colunas']), !empty($_POST['importar_cortes']));
+                });
+                $r['empresa'] = $emp['nome'];
+            } else {
+                $r = eo_transacao(function () use ($arq, $obra, $eu, $modo) { return eo_criar_empresa(array_merge($_POST, ['modo' => $modo, '_obra' => $obra, '_usuario' => $eu]), $arq); });
+            }
+            registrar_alteracao('catalogo_importado_bm', ['empresa' => $r['empresa'] ?? '', 'atividades' => $r['atividades'] ?? 0, 'modo' => $modo]);
+            echo json_encode(['ok' => true, 'resumo' => $r], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        throw new InvalidArgumentException('Ação inválida.');
+    } catch (InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'erro' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'erro' => 'Falha: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     conferir_csrf();
     $acao = (string)($_POST['acao'] ?? '');

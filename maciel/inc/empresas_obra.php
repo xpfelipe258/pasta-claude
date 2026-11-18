@@ -281,6 +281,45 @@ function eo_importar_catalogo($empresaId, $nome, $prefixo, $arquivoTmp, $criarCo
     return $res;
 }
 
+/** Lê a planilha inteira SEM gravar nada: itens, atividades (com o código que vão receber), quantidades, valores, cortes de BM
+ *  e avisos (códigos que já existem). Usado pela prévia do pop-up "Importar orçamento" da aba Medição. */
+function eo_previa_planilha($arquivoTmp, $prefixo, $empresaExistente = null)
+{
+    if (!$arquivoTmp || !is_file($arquivoTmp)) {
+        throw new InvalidArgumentException('Escolha a planilha de orçamento/medição (.xlsx).');
+    }
+    $o = leitura_orcamento($arquivoTmp);
+    if (!$o['itens']) {
+        throw new InvalidArgumentException('Não reconheci itens de medição nesta planilha. ' . implode(' ', $o['avisos']));
+    }
+    $itens = [];
+    $total = 0.0;
+    $nAtiv = 0;
+    $repetidos = 0;
+    foreach ($o['itens'] as $it) {
+        $lista = $it['atividades'] ?: [['descricao' => $it['descricao'], 'qtd' => $it['qtd'], 'unidade' => $it['unidade'], 'peso' => 1.0]];
+        $valor = round((float)($it['valor'] ?? 0), 2);
+        $total += $valor;
+        $ativ = [];
+        foreach ($lista as $k => $a) {
+            $codigo = $prefixo . '-' . $it['codigo'] . '-' . sprintf('%02d', $k + 1);
+            $existe = (bool)q('SELECT 1 FROM bm_atividades WHERE codigo = ?', [$codigo])->fetchColumn();
+            if ($existe) { $repetidos++; }
+            $ativ[] = ['codigo' => $codigo, 'descricao' => (string)$a['descricao'], 'qtd' => (float)$a['qtd'], 'unidade' => (string)($a['unidade'] ?: ($it['unidade'] ?: 'un')),
+                'peso' => (float)$a['peso'], 'valor' => round($valor * (float)$a['peso'], 2), 'existe' => $existe];
+            $nAtiv++;
+        }
+        $itens[] = ['codigo' => (string)$it['codigo'], 'descricao' => (string)$it['descricao'], 'valor' => $valor, 'atividades' => $ativ];
+    }
+    $avisos = array_values($o['avisos']);
+    if ($repetidos) { $avisos[] = $repetidos . ' atividade(s) já existem no catálogo com o mesmo código e serão ignoradas.'; }
+    if (!empty($o['contrato_total']) && abs((float)$o['contrato_total'] - $total) > 0.05) {
+        $avisos[] = 'A soma dos itens (R$ ' . number_format($total, 2, ',', '.') . ') difere do total do contrato lido na planilha (R$ ' . number_format((float)$o['contrato_total'], 2, ',', '.') . '): confira.';
+    }
+    return ['prefixo' => $prefixo, 'itens' => $itens, 'total' => round($total, 2), 'contrato_total' => (float)($o['contrato_total'] ?? 0),
+        'atividades' => $nAtiv, 'periodos' => array_values($o['periodos']), 'avisos' => $avisos];
+}
+
 /** Propostas comerciais válidas para virar catálogo desta obra: aprovadas, ou enviadas ainda dentro da validade,
  *  da empresa dona da obra (ou ligadas à própria obra). O administrador geral vê as de todas as empresas. */
 function eo_propostas_validas(array $obra, array $u)
