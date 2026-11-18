@@ -4,7 +4,7 @@
 // cortes de BM e avisos) → "Gerar catálogo e produção" grava o catálogo do BM e cria uma coluna de produção em Lançamentos
 // para cada atividade (ligada pelo campo controle). Servidor: obra_empresas.php (ajax=1, ações dados/previa/aplicar).
 (function () {
-  const BI = { emps: [], props: [], arq: null, previa: null, ia: false };
+  const BI = { emps: [], props: [], arq: null, previa: null, ia: false, abas: [], abasArq: null, lendoAbas: false };
   const rsBI = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const qtdBI = v => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
   const e = v => (typeof esc === 'function' ? esc(v) : String(v ?? ''));
@@ -38,11 +38,12 @@
     const v = n => (d.querySelector(`[name="${n}"]`) || {}).value || '';
     const c = n => !!(d.querySelector(`[name="${n}"]`) || {}).checked;
     return { emp: v('empresa_id'), nome: v('nome').trim(), prefixo: v('prefixo').trim(), modo: (d.querySelector('[name="modo"]:checked') || {}).value || 'planilha',
-      orc: v('orc_id'), leitor: (d.querySelector('[name="leitor"]:checked') || {}).value || 'auto', colunas: c('criar_colunas'), cortes: c('importar_cortes') };
+      orc: v('orc_id'), aba: v('aba_planilha'), leitor: (d.querySelector('[name="leitor"]:checked') || {}).value || 'auto', colunas: c('criar_colunas'), cortes: c('importar_cortes') };
   }
 
   function passo1() {
     const d = dlg();
+    BI.arq = null; BI.abas = []; BI.abasArq = null; BI.lendoAbas = false;
     const optEmp = BI.emps.map(x => `<option value="${x.id}" data-pref="${e(x.prefixo || '')}">${e(x.nome)} (${x.atividades} atividade(s) no catálogo)</option>`).join('');
     const optProp = BI.props.map(p => `<option value="${p.id}">${e(p.rotulo)}</option>`).join('');
     d.innerHTML = `<form method="dialog" class="bmimp">
@@ -59,11 +60,15 @@
       <fieldset><legend>Documento</legend>
         <label class="bmimp-op"><input type="radio" name="modo" value="planilha" checked> Arquivo do orçamento / medição (planilha, PDF ou foto)</label>
         <div class="bmimp-arq"><input type="file" name="planilha" accept=".xlsx,.xlsm,.csv,.pdf,.jpg,.jpeg,.png,.webp">
+          <label class="bmimp-abas" hidden>Aba da planilha
+            <select name="aba_planilha"><option value="">Selecione a aba da obra</option></select>
+            <small>Importe uma aba por vez. Confira a obra indicada nela.</small>
+          </label>
           <div class="bmimp-leitor">${BI.ia ? `<small>Como ler:</small>
             <label class="bmimp-op"><input type="radio" name="leitor" value="auto" checked> Automático (leitor padrão; se não reconhecer, usa inteligência artificial)</label>
             <label class="bmimp-op"><input type="radio" name="leitor" value="ia"> Inteligência artificial (qualquer formato de BM, PDF ou foto)</label>
             <label class="bmimp-op"><input type="radio" name="leitor" value="padrao"> Só o leitor padrão (planilha no modelo do sistema)</label>`
-            : `<small>Leitor padrão: planilha .xlsx no modelo de memorial do BM (item, descrição, QTD, unidade, valor %). A leitura por inteligência artificial (outros formatos, PDF e foto) não está ligada neste servidor.</small>`}</div></div>
+            : `<small>Leitor padrão: memorial com quantidade e unidade ou BM por etapas com contrato em R$ e avanço percentual. PDF e foto precisam da leitura por inteligência artificial, não ligada neste servidor.</small>`}</div></div>
         <label class="bmimp-op"><input type="radio" name="modo" value="proposta" ${optProp ? '' : 'disabled'}> Proposta comercial válida ${optProp ? '' : '<small>(nenhuma proposta aprovada ou dentro da validade no Painel comercial)</small>'}</label>
         <div class="bmimp-prop" hidden><select name="orc_id">${optProp}</select></div>
       </fieldset>
@@ -99,6 +104,28 @@
   function ocupado(btn, txt) { if (btn) { btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = txt; } }
   function livre(btn) { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || btn.textContent; } }
 
+  async function carregarAbas() {
+    const d = dlg(), arq = d.querySelector('[name="planilha"]')?.files?.[0];
+    BI.arq = arq || null; BI.abas = []; BI.abasArq = null; BI.lendoAbas = false;
+    const box = d.querySelector('.bmimp-abas'), sel = d.querySelector('[name="aba_planilha"]');
+    if (!box || !sel) return;
+    box.hidden = true; sel.innerHTML = '<option value="">Selecione a aba da obra</option>';
+    if (!arq || !/\.(xlsx|xlsm)$/i.test(arq.name)) return;
+    BI.lendoAbas = true; box.hidden = false;
+    sel.disabled = true; sel.innerHTML = '<option value="">Lendo abas…</option>';
+    erro('');
+    try {
+      const r = await post({ acao: 'abas', planilha: arq });
+      if (BI.arq !== arq) return; // resposta de um arquivo anterior
+      BI.abas = r.abas || []; BI.abasArq = arq;
+      sel.innerHTML = (BI.abas.length === 1 ? '' : '<option value="">Selecione a aba da obra</option>') + BI.abas.map(n => `<option value="${e(n)}">${e(n)}</option>`).join('');
+      sel.disabled = false;
+      if (!BI.abas.length) erro('Não encontrei abas nesta planilha. Confira o arquivo.');
+    } catch (x) {
+      if (BI.arq === arq) { sel.innerHTML = '<option value="">Não foi possível ler as abas</option>'; erro(x.message); }
+    } finally { if (BI.arq === arq) BI.lendoAbas = false; }
+  }
+
   async function ler(btn) {
     const d = dlg(), f = lerForm(d);
     erro('');
@@ -112,10 +139,15 @@
     const inp = d.querySelector('[name="planilha"]');
     BI.arq = inp && inp.files && inp.files[0];
     if (!BI.arq) return erro('Escolha a planilha de orçamento/medição (.xlsx).');
+    if (/\.(xlsx|xlsm)$/i.test(BI.arq.name) && f.leitor !== 'ia') {
+      if (BI.lendoAbas) return erro('Aguarde a leitura das abas da planilha.');
+      if (BI.abasArq !== BI.arq) { await carregarAbas(); return; }
+      if (!f.aba) return erro('Selecione a aba da obra que deseja importar.');
+    }
     const viaIa = f.leitor === 'ia' || (f.leitor === 'auto' && BI.ia && !/\.(xlsx|xlsm)$/i.test(BI.arq.name));
     ocupado(btn, viaIa ? 'Lendo com inteligência artificial… (até 2 minutos)' : 'Lendo o documento…');
     try {
-      BI.previa = await post({ acao: 'previa', empresa_id: f.emp, nome: f.nome, prefixo: f.prefixo, leitor: f.leitor, planilha: BI.arq });
+      BI.previa = await post({ acao: 'previa', empresa_id: f.emp, nome: f.nome, prefixo: f.prefixo, leitor: f.leitor, aba_planilha: f.aba, planilha: BI.arq });
       passo2();
     } catch (x) { erro(x.message); livre(btn); }
   }
@@ -127,6 +159,7 @@
     const cortes = p.periodos && p.periodos.length ? p.periodos.map(x => `BM${x.bm}: ${e(x.corte)}`).join(' · ') : 'nenhum';
     d.innerHTML = `<div class="bmimp">
       <h3>Conferir a leitura — ${e(BI.arq.name)}</h3>
+      ${p.aba ? `<p class="sub">Aba selecionada: <b>${e(p.aba)}</b></p>` : ''}
       <p class="sub">${p.leitor === 'ia' ? '<b class="bmimp-ia">Lido por inteligência artificial</b> — confira cada quantidade e valor com o documento antes de gerar.' : 'Lido pelo leitor padrão do sistema.'}</p>
       <div class="bmimp-passos"><span>1 · Documento</span><span class="on">2 · Conferir leitura</span><span>3 · Pronto</span></div>
       <div class="bmimp-cards">
@@ -174,7 +207,10 @@
     </div>`;
   }
 
-  function onChange(ev) { if (ev.target.matches('[name="empresa_id"], [name="modo"]')) ajustar(); }
+  function onChange(ev) {
+    if (ev.target.matches('[name="empresa_id"], [name="modo"]')) ajustar();
+    if (ev.target.matches('[name="planilha"]')) carregarAbas();
+  }
 
   function onClick(ev) {
     const b = ev.target.closest('[data-bi]');
