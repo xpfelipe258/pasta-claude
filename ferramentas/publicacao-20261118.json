@@ -1,0 +1,136 @@
+{
+  "target": "/home/u502500687/domains/mtecengenharia.net/public_html/solucoes/obras",
+  "repository": "xpfelipe258/pasta-claude",
+  "assets_commit": "cc0ff86846fb4b29ba1dddaf137d181d6ba6cbd1",
+  "report": "publicacao_20261118_cc0ff86.json",
+  "file_count": 11,
+  "files": [
+    {
+      "path": "inc/marquise_mapa.php",
+      "bytes": 1813,
+      "sha256": "0de350d0819a92b9c1288ea29efeabb08f1d4d2d9a6cd774c6efebd0634895bc",
+      "md5": "1dd7f1b14928633b7cade88f0f6f55f2",
+      "before_git_sha1_normalized": null
+    },
+    {
+      "path": "inc/marquise_ifc.json",
+      "bytes": 21905,
+      "sha256": "38878660b26baf6cc869afad9dfa10ca04db94cb74f3939c74da952e161b681b",
+      "md5": "30e40d8f32b02ec518a6a7bc73fb9ae2",
+      "before_git_sha1_normalized": null
+    },
+    {
+      "path": "inc/leitura_bm_etapas.php",
+      "bytes": 7164,
+      "sha256": "1d25f808ae42668fe64acad7b1b8bacf59e1862ed7c2a667d29ad9829af25f8e",
+      "md5": "4a43b2dce1d192b4e8161350c814f711",
+      "before_git_sha1_normalized": null
+    },
+    {
+      "path": "inc/leitura_docs.php",
+      "bytes": 22847,
+      "sha256": "f3ea441c71ff5a0a89fc16169ca0f1c7bfe12278030a4378d9cef9c57c4a60e7",
+      "md5": "3abd619c227fe11892d9902873ce5832",
+      "before_git_sha1_normalized": "1bcbcc12f6661ac3ed405b14d09a298aa2f5f723"
+    },
+    {
+      "path": "inc/empresas_obra.php",
+      "bytes": 32606,
+      "sha256": "d379eb35f50418f23526be0821dfec4953749fa31566cea588a7e7693cccb023",
+      "md5": "6f30ff0f72c867585a64a250f50c1094",
+      "before_git_sha1_normalized": "b14bfeb958cd08f3c1e6ba5c7eb8e76db5716aeb"
+    },
+    {
+      "path": "obra_empresas.php",
+      "bytes": 33407,
+      "sha256": "973a6ef246d26b036ef1dc42981c44f7994513a6e0bf4603db43d567c8f00b15",
+      "md5": "bb39c04fac8a052a863ef46bba6f9c9d",
+      "before_git_sha1_normalized": "90843fd73420792a91715a16256de3686b26ef1f"
+    },
+    {
+      "path": "bm_importar.js",
+      "bytes": 15400,
+      "sha256": "e3190228da085f0b94bb7ef1e90f8397b74cc6fe1b491712ca6c0ba93c31876b",
+      "md5": "a6a0416ee31febd2e0f73a81270f9a80",
+      "before_git_sha1_normalized": "58e029fa1c08d19cf045fd554c72095c863263ee"
+    },
+    {
+      "path": "api.php",
+      "bytes": 245818,
+      "sha256": "041062db5b3cef58db33b6f422b3e9f861cbf1c4ea65458fdd1f8523030880bc",
+      "md5": "88127d5d23396a5aaec9253755fac048",
+      "before_git_sha1_normalized": "7b254e80c7f9c0d7228fd974ae84fe325a1c058f"
+    },
+    {
+      "path": "app.js",
+      "bytes": 618355,
+      "sha256": "b85353722fd444d8ba4c12acfa1b7e5a96dbef581f91a389d309f72b0a6b8d13",
+      "md5": "a62b63f106103303a5f5d1815748373d",
+      "before_git_sha1_normalized": "ba08a447b72d708e5d0e79174eb82d6ff7abce01"
+    },
+    {
+      "path": "index.php",
+      "bytes": 11871,
+      "sha256": "59179fa540a89dc51094a871a4c942d325832c618be0a89a84b9595220394510",
+      "md5": "479557f65ef2c35792ebe7f5f8a7970c",
+      "before_git_sha1_normalized": "842e4ad03c39d076295d34dea13205dbe8ccd646"
+    },
+    {
+      "path": "inc/painel.html",
+      "bytes": 67155,
+      "sha256": "1256523fc33ce60b709000244a603ca3d3ef3993b8785580f2cde9eadb2d2803",
+      "md5": "24dcd875c68b5523ff822fc3bbeef566",
+      "before_git_sha1_normalized": "e84e610ca36c79a79a8c02b9a49c731dc964cc79"
+    }
+  ],
+  "commits": [
+    {
+      "sha": "632089289365ea7f3090d3445203a04eed4aa6d7",
+      "message": "Mapeia vigas da marquise pelos eixos do IFC"
+    },
+    {
+      "sha": "9348130c435df09b0b78126ccde5cf353b63970b",
+      "message": "Inclui posições das vigas e mãos francesas da marquise"
+    },
+    {
+      "sha": "049137a4f99ef16601990ec622883388b323f6de",
+      "message": "Valida o apontamento da marquise por eixo"
+    },
+    {
+      "sha": "cb0e0beb31e6df6b853f307121db0eb6ad8cf042",
+      "message": "Corrige a interface de apontamento da marquise"
+    },
+    {
+      "sha": "6a8a149315d66a7161bd88dac82d24de862cb4f4",
+      "message": "Preserva opções e posição da tela ao atualizar"
+    },
+    {
+      "sha": "d18f72cb31f6c1e106ae30369b0250b360b7b64b",
+      "message": "Adiciona leitura de BM por etapas"
+    },
+    {
+      "sha": "77e3b5cf2cefed20e4c16dd8450e1ed29d5403cf",
+      "message": "Reconhece BM por etapas e separa a leitura por aba"
+    },
+    {
+      "sha": "7c3dde10b433356c010867f9b53b5d01893c58d2",
+      "message": "Propaga a aba escolhida até a prévia do catálogo"
+    },
+    {
+      "sha": "c1654d73c19aa9aded1ee6bf15977b2d8945a7ae",
+      "message": "Permite consultar e selecionar as abas do BM"
+    },
+    {
+      "sha": "67135e9d50e984996f20db053443d1c1f5661801",
+      "message": "Exige seleção da aba na conferência do BM"
+    },
+    {
+      "sha": "cc0ff86846fb4b29ba1dddaf137d181d6ba6cbd1",
+      "message": "Atualiza a interface de importação de orçamento"
+    },
+    {
+      "sha": "b2e5dee2ab8f77ec140723eed14dd78c95a90053",
+      "message": "Adiciona publicação seletiva com backup e rollback"
+    }
+  ]
+}
