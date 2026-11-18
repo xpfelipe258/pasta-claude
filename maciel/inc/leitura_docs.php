@@ -3,6 +3,7 @@
 // Mesma lógica do serviço Python (servico_leitura/leitores), que continua opcional.
 require_once __DIR__ . '/leitura_util.php';
 require_once __DIR__ . '/estrutura_conciliacao.php';
+require_once __DIR__ . '/leitura_bm_etapas.php';
 
 // ---------------------------------------------------------------- orçamento / memorial do BM
 
@@ -146,9 +147,13 @@ function lo_escopo(array $linhas)
     return [];
 }
 
-function leitura_orcamento($caminho)
+function leitura_orcamento($caminho, $abaEscolhida = null)
 {
     $abas = xlsx_ler($caminho);
+    if ($abaEscolhida !== null && $abaEscolhida !== '') {
+        $abas = array_values(array_filter($abas, function ($a) use ($abaEscolhida) { return $a['nome'] === $abaEscolhida; }));
+        if (!$abas) { throw new InvalidArgumentException('A aba selecionada não existe nesta planilha. Selecione o arquivo novamente.'); }
+    }
     $memorial = null;
     $periodos = [];
     $escopo = [];
@@ -176,6 +181,15 @@ function leitura_orcamento($caminho)
     $avisos = [];
     $saida = ['aba' => $aba, 'periodos' => $periodos, 'escopo' => $escopo, 'avisos' => &$avisos, 'contrato_total' => null, 'itens' => []];
     if ($memorial === null) {
+        $etapas = [];
+        foreach ($abas as $a) {
+            $m = lo_bm_etapas($a['linhas']);
+            if ($m) { $etapas[] = ['aba'=>$a['nome']] + $m; }
+        }
+        if (count($etapas) > 1) {
+            throw new InvalidArgumentException('Há mais de uma aba de medição neste arquivo. Escolha a aba da obra que deseja importar: ' . implode(', ', array_column($etapas, 'aba')) . '.');
+        }
+        if ($etapas) { return $etapas[0]; }
         if ($escopo) {
             $avisos[] = 'Só encontrei o escopo (itens e quantidades): as atividades de medição precisam ser detalhadas depois.';
             $saida['itens'] = array_map(function ($i) { return $i + ['atividades' => [], 'valor' => 0.0]; }, $escopo);
