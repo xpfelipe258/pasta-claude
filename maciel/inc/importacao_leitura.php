@@ -193,6 +193,26 @@ function importacao_resumo_pacote(array $p)
  * (peças do IFC e fixadores), vínculos peça → atividade, fluxo de baixa, parafusos do projeto e mapa de apontamento.
  * $op: sigla (empresa executora), empresa (nome), mapa_fase (fase do IFC => item do BM, correções feitas na revisão).
  */
+/** Sigla do catálogo do BM sem pedir nada ao usuário: a executora cadastrada na obra (nome do catálogo dela)
+ *  ou, sem executora, a empresa responsável pela obra (primeira palavra do nome, até 10 letras). Devolve [sigla, nome]. */
+function importacao_sigla_automatica(array $obra)
+{
+    $limpa = function ($t) { return strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string)$t)), 0, 10)); };
+    try {
+        $ex = q_global('SELECT empresa_catalogo FROM obra_executoras WHERE obra_id = ? ORDER BY criado_em', [(int)$obra['id']])->fetchColumn();
+        if ($ex && strlen($limpa($ex)) >= 2) { return [$limpa($ex), (string)$ex]; }
+    } catch (Throwable $e) { /* banco sem a tabela de executoras */ }
+    $nome = '';
+    if (!empty($obra['organizacao_id'])) {
+        try { $nome = (string)q_global('SELECT nome FROM organizacoes WHERE id = ?', [(int)$obra['organizacao_id']])->fetchColumn(); } catch (Throwable $e) {}
+    }
+    if ($nome === '') { $nome = (string)($obra['nome'] ?? ''); }
+    $pal = preg_split('/\s+/', trim($nome));
+    $sig = $limpa($pal[0] ?? '');
+    if (strlen($sig) < 2) { $sig = $limpa($nome); }
+    return [strlen($sig) >= 2 ? $sig : 'OBRA', $nome];
+}
+
 function importacao_publicar($obraId, array $op)
 {
     $p = importacao_pacote($obraId);
@@ -204,6 +224,10 @@ function importacao_publicar($obraId, array $op)
         throw new InvalidArgumentException('Obra não encontrada.');
     }
     $sigla = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($op['sigla'] ?? '')));
+    if ($sigla === '') {   // sem sigla digitada: a executora cadastrada na obra ou a própria empresa que criou a obra
+        list($sigla, $nomeAuto) = importacao_sigla_automatica($obra);
+        if (trim((string)($op['empresa'] ?? '')) === '' && $nomeAuto !== '') { $op['empresa'] = $nomeAuto; }
+    }
     if ($sigla === '' && empty($p['bm']['itens'])) { $sigla = 'OBRA'; }   // sem orçamento não há catálogo com prefixo
     $nomeEmpresa = trim((string)($op['empresa'] ?? '')) ?: $sigla;
     if (strlen($sigla) < 2 || strlen($sigla) > 10) {

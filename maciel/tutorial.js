@@ -93,6 +93,7 @@ const TUT_TOPICOS = [
     passos: [
       { t: 'Em "Obras" estão os cartões de cada obra. Clique numa obra para entrar. "Nova obra" cria uma obra (você vira o administrador dela).' },
       { t: 'O administrador da empresa cria as obras da empresa dele, mesmo que a empresa também trabalhe numa obra de outra construtora. Ao criar, ele é o gerenciador e o executor da obra nova; depois clique em "Criar e enviar documentos" para mandar IFC, listas e orçamento.', novo: '2026-11-18' },
+      { t: 'Na tela de documentos não é preciso digitar sigla: o sistema usa a sigla da executora cadastrada na obra ou, sem executora, o nome da sua empresa. Para outra empresa executar, cadastre a executora com nome e sigla no cadastro da obra.', novo: '2026-11-18' },
       { t: '"Painel financeiro" mostra quanto cada obra já mediu, o avanço e o saldo a medir.' },
       { t: '"Painel comercial" guarda os orçamentos e gera a proposta comercial em PDF. Proposta aprovada pode virar obra com um clique.' },
       { t: '"Painel pessoal (RH)" cadastra colaboradores (com ou sem obra), documentos (ASO, NR…) e mostra a folha por obra.' },

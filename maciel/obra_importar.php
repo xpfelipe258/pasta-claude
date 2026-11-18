@@ -254,7 +254,6 @@ pagina_inicio('Importar obra');
       <div class="imp-botoes">
         <?php if ($ehRascunho): ?><button class="btn ghost" id="impDescartar" type="button">Descartar este rascunho</button>
         <button class="btn" id="impVazia" type="button" title="Cria a obra vazia, sem ler documento nenhum. Você pode enviar os documentos depois.">Criar obra sem documentos</button><?php endif; ?>
-        <input id="impSigla" maxlength="10" placeholder="Sigla da empresa (ex.: CMM) — vazio se não houver orçamento" style="text-transform:uppercase;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;width:210px" title="Prefixo dos códigos do catálogo do BM (ex.: CMM-3.1.1-01). Só é preciso quando há orçamento.">
         <button class="btn primario" id="impEnviar" type="button" disabled><?= $ehRascunho ? 'Gerar obra →' : 'Gerar a obra com estes documentos →' ?></button>
       </div>
     </section>
@@ -376,11 +375,9 @@ pagina_inicio('Importar obra');
     if (v) post('revalidar', { doc: v.getAttribute('data-revalidar') }).then(function (j) { ESTADO = j; desenhar(); });
   });
   document.getElementById('impEnviar').addEventListener('click', function () {
-    var sigla = document.getElementById('impSigla').value.trim();
-    if (sigla.length < 2 && ESTADO.tipos.orcamento.enviado) { alert('Informe a sigla da empresa executora (ex.: CMM): ela vira o prefixo do catálogo do BM.'); document.getElementById('impSigla').focus(); return; }
     var b = this; b.disabled = true; b.textContent = 'Lendo os documentos e gerando a obra…';
     document.getElementById('impStatus').textContent = 'Lendo IFC, orçamento, projetos e fixadores' + (ESTADO.tipos.cronograma.documentos.length ? ', cronograma' : '') + ' e criando a obra. Pode levar alguns segundos.';
-    post('gerar', { sigla: sigla }).then(function (j) {
+    post('gerar', {}).then(function (j) {
       if (j.erro || !j.ok) { alert(j.erro || 'Não foi possível gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; return; }
       location.href = j.destino;
     }).catch(function () { alert('Falha de comunicação ao gerar a obra.'); b.disabled = false; b.textContent = 'Gerar obra →'; });
