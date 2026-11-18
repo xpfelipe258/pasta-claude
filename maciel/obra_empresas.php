@@ -37,11 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
             echo json_encode(['ok' => true, 'ia' => ia_disponivel(), 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
             exit;
         }
+        if ($acao === 'abas') {
+            if (!$arq || !preg_match('/\.(xlsx|xlsm)$/i', $nomeArq)) { throw new InvalidArgumentException('Escolha uma planilha .xlsx/.xlsm.'); }
+            echo json_encode(['ok'=>true, 'abas'=>array_column(xlsx_ler($arq, 8, 8), 'nome')], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         if ($acao === 'previa') {
             $nome = $emp ? $emp['nome'] : eo_nome_valido($_POST['nome'] ?? '');
             $prefixo = eo_prefixo($_POST['prefixo'] ?? '', $nome);
             if (!$arq) { throw new InvalidArgumentException('Escolha o arquivo do orçamento.'); }
-            $leitura = eo_ler_orcamento($arq, $nomeArq, (string)($_POST['leitor'] ?? 'auto'));
+            $leitura = eo_ler_orcamento($arq, $nomeArq, (string)($_POST['leitor'] ?? 'auto'), (string)($_POST['aba_planilha'] ?? ''));
             $previa = eo_previa_planilha($leitura, $prefixo, $emp ? $emp['nome'] : null);
             $token = bin2hex(random_bytes(12));   // a leitura fica guardada na sessão: gerar não lê (nem cobra a IA) de novo
             $_SESSION['bm_imp_leitura'] = [$token => ['obra' => (int)$obra['id'], 'o' => $leitura, 'em' => time()]];
