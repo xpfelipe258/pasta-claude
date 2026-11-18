@@ -2065,3 +2065,5 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .bmimp-erro{margin:0;padding:8px 12px;background:#fde8e8;color:#9b1c1c;border-radius:8px;font-weight:600}
 .bmimp-acoes{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 @media (max-width:600px){.bmimp-nova{grid-template-columns:1fr}.bmimp{padding:14px}}
+.bmimp-leitor{display:flex;flex-direction:column;gap:2px;margin-top:6px;padding-left:4px}
+.bmimp-ia{background:#ede9fe;color:#5b21b6;padding:1px 8px;border-radius:99px}

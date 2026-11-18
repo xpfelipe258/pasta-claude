@@ -24,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
     try {
         $arq = (!empty($_FILES['planilha']['tmp_name']) && is_uploaded_file($_FILES['planilha']['tmp_name'])) ? $_FILES['planilha']['tmp_name'] : null;
         if ($arq && ($_FILES['planilha']['size'] ?? 0) > 15 * 1024 * 1024) { throw new InvalidArgumentException('A planilha passa de 15 MB.'); }
-        if ($arq && !preg_match('/\.(xlsx|xlsm)$/i', (string)($_FILES['planilha']['name'] ?? ''))) { throw new InvalidArgumentException('Envie a planilha em .xlsx ou .xlsm (no Excel: Arquivo › Salvar como › Pasta de Trabalho do Excel).'); }
+        $nomeArq = (string)($_FILES['planilha']['name'] ?? '');
+        if ($arq && !preg_match('/\.(xlsx|xlsm|csv|txt|pdf|jpe?g|png|webp)$/i', $nomeArq)) { throw new InvalidArgumentException('Formato não aceito. Envie .xlsx, .xlsm, .csv, .pdf ou foto (.jpg/.png). Planilha .xls antiga: no Excel, Arquivo › Salvar como › Pasta de Trabalho do Excel (.xlsx).'); }
         $empId = (int)($_POST['empresa_id'] ?? 0);
         $emp = $empId ? q('SELECT * FROM empresas WHERE id = ?', [$empId])->fetch() : null;
         if ($empId && !$emp) { throw new InvalidArgumentException('Empresa não encontrada nesta obra.'); }
@@ -32,17 +33,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
             $props = [];
             try { $props = eo_propostas_validas($obra, $eu); } catch (Throwable $e) { }
             $lista = array_map(function ($e) { return ['id' => (int)$e['id'], 'nome' => $e['nome'], 'atividades' => $e['atividades'], 'servicos' => $e['servicos'], 'prefixo' => eo_prefixo_da_empresa($e)]; }, eo_listar());
-            echo json_encode(['ok' => true, 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
+            require_once __DIR__ . '/inc/ia_leitor.php';
+            echo json_encode(['ok' => true, 'ia' => ia_disponivel(), 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
             exit;
         }
         if ($acao === 'previa') {
             $nome = $emp ? $emp['nome'] : eo_nome_valido($_POST['nome'] ?? '');
             $prefixo = eo_prefixo($_POST['prefixo'] ?? '', $nome);
-            echo json_encode(['ok' => true] + eo_previa_planilha($arq, $prefixo, $emp ? $emp['nome'] : null), JSON_UNESCAPED_UNICODE);
+            if (!$arq) { throw new InvalidArgumentException('Escolha o arquivo do orçamento.'); }
+            $leitura = eo_ler_orcamento($arq, $nomeArq, (string)($_POST['leitor'] ?? 'auto'));
+            $previa = eo_previa_planilha($leitura, $prefixo, $emp ? $emp['nome'] : null);
+            $token = bin2hex(random_bytes(12));   // a leitura fica guardada na sessão: gerar não lê (nem cobra a IA) de novo
+            $_SESSION['bm_imp_leitura'] = [$token => ['obra' => (int)$obra['id'], 'o' => $leitura, 'em' => time()]];
+            echo json_encode(['ok' => true, 'token' => $token] + $previa, JSON_UNESCAPED_UNICODE);
             exit;
         }
         if ($acao === 'aplicar') {
             $modo = ($_POST['modo'] ?? '') === 'proposta' ? 'proposta' : 'planilha';
+            if ($modo === 'planilha') {
+                $g = $_SESSION['bm_imp_leitura'][(string)($_POST['token'] ?? '')] ?? null;
+                if (!$g || (int)$g['obra'] !== (int)$obra['id'] || time() - (int)$g['em'] > 7200) { throw new InvalidArgumentException('A leitura expirou. Leia o documento de novo.'); }
+                $arq = $g['o'];
+            }
             if ($emp) {
                 $pref = eo_prefixo($_POST['prefixo'] ?? '', $emp['nome']);
                 $r = eo_transacao(function () use ($emp, $arq, $obra, $eu, $modo, $pref) {
@@ -54,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
             } else {
                 $r = eo_transacao(function () use ($arq, $obra, $eu, $modo) { return eo_criar_empresa(array_merge($_POST, ['modo' => $modo, '_obra' => $obra, '_usuario' => $eu]), $arq); });
             }
-            registrar_alteracao('catalogo_importado_bm', ['empresa' => $r['empresa'] ?? '', 'atividades' => $r['atividades'] ?? 0, 'modo' => $modo]);
+            unset($_SESSION['bm_imp_leitura']);
+            registrar_alteracao('catalogo_importado_bm', ['empresa' => $r['empresa'] ?? '', 'atividades' => $r['atividades'] ?? 0, 'modo' => $modo, 'leitor' => is_array($arq) ? ($arq['leitor'] ?? '') : '']);
             echo json_encode(['ok' => true, 'resumo' => $r], JSON_UNESCAPED_UNICODE);
             exit;
         }

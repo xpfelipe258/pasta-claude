@@ -4,7 +4,7 @@
 // cortes de BM e avisos) → "Gerar catálogo e produção" grava o catálogo do BM e cria uma coluna de produção em Lançamentos
 // para cada atividade (ligada pelo campo controle). Servidor: obra_empresas.php (ajax=1, ações dados/previa/aplicar).
 (function () {
-  const BI = { emps: [], props: [], arq: null, previa: null };
+  const BI = { emps: [], props: [], arq: null, previa: null, ia: false };
   const rsBI = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const qtdBI = v => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
   const e = v => (typeof esc === 'function' ? esc(v) : String(v ?? ''));
@@ -38,7 +38,7 @@
     const v = n => (d.querySelector(`[name="${n}"]`) || {}).value || '';
     const c = n => !!(d.querySelector(`[name="${n}"]`) || {}).checked;
     return { emp: v('empresa_id'), nome: v('nome').trim(), prefixo: v('prefixo').trim(), modo: (d.querySelector('[name="modo"]:checked') || {}).value || 'planilha',
-      orc: v('orc_id'), colunas: c('criar_colunas'), cortes: c('importar_cortes') };
+      orc: v('orc_id'), leitor: (d.querySelector('[name="leitor"]:checked') || {}).value || 'auto', colunas: c('criar_colunas'), cortes: c('importar_cortes') };
   }
 
   function passo1() {
@@ -57,8 +57,13 @@
         <label>Sigla (prefixo dos códigos) <input name="prefixo" maxlength="10" placeholder="Ex.: EJ" style="text-transform:uppercase"></label>
       </div>
       <fieldset><legend>Documento</legend>
-        <label class="bmimp-op"><input type="radio" name="modo" value="planilha" checked> Planilha de orçamento / medição (.xlsx)</label>
-        <div class="bmimp-arq"><input type="file" name="planilha" accept=".xlsx,.xlsm"></div>
+        <label class="bmimp-op"><input type="radio" name="modo" value="planilha" checked> Arquivo do orçamento / medição (planilha, PDF ou foto)</label>
+        <div class="bmimp-arq"><input type="file" name="planilha" accept=".xlsx,.xlsm,.csv,.pdf,.jpg,.jpeg,.png,.webp">
+          <div class="bmimp-leitor">${BI.ia ? `<small>Como ler:</small>
+            <label class="bmimp-op"><input type="radio" name="leitor" value="auto" checked> Automático (leitor padrão; se não reconhecer, usa inteligência artificial)</label>
+            <label class="bmimp-op"><input type="radio" name="leitor" value="ia"> Inteligência artificial (qualquer formato de BM, PDF ou foto)</label>
+            <label class="bmimp-op"><input type="radio" name="leitor" value="padrao"> Só o leitor padrão (planilha no modelo do sistema)</label>`
+            : `<small>Leitor padrão: planilha .xlsx no modelo de memorial do BM (item, descrição, QTD, unidade, valor %). A leitura por inteligência artificial (outros formatos, PDF e foto) não está ligada neste servidor.</small>`}</div></div>
         <label class="bmimp-op"><input type="radio" name="modo" value="proposta" ${optProp ? '' : 'disabled'}> Proposta comercial válida ${optProp ? '' : '<small>(nenhuma proposta aprovada ou dentro da validade no Painel comercial)</small>'}</label>
         <div class="bmimp-prop" hidden><select name="orc_id">${optProp}</select></div>
       </fieldset>
@@ -107,9 +112,10 @@
     const inp = d.querySelector('[name="planilha"]');
     BI.arq = inp && inp.files && inp.files[0];
     if (!BI.arq) return erro('Escolha a planilha de orçamento/medição (.xlsx).');
-    ocupado(btn, 'Lendo o documento…');
+    const viaIa = f.leitor === 'ia' || (f.leitor === 'auto' && BI.ia && !/\.(xlsx|xlsm)$/i.test(BI.arq.name));
+    ocupado(btn, viaIa ? 'Lendo com inteligência artificial… (até 2 minutos)' : 'Lendo o documento…');
     try {
-      BI.previa = await post({ acao: 'previa', empresa_id: f.emp, nome: f.nome, prefixo: f.prefixo, planilha: BI.arq });
+      BI.previa = await post({ acao: 'previa', empresa_id: f.emp, nome: f.nome, prefixo: f.prefixo, leitor: f.leitor, planilha: BI.arq });
       passo2();
     } catch (x) { erro(x.message); livre(btn); }
   }
@@ -121,6 +127,7 @@
     const cortes = p.periodos && p.periodos.length ? p.periodos.map(x => `BM${x.bm}: ${e(x.corte)}`).join(' · ') : 'nenhum';
     d.innerHTML = `<div class="bmimp">
       <h3>Conferir a leitura — ${e(BI.arq.name)}</h3>
+      <p class="sub">${p.leitor === 'ia' ? '<b class="bmimp-ia">Lido por inteligência artificial</b> — confira cada quantidade e valor com o documento antes de gerar.' : 'Lido pelo leitor padrão do sistema.'}</p>
       <div class="bmimp-passos"><span>1 · Documento</span><span class="on">2 · Conferir leitura</span><span>3 · Pronto</span></div>
       <div class="bmimp-cards">
         <div><small>Itens</small><b>${p.itens.length}</b></div>
@@ -144,7 +151,7 @@
     ocupado(btn, 'Gerando catálogo e produção…');
     try {
       const r = await post({ acao: 'aplicar', modo: f.modo, empresa_id: f.emp, nome: f.nome, prefixo: f.prefixo, orc_id: f.orc,
-        criar_colunas: f.colunas ? '1' : '', importar_cortes: f.cortes ? '1' : '', planilha: f.modo === 'planilha' ? BI.arq : null });
+        criar_colunas: f.colunas ? '1' : '', importar_cortes: f.cortes ? '1' : '', token: f.modo === 'planilha' && BI.previa ? BI.previa.token : null });
       passo3(r.resumo || {});
       if (typeof carregar === 'function') { try { await carregar(); } catch (_) { } }
     } catch (x) { erro(x.message); livre(btn); }
@@ -186,6 +193,7 @@
       const j = await post({ acao: 'dados' });
       BI.emps = j.empresas || [];
       BI.props = j.propostas || [];
+      BI.ia = !!j.ia;
       passo1();
     } catch (x) { if (typeof toast === 'function') toast(x.message, true); else alert(x.message); }
   }
