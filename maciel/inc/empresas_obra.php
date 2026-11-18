@@ -283,13 +283,13 @@ function eo_importar_catalogo($empresaId, $nome, $prefixo, $arquivoTmp, $criarCo
 
 /** Lê o orçamento pelo leitor escolhido: 'padrao' (memorial do BM em .xlsx), 'ia' (inteligência artificial, qualquer
  *  formato) ou 'auto' (padrão primeiro; se não reconhecer ou não for .xlsx, IA quando estiver ligada). */
-function eo_ler_orcamento($arquivo, $nomeArq, $leitor = 'auto')
+function eo_ler_orcamento($arquivo, $nomeArq, $leitor = 'auto', $aba = null)
 {
     require_once __DIR__ . '/ia_leitor.php';
     $ext = strtolower(pathinfo((string)$nomeArq, PATHINFO_EXTENSION));
     $planilha = in_array($ext, ['xlsx', 'xlsm'], true);
     if ($leitor !== 'ia' && $planilha) {
-        $o = leitura_orcamento($arquivo);
+        $o = leitura_orcamento($arquivo, $aba);
         $temAtiv = false;
         foreach ($o['itens'] as $it) { if (!empty($it['atividades'])) { $temAtiv = true; break; } }
         if ($temAtiv || $leitor === 'padrao' || !ia_disponivel()) {
@@ -342,7 +342,7 @@ function eo_previa_planilha($arquivoTmp, $prefixo, $empresaExistente = null)
         $avisos[] = 'A soma dos itens (R$ ' . number_format($total, 2, ',', '.') . ') difere do total do contrato lido na planilha (R$ ' . number_format((float)$o['contrato_total'], 2, ',', '.') . '): confira.';
     }
     return ['prefixo' => $prefixo, 'itens' => $itens, 'total' => round($total, 2), 'contrato_total' => (float)($o['contrato_total'] ?? 0),
-        'atividades' => $nAtiv, 'periodos' => array_values($o['periodos']), 'avisos' => $avisos, 'leitor' => $o['leitor'] ?? 'padrao'];
+        'atividades' => $nAtiv, 'periodos' => array_values($o['periodos']), 'avisos' => $avisos, 'leitor' => $o['leitor'] ?? 'padrao', 'aba' => $o['aba'] ?? ''];
 }
 
 /** Propostas comerciais válidas para virar catálogo desta obra: aprovadas, ou enviadas ainda dentro da validade,
