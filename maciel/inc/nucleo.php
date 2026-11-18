@@ -973,6 +973,7 @@ function usuario_pode_criar_obra(array $u)
     list($oid, $admOrg) = usuario_organizacao_id($u);
     if ($oid && !$admOrg) { return false; }   // numa empresa cliente, quem cria obras é o administrador da empresa
     if (usuario_papel($u) === 'editor_sistema') { return false; }   // editor do sistema não cria obras
+    if ($oid && $admOrg && ($u['perfil'] ?? '') !== 'leitura') { return true; }   // administrador da empresa cliente cria as obras da empresa dele (mesmo com a obra própria aberta)
     return ($u['perfil'] ?? '') === 'admin' || (($u['perfil'] ?? '') === 'editor' && trim((string)($u['empresa'] ?? '')) === '');
 }
 
@@ -1003,6 +1004,14 @@ function obras_proprias_do_usuario(array $u)
         if (!in_array((int)$o['id'], $vinculos, true)) { return false; }
         return (function_exists('oe_norm') ? oe_norm($o['empresa_vinculada']) : mb_strtoupper(trim((string)$o['empresa_vinculada']))) === $alvo;
     }));
+    // Administrador da empresa cliente: além da obra própria, enxerga as obras que a empresa dele criou (é gerenciador e executor delas)
+    list($oid, $admOrg) = function_exists('usuario_organizacao_id') ? usuario_organizacao_id($u) : [0, false];
+    if ($minhas && $oid && $admOrg) {
+        $ids = array_map(function ($o) { return (int)$o['id']; }, $minhas);
+        foreach (q_global("SELECT * FROM obras WHERE status = 'ativa' AND organizacao_id = ? AND (origem_obra_id IS NULL OR origem_obra_id = 0) ORDER BY nome", [$oid])->fetchAll() as $o) {
+            if (!in_array((int)$o['id'], $ids, true)) { $minhas[] = $o; }
+        }
+    }
     return $minhas ?: null;
 }
 
