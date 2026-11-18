@@ -278,7 +278,7 @@ function m3d_desvincular($modeloId, array $guids, $soDoGrupo)
 // ---------------------------------------------------------------- apontamento de campo por peça (Içada, Torqueada)
 function m3d_etapas_campo()
 {
-    return ['canteiro' => 'No canteiro', 'icada' => 'Içada', 'torqueada' => 'Torqueada'];
+    return ['fabrica' => 'Na fábrica', 'canteiro' => 'No canteiro', 'icada' => 'Içada', 'torqueada' => 'Torqueada'];
 }
 
 /** Apontamentos do modelo: lista compacta [guid, 1 = içada | 2 = torqueada, data, empresa, inferida]. */
@@ -286,7 +286,7 @@ function m3d_apont_ler($modeloId)
 {
     $out = [];
     foreach (q('SELECT guid, etapa, data, empresa, inferida, por FROM m3d_apontamentos WHERE modelo_id = ? ORDER BY data, id', [(int)$modeloId])->fetchAll() as $a) {
-        $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : ($a['etapa'] === 'canteiro' ? 3 : 1), substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
+        $out[] = [$a['guid'], $a['etapa'] === 'torqueada' ? 2 : ($a['etapa'] === 'canteiro' ? 3 : ($a['etapa'] === 'fabrica' ? 4 : 1)), substr((string)$a['data'], 0, 10), (string)$a['empresa'], (int)$a['inferida'], (string)$a['por']];
     }
     return ['itens' => $out, 'vigas_aba' => m3d_vigas_da_aba((int)$modeloId)];
 }
@@ -371,6 +371,29 @@ function m3d_apontar(array $c, array $u)
         $st = bd()->prepare('SELECT guid, etapa, data FROM m3d_apontamentos WHERE obra_id = ? AND modelo_id = ? AND guid IN (' . implode(',', array_fill(0, count($lote), '?')) . ')');
         $st->execute(array_merge([obra_atual_id(), (int)$modelo['id']], $lote));
         foreach ($st->fetchAll() as $r) { $existe[$r['guid'] . '|' . $r['etapa']] = substr((string)$r['data'], 0, 10); }
+    }
+    // A correção da localização prevalece sobre a chegada inferida por remessa.
+    // Avançar de novo remove a correção, respeitando a validação do RDO.
+    $removerEtapas = $etapa === 'fabrica' ? ['canteiro', 'fabrica'] : ['fabrica'];
+    if ($etapa === 'fabrica') {
+        $montadas = [];
+        foreach (q("SELECT letra FROM apontamentos WHERE UPPER(tipo) = 'PECA'")->fetchAll(PDO::FETCH_COLUMN) as $g) $montadas[$g] = true;
+        foreach (m3d_vigas_da_aba((int)$modelo['id']) as $v) { if (!empty($v[3])) $montadas[$v[3]] = true; }
+        foreach ($guids as $g) {
+            if (isset($existe[$g . '|icada']) || isset($existe[$g . '|torqueada']) || isset($montadas[$g])) {
+                throw new ErroValidacao('Há peças já montadas na seleção. Volte a etapa de montagem antes de retornar à fábrica.');
+            }
+        }
+    }
+    foreach ($guids as $g) foreach ($removerEtapas as $anterior) {
+        if (isset($existe[$g . '|' . $anterior]) && function_exists('rdo_dia_validacao') &&
+            ($v = rdo_dia_validacao($existe[$g . '|' . $anterior]))) {
+            throw new ErroValidacao(rdo_mensagem_travado($existe[$g . '|' . $anterior], $v));
+        }
+    }
+    foreach ($guids as $g) foreach ($removerEtapas as $anterior) {
+        q('DELETE FROM m3d_apontamentos WHERE modelo_id = ? AND guid = ? AND etapa = ?', [(int)$modelo['id'], $g, $anterior]);
+        unset($existe[$g . '|' . $anterior]);
     }
     $ins = bd()->prepare('INSERT INTO m3d_apontamentos (obra_id, modelo_id, guid, etapa, data, empresa, inferida, por, em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $novos = 0;
