@@ -7,7 +7,7 @@ require __DIR__ . '/inc/empresas_obra.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 if (!config()) { header('Location: instalar.php'); exit; }
-$obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0));
+$obraId = (int)($_GET['obra'] ?? ($_POST['obra'] ?? 0)) ?: obra_atual_id();   // sem ?obra (atalho do Financeiro): a obra aberta
 $eu = exigir_admin_da_obra($obraId);
 $obra = $obraId ? q_global("SELECT * FROM obras WHERE id = ? AND status = 'ativa'", [$obraId])->fetch() : null;
 if (!$obra) { header('Location: obras.php'); exit; }
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $arq = (!empty($_FILES['planilha']['tmp_name']) && is_uploaded_file($_FILES['planilha']['tmp_name'])) ? $_FILES['planilha']['tmp_name'] : null;
         if ($arq && ($_FILES['planilha']['size'] ?? 0) > 15 * 1024 * 1024) { throw new InvalidArgumentException('A planilha passa de 15 MB.'); }
         if ($acao === 'eo_criar') {
-            $r = eo_transacao(function () use ($arq) { return eo_criar_empresa($_POST, $arq); });
+            $r = eo_transacao(function () use ($arq, $obra, $eu) { return eo_criar_empresa(array_merge($_POST, ['_obra' => $obra, '_usuario' => $eu]), $arq); });
             registrar_alteracao('empresa_criada', $r);
             $msg = 'Empresa ' . $r['empresa'] . ' cadastrada: ' . $r['servicos'] . ' serviço(s) de produção, ' . $r['atividades'] . ' atividade(s) no catálogo e ' . $r['periodos'] . ' corte(s) de BM.' . ($r['avisos'] ? ' ' . implode(' ', $r['avisos']) : '');
         } elseif ($acao === 'eo_servico_novo') {
@@ -43,6 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = eo_transacao(function () use ($emp, $arq) { return eo_importar_catalogo((int)$emp['id'], $emp['nome'], eo_prefixo($_POST['prefixo'] ?? '', $emp['nome']), $arq, !empty($_POST['criar_colunas']), !empty($_POST['importar_cortes'])); });
             registrar_alteracao('catalogo_importado', ['empresa' => $emp['nome'], 'atividades' => $r['atividades']]);
             $msg = $r['atividades'] . ' atividade(s) acrescentadas ao catálogo de ' . $emp['nome'] . ($r['servicos'] ? ', com ' . $r['servicos'] . ' coluna(s) de produção' : '') . '.' . ($r['avisos'] ? ' ' . implode(' ', array_slice($r['avisos'], 0, 4)) : '');
+        } elseif ($acao === 'eo_importar_proposta') {
+            $emp = eo_empresa((int)($_POST['empresa_id'] ?? 0));
+            $r = eo_transacao(function () use ($emp, $obra, $eu) { return eo_importar_proposta((int)$emp['id'], $emp['nome'], eo_prefixo($_POST['prefixo'] ?? '', $emp['nome']), (int)($_POST['orc_id'] ?? 0), $obra, $eu, !empty($_POST['criar_colunas'])); });
+            registrar_alteracao('catalogo_proposta', ['empresa' => $emp['nome'], 'atividades' => $r['atividades']]);
+            $msg = $r['atividades'] . ' atividade(s) da proposta acrescentadas ao catálogo de ' . $emp['nome'] . '. ' . implode(' ', array_slice($r['avisos'], 0, 4));
         } elseif ($acao === 'eo_excluir') {
             $emp = eo_empresa((int)($_POST['empresa_id'] ?? 0));
             if (eo_maiusculas($_POST['confirmar'] ?? '') !== eo_maiusculas($emp['nome'])) { throw new InvalidArgumentException('Digite o nome da empresa para confirmar a exclusão.'); }
@@ -69,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $empresas = eo_listar();
+$propostas = (function () use ($obra, $eu) { try { return eo_propostas_validas($obra, $eu); } catch (Throwable $e) { return []; } })();
 $aditivos = array_values(array_filter(eo_aditivos_ler(), function ($a) { return true; }));
 $aditivoPorEmpresa = [];
 foreach ($aditivos as $a) { $aditivoPorEmpresa[$a['empresa']] = ($aditivoPorEmpresa[$a['empresa']] ?? 0) + (float)($a['valor'] ?? 0); }
@@ -98,7 +104,7 @@ pagina_inicio('Empresas e catálogo');
       <?php if ($logoGlobal): ?><img src="<?= h($logoGlobal) ?>" alt="Logo"><?php else: ?><span class="brand-mark">NO</span><?php endif; ?>
       <div><strong><?= h(global_ler('nome_sistema', 'Núcleo de Obras')) ?></strong><small><?= h($obra['nome']) ?></small></div>
     </div>
-    <div class="portal-user"><span>Olá, <?= h($eu['nome']) ?></span><a class="btn ghost" href="obras.php">← Central de obras</a></div>
+    <div class="portal-user"><span>Olá, <?= h(usuario_rotulo_empresa($eu)) ?></span><a class="btn ghost" href="obras.php">← Central de obras</a></div>
   </header>
   <main class="pl-shell">
     <section class="pl-hero"><span class="eyebrow">EMPRESAS E CATÁLOGO DE SERVIÇOS</span><h1><?= h($obra['nome']) ?></h1>
@@ -160,6 +166,10 @@ pagina_inicio('Empresas e catálogo');
       <label style="margin-left:30px">Copiar de<select name="origem"><?php foreach ($empresas as $e): ?><option value="<?= (int)$e['id'] ?>"><?= h($e['nome']) ?></option><?php endforeach; ?></select></label>
       <label class="pl-check" style="margin-left:30px"><input type="checkbox" name="copiar_cortes" value="1" checked> Copiar também as datas de corte dos BMs</label>
       <?php endif; ?>
+      <?php if ($propostas): ?>
+      <label class="pl-check"><input type="radio" name="modo" value="proposta"> Usar uma proposta comercial válida (aprovada ou enviada dentro da validade)</label>
+      <label style="margin-left:30px">Proposta<select name="orc_id"><?php foreach ($propostas as $pp): ?><option value="<?= (int)$pp['id'] ?>"><?= h($pp['numero'] . ' — ' . $pp['titulo'] . ' · R$ ' . number_format((float)$pp['total'], 2, ',', '.') . ($pp['status'] === 'aprovada' ? ' · aprovada' : ' · enviada')) ?></option><?php endforeach; ?></select></label>
+      <?php endif; ?>
       <label class="pl-check"><input type="radio" name="modo" value="vazia"> Só a empresa — cadastro serviços e atividades depois</label>
     </fieldset></div>
   <p class="pl-nota">A planilha é a mesma da importação da obra (itens do BM, atividades com quantidade, unidade, % de valor e peso). Valores em R$ ficam com centavos.</p>
@@ -207,7 +217,14 @@ pagina_inicio('Empresas e catálogo');
   <div class="pl-form"><label>Planilha (.xlsx)<input type="file" name="planilha" accept=".xlsx" required></label><label>Prefixo dos códigos<input name="prefixo" maxlength="10" placeholder="<?= h(eo_prefixo_da_empresa($e)) ?>" value="<?= h(eo_prefixo_da_empresa($e)) ?>"></label>
     <label class="pl-check"><input type="checkbox" name="criar_colunas" value="1" checked> Criar uma coluna de produção para cada atividade</label>
     <label class="pl-check"><input type="checkbox" name="importar_cortes" value="1" checked> Importar também as datas de corte dos BMs</label></div>
-  <div class="pl-fim"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn primario">Importar</button></div></form></dialog>
+  <div class="pl-fim"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn primario">Importar</button></div></form>
+  <?php if ($propostas): ?>
+  <form method="post" style="margin-top:14px;border-top:1px solid #eaecf0;padding-top:12px"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="obra" value="<?= (int)$obraId ?>"><input type="hidden" name="acao" value="eo_importar_proposta"><input type="hidden" name="empresa_id" value="<?= (int)$e['id'] ?>"><input type="hidden" name="prefixo" value="<?= h(eo_prefixo_da_empresa($e)) ?>">
+    <h3 style="margin-top:0">…ou usar uma proposta comercial válida</h3>
+    <div class="pl-form"><label>Proposta<select name="orc_id"><?php foreach ($propostas as $pp): ?><option value="<?= (int)$pp['id'] ?>"><?= h($pp['numero'] . ' — ' . $pp['titulo'] . ' · R$ ' . number_format((float)$pp['total'], 2, ',', '.')) ?></option><?php endforeach; ?></select></label>
+      <label class="pl-check"><input type="checkbox" name="criar_colunas" value="1" checked> Criar uma coluna de produção para cada atividade</label></div>
+    <div class="pl-fim"><button class="btn primario">Importar a proposta</button></div></form>
+  <?php endif; ?></dialog>
 
 <dialog class="pl-dlg" id="dlgDel<?= (int)$e['id'] ?>"><form method="post"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="obra" value="<?= (int)$obraId ?>"><input type="hidden" name="acao" value="eo_excluir"><input type="hidden" name="empresa_id" value="<?= (int)$e['id'] ?>">
   <h3>Excluir <?= h($e['nome']) ?></h3>

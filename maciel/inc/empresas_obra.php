@@ -178,7 +178,7 @@ function eo_criar_empresa(array $d, $arquivoTmp = null)
     $nome = eo_nome_valido($d['nome'] ?? '');
     $prefixo = eo_prefixo($d['prefixo'] ?? '', $nome);
     $modo = $d['modo'] ?? 'vazia';
-    if (!in_array($modo, ['vazia', 'copiar', 'planilha'], true)) {
+    if (!in_array($modo, ['vazia', 'copiar', 'planilha', 'proposta'], true)) {
         throw new InvalidArgumentException('Escolha como montar o catálogo da empresa.');
     }
     $ordem = (int)q('SELECT COALESCE(MAX(ordem), -1) + 1 FROM empresas')->fetchColumn();
@@ -215,6 +215,10 @@ function eo_criar_empresa(array $d, $arquivoTmp = null)
             }
         }
         $resumo['avisos'][] = 'As quantidades e os valores foram copiados de ' . $origem['nome'] . ': ajuste em Financeiro › Medição (BM) › Catálogo de atividades.';
+    } elseif ($modo === 'proposta') {
+        $r = eo_importar_proposta($empresaId, $nome, $prefixo, (int)($d['orc_id'] ?? 0), (array)($d['_obra'] ?? []), (array)($d['_usuario'] ?? []), !empty($d['criar_colunas']));
+        $resumo = array_merge($resumo, array_intersect_key($r, ['servicos' => 1, 'atividades' => 1]));
+        $resumo['avisos'] = array_merge($resumo['avisos'], $r['avisos']);
     } elseif ($modo === 'planilha') {
         $r = eo_importar_catalogo($empresaId, $nome, $prefixo, $arquivoTmp, !empty($d['criar_colunas']), !empty($d['importar_cortes']));
         $resumo = array_merge($resumo, array_intersect_key($r, ['servicos' => 1, 'atividades' => 1, 'periodos' => 1]));
@@ -274,6 +278,81 @@ function eo_importar_catalogo($empresaId, $nome, $prefixo, $arquivoTmp, $criarCo
     if (!empty($o['contrato_total'])) {
         $res['avisos'][] = 'Total do contrato lido na planilha: R$ ' . number_format((float)$o['contrato_total'], 2, ',', '.') . '.';
     }
+    return $res;
+}
+
+/** Propostas comerciais válidas para virar catálogo desta obra: aprovadas, ou enviadas ainda dentro da validade,
+ *  da empresa dona da obra (ou ligadas à própria obra). O administrador geral vê as de todas as empresas. */
+function eo_propostas_validas(array $obra, array $u)
+{
+    if (!function_exists('garantir_comercial')) { require_once __DIR__ . '/central.php'; }
+    if (!function_exists('garantir_comercial')) { return []; }
+    garantir_comercial();
+    $org = (int)($obra['organizacao_id'] ?? 0);
+    $todas = ($u['perfil'] ?? '') === 'admin';
+    $lista = q_global("SELECT * FROM com_orcamentos WHERE status IN ('aprovada', 'enviada') ORDER BY id DESC")->fetchAll();
+    $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    $saida = [];
+    foreach ($lista as $o) {
+        if (!$todas && (int)$o['organizacao_id'] !== $org && (int)($o['obra_id'] ?? 0) !== (int)$obra['id']) { continue; }
+        if ($o['status'] === 'enviada') {
+            $ref = $o['data_ref'] ?: substr((string)$o['criado_em'], 0, 10);
+            if (!$ref || date('Y-m-d', strtotime($ref . ' +' . (int)$o['validade_dias'] . ' days')) < $hoje) { continue; }
+        }
+        $itens = q_global('SELECT * FROM com_orcamento_itens WHERE orcamento_id = ? ORDER BY ordem, id', [(int)$o['id']])->fetchAll();
+        if (!$itens) { continue; }
+        $c = com_calcular($o, $itens);
+        $o['total'] = $c['total'] ?? 0;
+        $o['n_itens'] = count($itens);
+        $saida[] = $o;
+    }
+    return $saida;
+}
+
+/** Acrescenta ao catálogo da empresa as linhas de uma proposta comercial válida: cada etapa vira um item do BM (1, 2, 3…)
+ *  e cada linha uma atividade, com quantidade, unidade e o PREÇO DE VENDA (com BDI e desconto) como valor; peso = valor da linha ÷ valor da etapa. */
+function eo_importar_proposta($empresaId, $nome, $prefixo, $orcId, array $obra, array $u, $criarColunas)
+{
+    $validas = [];
+    foreach (eo_propostas_validas($obra, $u) as $o) { $validas[(int)$o['id']] = $o; }
+    $orc = $validas[(int)$orcId] ?? null;
+    if (!$orc) { throw new InvalidArgumentException('Escolha uma proposta aprovada ou enviada dentro da validade.'); }
+    $itens = q_global('SELECT * FROM com_orcamento_itens WHERE orcamento_id = ? ORDER BY ordem, id', [(int)$orc['id']])->fetchAll();
+    $calc = com_calcular($orc, $itens);
+    $linhas = $calc['itens'] ?? $itens;
+    $etapas = [];
+    foreach ($linhas as $l) {
+        $et = trim((string)($l['etapa'] ?? '')) ?: 'Serviços da proposta';
+        $etapas[$et][] = $l;
+    }
+    $res = ['servicos' => 0, 'atividades' => 0, 'periodos' => 0, 'avisos' => []];
+    $n = 0;
+    foreach ($etapas as $et => $ls) {
+        $n++;
+        $item = (string)$n;
+        $valorItem = round(array_sum(array_map(function ($l) { return (float)($l['venda'] ?? 0); }, $ls)), 2);
+        foreach (array_values($ls) as $k => $l) {
+            $codigo = $prefixo . '-' . $item . '-' . sprintf('%02d', $k + 1);
+            if (q('SELECT 1 FROM bm_atividades WHERE codigo = ?', [$codigo])->fetchColumn()) {
+                $res['avisos'][] = 'O código ' . $codigo . ' já existe e foi ignorado.';
+                continue;
+            }
+            $desc = trim((string)$l['descricao']);
+            $controle = null;
+            if ($criarColunas) {
+                $nomeServico = $desc;
+                if (q('SELECT 1 FROM servicos WHERE empresa_id = ? AND nome = ?', [(int)$empresaId, $nomeServico])->fetchColumn()) { $nomeServico .= ' (' . $item . ')'; }
+                eo_servico_criar($empresaId, $nomeServico, eo_maiusculas($et), (float)$l['quantidade'], $item);
+                $controle = $nomeServico;
+                $res['servicos']++;
+            }
+            $peso = $valorItem > 0 ? round((float)($l['venda'] ?? 0) / $valorItem, 6) : round(1 / count($ls), 6);
+            q('INSERT INTO bm_atividades (codigo, empresa, item, item_desc, atividade, unidade, qtd, peso, valor_qpc, valor_rotula, controle, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$codigo, $nome, $item, $et, $desc, trim((string)$l['unidade']) ?: 'un', (float)$l['quantidade'], $peso, $valorItem, $valorItem, $controle, 'Importado da proposta ' . $orc['numero']]);
+            $res['atividades']++;
+        }
+    }
+    $res['avisos'][] = 'Proposta ' . $orc['numero'] . ' (R$ ' . number_format((float)$orc['total'], 2, ',', '.') . ') importada com o preço de venda de cada linha.';
     return $res;
 }
 

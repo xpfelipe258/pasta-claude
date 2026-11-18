@@ -708,6 +708,12 @@ function sistema_ler($chave, $padrao = null)
     if ($obraId > 0 && !in_array($chave, $globais, true)) {
         $v = q_global('SELECT valor FROM obra_config WHERE obra_id = ? AND chave = ?', [$obraId, $chave])->fetchColumn();
         if ($v !== false) { return $v; }
+        // Obra nova (dados_legados = 0): não herda os dados antigos gravados na tabela geral (estoque, vínculos, planos… da obra 198)
+        static $novas = [];
+        if (!array_key_exists($obraId, $novas)) {
+            $novas[$obraId] = q_global("SELECT valor FROM obra_config WHERE obra_id = ? AND chave = 'dados_legados'", [$obraId])->fetchColumn() === '0';
+        }
+        if ($novas[$obraId] && !in_array($chave, ['padrao_identidade_ifc'], true)) { return $padrao; }
     }
     $v = q_global('SELECT valor FROM sistema WHERE chave = ?', [$chave])->fetchColumn();
     return $v === false ? $padrao : $v;

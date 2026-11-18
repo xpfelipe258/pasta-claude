@@ -306,6 +306,7 @@ const TUT_TOPICOS = [
       { t: 'Escolha a empresa e a sub-aba (Boletim, Catálogo de atividades…).', alvo: '#segBmEmp' },
       { t: 'O Boletim mostra o resumo do período (ganho, gasto, resultado) e a tabela por item e atividade, com "% do contrato".', alvo: '#bmCorpo' },
       { t: 'O Catálogo de atividades define quantidade, peso e valor de cada atividade. O peso é digitado de 0 a 1 (0,25 = 25%).', alvo: '#segBmSub' },
+      { t: 'Obra sem catálogo? Clique em "Importar catálogo, orçamento ou proposta". Dá para cadastrar a empresa usando a planilha do orçamento ou uma proposta comercial aprovada (ou enviada e ainda dentro da validade). Cada etapa da proposta vira um item do BM e cada linha uma atividade, com o preço de venda.', alvo: '#btnBmImportarCat', novo: '2026-11-18' },
       { t: 'A linha "Sinal de contrato" tem uma célula de %: digite o percentual e o desconto é recalculado. A coluna "Saldo" mostra quanto falta medir.' },
       { t: 'Depois de conferir, feche o BM (os valores ficam congelados). Se precisar corrigir, reabra e feche de novo.' },
       { t: '"Baixar BM" abre o boletim na visualização padrão, com o nome da empresa terceirizada em destaque.' },

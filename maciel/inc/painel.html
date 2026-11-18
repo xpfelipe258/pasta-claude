@@ -694,8 +694,20 @@
     <div class="barra-acoes">
       <div class="seg" id="segBmEmp"></div>
       <div class="seg" id="segBmSub"></div>
+      <a class="btn" id="btnBmImportarCat" href="obra_empresas.php" hidden title="Cadastrar ou completar o catálogo de atividades de uma empresa a partir de uma planilha de orçamento ou de uma proposta comercial aprovada/válida">Importar catálogo, orçamento ou proposta</a>
     </div>
     <div id="bmCorpo" class="pilha"></div>
+    <script>
+    (function () {   // só quem administra a obra vê o atalho (a página também confere no servidor)
+      var n = 0, t = setInterval(function () {
+        var b = document.getElementById('btnBmImportarCat'), d = (typeof D !== 'undefined') ? D : null;
+        if (!b || ++n > 120) { clearInterval(t); return; }
+        if (!d || !d.usuario) return;
+        clearInterval(t);
+        if (d.usuario.perfil === 'admin' || d.usuario.admin_obra) b.hidden = false;
+      }, 500);
+    })();
+    </script>
   </section>
 
   <!-- IMPACTOS -->
