@@ -110,9 +110,24 @@ function tplFichaObra() {
 }
 
 // Lado "Cliente" da capa: o logo da obra (cadastro da obra no portal) ou, sem ele, a Rótula
+// Obra nova (não é a G200): o contratante não é a Rótula; usa o cliente cadastrado na obra
+function tplObraNova() { return typeof obraLegada === 'function' && typeof M !== 'undefined' && M && !obraLegada(); }
+function tplNomeCliente() { const c = typeof D !== 'undefined' && D && D.obra && (D.obra.cliente || '').toString().trim(); return tplObraNova() ? (c ? c.toUpperCase() : 'CLIENTE') : 'RÓTULA'; }
+// Troca, só no TEXTO do relatório, os nomes herdados da G200 (Rótula como contratante, EJ e CMM fixos)
+function htmlSemG200(html) {
+  if (!tplObraNova() || !/R[ÓO]TULA/.test(html)) return html;
+  const cli = tplNomeCliente() === 'CLIENTE' ? 'contratante' : tplNomeCliente();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const w = doc.createTreeWalker(doc.body || doc.documentElement, NodeFilter.SHOW_TEXT);
+  const mud = []; for (let n = w.nextNode(); n; n = w.nextNode()) if (/R[ÓO]TULA/.test(n.nodeValue) && !n.parentElement.closest('script,style')) mud.push(n);
+  mud.forEach(n => { n.nodeValue = n.nodeValue.replace(/\s*\((?:contrato )?R[ÓO]TULA\)/g, '').replace(/[Cc]ontrato R[ÓO]TULA/g, m => m[0] + 'ontrato').replace(/R[ÓO]TULA/g, cli); });
+  doc.title = (doc.title || '').replace(/R[ÓO]TULA/g, cli);
+  return '<!doctype html>' + doc.documentElement.outerHTML;
+}
 function tplLogoCliente() {
   const l = typeof TPL_IDENT !== 'undefined' && TPL_IDENT.obraLogo;
-  return l ? `<img src="${l}" alt="Cliente" style="height:44px;max-width:240px;display:block">` : tplLogo('rotula');
+  if (l) return `<img src="${l}" alt="Cliente" style="height:44px;max-width:240px;display:block">`;
+  return tplObraNova() ? `<b style="display:block;font:800 20px Arial,Helvetica,sans-serif;letter-spacing:1px;padding:8px 6px;color:#1f3a68">${esc(tplNomeCliente())}</b>` : tplLogo('rotula');
 }
 // Documento completo no padrão Rótula × QPC.  corpo = HTML das seções; css = estilos extras do relatório; meta = linha pequena da capa.
 function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '', cssAntes = '', barra = '', empresa = '' }) {
@@ -139,7 +154,7 @@ function tplDocumento({ titulo, subtitulo = '', meta = '', corpo = '', css = '',
       ${tplFichaObra()}
       <div class="tpl-corpo">${corpo}</div>
     </div>
-    <div class="tpl-rodape"><span>${esc(obraNome)} · ${esc(gestaoNome)}</span><span>${esc(titulo)} · RÓTULA · ${esc(quando)}</span></div>
+    <div class="tpl-rodape"><span>${esc(obraNome)} · ${esc(gestaoNome)}</span><span>${esc(titulo)} · ${esc(tplNomeCliente())} · ${esc(quando)}</span></div>
   </body></html>`;
   return tplProtegerImpressao(html);
 }

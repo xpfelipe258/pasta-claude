@@ -1054,6 +1054,7 @@ function reAbrirPrevia(html, nomeArq, titulo, opcoes = {}) {   // opcoes: { rotu
   document.getElementById('reDlgPrevia')?.remove();
   if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
   if (!opcoes.semTemplate && typeof tplAdaptarRelatorio === 'function') html = tplAdaptarRelatorio(html, titulo);   // todo relatório sai no template Rótula × QPC
+  if (typeof htmlSemG200 === 'function') html = htmlSemG200(html);   // obra nova: sem os nomes da G200
   const dlg = document.createElement('dialog');
   dlg.id = 'reDlgPrevia'; dlg.className = 're-previa';
   dlg.innerHTML = `<div class="re-previa-topo"><b>${esc(titulo)}</b><span class="nota">Visualização do relatório — confira antes de baixar</span>

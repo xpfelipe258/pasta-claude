@@ -38,7 +38,7 @@ function relPdfRodape(pdf, pw, ph, titulo, pag, total, gestao) {
   pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.5);
   pdf.text(relPdfTxt(gestao || (obra + ' · GESTÃO')), 6, ph - 3);
   pdf.setFont('helvetica', 'normal');
-  pdf.text(relPdfTxt(`${titulo} · RÓTULA · ${quando} · pág. ${pag}/${total}`), pw - 6, ph - 3, { align: 'right' });
+  pdf.text(relPdfTxt(`${titulo} · ${typeof tplNomeCliente === 'function' ? tplNomeCliente() : 'RÓTULA'} · ${quando} · pág. ${pag}/${total}`), pw - 6, ph - 3, { align: 'right' });
 }
 
 // Posições de corte das páginas. Empurra o corte para cima até não atravessar nenhuma região protegida; se isso deixar a página quase vazia
@@ -70,6 +70,7 @@ function relPdfCortes(H, altPag, duras, titulos) {
 async function relPdfGerar(html, nomeArq, titulo, aoProgredir, opcoes) {   // opcoes.blob = true: não baixa, devolve { total, blob } (usado no envio por e-mail)
   await relPdfLibs();
   if (typeof htmlDatasBR === 'function') html = htmlDatasBR(html);   // datas sempre em dd/mm/aaaa
+  if (typeof htmlSemG200 === 'function') html = htmlSemG200(html);
   const progresso = typeof aoProgredir === 'function' ? aoProgredir : () => {};
   const paisagem = /@page\s*\{[^}]*size\s*:[^;}]*landscape/i.test(html);
   const gestaoTxt = ((html.match(/<meta name="tpl-gestao" content="([^"]*)"/) || [])[1] || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"') || '';   // "OBRA · EMPRESA" do rodapé (identidade visual da empresa)
