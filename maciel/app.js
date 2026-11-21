@@ -6219,7 +6219,7 @@ function renderBMCatalogo(box) {
     <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na grade de produção em und e podem ser convertidas para a unidade financeira do BM. Para forçar um fator, use na observação: m2_por_und=2,45. A coluna "% do contrato" é o valor de cada item/atividade sobre o valor total do contrato da empresa (${rs2(contrato)}).</p>
     <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th class="n">Valor total (R$)</th><th class="n">% do contrato</th><th class="n">Valor unitário (R$)</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
   its.forEach(it => {
-    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">valor do item (RÓTULA)</td><td class="n"><b>${rs2(it.valor['RÓTULA'])}</b></td><td class="n"><b>${pc(it.valor['RÓTULA'] || 0)}</b></td><td></td>
+    h += `<tr class="grupo-item"><td colspan="3"><b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td class="n" colspan="2">Valor do item</td><td class="n"><b>${rs2(it.valor['RÓTULA'])}</b></td><td class="n"><b>${pc(it.valor['RÓTULA'] || 0)}</b></td><td></td>
       <td colspan="3">${it.pesosAjustados ? `<span class="farol f-amarelo">pesos somam ${nf(it.somaPesos * 100, 1)}%</span>` : ''}</td></tr>`;
     it.ats.forEach(x => { const pr = bmPrecoAtividade(it, x.a); h += `<tr><td class="nota">${esc(x.a.codigo)}</td><td>${esc(x.a.atividade)}</td><td>${bmLegendaUnidade(x.a)}</td><td class="n">${nf(x.a.qtd, 2)}</td><td class="n">${nf((x.a.peso || 0) * 100, 1)}%</td>
       <td class="n">${rs2(pr.total)}</td><td class="n">${pc(pr.total || 0)}</td><td class="n">${rs2(pr.unit)}</td>
@@ -6398,7 +6398,7 @@ const FORMS = {
     ['codigo', 'Código (único)', 'text', 1], ['empresa', 'Empresa', 'empresa', 1], ['item', 'Item do BM (ex.: 3.1.1)', 'text', 1],
     ['item_desc', 'Descrição do item', 'text', 1, 'largo'], ['atividade', 'Atividade (serviço)', 'text', 1, 'largo'], ['unidade', 'Unidade', 'text', 1],
     ['qtd', 'Quantidade contratada', 'num', 1], ['peso', 'Peso no item (0 a 1 — ex.: 0,25 = 25%)', 'num', 1], ['valor_qpc', 'Valor do item QPC (R$)', 'num'],
-    ['valor_rotula', 'Valor do item RÓTULA (R$)', 'num'], ['controle', 'Coluna no controle de produção (nome do serviço)', 'text'],
+    ['valor_rotula', 'Valor do item (R$)', 'num'], ['controle', 'Coluna no controle de produção (nome do serviço)', 'text'],
     ['obs', 'Observação', 'text', 0, 'largo']] },
   estoque_eventos: { tit: 'evento de produção (baixa por IFC)', campos: [
     ['data', 'Data', 'date', 1],
