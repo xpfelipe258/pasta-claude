@@ -324,7 +324,7 @@ function estoque_tag($tag)
 
 function estoque_empresas_consumo()
 {
-    if (obra_preserva_identidade_ifc()) {
+    if (obra_preserva_identidade_ifc() || sistema_ler('dados_legados', '0') !== '1') {   // obra nova: só as empresas cadastradas nela
         return q('SELECT nome FROM empresas ORDER BY ordem, id')->fetchAll(PDO::FETCH_COLUMN);
     }
     $l = ['EJ', 'CMM'];

@@ -490,12 +490,15 @@ async function verificarVersao() {
 }
 ['keydown', 'input', 'pointerdown', 'paste'].forEach(ev => document.addEventListener(ev, () => { ultimaInteracao = Date.now(); }, true));
 
+// empresas que aparecem nas listas: na G200 (obra antiga) as fixas EJ/CMM/GLOBO; em obra nova, só as cadastradas nela
+const obraLegada = () => !!M.cronograma_padrao;
+const empresasDaObra = () => (M.empresas || []).map(e => e.nome);
 function preencherListas() {
   const minhaE = window.USUARIO_RESTRITO ? normEmp(window.USUARIO_RESTRITO) : '';   // usuário de empresa só vê o nome da própria empresa nas listas
-  const serv = new Set(), emps = new Set(minhaE ? [minhaE] : ['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM']);
+  const serv = new Set(), emps = new Set(minhaE ? [minhaE] : obraLegada() ? ['EJ', 'CMM', 'GLOBO AÇOS', 'EJ/CMM'] : []);
   M.empresas.forEach(e => { emps.add(e.nome); e.servicos.forEach(s => serv.add(s.nome)); });
   M.impactos.forEach(i => i.servico && serv.add(String(i.servico).toUpperCase()));
-  if (!minhaE) T.usos.forEach(u => u.empresa && emps.add(u.empresa));
+  if (!minhaE && obraLegada()) T.usos.forEach(u => u.empresa && emps.add(u.empresa));
   $('#listaServicos').innerHTML = [...serv].sort().map(n => `<option value="${esc(n)}">`).join('');
   $('#listaSetores').innerHTML = [...new Set([...SETORES_IMPACTO, ...M.impactos.map(i => String(i.setor || '').trim()).filter(Boolean)])].map(n => `<option value="${esc(n)}">`).join('');
   $('#listaEmpresas').innerHTML = [...emps].sort().map(n => `<option value="${esc(n)}">`).join('');
@@ -615,6 +618,18 @@ function renderAba() {
     if (sec) { sec.querySelector('.erro-aba')?.remove(); const e = document.createElement('div'); e.className = 'aviso erro-aba'; e.style.cssText = 'margin:12px 0;padding:10px 14px;border:1px solid #b42318;background:#fff1f0;color:#7a1a12;border-radius:6px;font-size:13px'; e.innerHTML = `<b>Não foi possível montar esta tela.</b> ${esc(String(err && err.message || err))}<br><span class="nota">Detalhe: ${esc(String(err && err.stack || '').split('\n').slice(0, 8).join(' | '))}</span>`; sec.prepend(e); }
   }
   requestAnimationFrame(syncScrollTopo);
+  if (!obraLegada()) obraSemNomesG200(document.getElementById('aba-' + abaAtual));
+}
+
+// Obra nova: o contrato da medição não é da Rótula (nome que veio da G200). Troca só o TEXTO visível; os dados não mudam.
+function obraSemNomesG200(raiz) {
+  if (!raiz || abaAtual === 'config' || abaAtual === 'tutorial') return;
+  const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT);
+  const mud = [];
+  for (let n = w.nextNode(); n; n = w.nextNode()) if (/R[ÓO]TULA/.test(n.nodeValue) && !n.parentElement.closest('input,textarea,select,option')) mud.push(n);
+  mud.forEach(n => { n.nodeValue = n.nodeValue
+    .replace(/\s*\((?:contrato )?R[ÓO]TULA\)/g, '').replace(/contrato R[ÓO]TULA/gi, 'contrato').replace(/Contrato R[ÓO]TULA/g, 'Contrato')
+    .replace(/contratada pela R[ÓO]TULA/g, 'contratada').replace(/ \(EJ e CMM: o programa carrega o BM1 pago ao abrir\)/, '').replace(/R[ÓO]TULA/g, 'Contrato'); });
 }
 
 // ------------------------------------------------------------ PAINEL (por período)
@@ -2005,7 +2020,7 @@ function ganBmResumo(it, ate) {
       porEmpresa.set(a.empresa, o);
     });
     const minhaE = window.USUARIO_RESTRITO ? normEmp(window.USUARIO_RESTRITO) : '';
-    const nomes = ['EJ', 'CMM'].filter(n => !minhaE || n === minhaE);
+    const nomes = (obraLegada() ? ['EJ', 'CMM'] : empresasDaObra()).filter(n => !minhaE || n === minhaE);
     const pcts = nomes.map(n => { const o = porEmpresa.get(n); return o && o.somaPesos ? o.pct / o.somaPesos : 0; });
     const pct = Math.min(1, Math.max(0, soma0(pcts, x => x) / nomes.length));
     const ds = [];
@@ -3511,7 +3526,7 @@ function editarConsumoInline(td) {
 // Escolhe empresa (cada uma em separado, só EJ, só CMM ou geral somado), semanas e itens; gera um HTML para imprimir/salvar em PDF.
 const relCons = { sem: new Set(), it: new Set() };
 function relConsEmpresas() {   // colunas do consumo = empresas da obra (EJ, CMM e GLOBO AÇOS); o servidor já manda a lista, a Globo é garantida aqui se estiver cadastrada
-  const cf = estConsumoComCadastros(), l = (cf.empresas && cf.empresas.length ? [...cf.empresas] : ['EJ', 'CMM']).filter(Boolean);
+  const cf = estConsumoComCadastros(), l = (cf.empresas && cf.empresas.length ? [...cf.empresas] : obraLegada() ? ['EJ', 'CMM'] : empresasDaObra()).filter(Boolean);
   const ga = (M?.empresas || []).find(e => ganNorm(e.nome) === 'GLOBO ACOS');
   if (ga && !l.some(n => ganNorm(n) === 'GLOBO ACOS')) l.push(ga.nome);
   const minhaE = window.USUARIO_RESTRITO ? normEmp(window.USUARIO_RESTRITO) : '';   // usuário de empresa só vê a coluna da própria empresa
@@ -3704,7 +3719,7 @@ async function recarregarEstoquePlanilha() {
 function renderEstConsumo() {
   if (!EP) return;
   const tituloCons = [...document.querySelectorAll('#aba-estcons h2')].find(h => /^Consumo por semana/.test(h.textContent));
-  if (tituloCons) tituloCons.textContent = window.USUARIO_RESTRITO ? 'Consumo por semana (' + normEmp(window.USUARIO_RESTRITO) + ')' : 'Consumo por semana (EJ + CMM)';
+  if (tituloCons) tituloCons.textContent = window.USUARIO_RESTRITO ? 'Consumo por semana (' + normEmp(window.USUARIO_RESTRITO) + ')' : 'Consumo por semana (' + ((estConsumoComCadastros().empresas || []).length ? estConsumoComCadastros().empresas : empresasDaObra()).join(' + ') + ')';
   const cf = estConsumoComCadastros();
   const sems = cf.semanas;
   const f = ($('#estConsFiltro')?.value || '').toUpperCase();
@@ -5563,7 +5578,7 @@ function renderEquip() {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${esc(rot)}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   $('#eqTiles').innerHTML = tile('Custo total no período', rs(totEq + totComb), `Equipamentos ${rs(totEq)} · combustível ${rs(totComb)}`, 'var(--fg)') +
     tile('Combustível', nf(totL, 0) + ' L', `${rs(totComb)} · média ${totL ? 'R$ ' + nf(totComb / totL, 2) : '—'}/L`, 'var(--acento)') +
-    (eqMinhaEmpresa() ? [eqMinhaEmpresa()] : ['EJ', 'CMM', 'GLOBO AÇOS']).map(n => { const o = porEmp[n]; return tile(n, rs(o ? o.eq + o.comb : 0), o ? `${rs(o.eq)} equip. + ${rs(o.comb)} comb. · ${nf(o.l)} L` : 'sem registros no período', corEmp(n)); }).join('');
+    (eqMinhaEmpresa() ? [eqMinhaEmpresa()] : obraLegada() ? ['EJ', 'CMM', 'GLOBO AÇOS'] : empresasDaObra()).map(n => { const o = porEmp[n]; return tile(n, rs(o ? o.eq + o.comb : 0), o ? `${rs(o.eq)} equip. + ${rs(o.comb)} comb. · ${nf(o.l)} L` : 'sem registros no período', corEmp(n)); }).join('');
 
   const c = corte();
   $('#tabEqEmp').innerHTML = `<thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Combustível</th><th class="n">Litros</th><th class="n">Total</th><th class="n">% do custo</th><th class="n">Dias com uso</th><th class="n">Produção no período</th><th class="n">Custo por unidade produzida</th></tr></thead><tbody>` +
@@ -6124,7 +6139,7 @@ function renderBMBoletim(box) {
   const alertas = [];
   r.itens.filter(it => it.pesosAjustados).forEach(it => alertas.push(`Item ${it.item}: os pesos das atividades somam ${nf(it.somaPesos * 100, 1)}% (o sistema normaliza para 100%). Corrija no catálogo.`));
   r.itens.filter(it => it.excedeu).forEach(it => alertas.push(`Item ${it.item}: há atividade com realizado acima da quantidade contratada (limitado a 100% no cálculo).`));
-  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum BM anterior registrado para esta empresa: tudo o que foi produzido até a data aparece neste BM, sem descontar nada já medido. Se já houve medição paga, registre o corte do BM1 em "Períodos e deduções" (EJ e CMM: o programa carrega o BM1 pago ao abrir).');
+  if (!p.cortado && p.ini === '0000-01-01') alertas.push('Nenhum BM anterior registrado para esta empresa: tudo o que foi produzido até a data aparece neste BM, sem descontar nada já medido. Se já houve medição paga, registre o corte do BM1 em "Períodos e deduções".' + (obraLegada() ? ' (EJ e CMM: o programa carrega o BM1 pago ao abrir).' : ''));
   if (Math.abs(tot.ajuste) > 0.5) {
     const its = r.itens.filter(it => Math.abs(it.pctAjuste) > 1e-9).map(it => it.item).join(', ');
     alertas.push(`A produção lançada até o corte do ${r.prev ? 'BM' + r.prev.n : 'BM anterior'} (${r.prev ? fdA(r.prev.fim) : ''}) difere do que foi medido nele em ${rs(tot.ajuste)} (itens ${its}). Essa diferença entra neste BM, porque a medição é o acumulado menos o que já foi medido.`);

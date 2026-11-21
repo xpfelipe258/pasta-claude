@@ -311,6 +311,7 @@ const TUT_TOPICOS = [
       { t: 'O sistema lê a planilha inteira e mostra o que encontrou: itens, atividades, quantidades, valores e datas de corte. Confira e clique em "Gerar catálogo e produção".', novo: '2026-11-18' },
       { t: 'Cada obra pode ter um modelo de BM diferente. Na etapa "Colunas" o sistema acha sozinho as colunas de descrição da atividade, peso (%) e valor; se errar, escolha a coluna certa em cada caixa. Na próxima vez ele lembra.', novo: '2026-11-21' },
       { t: 'Os BMs começam zerados: a planilha não traz datas de corte, a menos que você marque essa opção. O BM1 fica em aberto, pronto para medir.', novo: '2026-11-21' },
+      { t: 'Em obra nova, as listas de empresa mostram só as empresas cadastradas nesta obra. Nomes de outras obras não aparecem.', novo: '2026-11-21' },
       { t: 'Para apagar todos os BMs de uma empresa e recomeçar do BM1, abra "Períodos e deduções" e clique em "Recomeçar no BM1" (duas vezes para confirmar). A produção lançada não é apagada.', novo: '2026-11-21' },
       { t: 'Forma de medição: em Administração › Obra escolha "Baseado em produção" (padrão, o BM soma os lançamentos) ou "BM manual". No manual, abra o item no Boletim e digite o acumulado de cada atividade.', novo: '2026-11-21' },
       { t: 'Pronto: as atividades entram no catálogo do BM e cada uma ganha uma coluna em Lançamentos. Lance a produção do dia lá e o avanço aparece sozinho na Medição.', aba: 'lanc', novo: '2026-11-18' },
