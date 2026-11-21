@@ -208,7 +208,7 @@ function eo_criar_empresa(array $d, $arquivoTmp = null)
                 [$novo, $nome, $a['item'], $a['item_desc'], $a['atividade'], $a['unidade'], $a['qtd'], $a['peso'], $a['valor_qpc'], $a['valor_rotula'], $a['controle'], 'Copiado de ' . $origem['nome'] . ' — conferir quantidades e valores']);
             $resumo['atividades']++;
         }
-        if (!empty($d['copiar_cortes'])) {
+        if (false && !empty($d['copiar_cortes'])) {   // empresa nova começa no BM1, sem cortes copiados
             foreach (q('SELECT bm, corte FROM bm_periodos WHERE empresa = ? ORDER BY bm', [$origem['nome']])->fetchAll() as $p) {
                 q('INSERT INTO bm_periodos (empresa, bm, corte, obs) VALUES (?, ?, ?, ?)', [$nome, $p['bm'], $p['corte'], 'Copiado de ' . $origem['nome']]);
                 $resumo['periodos']++;

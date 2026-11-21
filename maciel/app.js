@@ -5830,7 +5830,7 @@ function bmPeriodos(emp) {
     const iniA = ant ? add(ant, 1) : '0000-01-01', ldA = sinalDoBm(n, iniA, ref);
     if (ldA) sinal = Number(ldA.percentual);
     lista.push({ chave: 'aberto', n, ini: iniA, fim: ref, cortado: false, fechado: false, sinalPerc: sinal, sinalPropria: !!ldA, sinalLinha: ldA ? ldA.linha : null,
-      rot: ant ? `BM${n} em aberto · até ${fdA(ref)}` : `Acumulado até ${fdA(ref)} (sem corte definido)` });
+      rot: `BM${n} em aberto · até ${fdA(ref)}` });
   }
   return lista;
 }
@@ -6195,10 +6195,14 @@ function renderBMBoletim(box) {
 
 function renderBMPeriodos(box) {
   const emp = bmEmp;
+  setTimeout(() => { const b = box.querySelector('[data-bm-zerar]'); if (b) b.onclick = async () => {
+    if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = `Confirmar: apagar todos os BMs da ${emp}`; b.classList.add('perigo'); return; }
+    try { await postar(API + 'bm/zerar', { empresa: emp }); await carregar(); toast(`BMs da ${emp} zerados: BM1 em aberto`); } catch (err) { toast(err.message, true); }
+  }; });
   const ps = bmTab('bm_periodos').filter(p => p.empresa === emp).sort((a, b) => String(a.corte).localeCompare(String(b.corte)));
   const ds = bmTab('bm_deducoes').filter(d => d.empresa === emp).sort((a, b) => String(b.data).localeCompare(String(a.data)));
   box.innerHTML = `<div class="grade-2">
-    <div class="bloco"><div class="bloco-cab"><h2>Períodos de medição (BM)</h2><button class="btn primario" data-novo="bm_periodos">+ Período</button></div>
+    <div class="bloco"><div class="bloco-cab"><h2>Períodos de medição (BM)</h2><span class="acoes">${D?.usuario?.perfil === 'admin' || D?.usuario?.admin_obra ? `<button class="btn" data-bm-zerar>Recomeçar no BM1</button>` : ''}<button class="btn primario" data-novo="bm_periodos">+ Período</button></span></div>
       <p class="nota">O período de cada BM vai do dia seguinte ao corte anterior até a data de corte. O que for lançado depois do último corte fica no BM em aberto. <b>% sinal de contrato:</b> digite na coluna de cada BM (ou direto na linha de sinal do Boletim); o Boletim desconta esse % do valor medido automaticamente e a linha "Sinal de contrato" aparece em Descontos dos BMs. Célula vazia repete o % do BM anterior (padrão 10%); BM fechado trava o %.</p>
       <div class="tabela-rolagem"><table><thead><tr><th>BM</th><th>Data de corte</th><th class="n" title="Desconto de sinal de contrato = este % × valor medido no BM. Vazio = repete o do BM anterior (padrão 10%).">% sinal de contrato</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>` +
     (ps.length ? ps.map(p => { const pp = bmPeriodos(emp).find(x => x.linha === p.linha); const f = bmFech(emp, pp ? pp.n : p.bm); const own = p.sinal_perc != null && p.sinal_perc !== ''; return `<tr><td><b>BM${pp ? pp.n : (p.bm ?? '')}</b></td><td>${fdA(p.corte)}</td><td class="n">${f ? `${nf(pp ? pp.sinalPerc : 10, 1)}%` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:76px;text-align:right" value="${pp && pp.sinalPropria ? esc(String(pp.sinalPerc)) : ''}" placeholder="${nf(pp ? pp.sinalPerc : 10, 1)}" data-edit-sinal-bm="${pp ? pp.n : p.bm}"> %`}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')

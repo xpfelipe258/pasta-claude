@@ -78,8 +78,21 @@ function linhas_tabela($nome, $campos)
     return $out;
 }
 
+/** Obra nova começa sempre no BM1: apaga uma vez os cortes de BM que vieram da planilha importada (sem BM fechado). */
+function bm_limpar_cortes_importados()
+{
+    if (sistema_ler('dados_legados', '0') === '1' || sistema_ler('bm_cortes_importados_limpos', '') === '1') return;
+    foreach (q("SELECT DISTINCT empresa FROM bm_periodos WHERE obs IN ('Importado do boletim de medição', 'Importado do orçamento') OR obs LIKE 'Copiado de %'")->fetchAll(PDO::FETCH_COLUMN) as $emp) {
+        if (!q('SELECT 1 FROM bm_fechamentos WHERE empresa = ?', [$emp])->fetchColumn()) {
+            q('DELETE FROM bm_periodos WHERE empresa = ?', [$emp]);
+        }
+    }
+    sistema_gravar('bm_cortes_importados_limpos', '1');
+}
+
 function montar_modelo()
 {
+    try { bm_limpar_cortes_importados(); } catch (Throwable $e) { }
     $empresas = [];
     $porId = [];
     foreach (q('SELECT * FROM empresas ORDER BY ordem, id')->fetchAll() as $e) {

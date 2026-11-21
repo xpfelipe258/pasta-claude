@@ -314,9 +314,7 @@ function importacao_publicar($obraId, array $op)
                 $nBm++;
             }
         }
-        foreach ($bm['periodos'] ?? [] as $per) {
-            q('INSERT INTO bm_periodos (empresa, bm, corte, obs) VALUES (?, ?, ?, ?)', [$sigla, $per['bm'], $per['corte'], 'Importado do boletim de medição']);
-        }
+        // os BMs da obra nova começam zerados (BM1 em aberto): as datas de corte da planilha não são importadas
         $resumo['atividades_bm'] = $nBm;
 
         // ---- cadastro: uma linha por TAG original; ocorrências e locais ficam na rastreabilidade.
