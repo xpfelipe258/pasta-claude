@@ -286,6 +286,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             registrar_alteracao('obra', ['nome' => $_POST['obra_nome'], 'inicio' => $_POST['data_inicio'], 'fim' => $_POST['data_fim']]);
             $msg = 'Dados da obra atualizados.';
+        } elseif ($acao === 'bm_modo') {   // forma de medição da obra: pela produção lançada (padrão) ou BM manual
+            $modo = ($_POST['bm_modo'] ?? '') === 'manual' ? 'manual' : 'producao';
+            sistema_gravar('bm_modo', $modo);
+            registrar_alteracao('bm_modo', ['modo' => $modo]);
+            $msg = $modo === 'manual' ? 'Medição em BM manual: o avanço de cada atividade é informado no Boletim.' : 'Medição baseada na produção lançada.';
         } elseif ($acao === 'sincronizar_github') {
             $r   = sincronizar_para_github($cfg);
             $msg = $r['mensagem'];
@@ -530,6 +535,17 @@ pagina_inicio('Administração');
         <label>Fim do calendário<input type="date" name="data_fim" value="<?= h($obra['data_fim']) ?>"></label>
         <button class="btn primario">Salvar</button>
       </form>
+      <?php $bmModo = sistema_ler('bm_modo', 'producao') === 'manual' ? 'manual' : 'producao'; ?>
+      <div class="bloco-cab" style="margin-top:18px"><h2>Forma de medição (BM)</h2></div>
+      <form method="post" class="campos-linha">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="acao" value="bm_modo">
+        <label>Modo<select name="bm_modo">
+          <option value="producao"<?= $bmModo === 'producao' ? ' selected' : '' ?>>Baseado em produção (padrão): o BM soma os lançamentos</option>
+          <option value="manual"<?= $bmModo === 'manual' ? ' selected' : '' ?>>BM manual: o avanço de cada atividade é digitado no Boletim</option>
+        </select></label>
+        <button class="btn primario">Salvar</button>
+      </form>
+      <p class="nota">No BM manual a produção lançada continua valendo para o Painel e o planejamento, mas não entra na medição. BMs já fechados não mudam.</p>
       <?php if ($global): ?>
       <div class="bloco-cab" style="margin-top:18px"><h2>Atualização do sistema</h2></div>
       <p class="nota">Repositório: <b><?= h($cfg['github_repositorio'] ?? '—') ?></b> · ramo: <b><?= h($cfg['github_ramo'] ?? '') ?></b>

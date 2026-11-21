@@ -16,6 +16,13 @@ obra_override($obraId);   // só nesta requisição: a sessão continua na obra 
 
 $msg = '';
 $erro = '';
+function bm_imp_planilha_sessao(array $obra)
+{
+    $pl = $_SESSION['bm_imp_planilha'] ?? null;
+    if (!$pl || (int)$pl['obra'] !== (int)$obra['id'] || time() - (int)$pl['em'] > 7200) { throw new InvalidArgumentException('Envie a planilha de novo (a leitura anterior expirou).'); }
+    return $pl;
+}
+
 // Pop-up "Importar orçamento" da aba Medição (BM): mesmas regras desta página, respondendo em JSON.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
     conferir_csrf();
@@ -25,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
         $arq = (!empty($_FILES['planilha']['tmp_name']) && is_uploaded_file($_FILES['planilha']['tmp_name'])) ? $_FILES['planilha']['tmp_name'] : null;
         if ($arq && ($_FILES['planilha']['size'] ?? 0) > 15 * 1024 * 1024) { throw new InvalidArgumentException('A planilha passa de 15 MB.'); }
         $nomeArq = (string)($_FILES['planilha']['name'] ?? '');
-        if ($arq && !preg_match('/\.(xlsx|xlsm|csv|txt|pdf|jpe?g|png|webp)$/i', $nomeArq)) { throw new InvalidArgumentException('Formato não aceito. Envie .xlsx, .xlsm, .csv, .pdf ou foto (.jpg/.png). Planilha .xls antiga: no Excel, Arquivo › Salvar como › Pasta de Trabalho do Excel (.xlsx).'); }
+        if ($arq && !preg_match('/\.(xlsx|xlsm|csv|txt)$/i', $nomeArq)) { throw new InvalidArgumentException('Envie a planilha em .xlsx, .xlsm ou .csv. Planilha .xls antiga: no Excel, Arquivo › Salvar como › Pasta de Trabalho do Excel (.xlsx).'); }
         $empId = (int)($_POST['empresa_id'] ?? 0);
         $emp = $empId ? q('SELECT * FROM empresas WHERE id = ?', [$empId])->fetch() : null;
         if ($empId && !$emp) { throw new InvalidArgumentException('Empresa não encontrada nesta obra.'); }
@@ -33,18 +40,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
             $props = [];
             try { $props = eo_propostas_validas($obra, $eu); } catch (Throwable $e) { }
             $lista = array_map(function ($e) { return ['id' => (int)$e['id'], 'nome' => $e['nome'], 'atividades' => $e['atividades'], 'servicos' => $e['servicos'], 'prefixo' => eo_prefixo_da_empresa($e)]; }, eo_listar());
-            require_once __DIR__ . '/inc/ia_leitor.php';
-            echo json_encode(['ok' => true, 'ia' => ia_disponivel(), 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['ok' => true, 'empresas' => $lista, 'propostas' => array_map(function ($p) { return ['id' => (int)$p['id'], 'rotulo' => trim(($p['numero'] ?? ('ORC ' . $p['id'])) . ' — ' . ($p['cliente'] ?? '') . ' · ' . ($p['status'] === 'aprovada' ? 'aprovada' : 'enviada') . ' · R$ ' . number_format((float)$p['total'], 2, ',', '.') . ' · ' . (int)$p['n_itens'] . ' linha(s)')]; }, $props)], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if ($acao === 'colunas') {
+            // 1º passo da leitura: guarda a planilha na sessão e acha cabeçalho e colunas (descrição, peso, valor…)
+            require_once __DIR__ . '/inc/bm_colunas.php';
+            if ($arq) {
+                $_SESSION['bm_imp_planilha'] = ['obra' => (int)$obra['id'], 'nome' => $nomeArq, 'abas' => bmc_abas($arq, $nomeArq), 'em' => time()];
+            }
+            $pl = bm_imp_planilha_sessao($obra);
+            $abas = $pl['abas'];
+            $salvos = (array)sistema_ler('bm_mapa_colunas', []);
+            $salvo = (array)($salvos[$emp ? $emp['nome'] : '_ultimo'] ?? ($salvos['_ultimo'] ?? []));
+            $ia = isset($_POST['aba']) && $_POST['aba'] !== '' ? max(0, min(count($abas) - 1, (int)$_POST['aba'])) : null;
+            if ($ia === null) {   // aba com o melhor cabeçalho
+                $ia = 0; $mn = -1;
+                foreach ($abas as $k => $a) { $sg = bmc_sugerir($a['linhas'], $salvo); if ($sg['nota'] > $mn) { $mn = $sg['nota']; $ia = $k; } }
+            }
+            $linhas = $abas[$ia]['linhas'];
+            $sug = bmc_sugerir($linhas, $salvo);
+            $cab = isset($_POST['linha']) && $_POST['linha'] !== '' ? max(0, (int)$_POST['linha'] - 1) : (int)($sug['linha'] ?? 0);
+            if (isset($_POST['linha']) && $_POST['linha'] !== '') {   // linha escolhida à mão: sugere as colunas dela
+                $sg = bmc_sugerir([$cab => $linhas[$cab] ?? []], $salvo);
+                $sug['cols'] = $sg['cols'];
+            }
+            $amostra = [];
+            foreach (array_slice($linhas, $cab + 1, 12) as $l) { $amostra[] = array_map(function ($c) { return mb_substr(lt_texto($c), 0, 60); }, (array)$l); }
+            echo json_encode(['ok' => true, 'arquivo' => $pl['nome'], 'abas' => array_column($abas, 'nome'), 'aba' => $ia, 'linha' => $cab + 1,
+                'achou' => $sug['linha'] !== null, 'cols' => $sug['cols'], 'colunas' => bmc_colunas_info($linhas, $cab), 'amostra' => $amostra], JSON_UNESCAPED_UNICODE);
             exit;
         }
         if ($acao === 'previa') {
+            require_once __DIR__ . '/inc/bm_colunas.php';
             $nome = $emp ? $emp['nome'] : eo_nome_valido($_POST['nome'] ?? '');
             $prefixo = eo_prefixo($_POST['prefixo'] ?? '', $nome);
-            if (!$arq) { throw new InvalidArgumentException('Escolha o arquivo do orçamento.'); }
-            $leitura = eo_ler_orcamento($arq, $nomeArq, (string)($_POST['leitor'] ?? 'auto'));
+            $pl = bm_imp_planilha_sessao($obra);
+            $ia = max(0, min(count($pl['abas']) - 1, (int)($_POST['aba'] ?? 0)));
+            $linhas = $pl['abas'][$ia]['linhas'];
+            $cab = max(0, (int)($_POST['linha'] ?? 1) - 1);
+            $col = [];
+            foreach (BMC_CAMPOS as $c) { $v = $_POST['col_' . $c] ?? ''; $col[$c] = $v === '' ? null : (int)$v; }
+            $usados = array_filter($col, function ($v) { return $v !== null; });
+            if (count($usados) !== count(array_unique($usados))) { throw new InvalidArgumentException('A mesma coluna foi escolhida para dois campos.'); }
+            $total = trim((string)($_POST['contrato_total'] ?? '')) !== '' ? eo_numero($_POST['contrato_total']) : null;
+            $leitura = bmc_montar($linhas, $cab, $col, $total);
             $previa = eo_previa_planilha($leitura, $prefixo, $emp ? $emp['nome'] : null);
-            $token = bin2hex(random_bytes(12));   // a leitura fica guardada na sessão: gerar não lê (nem cobra a IA) de novo
+            $token = bin2hex(random_bytes(12));   // "Gerar" usa exatamente esta leitura
             $_SESSION['bm_imp_leitura'] = [$token => ['obra' => (int)$obra['id'], 'o' => $leitura, 'em' => time()]];
+            $titulos = [];   // lembra os nomes das colunas para a próxima planilha desta empresa
+            foreach ($col as $c => $j) { if ($j !== null) { $titulos[$c] = lt_texto($linhas[$cab][$j] ?? ''); } }
+            $salvos = (array)sistema_ler('bm_mapa_colunas', []);
+            $salvos[$nome] = $titulos; $salvos['_ultimo'] = $titulos;
+            sistema_gravar('bm_mapa_colunas', $salvos);
             echo json_encode(['ok' => true, 'token' => $token] + $previa, JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -66,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1') {
             } else {
                 $r = eo_transacao(function () use ($arq, $obra, $eu, $modo) { return eo_criar_empresa(array_merge($_POST, ['modo' => $modo, '_obra' => $obra, '_usuario' => $eu]), $arq); });
             }
-            unset($_SESSION['bm_imp_leitura']);
+            unset($_SESSION['bm_imp_leitura'], $_SESSION['bm_imp_planilha']);
             registrar_alteracao('catalogo_importado_bm', ['empresa' => $r['empresa'] ?? '', 'atividades' => $r['atividades'] ?? 0, 'modo' => $modo, 'leitor' => is_array($arq) ? ($arq['leitor'] ?? '') : '']);
             echo json_encode(['ok' => true, 'resumo' => $r], JSON_UNESCAPED_UNICODE);
             exit;
@@ -226,7 +274,7 @@ pagina_inicio('Empresas e catálogo');
       <label class="pl-check"><input type="radio" name="modo" value="planilha" checked> Importar a planilha de orçamento/medição da empresa (.xlsx)</label>
       <label style="margin-left:30px">Planilha<input type="file" name="planilha" accept=".xlsx"></label>
       <label class="pl-check" style="margin-left:30px"><input type="checkbox" name="criar_colunas" value="1" checked> Criar uma coluna de produção para cada atividade</label>
-      <label class="pl-check" style="margin-left:30px"><input type="checkbox" name="importar_cortes" value="1" checked> Importar as datas de corte dos BMs</label>
+      <label class="pl-check" style="margin-left:30px"><input type="checkbox" name="importar_cortes" value="1"> Importar as datas de corte dos BMs</label>
       <?php if ($empresas): ?>
       <label class="pl-check"><input type="radio" name="modo" value="copiar"> Copiar serviços e catálogo de outra empresa (e ajustar depois)</label>
       <label style="margin-left:30px">Copiar de<select name="origem"><?php foreach ($empresas as $e): ?><option value="<?= (int)$e['id'] ?>"><?= h($e['nome']) ?></option><?php endforeach; ?></select></label>
@@ -282,7 +330,7 @@ pagina_inicio('Empresas e catálogo');
   <p class="pl-nota" style="margin-top:0">Planilha de orçamento/medição no mesmo formato da importação da obra. Atividades com código repetido são ignoradas. Para acrescentar valor a um item já medido use o <b>Aditivo</b> (a importação não redistribui pesos).</p>
   <div class="pl-form"><label>Planilha (.xlsx)<input type="file" name="planilha" accept=".xlsx" required></label><label>Prefixo dos códigos<input name="prefixo" maxlength="10" placeholder="<?= h(eo_prefixo_da_empresa($e)) ?>" value="<?= h(eo_prefixo_da_empresa($e)) ?>"></label>
     <label class="pl-check"><input type="checkbox" name="criar_colunas" value="1" checked> Criar uma coluna de produção para cada atividade</label>
-    <label class="pl-check"><input type="checkbox" name="importar_cortes" value="1" checked> Importar também as datas de corte dos BMs</label></div>
+    <label class="pl-check"><input type="checkbox" name="importar_cortes" value="1"> Importar também as datas de corte dos BMs</label></div>
   <div class="pl-fim"><button type="button" class="btn" data-fechar>Cancelar</button><button class="btn primario">Importar</button></div></form>
   <?php if ($propostas): ?>
   <form method="post" style="margin-top:14px;border-top:1px solid #eaecf0;padding-top:12px"><input type="hidden" name="csrf" value="<?= h($csrf) ?>"><input type="hidden" name="obra" value="<?= (int)$obraId ?>"><input type="hidden" name="acao" value="eo_importar_proposta"><input type="hidden" name="empresa_id" value="<?= (int)$e['id'] ?>"><input type="hidden" name="prefixo" value="<?= h(eo_prefixo_da_empresa($e)) ?>">

@@ -281,31 +281,6 @@ function eo_importar_catalogo($empresaId, $nome, $prefixo, $arquivoTmp, $criarCo
     return $res;
 }
 
-/** Lê o orçamento pelo leitor escolhido: 'padrao' (memorial do BM em .xlsx), 'ia' (inteligência artificial, qualquer
- *  formato) ou 'auto' (padrão primeiro; se não reconhecer ou não for .xlsx, IA quando estiver ligada). */
-function eo_ler_orcamento($arquivo, $nomeArq, $leitor = 'auto')
-{
-    require_once __DIR__ . '/ia_leitor.php';
-    $ext = strtolower(pathinfo((string)$nomeArq, PATHINFO_EXTENSION));
-    $planilha = in_array($ext, ['xlsx', 'xlsm'], true);
-    if ($leitor !== 'ia' && $planilha) {
-        $o = leitura_orcamento($arquivo);
-        $temAtiv = false;
-        foreach ($o['itens'] as $it) { if (!empty($it['atividades'])) { $temAtiv = true; break; } }
-        if ($temAtiv || $leitor === 'padrao' || !ia_disponivel()) {
-            $o['leitor'] = 'padrao';
-            if (!$temAtiv && ia_disponivel() === false && $leitor === 'auto') {
-                $o['avisos'][] = 'O leitor padrão não reconheceu o formato. A leitura por inteligência artificial pode ler outros formatos, mas não está ligada neste servidor.';
-            }
-            return $o;
-        }
-    }
-    if ($leitor === 'padrao') {
-        throw new InvalidArgumentException('O leitor padrão só lê planilhas .xlsx/.xlsm. Escolha "Inteligência artificial" para PDF, foto ou outros formatos.');
-    }
-    return ia_ler_orcamento($arquivo, $nomeArq);
-}
-
 /** Lê a planilha inteira SEM gravar nada: itens, atividades (com o código que vão receber), quantidades, valores, cortes de BM
  *  e avisos (códigos que já existem). Usado pela prévia do pop-up "Importar orçamento" da aba Medição. */
 function eo_previa_planilha($arquivoTmp, $prefixo, $empresaExistente = null)

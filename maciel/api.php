@@ -234,7 +234,7 @@ try {
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','cronograma-importado'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
-        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro',
+        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro','bm/manual'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao',
         'qualidade'=>'qualidade'
     ];
@@ -251,7 +251,7 @@ try {
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
-        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia',
+        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia', 'bm/manual' => 'acao_bm_manual',
         'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
@@ -1877,6 +1877,24 @@ function acao_bm_apontar(array $corpo)
         }
     }
     return $n;
+}
+
+/** BM manual: grava o acumulado informado de uma atividade num BM em aberto ({empresa: {codigo: {n: acumulado}}}). Vazio apaga. */
+function acao_bm_manual(array $corpo, array $usuario)
+{
+    $emp = (string)($corpo['empresa'] ?? ''); $cod = (string)($corpo['codigo'] ?? ''); $n = (int)($corpo['bm'] ?? 0);
+    $restrita = usuario_empresa_restrita($usuario);
+    if ($restrita !== '' && $restrita !== $emp) responder_json(403, ['erro' => 'Você só pode alterar BMs da sua empresa.']);
+    if (sistema_ler('bm_modo', 'producao') !== 'manual') throw new ErroValidacao('A obra mede pela produção lançada. Mude para BM manual em Administração › Obra.');
+    $atv = q('SELECT empresa, qtd FROM bm_atividades WHERE codigo = ?', [$cod])->fetch();
+    if (!$atv || $atv['empresa'] !== $emp || $n < 1) throw new ErroValidacao('Atividade ou BM inválido.');
+    if (q('SELECT 1 FROM bm_fechamentos WHERE empresa = ? AND bm = ?', [$emp, $n])->fetch()) throw new ErroValidacao("O BM$n está fechado: reabra o BM para alterar.");
+    $v = ($corpo['acumulado'] ?? '') === '' || $corpo['acumulado'] === null ? null : numero($corpo['acumulado']);
+    if ($v !== null && $v < 0) throw new ErroValidacao('O acumulado não pode ser negativo.');
+    $m = json_decode((string)sistema_ler('bm_manual', '{}'), true) ?: [];
+    if ($v === null) unset($m[$emp][$cod][(string)$n]); else $m[$emp][$cod][(string)$n] = round($v, 4);
+    sistema_gravar('bm_manual', json_encode($m, JSON_UNESCAPED_UNICODE));
+    return ['ok' => true];
 }
 
 /** Cortes dos BMs da empresa numerados como a tela faz: o número gravado ou, se faltar, a posição na ordem das datas de corte (BM sem número não impede o fechamento). */

@@ -5715,6 +5715,7 @@ function bmApontEfetivos(a) {   // null = a atividade não tem espelho; senão M
 const bmSomaEfetiva = (m, ini, fim) => { let t = 0; m.forEach((q, d) => { if (d >= ini && d <= fim) t += q; }); return t; };
 
 function bmQtdProducaoBruta(a, ini, fim) {
+  if (bmManual()) return 0;
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? soma(e, col, ini, fim) : 0;
@@ -5749,7 +5750,16 @@ function bmLegendaUnidade(a) {
   return `${esc(fin)} <span class="nota" title="O apontamento produtivo fica em und; o BM/financeiro converte para ${esc(fin)}. Globo Aços/Telha: ${BM_GLOBO_TELHA_COMP} × ${BM_GLOBO_TELHA_LARG_UTIL} por unidade, adotando ${BM_GLOBO_TELHA_M2_POR_UND} m²/und conforme regra da obra.">(${esc(bmUnProducao(a))} × ${nf(fator, 2)})</span>`;
 }
 
+const bmManual = () => M.bm_modo === 'manual';
+// BM manual: acumulado digitado no Boletim por BM; vale o do último BM que começa até a data
+function bmManualAcum(a, ate) {
+  const vals = (M.bm_manual || {})[a.empresa]?.[a.codigo] || {};
+  let v = 0;
+  bmPeriodos(a.empresa).forEach(p => { if (p.ini <= ate && vals[p.n] != null) v = Number(vals[p.n]) || 0; });
+  return v;
+}
 function bmRealizado(a, ate) {
+  if (bmManual()) return bmManualAcum(a, ate);
   if (a.controle) {
     const e = empresa(a.empresa), col = colDe(e, a.controle);
     return col ? bmQtdFinanceira(a, soma(e, col, '0000', ate)) : 0;
@@ -6100,7 +6110,7 @@ function renderBMBoletim(box) {
 
   let h = `<div class="barra-acoes"><label class="rot-sel">Medição <select id="selBmPer">${ps.map(x => `<option value="${x.chave}" ${x.chave === bmPerSel ? 'selected' : ''}>${esc(x.rot)}</option>`).join('')}</select></label>
     <span class="status-bm">${p.fechado ? `<span class="farol f-verde">FECHADO em ${fdA(p.fech.fechado_em)}</span>` : `<span class="farol f-amarelo">EM ABERTO</span>`}</span>
-    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento (já medido e pago).' : 'Acumulado da produção lançada, menos o que já foi medido nos BMs anteriores.'}</span>
+    <span class="nota">Período de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. ${p.fechado ? 'Valores congelados no fechamento (já medido e pago).' : bmManual() ? '<b>BM manual</b>: abra o item e digite o acumulado de cada atividade (a produção lançada não entra na medição).' : 'Acumulado da produção lançada, menos o que já foi medido nos BMs anteriores.'}</span>
     <span class="acoes">${!p.cortado ? `<button class="btn" data-novo="bm_periodos" data-preset='${esc(JSON.stringify({ empresa: emp, bm: p.n, corte: p.fim }))}'>Definir corte do BM${p.n}</button>` : ''}${p.cortado && !p.fechado ? `<label class="edit-corte-inline">Corte <input type="date" value="${p.fim}" data-edit-corte="${parseInt(p.chave.slice(1))}" title="Editar data de corte do BM${p.n}"></label>` : ''}${podeFechar ? `<button class="btn primario" data-bm-fechar>Fechar BM${p.n}</button>` : ''}${p.fechado && D?.usuario?.perfil !== "leitura" && (D?.usuario?.papel !== "editor_sistema" || D.usuario.modulos_edicao?.includes("financeiro")) ? `<button class="btn" data-bm-competencia>Editar mês de referência</button>` : ""}${podeReabrir ? `<button class="btn" data-bm-reabrir>Reabrir BM${p.n}</button>` : ''}<button class="btn" data-bm-imprimir>⤓ Baixar BM${p.n}</button></span></div>`;
   h += bmResumoPeriodoHtml(emp, p, r, tot, cc) + '<details class="bloco bm-contrato"><summary><b>Contrato, acumulado e descontos do BM</b></summary><div class="tiles">' +
     bmTile('Contrato RÓTULA', rs(tot.contrato), `${esc(emp)} · medição só no contrato RÓTULA`, cc) +
@@ -6137,7 +6147,7 @@ function renderBMBoletim(box) {
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
-      h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real, bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
+      h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmManual() && !p.fechado && !document.body.classList.contains('somente-leitura') ? `<input type="number" step="any" min="0" style="width:90px;text-align:right" value="${x.real ? esc(String(+x.real.toFixed(4))) : ''}" placeholder="0" data-bm-manual="${esc(x.a.codigo)}" data-bm-n="${p.n}" title="BM manual: digite o acumulado executado até este BM e saia da célula"> ${esc(x.a.unidade || '')}` : bmFmtQtdFinanceira(x.a, x.real, bmManual() ? null : bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
         <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>${colBmsAti}</tr>`;
     });
   });
@@ -6167,6 +6177,10 @@ function renderBMBoletim(box) {
     (dd.manuais.length ? dd.manuais.map(linhaDesc).join('') : (!dd.sinalAuto && !(dd.equip - dd.mensalEquip) && !dd.mensalEquip && !dd.comb && !dd.sinalManualIgnorado ? '<tr><td class="vazio" colspan="2">Nenhum desconto lançado neste BM. Use "+ Desconto".</td></tr>' : '')) +
     `</tbody><tfoot><tr><td><b>Valor a faturar</b></td><td class="n"><b>${rs(r.faturar[R])}</b></td></tr></tfoot></table></div></div>`;
   box.innerHTML = h;
+  box.querySelectorAll('[data-bm-manual]').forEach(inp => inp.addEventListener('change', async () => {
+    try { await postar(API + 'bm/manual', { empresa: emp, codigo: inp.dataset.bmManual, bm: Number(inp.dataset.bmN), acumulado: inp.value.replace(',', '.') }); await carregar(); toast('Avanço do BM gravado'); }
+    catch (err) { toast(err.message, true); }
+  }));
 
   const ev = bmEvolucao(emp);
   if (ev.length) trocarGrafico('gBM', {
