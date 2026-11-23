@@ -7,7 +7,7 @@
 // Cada empresa só vê as próprias NCs. Relatórios mostram ANTES × DEPOIS. Gravação: rota `qualidade` (api.php) e fotos em nc_foto.php.
 // ------------------------------------------------------------------------------------------------
 
-const QUAL = { emp: '', sit: '', grav: '', busca: '', fotosPend: [], sel: new Set() };   // sel = não conformidades marcadas para o relatório dos selecionados
+const QUAL = { sub: 'dashboard', emp: '', sit: '', grav: '', busca: '', fotosPend: [], sel: new Set() };   // sel = não conformidades marcadas para o relatório dos selecionados
 const QUAL_FOTO = 'nc_foto.php';
 const QUAL_SIT = { aberta: 'Aguardando resposta', andamento: 'Em andamento', respondida: 'Aguardando validação', concluida: 'Concluída' };
 const QUAL_SIT_MANUAL = ['aberta', 'andamento', 'concluida'];   // o administrador escolhe qualquer uma destas na hora; "Aguardando validação" só nasce quando a empresa responde
@@ -49,6 +49,8 @@ function qualPassaSit(n, sit) {
   if (!sit) return true;
   if (sit === 'atrasada') return qualAtrasada(n);
   if (sit === 'pendente') return n.situacao !== 'concluida';
+  if (sit === 'graves') return n.situacao !== 'concluida' && ['alta', 'critica'].includes(n.gravidade);
+  if (sit === 'outras') return !Object.prototype.hasOwnProperty.call(QUAL_SIT, n.situacao);
   return n.situacao === sit;
 }
 function qualFiltradas() {
@@ -138,6 +140,7 @@ document.addEventListener('click', ev => {
   if (!b) return;
   ev.preventDefault();
   const linha = Number(b.dataset.qualIr) || 0;
+  QUAL.sub = 'nc';
   mudarAba('qualidade');
   if (linha) setTimeout(() => { try { qualAbrir(linha); } catch (_) { } }, 350);
 });
@@ -210,6 +213,61 @@ function qualSelBarra() {
   const todos = document.getElementById('qualSelTodos');
   if (todos) { const vis = qualFiltradas(); todos.checked = vis.length > 0 && vis.every(x => QUAL.sel.has(x.linha)); todos.indeterminate = !todos.checked && vis.some(x => QUAL.sel.has(x.linha)); }
 }
+function qualSubAbasHtml() {
+  return `<div class="seg qual-subabas" role="group" aria-label="Sub-abas de Qualidade">
+    <button type="button" data-qual-sub="dashboard" class="${QUAL.sub === 'dashboard' ? 'ativa' : ''}" aria-pressed="${QUAL.sub === 'dashboard'}">Dashboard</button>
+    <button type="button" data-qual-sub="nc" class="${QUAL.sub === 'nc' ? 'ativa' : ''}" aria-pressed="${QUAL.sub === 'nc'}">Não conformidades</button>
+  </div>`;
+}
+function qualAcoesHtml(gestao, ro) {
+  return `<div class="barra-acoes">
+    ${gestao && !ro ? '<button class="btn primario" id="qualNova">+ Nova não conformidade</button>' : ''}
+    <button class="btn" id="qualRel" title="Relatório de não conformidades (antes × depois, com fotos)">Relatório de não conformidades</button>
+    <span class="nota">${gestao ? 'Registre a não conformidade com o prazo para a empresa responder. Acompanhe as respostas e as fotos de correção enviadas pelas executoras.' : 'Envie a resposta dentro do prazo. As fotos da correção podem ser anexadas separadamente.'}</span>
+  </div>`;
+}
+function qualEmpresaNavHtml(todas, porEmp) {
+  return porEmp.length > 1 ? `<div class="seg qual-seg" id="qualSegEmp"><button type="button" data-qual-emp="" class="${QUAL.emp ? '' : 'ativa'}">Todas as empresas (${todas.length})</button>${porEmp.map(p => `<button type="button" data-qual-emp="${esc(p.emp)}" class="${QUAL.emp === p.emp ? 'ativa' : ''}">${esc(p.emp)} (${p.total}${p.total - p.concl ? ` · ${p.total - p.concl} pendente(s)` : ''})</button>`).join('')}</div>` : '';
+}
+function qualDashboardHtml(r, porEmp) {
+  const outras = r.total - r.aguardaResp - r.andam - r.aguardaVal - r.concl;
+  const estados = [
+    { sit: 'aberta', nome: QUAL_SIT.aberta, n: r.aguardaResp, cor: 'var(--vermelho)' },
+    { sit: 'andamento', nome: QUAL_SIT.andamento, n: r.andam, cor: 'var(--azul, #1e4fa8)' },
+    { sit: 'respondida', nome: QUAL_SIT.respondida, n: r.aguardaVal, cor: 'var(--amarelo)' },
+    { sit: 'concluida', nome: 'Concluídas', n: r.concl, cor: 'var(--verde)' },
+    ...(outras ? [{ sit: 'outras', nome: 'Outras situações', n: outras, cor: 'var(--fg3)' }] : []),
+  ];
+  const percentual = n => r.total ? nf(n / r.total * 100, 1) + '%' : '0%';
+  const tile = (sit, nome, n, sub, cor) => `<button type="button" class="tile qual-dash-tile" data-qual-status="${sit}" style="--c:${cor}" aria-label="Ver ${n} não conformidade(s): ${nome}">
+    <span class="rot">${nome}</span><span class="val">${nf(n, 0)}</span><span class="sub">${sub}</span>
+  </button>`;
+  const celula = (p, sit, n) => `<button type="button" class="qual-dash-num" data-qual-status="${sit}" data-qual-status-emp="${esc(p.emp)}" aria-label="${esc(p.emp)}: ver ${n} ${esc(QUAL_SIT[sit] || (sit === 'atrasada' ? 'com resposta atrasada' : 'não conformidades'))}">${nf(n, 0)}</button>`;
+  return `<div class="qual-dashboard">
+    <div class="qual-dash-cab"><div><h2>Dashboard de não conformidades</h2><p class="nota">${esc(QUAL.emp || qualMinhaEmpresa() || 'Todas as empresas da obra')} · situação atual de todos os registros. Clique em um indicador para abrir a lista.</p></div><span class="qual-dash-taxa"><b>${percentual(r.concl)}</b> concluídas</span></div>
+    <div class="tiles qual-dash-tiles">
+      ${tile('', 'Não conformidades', r.total, 'total de registros', 'var(--acento)')}
+      ${estados.map(s => tile(s.sit, s.nome, s.n, percentual(s.n) + ' do total', s.cor)).join('')}
+    </div>
+    ${!r.total ? '<div class="bloco"><p class="nota">Nenhuma não conformidade registrada para esta visão.</p></div>' : ''}
+    <div class="qual-dash-grade">
+      <section class="bloco"><div class="bloco-cab"><h2>Distribuição por status</h2></div><div class="qual-dash-barras">
+        ${estados.map(s => `<button type="button" class="qual-dash-barra" data-qual-status="${s.sit}" aria-label="${s.nome}: ${s.n} de ${r.total} não conformidades">
+          <span class="qual-dash-barra-topo"><span>${s.nome}</span><b>${nf(s.n, 0)} <small>${percentual(s.n)}</small></b></span>
+          <span class="qual-dash-trilho" aria-hidden="true"><span style="width:${r.total ? (s.n / r.total * 100).toFixed(2) : 0}%;background:${s.cor}"></span></span>
+        </button>`).join('')}
+      </div></section>
+      <section class="bloco"><div class="bloco-cab"><h2>Pontos de atenção</h2></div><div class="qual-dash-atencao">
+        ${tile('atrasada', 'Resposta atrasada', r.atras, 'prazo venceu e a NC ainda aguarda resposta', r.atras ? 'var(--vermelho)' : 'var(--verde)')}
+        ${tile('graves', 'Graves pendentes', r.graves, 'gravidade alta ou crítica, ainda não concluídas', r.graves ? 'var(--vermelho)' : 'var(--verde)')}
+        <p class="nota">Atrasos e gravidade destacam registros dos status acima; não são somados novamente ao total.</p>
+      </div></section>
+    </div>
+    ${!QUAL.emp && porEmp.length > 1 ? `<section class="bloco"><div class="bloco-cab"><h2>Status por empresa</h2></div><div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Empresa</th><th class="n">Total</th><th class="n">Aguardando resposta</th><th class="n">Em andamento</th><th class="n">Aguardando validação</th><th class="n">Concluídas</th><th class="n">Resposta atrasada</th><th class="n">% concluídas</th></tr></thead><tbody>
+      ${porEmp.map(p => `<tr><td><button type="button" class="qual-dash-empresa" data-qual-emp="${esc(p.emp)}">${esc(p.emp)}</button></td><td class="n">${celula(p, '', p.total)}</td><td class="n">${celula(p, 'aberta', p.aguardaResp)}</td><td class="n">${celula(p, 'andamento', p.andam)}</td><td class="n">${celula(p, 'respondida', p.aguardaVal)}</td><td class="n">${celula(p, 'concluida', p.concl)}</td><td class="n">${celula(p, 'atrasada', p.atras)}</td><td class="n">${p.total ? nf(p.concl / p.total * 100, 1) + '%' : '—'}</td></tr>`).join('')}
+    </tbody></table></div><p class="nota qual-dash-nota">NCs compartilhadas aparecem em cada empresa envolvida. No total da obra, cada NC é contada uma única vez. Os status são os da NC, conforme a lista.</p></section>` : ''}
+  </div>`;
+}
 function renderQualidade() {
   const corpo = $('#qualCorpo');
   if (!corpo) return;
@@ -219,32 +277,19 @@ function renderQualidade() {
   const gestao = !qualMinhaEmpresa(), ro = qualSomenteLeitura();
   const todas = qualTodas(), lista = qualFiltradas(), r = qualResumo(todas.filter(n => !QUAL.emp || qualDaEmpresa(n, QUAL.emp)));
   const empresas = qualEmpresas();
-  const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const porEmp = empresas.map(e => ({ emp: e, ...qualResumo(todas.filter(n => qualDaEmpresa(n, e))) }));
+  const topo = qualSubAbasHtml() + qualAcoesHtml(gestao, ro) + qualEmpresaNavHtml(todas, porEmp);
+  if (QUAL.sub === 'dashboard') {
+    corpo.innerHTML = topo + qualDashboardHtml(r, porEmp) + qualAlertaHtml();
+    return;
+  }
   corpo.innerHTML = `
+    ${topo}
     ${qualAlertaHtml()}${qualAtrasoAlertaHtml()}
-    <div class="barra-acoes">
-      ${gestao && !ro ? '<button class="btn primario" id="qualNova">+ Nova não conformidade</button>' : ''}
-      <button class="btn" id="qualRel" title="Relatório de não conformidades (antes × depois, com fotos)">Relatório de não conformidades</button>
-      <span class="nota">${gestao ? 'Registre a não conformidade com o prazo para a empresa responder. Acompanhe as respostas e as fotos de correção enviadas pelas executoras.' : 'Envie a resposta dentro do prazo. As fotos da correção podem ser anexadas separadamente.'}</span>
-    </div>
-    ${empresas.length > 1 ? `<div class="seg qual-seg" id="qualSegEmp"><button type="button" data-qual-emp="" class="${QUAL.emp ? '' : 'ativa'}">Todas as empresas (${todas.length})</button>${porEmp.map(p => `<button type="button" data-qual-emp="${esc(p.emp)}" class="${QUAL.emp === p.emp ? 'ativa' : ''}">${esc(p.emp)} (${p.total}${p.total - p.concl ? ` · ${p.total - p.concl} pendente(s)` : ''})</button>`).join('')}</div>` : ''}
-    <div class="tiles">
-      ${tile('Não conformidades', nf(r.total, 0), QUAL.emp ? esc(QUAL.emp) : 'todas as empresas', 'var(--acento)')}
-      ${tile('Aguardando resposta', nf(r.aguardaResp, 0), 'com a empresa', r.aguardaResp ? 'var(--vermelho)' : 'var(--verde)')}
-      ${tile('Em andamento', nf(r.andam, 0), 'empresa tratando', r.andam ? 'var(--azul, #1e4fa8)' : 'var(--verde)')}
-      ${tile('Aguardando validação', nf(r.aguardaVal, 0), 'com o administrador', r.aguardaVal ? 'var(--amarelo)' : 'var(--verde)')}
-      ${tile('Concluídas', nf(r.concl, 0), r.total ? `${nf(r.concl / r.total * 100, 0)}% do total` : '—', 'var(--verde)')}
-      ${tile('Resposta atrasada', nf(r.atras, 0), 'prazo venceu sem resposta', r.atras ? 'var(--vermelho)' : 'var(--verde)')}
-      ${tile('Graves pendentes', nf(r.graves, 0), 'gravidade alta ou crítica', r.graves ? 'var(--vermelho)' : 'var(--verde)')}
-    </div>
-    ${!QUAL.emp && empresas.length > 1 ? `<div class="bloco"><div class="bloco-cab"><h2>Por empresa</h2></div><div class="tabela-rolagem"><table data-sem-ferramentas><thead><tr><th>Empresa</th><th class="n">Total</th><th class="n">Aguardando resposta</th><th class="n">Aguardando validação</th><th class="n">Concluídas</th><th class="n">Resposta atrasada</th><th class="n">% concluídas</th></tr></thead><tbody>
-      ${porEmp.map(p => `<tr><td><b>${esc(p.emp)}</b></td><td class="n">${p.total}</td><td class="n">${p.aguardaResp}</td><td class="n">${p.aguardaVal}</td><td class="n">${p.concl}</td><td class="n">${p.atras ? `<b style="color:var(--vermelho)">${p.atras}</b>` : 0}</td><td class="n">${p.total ? nf(p.concl / p.total * 100, 0) + '%' : '—'}</td></tr>`).join('')}
-    </tbody></table></div></div>` : ''}
     <div class="bloco">
       <div class="bloco-cab"><h2>Não conformidades</h2>
         <div class="qual-filtros">
-          <select id="qualSit"><option value="">Todas as situações</option><option value="pendente" ${QUAL.sit === 'pendente' ? 'selected' : ''}>Pendentes (não concluídas)</option>${Object.entries(QUAL_SIT).map(([k, v]) => `<option value="${k}" ${QUAL.sit === k ? 'selected' : ''}>${v}</option>`).join('')}<option value="atrasada" ${QUAL.sit === 'atrasada' ? 'selected' : ''}>Resposta atrasada</option></select>
+          <select id="qualSit"><option value="">Todas as situações</option><option value="pendente" ${QUAL.sit === 'pendente' ? 'selected' : ''}>Pendentes (não concluídas)</option>${Object.entries(QUAL_SIT).map(([k, v]) => `<option value="${k}" ${QUAL.sit === k ? 'selected' : ''}>${v}</option>`).join('')}<option value="atrasada" ${QUAL.sit === 'atrasada' ? 'selected' : ''}>Resposta atrasada</option><option value="graves" ${QUAL.sit === 'graves' ? 'selected' : ''}>Graves pendentes</option><option value="outras" ${QUAL.sit === 'outras' ? 'selected' : ''}>Outras situações</option></select>
           <select id="qualGrav"><option value="">Todas as gravidades</option>${Object.entries(QUAL_GRAV).map(([k, v]) => `<option value="${k}" ${QUAL.grav === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
           <input type="search" id="qualBusca" placeholder="Buscar código, local, descrição…" value="${esc(QUAL.busca)}">
         </div>
@@ -585,7 +630,7 @@ async function qualGerar(f, btn) {
 
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualRelSel, #qualSelLimpar, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, [data-qual-resp-enviar], [data-qual-resp-salvar], #qualValidar, #qualDevolver, #qualReabrir, [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
+  const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualRelSel, #qualSelLimpar, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, [data-qual-resp-enviar], [data-qual-resp-salvar], #qualValidar, #qualDevolver, #qualReabrir, [data-qual-sub], [data-qual-status], [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
   if (!t) return;
   const d = document.getElementById('dlgNC');
   if (t.id === 'qualNova') qualAbrir(null);
@@ -605,6 +650,18 @@ document.addEventListener('click', ev => {
   else if (t.id === 'qualDevolver') qualAcao({ acao: 'devolver', id: d._id, campos: { motivo: (d.querySelector('#qualMotivo') || {}).value || '', empresa: (d.querySelector('#qualDevEmp') || {}).value || '' } }, j => `${j.codigo} devolvida para a empresa corrigir.`);
   else if (t.id === 'qualReabrir') { if (confirm('Reabrir esta não conformidade? Ela volta para a empresa responder de novo.')) qualAcao({ acao: 'reabrir', id: d._id }, j => `${j.codigo} reaberta.`); }
   else if (t.id === 'qualRelFechar') document.getElementById('dlgNCRel').close();
+  else if (t.dataset.qualSub !== undefined) {
+    QUAL.sub = t.dataset.qualSub === 'nc' ? 'nc' : 'dashboard';
+    renderQualidade();
+    document.querySelector(`[data-qual-sub="${QUAL.sub}"]`)?.focus({ preventScroll: true });
+  }
+  else if (t.dataset.qualStatus !== undefined) {
+    if (t.dataset.qualStatusEmp !== undefined) QUAL.emp = t.dataset.qualStatusEmp;
+    QUAL.sit = t.dataset.qualStatus;
+    QUAL.grav = ''; QUAL.busca = ''; QUAL.sub = 'nc';
+    renderQualidade();
+    document.getElementById('qualSit')?.focus({ preventScroll: true });
+  }
   else if (t.dataset.qualEmp !== undefined) { QUAL.emp = t.dataset.qualEmp; renderQualidade(); }
   else if (t.dataset.qualAbrir) { ev.preventDefault(); qualAbrir(+t.dataset.qualAbrir); }
   else if (t.dataset.qualRnc) qualGerar({ id: +t.dataset.qualRnc, fotos: true }, t);
