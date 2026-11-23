@@ -2080,15 +2080,9 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .qual-dash-tile { text-align:left; font-family:inherit; color:var(--fg); cursor:pointer; min-width:0; width:100%; }
 .qual-dash-tile .val,.qual-dash-tile .sub { display:block; }
 .qual-dash-tile:hover { border-color:var(--c,var(--acento)); }
-.qual-dash-tile:focus-visible,.qual-dash-barra:focus-visible,.qual-dash-num:focus-visible,.qual-dash-empresa:focus-visible { outline:2px solid var(--acento); outline-offset:3px; }
+.qual-dash-tile:focus-visible,.qual-pizza-item:focus-visible,.qual-dash-num:focus-visible,.qual-dash-empresa:focus-visible { outline:2px solid var(--acento); outline-offset:3px; }
 .qual-dash-grade { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(260px,1fr); gap:14px; }
 .qual-dash-grade>.bloco { min-width:0; }
-.qual-dash-barras { display:grid; gap:16px; padding:4px 0 8px; }
-.qual-dash-barra { border:0; background:transparent; font:inherit; color:var(--fg); text-align:left; padding:3px 0; cursor:pointer; }
-.qual-dash-barra-topo { display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:.87rem; margin-bottom:7px; }
-.qual-dash-barra-topo small { font-size:.8rem; color:var(--fg2); font-weight:400; margin-left:8px; }
-.qual-dash-trilho { display:block; height:13px; border-radius:9px; overflow:hidden; background:var(--linha); }
-.qual-dash-trilho>span { display:block; height:100%; border-radius:9px; }
 .qual-dash-atencao { display:grid; gap:12px; }
 .qual-dash-atencao .tile { box-shadow:none; }
 .qual-dash-atencao .val { font-size:1.55rem; }
@@ -2100,3 +2094,20 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .qual-dash-nota { margin:12px 0 0; }
 @media(max-width:760px) { .qual-dash-grade { grid-template-columns:1fr; } .qual-dash-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } .qual-dash-tile { padding:12px; } }
 @media(max-width:390px) { .qual-dash-tiles { grid-template-columns:1fr; } }
+
+/* Pizza de status: SVG responsivo, sem dependência de bibliotecas externas. */
+.qual-pizza-wrap { display:flex; align-items:center; flex-wrap:wrap; gap:20px; padding:6px 0 10px; }
+.qual-pizza { display:block; width:240px; max-width:100%; height:auto; flex:0 1 240px; margin:0 auto; overflow:visible; }
+.qual-pizza-fatia { stroke:var(--card); stroke-width:2; cursor:pointer; transition:opacity .15s; }
+.qual-pizza-fatia:hover { opacity:.8; }
+.qual-pizza-fatia:focus-visible { outline:none; stroke:var(--fg); stroke-width:4; }
+.qual-pizza-vazia { fill:var(--linha); }
+.qual-pizza-vazia-texto { fill:var(--fg2); font:14px sans-serif; }
+.qual-pizza-legenda { flex:1 1 210px; min-width:0; display:grid; gap:10px; }
+.qual-pizza-item { display:flex; align-items:center; gap:9px; width:100%; padding:8px 4px; border:0; border-radius:4px; background:transparent; color:var(--fg); font:inherit; text-align:left; cursor:pointer; }
+.qual-pizza-item:hover { background:var(--bg); }
+.qual-pizza-cor { width:13px; height:13px; flex:none; border-radius:3px; }
+.qual-pizza-nome { flex:1; font-size:.85rem; }
+.qual-pizza-item b { white-space:nowrap; font-size:.9rem; }
+.qual-pizza-item small { color:var(--fg2); font-weight:400; font-size:.8rem; margin-left:5px; }
+.qual-pizza-legenda .nota { margin:4px 0 0; }
