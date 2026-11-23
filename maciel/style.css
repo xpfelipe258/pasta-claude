@@ -2068,3 +2068,35 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .bmimp-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 .bmimp-map select{max-width:100%}
 .bmimp-tab th.bmimp-cmap,.bmimp-tab td.bmimp-cmap{background:rgba(29,78,216,.10)}
+
+/* Dashboard de Qualidade: usa as cores e os temas já configurados na obra. */
+.qual-subabas { margin-bottom: 14px; flex-wrap: wrap; }
+.qual-dash-cab { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin:18px 0 14px; }
+.qual-dash-cab h2 { margin:0 0 5px; font-size:1.2rem; }
+.qual-dash-cab .nota { margin:0; }
+.qual-dash-taxa { color:var(--fg2); font-size:.85rem; white-space:nowrap; }
+.qual-dash-taxa b { color:var(--verde); font-size:1.3rem; }
+.qual-dash-tiles { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+.qual-dash-tile { text-align:left; font-family:inherit; color:var(--fg); cursor:pointer; min-width:0; width:100%; }
+.qual-dash-tile .val,.qual-dash-tile .sub { display:block; }
+.qual-dash-tile:hover { border-color:var(--c,var(--acento)); }
+.qual-dash-tile:focus-visible,.qual-dash-barra:focus-visible,.qual-dash-num:focus-visible,.qual-dash-empresa:focus-visible { outline:2px solid var(--acento); outline-offset:3px; }
+.qual-dash-grade { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(260px,1fr); gap:14px; }
+.qual-dash-grade>.bloco { min-width:0; }
+.qual-dash-barras { display:grid; gap:16px; padding:4px 0 8px; }
+.qual-dash-barra { border:0; background:transparent; font:inherit; color:var(--fg); text-align:left; padding:3px 0; cursor:pointer; }
+.qual-dash-barra-topo { display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:.87rem; margin-bottom:7px; }
+.qual-dash-barra-topo small { font-size:.8rem; color:var(--fg2); font-weight:400; margin-left:8px; }
+.qual-dash-trilho { display:block; height:13px; border-radius:9px; overflow:hidden; background:var(--linha); }
+.qual-dash-trilho>span { display:block; height:100%; border-radius:9px; }
+.qual-dash-atencao { display:grid; gap:12px; }
+.qual-dash-atencao .tile { box-shadow:none; }
+.qual-dash-atencao .val { font-size:1.55rem; }
+.qual-dash-atencao .nota { margin:0; }
+.qual-dash-num,.qual-dash-empresa { border:0; border-radius:4px; padding:3px 5px; color:var(--acento); font:inherit; background:transparent; cursor:pointer; }
+.qual-dash-num { min-width:30px; font-weight:700; }
+.qual-dash-empresa { font-weight:600; text-align:left; }
+.qual-dash-num:hover,.qual-dash-empresa:hover { text-decoration:underline; background:var(--bg); }
+.qual-dash-nota { margin:12px 0 0; }
+@media(max-width:760px) { .qual-dash-grade { grid-template-columns:1fr; } .qual-dash-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } .qual-dash-tile { padding:12px; } }
+@media(max-width:390px) { .qual-dash-tiles { grid-template-columns:1fr; } }
