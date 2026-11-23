@@ -79,6 +79,22 @@ function linhas_tabela($nome, $campos)
 }
 
 /** Obra nova começa sempre no BM1: apaga uma vez os cortes de BM que vieram da planilha importada (sem BM fechado). */
+// Atividade copiada do catálogo de outra empresa: a coluna de produção ligada recebe a quantidade copiada (escopo) e a mesma frente,
+// para aparecer em Avanço físico, Painel e cronograma. Só preenche o que está vazio.
+function bm_copias_completar_servicos()
+{
+    foreach (q("SELECT a.empresa, a.controle, a.qtd, a.obs FROM bm_atividades a WHERE a.obs LIKE 'Copiada de %' AND a.controle IS NOT NULL AND a.controle <> ''")->fetchAll() as $a) {
+        if (!preg_match('/^Copiada de (.+) \(/u', (string)$a['obs'], $m)) continue;
+        $idD = q('SELECT id FROM empresas WHERE nome = ?', [$a['empresa']])->fetchColumn();
+        $idO = q('SELECT id FROM empresas WHERE nome = ?', [$m[1]])->fetchColumn();
+        $sv = $idD ? q('SELECT id, escopo, frente, id_crono FROM servicos WHERE empresa_id = ? AND UPPER(nome) = UPPER(?)', [$idD, $a['controle']])->fetch() : null;
+        if (!$sv) continue;
+        $orig = $idO ? (q('SELECT frente, id_crono FROM servicos WHERE empresa_id = ? AND UPPER(nome) = UPPER(?)', [$idO, $a['controle']])->fetch() ?: []) : [];
+        if (($sv['escopo'] === null || (float)$sv['escopo'] == 0) && (float)$a['qtd'] > 0) q('UPDATE servicos SET escopo = ? WHERE id = ?', [(float)$a['qtd'], $sv['id']]);
+        if (empty($sv['frente']) && !empty($orig['frente'])) q('UPDATE servicos SET frente = ? WHERE id = ?', [$orig['frente'], $sv['id']]);
+        if (empty($sv['id_crono']) && !empty($orig['id_crono'])) q('UPDATE servicos SET id_crono = ? WHERE id = ?', [$orig['id_crono'], $sv['id']]);
+    }
+}
 function bm_limpar_cortes_importados()
 {
     if (sistema_ler('dados_legados', '0') === '1' || sistema_ler('bm_cortes_importados_limpos', '') === '1') return;
@@ -93,6 +109,7 @@ function bm_limpar_cortes_importados()
 function montar_modelo()
 {
     try { bm_limpar_cortes_importados(); } catch (Throwable $e) { }
+    try { bm_copias_completar_servicos(); } catch (Throwable $e) { }
     $empresas = [];
     $porId = [];
     foreach (q('SELECT * FROM empresas ORDER BY ordem, id')->fetchAll() as $e) {

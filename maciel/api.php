@@ -2022,13 +2022,13 @@ function bm_copia_servico(array $a)
     $src = q('SELECT id FROM empresas WHERE nome = ?', [$a['empresa']])->fetchColumn();
     if (!$src) return null;
     $up = function ($t) { return mb_strtoupper(trim((string)$t)); };
-    $servs = q('SELECT nome, frente FROM servicos WHERE empresa_id = ? ORDER BY ordem, id', [$src])->fetchAll();
+    $servs = q('SELECT nome, frente, id_crono FROM servicos WHERE empresa_id = ? ORDER BY ordem, id', [$src])->fetchAll();
     $ctrl = $up($a['controle'] ?? '');
     $suf = bm_copia_sufixo($a['codigo']);
     $pad = ['3.2.1-01' => '/^PERFILA/u', '3.2.1-02' => '/TELHA/u', '3.2.2-01' => '/^FECHAMENTO$/u'][$suf] ?? null;
     foreach ($servs as $sv) {
         $n = $up($sv['nome']);
-        if ($ctrl !== '' && $n === $ctrl) return $sv;
+            if ($ctrl !== '' && $n === $ctrl) return $sv;
     }
     if ($ctrl !== '') return ['nome' => $a['controle'], 'frente' => null];
     foreach ($servs as $sv) {
@@ -2077,10 +2077,12 @@ function acao_bm_copiar_atividade(array $corpo, array $usuario)
             $sv = bm_copia_servico($a);
             if ($sv) {
                 $existe = false;
-                foreach (q('SELECT nome FROM servicos WHERE empresa_id = ?', [$empD['id']])->fetchAll(PDO::FETCH_COLUMN) as $n) {
-                    if (mb_strtoupper(trim($n)) === mb_strtoupper(trim($sv['nome']))) $existe = true;
+                foreach (q('SELECT id, nome, escopo FROM servicos WHERE empresa_id = ?', [$empD['id']])->fetchAll() as $so) {
+                    if (mb_strtoupper(trim($so['nome'])) !== mb_strtoupper(trim($sv['nome']))) continue;
+                    $existe = true;   // coluna já existia sem quantidade: recebe a quantidade copiada (aparece em Avanço físico e no Painel)
+                    if ($so['escopo'] === null || (float)$so['escopo'] == 0) q('UPDATE servicos SET escopo = ? WHERE id = ?', [$qtd, $so['id']]);
                 }
-                if (!$existe) { try { eo_servico_criar($empD['id'], $sv['nome'], $sv['frente'] ?? null, null); } catch (InvalidArgumentException $e) { throw new ErroValidacao($e->getMessage()); } $servicos[] = $sv['nome']; }
+                if (!$existe) { try { eo_servico_criar($empD['id'], $sv['nome'], $sv['frente'] ?? null, str_replace('.', ',', (string)$qtd), $sv['id_crono'] ?? null); } catch (InvalidArgumentException $e) { throw new ErroValidacao($e->getMessage()); } $servicos[] = $sv['nome']; }
             }
             $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('d/m/Y');
             q('INSERT INTO bm_atividades (codigo, empresa, item, item_desc, atividade, unidade, qtd, peso, valor_qpc, valor_rotula, controle, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -3585,7 +3587,7 @@ function acao_apontamento_pecas(array $corpo, array $usuario)
         }
     }
     $ja = [];
-    foreach (q("SELECT letra FROM apontamentos WHERE tipo = 'PECA' AND eixo = ?", [$atv['codigo']])->fetchAll() as $r) {
+    foreach (q("SELECT letra FROM apontamentos WHERE tipo = 'PECA' AND (eixo = ? OR eixo LIKE ?)", [$atv['codigo'], '%-' . bm_copia_sufixo($atv['codigo'])])->fetchAll() as $r) {   // também a mesma atividade copiada para outra empresa
         $ja[$r['letra']] = true;
     }
     $novas = [];

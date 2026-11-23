@@ -305,7 +305,7 @@ const TUT_TOPICOS = [
   { id: 'bm', mod: 'fin', aba: 'bm', titulo: 'Medição (BM)',
     resumo: 'O boletim de medição de cada empresa: catálogo de atividades, quantidades, valores e descontos.',
     passos: [
-      { t: 'Catálogo: "Copiar atividade de outra empresa" traz atividades que já existem no catálogo de outra empresa (mesmo item e número, com o prefixo desta). Ajuste a quantidade desta empresa. Se a atividade tem coluna de produção, a coluna é criada e a empresa passa a aparecer no Apontar montagem.', alvo: '[data-bm-copiar]', aba: 'bm', novo: '2026-11-23' },
+      { t: 'Catálogo: "Copiar atividade de outra empresa" traz atividades que já existem no catálogo de outra empresa (mesmo item e número, com o prefixo desta). Ajuste a quantidade desta empresa. Se a atividade tem coluna de produção, a coluna é criada com a quantidade copiada: a atividade aparece em Lançamentos e no Avanço físico, e a empresa passa a aparecer no Apontar montagem (no mapa por peça, a mesma peça não é apontada duas vezes).', alvo: '[data-bm-copiar]', aba: 'bm', novo: '2026-11-23' },
       { t: 'Escolha a empresa e a sub-aba (Boletim, Catálogo de atividades…).', alvo: '#segBmEmp' },
       { t: 'O Boletim mostra o resumo do período (ganho, gasto, resultado) e a tabela por item e atividade, com "% do contrato".', alvo: '#bmCorpo' },
       { t: 'O Catálogo de atividades define quantidade, peso e valor de cada atividade. O peso é digitado de 0 a 1 (0,25 = 25%).', alvo: '#segBmSub' },

@@ -41,7 +41,9 @@ const moAtividadesDaFase = fase => {
       const d = M.vinculos_material?.[p.grupo];
       return d?.estado === 'confirmado' ? d.atividade : '';
     }).filter(Boolean));
-    return bmTab('bm_atividades').filter(a => codigos.has(a.codigo));
+    const suf = c => { const i = String(c).indexOf('-'); return i < 0 ? String(c) : String(c).slice(i + 1); };
+    const sufs = new Set([...codigos].map(suf));   // inclui a mesma atividade copiada para o catálogo de outra empresa
+    return bmTab('bm_atividades').filter(a => codigos.has(a.codigo) || sufs.has(suf(a.codigo))).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt', { numeric: true }));
   }
   const f = MO.dados.fases.find(x => x.fase === fase);
   const item = f && f.item;
@@ -50,7 +52,10 @@ const moAtividadesDaFase = fase => {
 const moApontadas = () => {
   // peça|atividade → linha do apontamento
   const m = new Map();
-  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').forEach(a => m.set(a.letra + '|' + a.eixo, a));
+  // a mesma atividade copiada para outra empresa (mesmo número, outro prefixo) conta junto: a peça não é apontada duas vezes
+  const suf = c => { const i = String(c).indexOf('-'); return i < 0 ? String(c) : String(c).slice(i + 1); };
+  const porSuf = new Map(); bmTab('bm_atividades').forEach(a => { const k = suf(a.codigo); porSuf.set(k, [...(porSuf.get(k) || []), a.codigo]); });
+  (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').forEach(a => (porSuf.get(suf(a.eixo)) || [a.eixo]).concat(a.eixo).forEach(c => m.set(a.letra + '|' + c, a)));
   return m;
 };
 
