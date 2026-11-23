@@ -499,6 +499,10 @@ async function m3dMontarCena() {
     const ctrl = new TH.OrbitControls(cam, canvas);
     ctrl.enableDamping = false;
     ctrl.zoomToCursor = true;
+    // botões do mouse como no Tekla/Trimble: esquerdo gira, roda (apertada e arrastando) move a vista, direito também move; girar a roda aproxima
+    ctrl.mouseButtons = { LEFT: 0, MIDDLE: 2, RIGHT: 2 };   // 0 = girar, 2 = mover (pan)
+    ctrl.screenSpacePanning = true;
+    canvas.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });   // sem a rolagem automática do navegador ao apertar a roda
     ctrl.addEventListener('change', () => { m3dPlanos(); m3dDesenhar(); });
     T = M3.T = { rend, cena, cam, ctrl, raio: new TH.Raycaster(), malha: null, pend: false };
     new ResizeObserver(() => m3dRedimensionar()).observe($('#m3dVista'));

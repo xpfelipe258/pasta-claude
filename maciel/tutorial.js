@@ -204,6 +204,7 @@ const TUT_TOPICOS = [
     resumo: 'O modelo 3D da obra, peça por peça. As cores mostram o que já foi montado, o que está no canteiro e o que está atrasado.',
     quem: 'Todos', quando: 'Para saber, de um jeito visual, como a montagem está hoje.',
     passos: [
+      { t: 'Mouse: botão esquerdo arrastando gira o modelo; apertar a roda (ou o botão direito) e arrastar move a vista; girar a roda aproxima ou afasta no ponto do cursor.', aba: 'm3d', novo: '2026-11-23' },
       { t: 'Abra Produção › Modelo 3D (4D). O modelo abre já com as cores da situação de hoje.', alvo: '#m3dCorpo' },
       { t: 'Para girar, arraste com o mouse; a roda aproxima; o botão direito desloca. No celular, use um dedo para girar e dois para aproximar.', alvo: '#m3dCanvas' },
       { t: '"Situação real" pinta cada peça: cinza = na fábrica, azul claro = a caminho, amarelo = no canteiro, verde claro = içada, verde escuro = torqueada (montada), vermelho = atrasada.', alvo: '#m3dCores' },
