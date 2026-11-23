@@ -297,6 +297,7 @@ const TUT_TOPICOS = [
       { t: 'Os cartões resumem custo, dias de uso e combustível do período.', alvo: '#eqTiles' },
       { t: 'Filtre por empresa, equipamento ou tipo de uso.', alvo: '#eqFiltros' },
       { t: '"Relatório de equipamentos" permite escolher só abastecimento, só equipamento ou os dois.', alvo: '#btnRelEquip' },
+      { t: 'O relatório de equipamentos abre com um painel de máquinas: máquinas usadas, ocupação, litros por dia de uso, gasto por máquina e por empresa e a evolução semanal do gasto.', alvo: '#btnRelEquip', novo: '2026-11-23' },
       { t: 'No cadastro, "Editar" de cada equipamento permite anexar ART, laudo, plano de manutenção e plano de rigging, com validade. As etiquetas ficam verdes (em dia), amarelas (vence em 30 dias) ou vermelhas (vencido).' },
     ],
     dica: 'Equipamento mensal com responsável aparece como "locação mensal" no BM; o uso diário dele não é cobrado em duplicidade.' },

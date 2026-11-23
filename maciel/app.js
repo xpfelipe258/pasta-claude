@@ -5494,6 +5494,38 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
   const eqF = [...porEq.values()].map(q => relEquipResumoMensal({ ...q, resp: resp(q), operTxt: operTxt(q) }, ini, fim));
   return { linhas: linhasF, empresas: [...porEmp.values()], equipamentos: eqF };
 }
+// Dashboard de uso e consumo de máquinas (barras em HTML: imprime e vira PDF sem canvas)
+function relEquipDashboard(dados, usoFiltro, ini, fim) {
+  const soAbast = usoFiltro === 'abastecimento', soEq = usoFiltro === 'equipamento';
+  const eqs = dados.equipamentos.map(q => ({ ...q, dU: q.mensal ? (q.diasPeriodo || 0) : (q.diasUso?.size || 0), gasto: (q.mensal ? (q.custoEstimado || 0) : q.custo) + q.comb }));
+  const barras = (lista, val, fmt, cor, extra) => {
+    const max = Math.max(...lista.map(val), 0) || 1;
+    return lista.length ? lista.map(o => `<div class="db-l"><div class="db-n" title="${esc(o.nome)}">${esc(o.nome)}</div><div class="db-t"><div class="db-b" style="width:${Math.max(1.5, val(o) / max * 100)}%;background:${cor}"></div></div><div class="db-v">${fmt(val(o))}${extra ? `<span class="nota"> ${extra(o)}</span>` : ''}</div></div>`).join('') : '<p class="nota">Sem dados no período.</p>';
+  };
+  const blocos = [];
+  if (!soAbast) blocos.push(['Dias de uso por máquina', barras(eqs.filter(q => q.dU > 0).sort((a, b) => b.dU - a.dU).slice(0, 10).map(q => ({ ...q, nome: q.equipamento })), o => o.dU, v => nf(v, 0) + ' d', '#2563eb', o => o.mensal ? '· mensal' : '')]);
+  if (!soEq) blocos.push(['Litros abastecidos por máquina', barras(eqs.filter(q => q.litros > 0).sort((a, b) => b.litros - a.litros).slice(0, 10).map(q => ({ ...q, nome: q.equipamento })), o => o.litros, v => nf(v, 1) + ' L', '#d97706', o => o.dU > 0 ? `· ${nf(o.litros / o.dU, 1)} L/dia` : '')]);
+  blocos.push([soAbast ? 'Combustível por máquina (R$)' : soEq ? 'Custo por máquina (R$)' : 'Custo total por máquina (equipamento estimado + combustível)', barras(eqs.filter(q => q.gasto > 0).sort((a, b) => b.gasto - a.gasto).slice(0, 10).map(q => ({ ...q, nome: q.equipamento })), o => o.gasto, rs2, '#0f766e')]);
+  const emps = dados.empresas.map(e => ({ nome: e.empresa || '—', v: soAbast ? e.comb : soEq ? e.custo : e.total })).filter(e => e.v > 0).sort((a, b) => b.v - a.v);
+  blocos.push([soAbast ? 'Combustível por empresa' : 'Custo lançado por empresa', barras(emps, o => o.v, rs2, '#7c3aed')]);
+  // evolução semanal: equipamento lançado × combustível
+  const sem = new Map();
+  dados.linhas.forEach(l => { if (!l.data) return; const k = segunda(l.data); const o = sem.get(k) || { k, eq: 0, comb: 0, litros: 0 }; o.eq += l.custo || 0; o.comb += l.comb || 0; o.litros += l.litros || 0; sem.set(k, o); });
+  const ss = [...sem.values()].sort((a, b) => a.k.localeCompare(b.k));
+  const maxS = Math.max(...ss.map(o => (soAbast ? 0 : o.eq) + (soEq ? 0 : o.comb)), 0) || 1;
+  const evol = ss.length ? `<div class="db-col">${ss.map(o => { const a = soAbast ? 0 : o.eq, b = soEq ? 0 : o.comb; return `<div class="db-c" title="Semana de ${fdA(o.k)}: ${rs2(a + b)}"><div class="db-cv">${rs2(a + b)}</div><div class="db-ct"><div style="height:${b / maxS * 100}%;background:#d97706"></div><div style="height:${a / maxS * 100}%;background:#2563eb"></div></div><div class="db-cx">${fdA(o.k).slice(0, 5)}</div></div>`; }).join('')}</div><p class="nota">${soAbast ? '' : '<span style="color:#2563eb">■</span> equipamento lançado '}${soEq ? '' : '<span style="color:#d97706">■</span> combustível'} · semanas a partir de segunda-feira</p>` : '<p class="nota">Sem lançamentos no período.</p>';
+  const litros = soma0(eqs, q => q.litros), diasU = soma0(eqs, q => q.dU), diasP = relEquipPeriodoDias(ini, fim);
+  const usadas = eqs.filter(q => q.dU > 0).length, cad = (T.equipamentos || []).filter(e => ganNorm(e.situacao) !== 'DESMOBILIZADO').length;
+  const top = [...eqs].sort((a, b) => b.gasto - a.gasto)[0];
+  const kpis = [
+    ...(soAbast ? [] : [['Máquinas usadas / ativas', `${nf(usadas, 0)} / ${nf(cad, 0)}`], ['Ocupação média', cad && diasP ? nf(diasU / (cad * diasP) * 100, 0) + '%' : '—']]),
+    ...(soEq ? [] : [['Consumo médio', diasU > 0 ? nf(litros / diasU, 1) + ' L/dia de uso' : '—'], ['Preço médio do litro', litros > 0 ? rs2(soma0(eqs, q => q.comb) / litros) : '—']]),
+    ['Máquina de maior gasto', top && top.gasto > 0 ? `${esc(top.equipamento)}<br><span class="nota">${rs2(top.gasto)}</span>` : '—']];
+  return `<h2>Dashboard de uso e consumo de máquinas</h2>
+    <div class="cards db-k">${kpis.map(([r, v]) => `<div class="card"><div class="rot">${r}</div><div class="val">${v}</div></div>`).join('')}</div>
+    <div class="db-g">${blocos.map(([t, h]) => `<div class="db-p"><h3>${t}</h3>${h}</div>`).join('')}<div class="db-p db-w"><h3>Evolução semanal do gasto</h3>${evol}</div></div>
+    <p class="nota">Máquinas mensais: o custo do equipamento entra pela estimativa do período (valor mensal ÷ 30 × dias) e conta todos os dias do período como uso. Ocupação = dias de uso ÷ (máquinas ativas × ${diasP} dias).</p>`;
+}
 function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   const geral = !tipo || tipo === 'geral', dados = relEquipDados(tipo, ini, fim, usoFiltro);
   const nomeRel = usoFiltro === 'abastecimento' ? 'abastecimento de combustível' : usoFiltro === 'equipamento' ? 'uso de equipamentos' : 'uso e consumo de equipamentos';
@@ -5501,7 +5533,7 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   const periodo = `${fdA(ini)} a ${fdA(fim)}`;
   const usoRotulo = usoFiltro === 'abastecimento' ? 'Somente abastecimento' : (usoFiltro === 'equipamento' ? 'Somente equipamento' : 'Equipamento + abastecimento');
   const total = soma0(dados.empresas, e => e.total), litros = soma0(dados.empresas, e => e.litros), comb = soma0(dados.empresas, e => e.comb), custo = soma0(dados.empresas, e => e.custo);
-  const css = `<style>body{font-family:Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.04em}.sub{color:#555;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.rot{font-size:11px;color:#666;text-transform:uppercase}.val{font-size:18px;font-weight:700;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:54px}.assinatura{border-top:1px solid #111;text-align:center;padding-top:8px;font-size:12px}.nota{color:#666;font-size:11px}.nota-mensal{background:#f5f8fc;border-left:3px solid #2563eb;padding:10px 12px;line-height:1.5}thead{display:table-header-group}tr{break-inside:avoid}@media print{body{margin:12mm}.no-print{display:none}.quebra{break-before:page}}</style>`;
+  const css = `<style>body{font-family:Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.04em}.sub{color:#555;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.rot{font-size:11px;color:#666;text-transform:uppercase}.val{font-size:18px;font-weight:700;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:54px}.assinatura{border-top:1px solid #111;text-align:center;padding-top:8px;font-size:12px}.nota{color:#666;font-size:11px}.nota-mensal{background:#f5f8fc;border-left:3px solid #2563eb;padding:10px 12px;line-height:1.5}thead{display:table-header-group}tr{break-inside:avoid}.cards.db-k{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:10px}.db-k .val{font-size:17px}.db-g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.db-p{border:1px solid #ddd;border-radius:8px;padding:10px 12px;break-inside:avoid}.db-w{grid-column:1/-1}.db-p h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;color:#333}.db-l{display:grid;grid-template-columns:130px 1fr 120px;gap:8px;align-items:center;font-size:11px;margin:4px 0}.db-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.db-t{background:#f1f5f9;border-radius:3px;height:14px}.db-b{height:14px;border-radius:3px}.db-v{text-align:right;white-space:nowrap}.db-col{display:flex;gap:6px;align-items:flex-end;height:170px}.db-c{flex:1;display:flex;flex-direction:column;align-items:center;font-size:9px;height:100%}.db-cv{white-space:nowrap;color:#555}.db-ct{flex:1;width:70%;display:flex;flex-direction:column-reverse;background:#f8fafc}.db-cx{margin-top:2px}@media print{body{margin:12mm}.no-print{display:none}.quebra{break-before:page}}</style>`;
   const vazio = n => `<tr><td colspan="${n}">Sem registros no período.</td></tr>`;
   const soAbast = usoFiltro === 'abastecimento', soEq = usoFiltro === 'equipamento';
   const nEmps = q => [...q.emps].join(' / ');
@@ -5538,7 +5570,7 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
       <h2 class="quebra">Lançamentos por equipamento e empresa</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Equipamento</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo equip.</th><th class="n">Litros</th><th class="n">R$/litro lançado</th><th class="n">Combustível</th><th class="n">Total</th><th>Responsável / obs.</th></tr></thead><tbody>${rowsDia}</tbody></table>`;
   }
   const assinatura = geral ? '' : `<div class="assinaturas"><div class="assinatura">Responsável da ${esc(tipo)}<br><span class="nota">Nome, assinatura e data</span></div><div class="assinatura">MTEC / Administração da obra<br><span class="nota">Nome, assinatura e data</span></div></div>`;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>${esc(titulo)}</h1><p class="sub">Obra: ${esc(M?.obra?.nome || D?.obra?.nome || 'OBRA 198')} · Período: <b>${periodo}</b> · Uso: <b>${esc(usoRotulo)}</b> · Gerado em ${fdA(hoje())}</p>${corpo}${assinatura}</body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>${css}</head><body><button class="no-print" onclick="window.print()">Imprimir / salvar PDF</button><h1>${esc(titulo)}</h1><p class="sub">Obra: ${esc(M?.obra?.nome || D?.obra?.nome || 'OBRA 198')} · Período: <b>${periodo}</b> · Uso: <b>${esc(usoRotulo)}</b> · Gerado em ${fdA(hoje())}</p>${relEquipDashboard(dados, usoFiltro, ini, fim)}${corpo}${assinatura}</body></html>`;
 }
 function baixarRelEquip(tipo = 'geral', ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   const html = relEquipHtml(tipo, ini, fim, usoFiltro);
