@@ -5425,13 +5425,44 @@ function eqCadastroVisivel(lista) {
   return lista.filter(e => empresasDe(e.responsavel).includes(minha) || usados.has(ganNorm(e.equipamento)));
 }
 
+// Estimativa informativa da locação mensal; não altera lançamentos nem deduções dos BMs.
+function relEquipPeriodoDias(ini, fim) {
+  const inicio = Date.parse(ini + 'T00:00:00Z'), final = Date.parse(fim + 'T00:00:00Z');
+  return Number.isFinite(inicio) && Number.isFinite(final) && final >= inicio ? Math.round((final - inicio) / 86400000) + 1 : 0;
+}
+function relEquipResumoMensal(e, ini, fim) {
+  const cad = (T.equipamentos || []).find(x => ganNorm(x.equipamento) === ganNorm(e.equipamento));
+  if (!cad || ganNorm(cad.cobranca) !== 'MENSAL') return { ...e, mensal: false, diaria: ganNorm(cad?.cobranca) === 'DIARIA', custoEstimado: e.custo };
+  const dias = relEquipPeriodoDias(ini, fim), valor = Number(cad.valor);
+  return { ...e, mensal: true, diasPeriodo: dias, valorMensal: Number.isFinite(valor) && valor > 0 ? valor : null,
+    custoEstimado: Number.isFinite(valor) && valor > 0 && dias > 0 ? Math.round(valor / 30 * dias * 100) / 100 : null };
+}
+function relEquipUsoResumo(e) {
+  if (e.mensal || e.diaria) {
+    const dias = e.mensal ? e.diasPeriodo : (e.diasUso?.size || 0);
+    return `${nf(dias, 0)} ${dias === 1 ? 'dia' : 'dias'}`;
+  }
+  return nf(e.qtd, 1);
+}
+function relEquipEstimativaResumo(e) {
+  if (!e.mensal) return rs2(e.custo);
+  return e.custoEstimado == null ? '<span class="nota">Valor mensal não informado</span>'
+    : `<b>${rs2(e.custoEstimado)}</b><br><span class="nota">${rs2(e.valorMensal)}/mês<br>÷ 30 × ${nf(e.diasPeriodo, 0)} dia(s)</span>`;
+}
+
 function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   let us = T.usos.filter(u => u.data && u.data >= ini && u.data <= fim);
   if (usoFiltro === 'abastecimento') us = us.filter(u => ganNorm(u.uso).includes('ABASTECIMENTO') || (u.litros || 0) > 0 || (u.custo_combustivel || 0) > 0);
   if (usoFiltro === 'equipamento') us = us.filter(u => !ganNorm(u.uso).includes('ABASTECIMENTO') && ((u.custo || 0) > 0 || !(u.litros || 0)));
   // Só abastecimento: nada de valor de equipamento; só equipamento: nada de litros/combustível (o lançamento pode trazer os dois)
   const soAbast = usoFiltro === 'abastecimento', soEq = usoFiltro === 'equipamento';
-  const rt = ratear(us).map(r => soAbast ? { ...r, custoR: 0 } : soEq ? { ...r, combR: 0, litrosR: 0 } : r);
+  // Projeção exclusiva do relatório: locação mensal aparece apenas na estimativa,
+  // sem compor custos lançados. Os registros de T.usos e os descontos dos BMs não mudam.
+  const mensais = new Set((T.equipamentos || []).filter(e => ganNorm(e.cobranca) === 'MENSAL').map(e => ganNorm(e.equipamento)));
+  const rt = ratear(us).map(r => {
+    const mensal = mensais.has(ganNorm(r.equipamento));
+    return { ...r, mensal, custoR: soAbast || mensal ? 0 : r.custoR, combR: soEq ? 0 : r.combR, litrosR: soEq ? 0 : r.litrosR };
+  });
   const filtroEmp = tipo && tipo !== 'geral' ? tipo : null;
   const respCad = nome => { const q = (T.equipamentos || []).find(x => ganNorm(x.equipamento) === ganNorm(nome) && String(x.responsavel || '').trim()); return q ? String(q.responsavel).trim() : ''; };
   const linhas = rt.filter(r => !filtroEmp || r.empAjust === filtroEmp)
@@ -5441,15 +5472,16 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
     const total = (r.custoR || 0) + (r.combR || 0);
     // Uma linha por lançamento e por parcela do rateio, sem juntar abastecimentos distintos.
     const kDia = indice;
-    const d = porDia.get(kDia) || { linha: r.linha, preco_litro: r.preco_litro, data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
-    (r.partesRateio || []).forEach(x => d.partes.add(x)); d.litrosTot += r.litros || 0; d.combTot += r.custo_combustivel || 0; d.custoTot += r.custo || 0;
+    const d = porDia.get(kDia) || { linha: r.linha, mensal: r.mensal, preco_litro: r.preco_litro, data: r.data, empresa: r.empAjust, equipamento: r.equipamento || 'NÃO INFORMADO', uso: r.uso || '', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, obs: [], oper: new Set(), partes: new Set(), litrosTot: 0, combTot: 0, custoTot: 0 };
+    (r.partesRateio || []).forEach(x => d.partes.add(x)); d.litrosTot += r.litros || 0; d.combTot += r.custo_combustivel || 0; d.custoTot += r.mensal ? 0 : (r.custo || 0);
     d.qtd += r.quantidade || 0; d.custo += r.custoR || 0; d.litros += r.litrosR || 0; d.comb += r.combR || 0; d.total += total;
     if (r.operador) d.oper.add(String(r.operador).trim());
     if (r.obs) d.obs.push(r.obs);
     porDia.set(kDia, d);
     const e = porEmp.get(r.empAjust) || { empresa: r.empAjust, custo: 0, litros: 0, comb: 0, total: 0, dias: new Set(), n: 0 };
     e.n++; e.custo += r.custoR || 0; e.litros += r.litrosR || 0; e.comb += r.combR || 0; e.total += total; if (r.data) e.dias.add(r.data); porEmp.set(r.empAjust, e);
-    const q = porEq.get(r.equipamento || 'NÃO INFORMADO') || { equipamento: r.equipamento || 'NÃO INFORMADO', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, n: 0, emps: new Set(), oper: new Set(), dias: new Set() };
+    const q = porEq.get(r.equipamento || 'NÃO INFORMADO') || { equipamento: r.equipamento || 'NÃO INFORMADO', qtd: 0, custo: 0, litros: 0, comb: 0, total: 0, n: 0, emps: new Set(), oper: new Set(), dias: new Set(), diasUso: new Set() };
+    if (!ganNorm(r.uso).includes('ABASTECIMENTO') && ganNorm(r.uso) !== 'NAO USO' && r.data && ((r.quantidade || 0) > 0 || (r.custo || 0) > 0 || ['DIARIA', 'TURNO', 'MEIO TURNO', 'HORAS'].includes(ganNorm(r.uso)))) q.diasUso.add(r.data);
     q.n++; q.emps.add(r.empAjust); if (r.operador) q.oper.add(String(r.operador).trim()); if (r.data) q.dias.add(r.data);
     q.qtd += r.quantidade || 0; q.custo += r.custoR || 0; q.litros += r.litrosR || 0; q.comb += r.combR || 0; q.total += total; porEq.set(q.equipamento, q);
   });
@@ -5458,7 +5490,7 @@ function relEquipDados(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') 
   const operTxt = o => [...o.oper].join(' / ') || '—';   // quem abasteceu/operou (campo operador do lançamento)
   const resp = o => respCad(o.equipamento) || [...o.oper].join(' / ') || '—';   // responsável: o cadastrado no equipamento; sem cadastro, quem lançou
   const linhasF = [...porDia.values()].map(l => ({ ...l, resp: resp(l), operTxt: operTxt(l), rateio: rateioTxt(l) }));
-  const eqF = [...porEq.values()].map(q => ({ ...q, resp: resp(q), operTxt: operTxt(q) }));
+  const eqF = [...porEq.values()].map(q => relEquipResumoMensal({ ...q, resp: resp(q), operTxt: operTxt(q) }, ini, fim));
   return { linhas: linhasF, empresas: [...porEmp.values()], equipamentos: eqF };
 }
 function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
@@ -5468,11 +5500,12 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
   const periodo = `${fdA(ini)} a ${fdA(fim)}`;
   const usoRotulo = usoFiltro === 'abastecimento' ? 'Somente abastecimento' : (usoFiltro === 'equipamento' ? 'Somente equipamento' : 'Equipamento + abastecimento');
   const total = soma0(dados.empresas, e => e.total), litros = soma0(dados.empresas, e => e.litros), comb = soma0(dados.empresas, e => e.comb), custo = soma0(dados.empresas, e => e.custo);
-  const css = `<style>body{font-family:Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.04em}.sub{color:#555;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.rot{font-size:11px;color:#666;text-transform:uppercase}.val{font-size:18px;font-weight:700;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:54px}.assinatura{border-top:1px solid #111;text-align:center;padding-top:8px;font-size:12px}.nota{color:#666;font-size:11px}@media print{body{margin:12mm}.no-print{display:none}.quebra{break-before:page}}</style>`;
+  const css = `<style>body{font-family:Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.04em}.sub{color:#555;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{border:1px solid #ddd;border-radius:8px;padding:10px}.rot{font-size:11px;color:#666;text-transform:uppercase}.val{font-size:18px;font-weight:700;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f2f2}.n{text-align:right;white-space:nowrap}.assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:54px}.assinatura{border-top:1px solid #111;text-align:center;padding-top:8px;font-size:12px}.nota{color:#666;font-size:11px}.nota-mensal{background:#f5f8fc;border-left:3px solid #2563eb;padding:10px 12px;line-height:1.5}.mensal-rot{display:inline-block;font-size:9px;font-weight:700;color:#1d4ed8;margin-top:4px}thead{display:table-header-group}tr{break-inside:avoid}@media print{body{margin:12mm}.no-print{display:none}.quebra{break-before:page}}</style>`;
   const vazio = n => `<tr><td colspan="${n}">Sem registros no período.</td></tr>`;
   const soAbast = usoFiltro === 'abastecimento', soEq = usoFiltro === 'equipamento';
   const nEmps = q => [...q.emps].join(' / ');
   const cardsH = cs => `<div class="cards">${cs.map(([r, v]) => `<div class="card"><div class="rot">${r}</div><div class="val">${v}</div></div>`).join('')}</div>`;
+  const notaMensal = !soAbast && dados.equipamentos.some(e => e.mensal) ? `<p class="nota nota-mensal"><b>Equipamentos mensais:</b> a quantidade considera os ${relEquipPeriodoDias(ini, fim)} dias corridos do período, incluindo início e fim. Estimativa integral da locação = valor mensal cadastrado ÷ 30 × dias do período, apenas para leitura. A locação mensal não compõe os custos lançados nem os totais deste relatório; aparece somente na coluna de estimativa. Combustível continua nos totais. Na cobrança diária, os dias de uso excluem abastecimento e não uso. Os registros originais e os BMs não são alterados.</p>` : '';
   let corpo;
   if (soAbast) {   // SOMENTE abastecimento: máquinas abastecidas, litros, valor e responsável — sem valor de equipamento
     const eqs = dados.equipamentos.filter(q => q.litros > 0 || q.comb > 0).sort((a, b) => b.comb - a.comb);
@@ -5486,21 +5519,21 @@ function relEquipHtml(tipo, ini = per.ini, fim = per.fim, usoFiltro = 'todos') {
       <h2 class="quebra">Detalhe dos abastecimentos — espelho dos lançamentos</h2><p class="nota">R$/litro é o preço informado no lançamento. Litros e valores são preservados, com o rateio entre empresas quando houver. A média efetiva dos resumos corresponde ao valor total dividido pelos litros.</p><table><thead><tr><th>Data</th><th>Máquina / equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Abastecido por</th><th class="n">Litros</th><th class="n">R$/litro lançado</th><th class="n">Valor</th><th>Obs.</th></tr></thead><tbody>${rowsDiaA}</tbody></table>`;
   } else if (soEq) {   // SOMENTE equipamento: uso e custo do equipamento — sem litros nem combustível
     const eqs = dados.equipamentos.filter(q => q.custo > 0 || q.qtd > 0 || q.n > 0).sort((a, b) => b.custo - a.custo);
-    const rowsEqE = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b></td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${q.dias.size}</td><td class="n">${nf(q.qtd, 1)}</td><td class="n"><b>${rs2(q.custo)}</b></td></tr>`).join('') || vazio(7);
+    const rowsEqE = eqs.map(q => `<tr><td><b>${esc(q.equipamento)}</b>${q.mensal ? '<br><span class="mensal-rot">MENSAL</span>' : ''}</td><td>${esc(q.resp)}</td><td>${esc(q.operTxt)}</td><td>${esc(nEmps(q))}</td><td class="n">${relEquipUsoResumo(q)}</td><td class="n">${q.mensal ? '—' : rs2(q.custo)}</td><td class="n">${relEquipEstimativaResumo(q)}</td></tr>`).join('') || vazio(7);
     const rowsEmpE = dados.empresas.sort((a, b) => b.custo - a.custo).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${e.dias.size}</td><td class="n"><b>${rs2(e.custo)}</b></td></tr>`).join('') || vazio(3);
-    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)} · total ${rs2(l.custoTot)}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
-    corpo = `${cardsH([['Custo de equipamentos', rs2(custo)], ['Equipamentos usados', nf(eqs.length, 0)], ['Dias com uso', nf(new Set(dados.linhas.map(l => l.data)).size, 0)]])}
-      <h2>Equipamentos usados no período</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th>Operador</th><th>Empresa(s)</th><th class="n">Dias de uso</th><th class="n">Qtd/usos</th><th class="n">Custo</th></tr></thead><tbody>${rowsEqE}</tbody>
-        <tfoot><tr><th colspan="6">Total</th><th class="n">${rs2(custo)}</th></tr></tfoot></table>
+    const rowsDiaE = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.empresa)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}${l.mensal ? '' : ` · total ${rs2(l.custoTot)}`}</span>` : ''}</td><td>${esc(l.resp)}</td><td>${esc(l.operTxt)}</td><td class="n">${nf(l.qtd, 1)}</td><td class="n"><b>${l.mensal ? '—' : rs2(l.custo)}</b></td><td>${esc([...new Set(l.obs)].join(' | '))}</td></tr>`).join('') || vazio(9);
+    corpo = `${cardsH([['Custo lançado de equipamentos', rs2(custo)], ['Equipamentos usados', nf(eqs.length, 0)], ['Dias com uso', nf(new Set(dados.linhas.map(l => l.data)).size, 0)]])}
+      <h2>Equipamentos usados no período</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th>Operador</th><th>Empresa(s)</th><th class="n">Uso / período</th><th class="n">Custo lançado</th><th class="n">Custo estimado<br>do período</th></tr></thead><tbody>${rowsEqE}</tbody>
+        <tfoot><tr><th colspan="5">Total lançado</th><th class="n">${rs2(custo)}</th><th class="n">—</th></tr></tfoot></table>${notaMensal}
       <h2>Equipamentos por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Dias com uso</th><th class="n">Custo</th></tr></thead><tbody>${rowsEmpE}</tbody></table>
       <h2 class="quebra">Uso diário</h2><table><thead><tr><th>Data</th><th>Equipamento</th><th>Empresa</th><th>Uso</th><th>Responsável</th><th>Operador</th><th class="n">Qtd</th><th class="n">Custo</th><th>Obs.</th></tr></thead><tbody>${rowsDiaE}</tbody></table>`;
   } else {   // equipamento + abastecimento (relatório completo)
     const rowsEmp = dados.empresas.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.empresa)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td><td class="n">${e.dias.size}</td></tr>`).join('') || vazio(6);
-    const rowsEq = dados.equipamentos.sort((a,b)=>b.total-a.total).map(e => `<tr><td>${esc(e.equipamento)}</td><td>${esc(e.resp)}</td><td class="n">${nf(e.qtd,1)}</td><td class="n">${rs(e.custo)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs(e.comb)}</td><td class="n"><b>${rs(e.total)}</b></td></tr>`).join('') || vazio(7);
-    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${l.preco_litro ? rs2(l.preco_litro) : '—'}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(11);
-    corpo = `${cardsH([['Custo total', rs(total)], ['Equipamentos', rs(custo)], ['Combustível', rs(comb)], ['Litros', nf(litros, 1) + ' L']])}
+    const rowsEq = dados.equipamentos.sort((a,b)=>b.total-a.total).map(e => `<tr><td><b>${esc(e.equipamento)}</b>${e.mensal ? '<br><span class="mensal-rot">MENSAL</span>' : ''}</td><td>${esc(e.resp)}</td><td class="n">${relEquipUsoResumo(e)}</td><td class="n">${e.mensal ? '—' : rs2(e.custo)}</td><td class="n">${relEquipEstimativaResumo(e)}</td><td class="n">${nf(e.litros,1)}</td><td class="n">${rs2(e.comb)}</td><td class="n"><b>${e.mensal && !e.comb ? '—' : rs2(e.total)}</b></td></tr>`).join('') || vazio(8);
+    const rowsDia = dados.linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.empresa)}</td><td>${esc(l.equipamento)}</td><td>${esc(l.uso)}${l.rateio ? `<br><span class="nota">${esc(l.rateio)}</span>` : ''}</td><td class="n">${nf(l.qtd,1)}</td><td class="n">${l.mensal ? '—' : rs(l.custo)}</td><td class="n">${nf(l.litros,1)}</td><td class="n">${l.preco_litro ? rs2(l.preco_litro) : '—'}</td><td class="n">${rs(l.comb)}</td><td class="n"><b>${l.mensal && !l.comb ? '—' : rs(l.total)}</b></td><td>${esc([l.resp !== '—' ? l.resp : '', ...new Set(l.obs)].filter(Boolean).join(' | '))}</td></tr>`).join('') || vazio(11);
+    corpo = `${cardsH([['Custo total lançado', rs2(total)], ['Equipamentos lançados', rs2(custo)], ['Combustível', rs(comb)], ['Litros', nf(litros, 1) + ' L']])}
       <h2>Resumo por empresa</h2><table><thead><tr><th>Empresa</th><th class="n">Equipamentos</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th><th class="n">Dias com uso</th></tr></thead><tbody>${rowsEmp}</tbody></table>
-      <h2>Resumo por equipamento</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Qtd/usos</th><th class="n">Custo equipamento</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total</th></tr></thead><tbody>${rowsEq}</tbody></table>
+      <h2>Resumo por equipamento</h2><table><thead><tr><th>Equipamento</th><th>Responsável</th><th class="n">Uso / período</th><th class="n">Equipamento<br>lançado</th><th class="n">Equipamento estimado<br>no período</th><th class="n">Litros</th><th class="n">Combustível</th><th class="n">Total<br>lançado</th></tr></thead><tbody>${rowsEq}</tbody></table>${notaMensal}
       <h2 class="quebra">Lançamentos por equipamento e empresa</h2><table><thead><tr><th>Data</th><th>Empresa</th><th>Equipamento</th><th>Uso</th><th class="n">Qtd</th><th class="n">Custo equip.</th><th class="n">Litros</th><th class="n">R$/litro lançado</th><th class="n">Combustível</th><th class="n">Total</th><th>Responsável / obs.</th></tr></thead><tbody>${rowsDia}</tbody></table>`;
   }
   const assinatura = geral ? '' : `<div class="assinaturas"><div class="assinatura">Responsável da ${esc(tipo)}<br><span class="nota">Nome, assinatura e data</span></div><div class="assinatura">MTEC / Administração da obra<br><span class="nota">Nome, assinatura e data</span></div></div>`;
