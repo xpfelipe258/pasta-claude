@@ -234,7 +234,7 @@ try {
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','cronograma-importado'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
-        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro','bm/manual'=>'financeiro','bm/zerar'=>'financeiro',
+        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro','bm/manual'=>'financeiro','bm/zerar'=>'financeiro','bm/copiar-atividade'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao',
         'qualidade'=>'qualidade'
     ];
@@ -251,7 +251,7 @@ try {
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
-        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia', 'bm/manual' => 'acao_bm_manual', 'bm/zerar' => 'acao_bm_zerar',
+        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia', 'bm/manual' => 'acao_bm_manual', 'bm/zerar' => 'acao_bm_zerar', 'bm/copiar-atividade' => 'acao_bm_copiar_atividade',
         'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
@@ -2009,6 +2009,88 @@ function acao_bm_zerar(array $corpo, array $usuario)
     return 1;
 }
 
+// Copia atividades do catálogo de OUTRA empresa para esta (mesmo item e sufixo do código, prefixo desta empresa).
+// Se a atividade tem coluna no controle (ou um serviço da outra empresa ligado a ela, ex.: telhas), a coluna é criada
+// nesta empresa também: assim ela passa a aparecer no Apontar montagem e a produção apontada é lançada nela.
+function bm_copia_sufixo($cod)
+{
+    $p = strpos((string)$cod, '-');
+    return $p === false ? (string)$cod : substr((string)$cod, $p + 1);
+}
+function bm_copia_servico(array $a)
+{
+    $src = q('SELECT id FROM empresas WHERE nome = ?', [$a['empresa']])->fetchColumn();
+    if (!$src) return null;
+    $up = function ($t) { return mb_strtoupper(trim((string)$t)); };
+    $servs = q('SELECT nome, frente FROM servicos WHERE empresa_id = ? ORDER BY ordem, id', [$src])->fetchAll();
+    $ctrl = $up($a['controle'] ?? '');
+    $suf = bm_copia_sufixo($a['codigo']);
+    $pad = ['3.2.1-01' => '/^PERFILA/u', '3.2.1-02' => '/TELHA/u', '3.2.2-01' => '/^FECHAMENTO$/u'][$suf] ?? null;
+    foreach ($servs as $sv) {
+        $n = $up($sv['nome']);
+        if ($ctrl !== '' && $n === $ctrl) return $sv;
+    }
+    if ($ctrl !== '') return ['nome' => $a['controle'], 'frente' => null];
+    foreach ($servs as $sv) {
+        $n = $up($sv['nome']);
+        if ($pad && preg_match($pad, $n) && !($suf === '3.2.1-02' && preg_match('/PERFILA/u', $n))) return $sv;
+        if ($n === $up($a['atividade'])) return $sv;
+    }
+    return null;
+}
+function acao_bm_copiar_atividade(array $corpo, array $usuario)
+{
+    require_once __DIR__ . '/inc/empresas_obra.php';
+    $dest = (string)($corpo['empresa'] ?? '');
+    $restr = usuario_empresa_restrita($usuario);
+    if ($restr && $restr !== $dest) throw new ErroValidacao('Seu usuário só altera o catálogo da própria empresa.');
+    $empD = q('SELECT id, nome FROM empresas WHERE nome = ?', [$dest])->fetch();
+    if (!$empD) throw new ErroValidacao('Empresa de destino inválida.');
+    $cods = array_values(array_unique(array_filter(array_map('strval', (array)($corpo['codigos'] ?? [])))));
+    if (!$cods) throw new ErroValidacao('Escolha ao menos uma atividade.');
+    $qtds = (array)($corpo['qtd'] ?? []);
+    $valores = (array)($corpo['valor_item'] ?? []);
+    $prefixo = '';
+    foreach (q('SELECT codigo FROM bm_atividades WHERE empresa = ? ORDER BY id', [$dest])->fetchAll(PDO::FETCH_COLUMN) as $c) {
+        if (strpos($c, '-') !== false) { $prefixo = substr($c, 0, strpos($c, '-')); break; }
+    }
+    if ($prefixo === '') {
+        $base = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', explode(' ', trim($dest))[0]) ?: $dest;
+        $prefixo = substr(preg_replace('/[^A-Z0-9]/', '', strtoupper($base)), 0, 10) ?: 'EMP';
+    }
+    $criados = []; $pulados = []; $servicos = [];
+    {   // o roteador já abre a transação (desfaz tudo se algo falhar)
+        foreach ($cods as $cod) {
+            $a = q('SELECT * FROM bm_atividades WHERE codigo = ?', [$cod])->fetch();
+            if (!$a) { $pulados[] = "$cod (não encontrada)"; continue; }
+            if ($a['empresa'] === $dest) { $pulados[] = "$cod (já é desta empresa)"; continue; }
+            $novo = $prefixo . '-' . bm_copia_sufixo($cod);
+            if (q('SELECT 1 FROM bm_atividades WHERE codigo = ?', [$novo])->fetchColumn()) { $pulados[] = "$novo (código já existe)"; continue; }
+            if (q('SELECT 1 FROM bm_atividades WHERE empresa = ? AND item = ? AND UPPER(atividade) = UPPER(?)', [$dest, $a['item'], $a['atividade']])->fetchColumn()) {
+                $pulados[] = "{$a['atividade']} (já existe no item {$a['item']})"; continue;
+            }
+            $itemD = q('SELECT valor_rotula, valor_qpc FROM bm_atividades WHERE empresa = ? AND item = ? ORDER BY id LIMIT 1', [$dest, $a['item']])->fetch();
+            $vr = $itemD ? (float)$itemD['valor_rotula'] : (numero($valores[$a['item']] ?? null) ?? 0);
+            $vq = $itemD ? $itemD['valor_qpc'] : null;
+            $qtd = numero($qtds[$cod] ?? null);
+            if ($qtd === null || $qtd < 0) $qtd = (float)$a['qtd'];
+            $sv = bm_copia_servico($a);
+            if ($sv) {
+                $existe = false;
+                foreach (q('SELECT nome FROM servicos WHERE empresa_id = ?', [$empD['id']])->fetchAll(PDO::FETCH_COLUMN) as $n) {
+                    if (mb_strtoupper(trim($n)) === mb_strtoupper(trim($sv['nome']))) $existe = true;
+                }
+                if (!$existe) { try { eo_servico_criar($empD['id'], $sv['nome'], $sv['frente'] ?? null, null); } catch (InvalidArgumentException $e) { throw new ErroValidacao($e->getMessage()); } $servicos[] = $sv['nome']; }
+            }
+            $hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('d/m/Y');
+            q('INSERT INTO bm_atividades (codigo, empresa, item, item_desc, atividade, unidade, qtd, peso, valor_qpc, valor_rotula, controle, obs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$novo, $dest, $a['item'], $a['item_desc'], $a['atividade'], $a['unidade'], $qtd, $a['peso'], $vq, $vr, $a['controle'], "Copiada de {$a['empresa']} ($cod) em $hoje"]);
+            $criados[] = $novo;
+        }
+    }
+    return ['criados' => $criados, 'pulados' => $pulados, 'servicos' => array_values(array_unique($servicos))];
+}
+
 function acao_bm_semear()
 {
     throw new ErroValidacao('O catálogo do BM chega com a importação dos dados do programa local (Administração → Importar dados).');
@@ -3304,7 +3386,8 @@ function telha_cfg($tipo = 'TELHA')
 function bm_telhas_ajustar($empresa, $data, $deltaM2, $tipo = 'TELHA')
 {
     $cod = telha_cfg($tipo)['codigo'];
-    $atv = q('SELECT controle FROM bm_atividades WHERE empresa = ? AND codigo = ?', [$empresa, $cod])->fetch();
+    $atv = q('SELECT codigo, controle FROM bm_atividades WHERE empresa = ? AND (codigo = ? OR codigo LIKE ?) ORDER BY codigo = ? DESC', [$empresa, $cod, '%-' . bm_copia_sufixo($cod), $cod])->fetch();
+    if ($atv) $cod = $atv['codigo'];   // atividade copiada para outra empresa: mesmo sufixo, prefixo dela
     if (!$atv || !empty($atv['controle']) || abs($deltaM2) < 1e-9) {
         return null;   // a empresa não tem essa atividade no catálogo (ou ela vem da grade): só a produção é lançada
     }

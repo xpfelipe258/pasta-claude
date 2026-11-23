@@ -4165,7 +4165,12 @@ function apContexto(regras) {
 const apModoTelha = () => apEst.modo === 'telha' || apEst.modo === 'perfil';   // mapas das telhas e da perfilagem (Globo Aços)
 const telhaEmpresas = () => M.empresas.filter(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome)) || ganNorm(s.nome).includes('PERFILAGEM')));
 const apModoGlobo = () => apModoTelha() || apEst.modo === 'tfech';   // modos de apontamento da Globo Aços (telhas, perfilagem e telhas do fechamento lateral)
-const apEmpresas = ctx => (apModoGlobo() ? telhaEmpresas() : apEmpresasDe(ctx.cfg.servico_joist));
+const apEmpresas = ctx => {
+  if (apModoGlobo()) return telhaEmpresas();
+  const sv = new Set([ctx.cfg.servico_joist, ctx.cfg.servico_viga].filter(Boolean).map(ganNorm));   // joist e vigas
+  const fr = AP_FRENTE[apEst.modo] ? apFrenteAtual() : null; if (fr?.servico) sv.add(ganNorm(fr.servico));   // contraventamento, fechamento, marquise…
+  return M.empresas.filter(e => e.servicos.some(s => sv.has(ganNorm(s.nome))));
+};
 const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));
 
 function apGarantirEstado(ctx) {
@@ -6309,7 +6314,7 @@ function renderBMPeriodos(box) {
 function renderBMCatalogo(box) {
   const its = bmItens(bmEmp, ref);
   const contrato = soma0(its, it => it.valor['RÓTULA'] || 0), pc = v => (contrato ? nf(v / contrato * 100, 2) + '%' : '—');
-  let h = `<div class="bloco"><div class="bloco-cab"><h2>Catálogo de atividades — ${esc(bmEmp)}</h2><div class="acoes"><button class="btn primario" data-novo="bm_atividades">+ Atividade</button></div></div>
+  let h = `<div class="bloco"><div class="bloco-cab"><h2>Catálogo de atividades — ${esc(bmEmp)}</h2><div class="acoes">${bmEmpresasCatalogo().some(e => e !== bmEmp) ? `<button class="btn" data-bm-copiar>Copiar atividade de outra empresa</button>` : ''}<button class="btn primario" data-novo="bm_atividades">+ Atividade</button></div></div>
     <p class="nota">Peso e quantidade vêm da memória de cálculo do BM. Atividades marcadas com "controle" são lançadas na grade de produção em und e podem ser convertidas para a unidade financeira do BM. Para forçar um fator, use na observação: m2_por_und=2,45. A coluna "% do contrato" é o valor de cada item/atividade sobre o valor total do contrato da empresa (${rs2(contrato)}).</p>
     <div class="tabela-rolagem"><table><thead><tr><th>Código</th><th>Atividade</th><th>Un. financeira</th><th class="n">Quantidade</th><th class="n">Peso</th><th class="n">Valor total (R$)</th><th class="n">% do contrato</th><th class="n">Valor unitário (R$)</th><th>Coluna no controle</th><th>Conversão</th><th></th></tr></thead><tbody>`;
   its.forEach(it => {
@@ -6321,6 +6326,47 @@ function renderBMCatalogo(box) {
   });
   h += `<tr class="grupo-item"><td colspan="5"><b>TOTAL DO CONTRATO — ${esc(bmEmp)}</b></td><td class="n"><b>${rs2(contrato)}</b></td><td class="n"><b>${contrato ? '100,00%' : '—'}</b></td><td colspan="4"></td></tr>`;
   box.innerHTML = h + '</tbody></table></div></div>';
+  const bc = box.querySelector('[data-bm-copiar]'); if (bc) bc.onclick = () => bmCopiarAbrir(bmEmp);
+}
+const bmEmpresasCatalogo = () => [...new Set(bmTab('bm_atividades').map(a => a.empresa).filter(Boolean))];
+// Copiar atividades do catálogo de outra empresa (mesmo item e código, prefixo desta empresa). A coluna de produção ligada é criada junto,
+// e a empresa passa a aparecer no Apontar montagem quando a atividade é de montagem apontada no mapa.
+function bmCopiarAbrir(dest) {
+  const todas = bmTab('bm_atividades'), minhas = todas.filter(a => a.empresa === dest);
+  const ja = a => minhas.some(m => m.item === a.item && ganNorm(m.atividade) === ganNorm(a.atividade));
+  const itensDest = new Set(minhas.map(a => a.item));
+  const origens = bmEmpresasCatalogo().filter(e => e !== dest);
+  const pref = (minhas.map(a => String(a.codigo)).find(c => c.includes('-')) || '').split('-')[0] || dest.split(' ')[0].normalize('NFD').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+  const dlg = document.createElement('dialog'); dlg.className = 'bm-copiar';
+  const lista = orig => {
+    const ats = todas.filter(a => a.empresa === orig).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true }));
+    const itens = [...new Set(ats.map(a => a.item))];
+    return itens.map(it => { const g = ats.filter(a => a.item === it), novo = !itensDest.has(it);
+      return `<tr class="grupo-item"><td colspan="4"><b>${esc(it)}</b> ${esc(cap(g[0].item_desc || ''))}${novo ? ` <span class="nota">· item novo para ${esc(dest)} — valor do item (R$): <input type="number" step="0.01" min="0" data-bmc-valor="${esc(it)}" placeholder="0,00" style="width:120px"></span>` : ''}</td></tr>`
+        + g.map(a => `<tr${ja(a) ? ' class="nota"' : ''}><td><input type="checkbox" data-bmc-cod="${esc(a.codigo)}"${ja(a) ? ' disabled title="Já existe neste catálogo"' : ''}></td><td class="nota">${esc(a.codigo)}</td><td>${esc(a.atividade)}${a.controle ? `<br><span class="nota">coluna de produção: ${esc(a.controle)}</span>` : ''}${ja(a) ? ' <span class="nota">(já cadastrada)</span>' : ''}</td><td class="n"><input type="number" step="any" min="0" data-bmc-qtd="${esc(a.codigo)}" value="${a.qtd ?? ''}" style="width:100px"> ${esc(a.unidade || '')}</td></tr>`).join(''); }).join('');
+  };
+  dlg.innerHTML = `<form method="dialog"><h2>Copiar atividade de outra empresa para ${esc(dest)}</h2>
+    <label>Catálogo de origem <select data-bmc-orig>${origens.map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
+    <p class="nota">Marque as atividades e ajuste a quantidade contratada desta empresa. O código fica com o prefixo de ${esc(dest)} e o mesmo número (ex.: EJ-3.1.1-01 → ${esc(pref)}-3.1.1-01). Se a atividade tem coluna no controle de produção, a coluna é criada também e ${esc(dest)} passa a aparecer no Apontar montagem.</p>
+    <div class="tabela-rolagem" style="max-height:52vh"><table data-sem-ferramentas><thead><tr><th></th><th>Código</th><th>Atividade</th><th class="n">Quantidade</th></tr></thead><tbody data-bmc-lista>${lista(origens[0])}</tbody></table></div>
+    <div class="acoes"><button type="button" class="btn" data-bmc-cancelar>Cancelar</button><button type="button" class="btn primario" data-bmc-ok>Copiar selecionadas</button></div></form>`;
+  document.body.appendChild(dlg);
+  dlg.querySelector('[data-bmc-orig]').onchange = e => { dlg.querySelector('[data-bmc-lista]').innerHTML = lista(e.target.value); };
+  dlg.querySelector('[data-bmc-cancelar]').onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.querySelector('[data-bmc-ok]').onclick = async () => {
+    const codigos = [...dlg.querySelectorAll('[data-bmc-cod]:checked')].map(c => c.dataset.bmcCod);
+    if (!codigos.length) return toast('Marque ao menos uma atividade.', true);
+    const qtd = {}, valor_item = {};
+    codigos.forEach(c => { const v = dlg.querySelector(`[data-bmc-qtd="${CSS.escape(c)}"]`)?.value; if (v !== '') qtd[c] = v; });
+    dlg.querySelectorAll('[data-bmc-valor]').forEach(i => { if (i.value !== '') valor_item[i.dataset.bmcValor] = i.value; });
+    try {
+      const r = await postar(API + 'bm/copiar-atividade', { empresa: dest, codigos, qtd, valor_item });
+      dlg.close(); await carregar();
+      toast(`${r.criados.length} atividade(s) copiada(s) para ${dest}` + (r.servicos.length ? ` · coluna(s) criada(s): ${r.servicos.join(', ')}` : '') + (r.pulados.length ? ` · não copiadas: ${r.pulados.join('; ')}` : ''), !r.criados.length, 9000);
+    } catch (err) { toast(err.message, true); }
+  };
+  dlg.showModal();
 }
 
 function bmEscolherCompetencia(p) {
