@@ -46,7 +46,7 @@ function ps_publicar(array $m, $work, $revision, callable $fetch = null) {
         ps_json($report, $state);
         foreach ($m['files'] as $f) {
             $p = $f['path'] ?? '';
-            if (!preg_match('~^(?:inc/)?[A-Za-z0-9_-]+\.(?:php|js|json|html)$~D', $p) || isset($seen[$p])) { throw new RuntimeException('Caminho duplicado ou não permitido.'); }
+            if (!preg_match('~^(?:inc/)?[A-Za-z0-9_-]+\.(?:php|js|json|html|css)$~D', $p) || isset($seen[$p])) { throw new RuntimeException('Caminho duplicado ou não permitido.'); }
             $seen[$p] = true;
             $dest = $root . '/' . $p;
             $parent = realpath(dirname($dest));
