@@ -229,6 +229,33 @@ function qualAcoesHtml(gestao, ro) {
 function qualEmpresaNavHtml(todas, porEmp) {
   return porEmp.length > 1 ? `<div class="seg qual-seg" id="qualSegEmp"><button type="button" data-qual-emp="" class="${QUAL.emp ? '' : 'ativa'}">Todas as empresas (${todas.length})</button>${porEmp.map(p => `<button type="button" data-qual-emp="${esc(p.emp)}" class="${QUAL.emp === p.emp ? 'ativa' : ''}">${esc(p.emp)} (${p.total}${p.total - p.concl ? ` · ${p.total - p.concl} pendente(s)` : ''})</button>`).join('')}</div>` : '';
 }
+function qualPizzaHtml(estados, total) {
+  const percentual = n => total ? nf(n / total * 100, 1) + '%' : '0%';
+  let angulo = -Math.PI / 2;
+  const ponto = a => [120 + 108 * Math.cos(a), 120 + 108 * Math.sin(a)].map(v => v.toFixed(4)).join(' ');
+  const fatias = estados.filter(s => s.n > 0).map(s => {
+    const inicio = angulo, abertura = s.n / total * Math.PI * 2;
+    angulo += abertura;
+    const atributos = `class="qual-pizza-fatia" fill="${s.cor}" data-qual-status="${s.sit}" tabindex="0" role="button" aria-label="${esc(s.nome)}: ${s.n} (${percentual(s.n)}). Abrir não conformidades deste status."`;
+    const titulo = `<title>${esc(s.nome)}: ${nf(s.n, 0)} · ${percentual(s.n)}</title>`;
+    return s.n === total
+      ? `<circle cx="120" cy="120" r="108" ${atributos}>${titulo}</circle>`
+      : `<path d="M 120 120 L ${ponto(inicio)} A 108 108 0 ${abertura > Math.PI ? 1 : 0} 1 ${ponto(angulo)} Z" ${atributos}>${titulo}</path>`;
+  }).join('');
+  return `<div class="qual-pizza-wrap">
+    <svg class="qual-pizza" viewBox="0 0 240 240" role="group" aria-label="Gráfico de pizza: distribuição de ${nf(total, 0)} não conformidades por status">
+      ${total ? fatias : '<circle cx="120" cy="120" r="108" class="qual-pizza-vazia"/><text x="120" y="124" text-anchor="middle" class="qual-pizza-vazia-texto">Sem registros</text>'}
+    </svg>
+    <div class="qual-pizza-legenda" aria-label="Legenda e filtros por status">
+      ${estados.map(s => `<button type="button" class="qual-pizza-item" data-qual-status="${s.sit}" aria-label="${esc(s.nome)}: ${s.n} não conformidades, ${percentual(s.n)}">
+        <span class="qual-pizza-cor" style="background:${s.cor}" aria-hidden="true"></span>
+        <span class="qual-pizza-nome">${s.nome}</span><b>${nf(s.n, 0)} <small>${percentual(s.n)}</small></b>
+      </button>`).join('')}
+      <p class="nota">Clique na fatia ou no status para abrir a lista.</p>
+    </div>
+  </div>`;
+}
+
 function qualDashboardHtml(r, porEmp) {
   const outras = r.total - r.aguardaResp - r.andam - r.aguardaVal - r.concl;
   const estados = [
@@ -251,12 +278,9 @@ function qualDashboardHtml(r, porEmp) {
     </div>
     ${!r.total ? '<div class="bloco"><p class="nota">Nenhuma não conformidade registrada para esta visão.</p></div>' : ''}
     <div class="qual-dash-grade">
-      <section class="bloco"><div class="bloco-cab"><h2>Distribuição por status</h2></div><div class="qual-dash-barras">
-        ${estados.map(s => `<button type="button" class="qual-dash-barra" data-qual-status="${s.sit}" aria-label="${s.nome}: ${s.n} de ${r.total} não conformidades">
-          <span class="qual-dash-barra-topo"><span>${s.nome}</span><b>${nf(s.n, 0)} <small>${percentual(s.n)}</small></b></span>
-          <span class="qual-dash-trilho" aria-hidden="true"><span style="width:${r.total ? (s.n / r.total * 100).toFixed(2) : 0}%;background:${s.cor}"></span></span>
-        </button>`).join('')}
-      </div></section>
+      <section class="bloco"><div class="bloco-cab"><h2>Distribuição por status</h2></div>
+        ${qualPizzaHtml(estados, r.total)}
+      </section>
       <section class="bloco"><div class="bloco-cab"><h2>Pontos de atenção</h2></div><div class="qual-dash-atencao">
         ${tile('atrasada', 'Resposta atrasada', r.atras, 'prazo venceu e a NC ainda aguarda resposta', r.atras ? 'var(--vermelho)' : 'var(--verde)')}
         ${tile('graves', 'Graves pendentes', r.graves, 'gravidade alta ou crítica, ainda não concluídas', r.graves ? 'var(--vermelho)' : 'var(--verde)')}
@@ -629,6 +653,12 @@ async function qualGerar(f, btn) {
 }
 
 // ---------------------------------------------------------------- eventos
+document.addEventListener('keydown', ev => {
+  if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches?.('.qual-pizza-fatia')) {
+    ev.preventDefault();
+    ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+});
 document.addEventListener('click', ev => {
   const t = ev.target.closest && ev.target.closest('#qualNova, #qualRel, #qualRelSel, #qualSelLimpar, #qualFechar, #qualExcluir, #qualRelFechar, #qualResponder, #qualSalvarResp, [data-qual-resp-enviar], [data-qual-resp-salvar], #qualValidar, #qualDevolver, #qualReabrir, [data-qual-sub], [data-qual-status], [data-qual-emp], [data-qual-abrir], [data-qual-rnc], [data-qual-fdel], [data-qual-pdel]');
   if (!t) return;
