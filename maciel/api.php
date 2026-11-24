@@ -2926,6 +2926,25 @@ function frente_galpao($eixo) {
 // Soma `delta` na célula (empresa, serviço, dia) do controle de produção, que é de onde o BM,
 // o cronograma e os dashboards leem a produção.
 // $frente: quando informada, filtra o servicos pela frente correta (fase 1 vs fase 2).
+// Atividade do catálogo desta empresa que corresponde ao serviço apontado: a própria (campo "controle" = serviço) ou a mesma
+// atividade (mesmo número do código) que em outra empresa está ligada a esse serviço. false = telhas (o BM já recebe o m²).
+function soma_producao_atividade_bm($empresa, $servico)
+{
+    $c = q('SELECT codigo FROM bm_atividades WHERE empresa = ? AND UPPER(controle) = UPPER(?) ORDER BY codigo', [$empresa, $servico])->fetchColumn();
+    if ($c) return $c;
+    $sufs = [];
+    foreach (q('SELECT codigo FROM bm_atividades WHERE UPPER(controle) = UPPER(?)', [$servico])->fetchAll(PDO::FETCH_COLUMN) as $o) $sufs[bm_copia_sufixo($o)] = 1;
+    if (preg_match('/TELHA|PERFILA|^FECHAMENTO$/iu', (string)$servico)) {
+        foreach (['3.2.1-01', '3.2.1-02', '3.2.2-01'] as $t) {
+            if (q('SELECT 1 FROM bm_atividades WHERE empresa = ? AND codigo LIKE ?', [$empresa, '%-' . $t])->fetchColumn()) return false;
+        }
+    }
+    foreach (q('SELECT codigo FROM bm_atividades WHERE empresa = ? ORDER BY codigo', [$empresa])->fetchAll(PDO::FETCH_COLUMN) as $m) {
+        if (isset($sufs[bm_copia_sufixo($m)])) return $m;
+    }
+    return null;
+}
+
 function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $frente = null)
 {
     $emp = q('SELECT * FROM empresas WHERE nome = ?', [$empresaNome])->fetch();
@@ -2963,7 +2982,26 @@ function soma_producao($empresaNome, $servico, $data, $delta, array $usuario, $f
         $col = q("SELECT col FROM servicos WHERE empresa_id = ? AND nome LIKE 'PERFILA%'", [$emp['id']])->fetchColumn();
     }
     if (!$col) {
-        throw new ErroValidacao("{$emp['nome']} não tem o serviço $servico no controle de produção.");
+        // Sem coluna no controle, mas com a atividade no catálogo do BM (cadastrada ou copiada de outra empresa):
+        // o apontamento vai para os apontamentos do BM dessa atividade.
+        $atvBm = soma_producao_atividade_bm($emp['nome'], $servico);
+        if ($atvBm === false) {
+            return ['empresa' => $emp['nome'], 'servico' => $servico, 'col' => null, 'data' => $data, 'delta' => $delta, 'anterior' => 0, 'total' => 0];   // telhas: o m² já é lançado no BM (bm_telhas_ajustar)
+        }
+        if ($atvBm) {
+            $ex = q('SELECT id, quantidade FROM bm_apontamentos WHERE empresa = ? AND codigo = ? AND data = ?', [$emp['nome'], $atvBm, $data])->fetch();
+            $anterior = (float)($ex['quantidade'] ?? 0);
+            $novo = round(max(0, $anterior + $delta), 4);
+            if ($ex) {
+                if ($novo > 0) q('UPDATE bm_apontamentos SET quantidade = ? WHERE id = ?', [$novo, $ex['id']]);
+                else q('DELETE FROM bm_apontamentos WHERE id = ?', [$ex['id']]);
+            } elseif ($novo > 0) {
+                q('INSERT INTO bm_apontamentos (data, empresa, codigo, quantidade, obs) VALUES (?, ?, ?, ?, ?)', [$data, $emp['nome'], $atvBm, $novo, 'apontar montagem: ' . $servico]);
+            }
+            return ['empresa' => $emp['nome'], 'servico' => $servico . ' (BM ' . $atvBm . ')', 'col' => null, 'codigo' => $atvBm, 'data' => $data,
+                'delta' => $delta, 'anterior' => $anterior, 'total' => $novo];
+        }
+        throw new ErroValidacao("{$emp['nome']} não tem o serviço $servico no controle de produção nem a atividade no catálogo do BM.");
     }
     $atual = q('SELECT valor_num, valor_txt FROM producao WHERE empresa_id = ? AND data = ? AND col = ?',
         [$emp['id'], $data, $col])->fetch();

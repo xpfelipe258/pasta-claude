@@ -4166,10 +4166,23 @@ const apModoTelha = () => apEst.modo === 'telha' || apEst.modo === 'perfil';   /
 const telhaEmpresas = () => M.empresas.filter(e => e.servicos.some(s => ehTelhar(ganNorm(s.nome)) || ganNorm(s.nome).includes('PERFILAGEM')));
 const apModoGlobo = () => apModoTelha() || apEst.modo === 'tfech';   // modos de apontamento da Globo Aços (telhas, perfilagem e telhas do fechamento lateral)
 const apEmpresas = ctx => {
-  if (apModoGlobo()) return telhaEmpresas();
-  const sv = new Set([ctx.cfg.servico_joist, ctx.cfg.servico_viga].filter(Boolean).map(ganNorm));   // joist e vigas
-  const fr = AP_FRENTE[apEst.modo] ? apFrenteAtual() : null; if (fr?.servico) sv.add(ganNorm(fr.servico));   // contraventamento, fechamento, marquise…
-  return M.empresas.filter(e => e.servicos.some(s => sv.has(ganNorm(s.nome))));
+  const suf = c => { const i = String(c).indexOf('-'); return i < 0 ? String(c) : String(c).slice(i + 1); };
+  const atvs = bmTab('bm_atividades');
+  let base, sv;
+  if (apModoGlobo()) {
+    base = telhaEmpresas();
+    sv = new Set(M.empresas.flatMap(e => e.servicos).filter(s => ehTelhar(ganNorm(s.nome)) || ganNorm(s.nome).includes('PERFILA') || ganNorm(s.nome) === 'FECHAMENTO').map(s => ganNorm(s.nome)));
+    ['3.2.1-01', '3.2.1-02', '3.2.2-01'].forEach(t => sv.add('#' + t));
+  } else {
+    sv = new Set([ctx.cfg.servico_joist, ctx.cfg.servico_viga].filter(Boolean).map(ganNorm));   // joist e vigas
+    const fr = AP_FRENTE[apEst.modo] ? apFrenteAtual() : null; if (fr?.servico) sv.add(ganNorm(fr.servico));   // contraventamento, fechamento, marquise…
+    base = M.empresas.filter(e => e.servicos.some(s => sv.has(ganNorm(s.nome))));
+  }
+  // também quem tem no catálogo do BM a atividade desse serviço (cadastrada ou copiada de outra empresa): entra como opção de quem montou
+  const sufs = new Set(atvs.filter(a => a.controle && sv.has(ganNorm(a.controle))).map(a => suf(a.codigo)));
+  sv.forEach(k => { if (k[0] === '#') sufs.add(k.slice(1)); });
+  const doCat = new Set(atvs.filter(a => (a.controle && sv.has(ganNorm(a.controle))) || sufs.has(suf(a.codigo))).map(a => a.empresa));
+  return M.empresas.filter(e => base.includes(e) || doCat.has(e.nome));
 };
 const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));
 

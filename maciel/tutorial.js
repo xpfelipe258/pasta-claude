@@ -138,6 +138,7 @@ const TUT_TOPICOS = [
   { id: 'apont', mod: 'prod', aba: 'apont', titulo: 'Apontar montagem (mapa)',
     resumo: 'Marque no mapa as peças montadas (joists, vigas, contraventamento, telhas…). O apontamento lança a produção e baixa o estoque automaticamente.',
     passos: [
+      { t: 'Quem montou: aparece toda empresa que tem o serviço daquele mapa OU a atividade no catálogo do BM (cadastrada ou copiada de outra empresa). Se a empresa não tem a coluna de produção, o apontamento entra direto na medição (BM) da atividade dela.', aba: 'apont', novo: '2026-11-24' },
       { t: 'Escolha o tipo de apontamento: joists e vigas, contraventamento, telhas da cobertura, perfilagem ou telhas do fechamento.', alvo: '#segApModo' },
       { t: 'Escolha a empresa que montou e a data. A empresa precisa ter o serviço no catálogo.', alvo: '#apBarra' },
       { t: 'No mapa, clique numa peça para marcar; arraste para marcar várias. No celular, toque longo e arraste.', alvo: '#apMapa' },
