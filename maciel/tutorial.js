@@ -138,6 +138,7 @@ const TUT_TOPICOS = [
   { id: 'apont', mod: 'prod', aba: 'apont', titulo: 'Apontar montagem (mapa)',
     resumo: 'Marque no mapa as peças montadas (joists, vigas, contraventamento, telhas…). O apontamento lança a produção e baixa o estoque automaticamente.',
     passos: [
+      { t: 'Fechamento lateral: o mapa mostra o desenho do IFC. Nos lados A e H (vista lateral) e nos oitões (vista frontal) aparecem os pilares dos eixos (linha cheia), os pilares intermediários (tracejado), as terças na altura real, os espaçadores e os suportes de terça. Clique no vão para selecionar o trecho.', aba: 'apont', novo: '2026-11-24' },
       { t: 'Quem montou: aparece toda empresa que tem o serviço daquele mapa OU a atividade no catálogo do BM (cadastrada ou copiada de outra empresa). Se a empresa não tem a coluna de produção, o apontamento entra direto na medição (BM) da atividade dela.', aba: 'apont', novo: '2026-11-24' },
       { t: 'Escolha o tipo de apontamento: joists e vigas, contraventamento, telhas da cobertura, perfilagem ou telhas do fechamento.', alvo: '#segApModo' },
       { t: 'Escolha a empresa que montou e a data. A empresa precisa ter o serviço no catálogo.', alvo: '#apBarra' },
