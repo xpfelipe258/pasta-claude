@@ -42,7 +42,8 @@ function rdoProducao(dia) {
 }
 // RDO do cliente: atividade igual em empresas diferentes (EJ e CMM têm o mesmo catálogo: EJ-3.1.1-01 = CMM-3.1.1-01) vira UMA linha somada;
 // o acumulado e o contratado somam as empresas (inclusive a que não produziu no dia), e o % é do total acumulado ÷ total contratado.
-const rdoChaveAtiv = cod => String(cod || '').replace(/^(EJ|CMM)-/, '');
+// mesma atividade em empresas diferentes = mesmo número no código, com qualquer prefixo (EJ-, CMM-, GLO-, atividade copiada…)
+const rdoChaveAtiv = cod => String(cod || '').replace(/^[A-Za-z][A-Za-z0-9]*-(?=\d)/, '');
 function rdoProducaoSomada(dia, prod) {
   const dias = new Map();
   prod.forEach(p => {
@@ -512,7 +513,7 @@ async function rdoHtml(dia, modo) {
     <h2>${gestao ? 'Produção do dia por empresa e atividade' : 'Produção do dia e avanço acumulado (empresas somadas)'}</h2>
     <table><thead><tr>${cabProd}</tr></thead><tbody>${tProd || vazio(gestao ? 8 : 6, 'Nenhuma produção lançada neste dia.')}</tbody>
       ${gestao && prod.length ? `<tfoot><tr><th colspan="7">Total produzido no dia (medição estimada)</th><th class="n">${rs2(produzido)}</th></tr></tfoot>` : ''}</table>
-    ${gestao ? '' : '<p class="nota">Atividades iguais executadas por mais de uma empresa (EJ e CMM) aparecem somadas: o acumulado e o contratado são os totais das empresas, e o % é o avanço do total.</p>'}
+    ${gestao ? '' : '<p class="nota">Atividades iguais (mesmo número no catálogo do BM) executadas por mais de uma empresa aparecem somadas, inclusive as cadastradas ou copiadas depois: o acumulado e o contratado são os totais das empresas, e o % é o avanço do total.</p>'}
     ${gestao ? apHtml : ''}
     ${mapasHtml}
     <h2>Efetivo</h2>
