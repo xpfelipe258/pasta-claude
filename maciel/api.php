@@ -3375,6 +3375,30 @@ function contraventamento_servico($empresaId)
     return 'CONTRAVENTAMENTO';
 }
 
+// Lados A e H: cada vão entre eixos vira dois trechos lançáveis, do pilar do eixo ao pilar intermediário e dele ao próximo eixo
+// (ex.: 07-08 → 07-07a e 07a-08). As peças de cada metade são contadas no desenho do IFC (terças e espaçadores dentro do trecho).
+function fechamento_dividir_vaos(array $p, array $emm)
+{
+    $e = $p['elev']; $novas = []; $cel = [];
+    foreach ($p['celulas'] as $c) {
+        if (!preg_match('/^(\d{2})-(\d{2})$/', $c['trecho'], $m) || !isset($emm[$m[1] . 'a'], $emm[$m[1]], $emm[$m[2]])) { $novas[] = $c; continue; }
+        $meio = $m[1] . 'a';
+        foreach ([[$m[1], $meio], [$meio, $m[2]]] as [$a, $b]) {
+            $x0 = $emm[$a]; $x1 = $emm[$b];
+            $nt = 0; $ne = 0;
+            foreach ($e['tercas'] as $t) { $c0 = ($t[0] + $t[1]) / 2; if ($c0 > $x0 && $c0 < $x1) $nt++; }
+            foreach ($e['esp'] as $t) { if ($t[0] > $x0 && $t[0] < $x1) $ne++; }
+            $tr = "$a-$b";
+            $novas[] = ['trecho' => $tr, 'pai' => $c['trecho'], 'pecas' => ['TERÇA FECHAMENTO' => $nt, 'ESPAÇADOR FECHAMENTO' => $ne], 'total' => $nt + $ne];
+            $cel[$tr] = [$x0, $x1];
+        }
+    }
+    $p['celulas'] = $novas;
+    $p['elev']['cel'] = $cel + $e['cel'];
+    $p['total'] = array_sum(array_column($novas, 'total'));
+    return $p;
+}
+
 function frentes_montagem()
 {
     $d = null;
@@ -3406,8 +3430,11 @@ function frentes_montagem()
         $pe = __DIR__ . '/inc/fechamento_elevacao.json';
         if (is_file($pe) && (int)($d['malha']['comprimento_mm'] ?? 0) === 427500) {
             $el = json_decode(file_get_contents($pe), true) ?: [];
+            $emm = $d['malha']['eixos_mm'] ?? [];
             foreach ($d['frentes']['fechamento']['partes'] as &$pp) {
-                if (isset($el[$pp['id']])) $pp['elev'] = $el[$pp['id']];
+                if (!isset($el[$pp['id']])) continue;
+                $pp['elev'] = $el[$pp['id']];
+                if (($pp['elev']['vista'] ?? '') === 'lateral') $pp = fechamento_dividir_vaos($pp, $emm);
             }
             unset($pp);
         }
@@ -3776,6 +3803,8 @@ function frente_item(array $item, array $frentes, array &$ja, array $base, $data
             $vaoChave = "$tipo|{$parte['id']}|" . explode('/', $trecho)[0] . "|$etapa";
             if (isset($ja[$vaoChave]) && !isset($ja[$chave])) { $chave = $vaoChave; }   // o vão inteiro já tinha sido apontado
         }
+        $paiTr = array_column($parte['celulas'], 'pai', 'trecho')[$trecho] ?? null;   // vão inteiro apontado antes da divisão em meio-vãos
+        if ($paiTr !== null && isset($ja["$tipo|{$parte['id']}|$paiTr|$etapa"]) && !isset($ja[$chave])) $chave = "$tipo|{$parte['id']}|$paiTr|$etapa";
         if (isset($ja[$chave])) {
             $quando = $ja[$chave]['data'] ?? null;
             $rot = "{$parte['nome']} · $trecho" . ($etapa ? " · $etapa" : '');

@@ -568,7 +568,7 @@ function reMapaFechElev(fr, feitas, emp, ini, cores, validas) {
     let g = `<svg viewBox="0 0 ${W + mE * 2} ${H + mT + mB}" style="width:100%;height:auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(p.nome)}">`;
     p.celulas.forEach(c => {
       const r = e.cel[c.trecho]; if (!r) return;
-      const row = feitas.get(`${p.id}|${c.trecho}`), st = reEstadoPeca(row, emp, ini, validas);
+      const row = feitas.get(`${p.id}|${c.trecho}`) || (c.pai && feitas.get(`${p.id}|${c.pai}`)), st = reEstadoPeca(row, emp, ini, validas);
       o[st]++; n[st]++;
       g += `<rect x="${X(r[0])}" y="${mT - 3}" width="${(r[1] - r[0]) * sx}" height="${H + 6}" ${rePinta(st, cores, row)} stroke-width="0.6"/>` + reTxt(X((r[0] + r[1]) / 2), H + mT + 15, c.trecho, 'text-anchor="middle" font-weight="700"');
     });
