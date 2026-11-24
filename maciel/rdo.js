@@ -149,45 +149,61 @@ function renderRdo() {
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const nAtiv = rdoProducaoSomada(dia, prod).n;
   $('#rdoCorpo').innerHTML = `
+    <style>
+      .rdo-acoes-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+      .rdo-acoes-topo .rdo-barra{margin:0}.rdo-status{padding-left:12px;border-left:1px solid currentColor}.rdo-menus{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .rdo-menu{position:relative}
+      .rdo-menu>summary{cursor:pointer;list-style:none}
+      .rdo-menu>summary::-webkit-details-marker{display:none}
+      .rdo-menu-painel{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:min(340px,78vw);padding:12px;display:grid;gap:8px}
+      .rdo-menu-painel .btn{width:100%;text-align:left;margin-top:4px}.rdo-menu-painel .rdo-escopo{display:flex;gap:6px;margin-bottom:4px}.rdo-escopo label{flex:1;text-align:center;cursor:pointer}.rdo-escopo label:has(:checked){background:var(--acento);color:white}.rdo-menus>[data-rdo-validar],.rdo-menus>[data-rdo-retirar]{width:145px}#rdoRedmineResultado:empty{display:none}
+      .rdo-menu-painel [hidden]{display:none}
+      .rdo-menu-painel .rdo-envio{margin:0;padding:8px;display:block}
+      .rdo-menu-painel .rdo-envio-botoes{display:grid;gap:6px;margin-top:8px}
+      @media(max-width:560px){.rdo-menu{position:static}.rdo-menus{position:relative}.rdo-menu-painel{right:auto;left:0}}
+    </style>
+    <div class="bloco rdo-acoes-topo">
     <div class="barra-acoes rdo-barra">
       <button class="btn" data-rdo-dia="-1" title="Dia anterior">‹</button>
       <label class="rot-sel">Data do relatório <input type="date" id="rdoData" value="${esc(dia)}" ${M.datas.length ? `min="${esc(M.datas[0])}" max="${esc(M.datas[M.datas.length - 1])}"` : ''}></label>
       <button class="btn" data-rdo-dia="1" title="Próximo dia">›</button>
       <b class="rdo-dia-txt">${esc(rdoDiaTxt(dia))}</b>
     </div>
-    <div class="bloco rdo-valid ${val ? 'validado' : ''}">
-      <div class="rdo-valid-txt">${val
-        ? `<b>✔ RDO VALIDADO</b> <span>${esc(rdoTxtValidacao(val))}. Clima, observações e fotos estão <b>travados</b> (envio e edição).</span>`
-        : `<b>RDO ainda não validado</b> <span>Enquanto não for validado, o relatório sai marcado como rascunho e as informações podem ser editadas.</span>`}</div>
-      ${rdoEhAdmin() ? (val ? `<button class="btn" data-rdo-retirar="${esc(dia)}">Retirar validação</button>` : `<button class="btn primario" data-rdo-validar="${esc(dia)}">Validar RDO</button>`)
-        : `<span class="nota">${val ? 'Só o administrador retira a validação.' : 'Só o administrador valida o RDO.'}</span>`}
+
+      <span class="rdo-status"><b>${val ? '✓ RDO validado' : 'RDO em rascunho'}</b> · Envio automático ${rdoEmail()?.auto || rdoEmail()?.cfg?.auto ? 'ligado' : 'desligado'}</span>
+      <div class="rdo-menus">
+        ${rdoEhAdmin() ? `<button class="btn primario" ${val ? 'data-rdo-retirar' : 'data-rdo-validar'}="${esc(dia)}">${val ? 'Retirar validação' : 'Validar RDO'}</button>` : ''}
+        <details class="rdo-menu" name="rdo-menu"><summary class="btn">Relatórios ▾</summary>
+          <div class="bloco rdo-menu-painel">
+            <div class="rdo-escopo" role="group" aria-label="Abrangência"><label class="btn"><input type="radio" name="rdoAbrangencia" value="dia" checked> Dia selecionado</label><label class="btn"><input type="radio" name="rdoAbrangencia" value="periodo"> Período</label></div>
+            <div id="rdoRelDia">
+              <button class="btn" id="btnRdoCliente"><span aria-hidden="true">📄</span> PDF do cliente</button>
+              <button class="btn" id="btnRdoGestao"><span aria-hidden="true">📄</span> PDF da gestão</button>
+            </div>
+            <div id="rdoRelPeriodo" hidden>
+        <label class="rot-sel">De <input type="date" id="rdoPerIni" value="${esc(RDO.pIni || add(dia, -6))}"></label>
+        <label class="rot-sel">Até <input type="date" id="rdoPerFim" value="${esc(RDO.pFim || dia)}"></label>
+              <button class="btn" id="btnRdoPerCliente"><span aria-hidden="true">📄</span> PDF do cliente</button>
+              <button class="btn" id="btnRdoPerGestao"><span aria-hidden="true">📄</span> PDF da gestão</button>
+              <p class="nota">Até ${RDO_PER_MAX} dias por relatório.</p>
+            </div>
+          </div>
+        </details>
+        <details class="rdo-menu" name="rdo-menu"><summary class="btn">Envio ▾</summary>
+          <div class="bloco rdo-menu-painel">
+            ${rdoEnvioHtml(dia, val)}
+            ${rdoEhAdmin() ? '<button class="btn" id="btnRdoRedmine"><span aria-hidden="true">↗</span> Enviar à gestão pelo Redmine</button><button class="btn" id="btnRdoRedmineCfg"><span aria-hidden="true">⚙</span> Configurar Redmine</button>' : ''}
+          </div>
+        </details>
+      </div>
+      <span id="rdoRedmineResultado" aria-live="polite"></span>
     </div>
-    ${rdoEnvioHtml(dia, val)}
     <div class="tiles">
       ${tile('Fotos do dia', nf(fotos.length, 0), fotos.length ? `${nf(fotos.filter(f => (f.legenda || '').trim()).length, 0)} com comentário` : 'nenhuma ainda', 'var(--acento)')}
       ${tile('Atividades com produção', nf(nAtiv, 0), `${nf(prod.length, 0)} empresa(s)`, 'var(--verde)')}
       ${tile('Efetivo no dia', nf(soma0(efet, e => e.total), 0), `${nf(efet.length, 0)} empresa(s)`, 'var(--amarelo)')}
       ${(() => { const mc = rdoMaquinasControle(maq, dia); return tile('Máquinas usadas / ativas', `${nf(mc.nUsadas, 0)} / ${nf(mc.nAtivas, 0)}`, `${nf(mc.nParadas, 0)} parada(s)${mc.nManut ? ` · ${nf(mc.nManut, 0)} em manutenção` : ''}`, 'var(--acento)'); })()}
       ${tile('Remessas que chegaram', nf(rem.length, 0), rem.length ? 'Remessa ' + rem.map(esc).join(', ') : 'sem remessa no dia', 'var(--acento)')}
-    </div>
-    <div class="bloco rdo-gerar">
-      <div class="bloco-cab"><h2>Gerar o relatório do dia</h2><span class="nota">O sistema reúne tudo o que foi lançado em ${esc(fdA(dia))}. Confira antes de baixar.</span></div>
-      <div class="rdo-botoes">
-        <button class="btn primario" id="btnRdoCliente">RDO para o cliente</button>
-        <button class="btn" id="btnRdoGestao">RDO para a gestão</button>
-      </div>
-      <p class="nota">O <b>RDO do cliente</b> traz produção por empresa e atividade, efetivo, máquinas usadas (sem valores), o número das remessas que chegaram e as fotos — sem financeiro e sem suprimentos.
-        O <b>RDO da gestão</b> traz tudo isso + produzido e gasto em R$ e os impactos em aberto.</p>
-    </div>
-    <div class="bloco rdo-gerar">
-      <div class="bloco-cab"><h2>Registro por período</h2><span class="nota">Junta os RDOs de vários dias: produção total do período, observações e fotos de cada dia.</span></div>
-      <div class="rdo-botoes rdo-periodo">
-        <label class="rot-sel">De <input type="date" id="rdoPerIni" value="${esc(RDO.pIni || add(dia, -6))}"></label>
-        <label class="rot-sel">Até <input type="date" id="rdoPerFim" value="${esc(RDO.pFim || dia)}"></label>
-        <button class="btn primario" id="btnRdoPerCliente">Registro do período — cliente</button>
-        <button class="btn" id="btnRdoPerGestao">Registro do período — gestão</button>
-      </div>
-      <p class="nota">Até ${RDO_PER_MAX} dias por relatório. A versão do cliente não leva valores em R$ nem as observações internas.</p>
     </div>
     <div class="bloco">
       <div class="bloco-cab"><h2>Observações do dia</h2><span class="nota">${pode ? 'Gravam sozinhas ao sair do campo.' : val ? 'Travado: RDO validado.' : 'Somente leitura.'}</span></div>
@@ -339,6 +355,10 @@ function rdoMapasLegado(dia) {
     linhas.push(rdoLinhaMapa(rot, t.n, 'm²', t.m2));
     figs.push(`<h3>${esc(rot.replace(' (m²)', ''))} (do eixo 01 ao 20)</h3>` + t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p><div class="mapa-fig">${f.svg}</div>`).join('') + `<p class="nota">Cada faixa é ${rot.startsWith('Telhas') ? 'uma telha' : 'uma fiada de perfilagem'} (${nf(t.m2, 2)} m²), numerada a partir do eixo 01.</p>`);
   });
+  if (m.fech) {
+    linhas.push(rdoLinhaMapa('Fechamento lateral — estrutura (trechos)', m.fech.n));
+    figs.push(`<h3>Fechamento lateral — estrutura (terças e espaçadores)</h3><div class="mapa-fig">${m.fech.svg}</div><p class="nota">Cada célula é um trecho entre eixos (lados A e H) ou uma faixa do oitão (eixos 01 e 20).</p>`);
+  }
   if (m.tfech) linhas.push(rdoLinhaMapa('Telhas do fechamento lateral (m²)', m.tfech.m2n, 'm²', 1));   // sem desenho: o resumo por parte fica no relatório das empresas
   const fora = m.foraMontagem && m.foraMontagem.length ? `<p class="nota"><b>${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s)</b> de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço ficam em cinza e fora dos totais.</p>` : '';
   const cinza = [m.planta && m.planta.nJ.outra, m.planta && m.planta.nV.outra, m.contrav && m.contrav.n.outra].some(v => v > 0);
@@ -516,6 +536,118 @@ async function rdoHtml(dia, modo) {
     meta: gestao ? 'Uso interno: produção, efetivo, máquinas ativas e usadas, financeiro do dia, impactos em aberto e fotos' : 'Produção, efetivo, máquinas, remessas e fotos do dia', corpo });
 }
 
+const RDO_REDMINE_CONFIG = 'rdo-redmine-of198-09-montagem-v1';
+
+function rdoLerConfigRedmine() {
+  try { return JSON.parse(localStorage.getItem(RDO_REDMINE_CONFIG)) || {}; }
+  catch { return {}; }
+}
+
+function rdoEnviarRedmineConfigurado(btn) {
+  const config = rdoLerConfigRedmine();
+  if (!config.responsavel) {
+    rdoConfigurarRedmine();
+    return;
+  }
+  const dia = rdoDia();
+  const dados = new FormData();
+  for (const campo of ['responsavel', 'tracker_id', 'status_id', 'priority_id', 'prazo', 'assunto', 'descricao']) {
+    dados.set(campo, config[campo] || '');
+  }
+  dados.set('assunto', dados.get('assunto').replaceAll('{data}', fdA(dia)).slice(0, 255));
+  dados.set('descricao', dados.get('descricao').replaceAll('{data}', fdA(dia)).slice(0, 4000));
+  rdoEnviarRedmine(btn, dia, dados);
+}
+
+async function rdoConfigurarRedmine() {
+  const dialogo = document.createElement('dialog');
+  dialogo.className = 'rdo-redmine-dialog';
+  dialogo.innerHTML = `<form method="dialog">
+    <div class="bloco-cab"><h2>Configurar envio ao Redmine</h2></div>
+    <p>Projeto <b>OF198-09 Montagem</b></p>
+    <div class="campos">
+      <label>Tipo <select name="tracker_id" required></select></label>
+      <label>Situação <select name="status_id" required></select></label>
+      <label>Prioridade <select name="priority_id" required></select></label>
+      <label>Responsável <select name="responsavel" required></select></label>
+      <label>Prazo em dias corridos após o envio <input type="number" name="prazo" min="0" max="365" required></label>
+      <label class="largo">Título <input name="assunto" required maxlength="255"></label>
+      <label class="largo">Descrição <textarea name="descricao" rows="4" required maxlength="4000"></textarea></label>
+    </div>
+    <p class="nota">Use {data} para inserir a data do RDO. O PDF será anexado ao apertar Enviar. Preferências salvas neste navegador.</p>
+    <p role="status" data-redmine-status>Carregando opções do Redmine…</p>
+    <div class="acoes"><button class="btn" value="cancelar" formnovalidate>Cancelar</button>
+      <button class="btn primario" value="salvar" disabled>Salvar configuração</button></div>
+  </form>`;
+  const form = dialogo.querySelector('form');
+  const status = form.querySelector('[data-redmine-status]');
+  const salvar = form.querySelector('[value="salvar"]');
+  const config = rdoLerConfigRedmine();
+  form.elements.assunto.value = config.assunto || 'RDO Gestão · {data}';
+  form.elements.descricao.value = config.descricao || 'Relatório Diário de Obra de {data}. Consulte o PDF anexo.';
+  form.elements.prazo.value = config.prazo ?? '';
+  form.addEventListener('submit', ev => {
+    if (ev.submitter !== salvar) return;
+    try { localStorage.setItem(RDO_REDMINE_CONFIG, JSON.stringify(Object.fromEntries(new FormData(form)))); }
+    catch {
+      ev.preventDefault();
+      status.textContent = 'O navegador não permitiu salvar a configuração.';
+    }
+  });
+  dialogo.addEventListener('close', () => dialogo.remove(), { once: true });
+  document.body.appendChild(dialogo);
+  dialogo.showModal();
+  try {
+    const resposta = await fetch('rdo_redmine.php?acao=responsaveis', {
+      method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' }
+    });
+    const dados = await resposta.json();
+    if (!resposta.ok) throw new Error(dados.erro || 'Falha ao consultar o Redmine.');
+    const listas = { tracker_id: dados.tipos, status_id: dados.situacoes, priority_id: dados.prioridades, responsavel: dados.usuarios };
+    for (const [campo, itens] of Object.entries(listas)) {
+      const seletor = form.elements[campo];
+      seletor.add(new Option('Selecione', ''));
+      for (const item of itens) seletor.add(new Option(item.nome, item.id));
+      seletor.value = config[campo] || '';
+    }
+    salvar.disabled = Object.values(listas).some(itens => !itens.length);
+    status.textContent = salvar.disabled ? 'O Redmine retornou uma lista obrigatória vazia.' : '';
+  } catch (erro) {
+    status.textContent = erro.message + ' Feche e abra a configuração para tentar novamente.';
+  }
+}
+
+async function rdoEnviarRedmine(btn, dia, formulario) {
+  btn.disabled = true;
+  try {
+    const html = await rdoHtml(dia, 'gestao');
+    const pdf = await relPdfGerar(html, `RDO-gestao-${dia}.html`, `RDO Gestão · ${fdA(dia)}`, undefined, { blob: true });
+    formulario.set('pdf', pdf.blob, `RDO-gestao-${dia}.pdf`);
+    const resposta = await fetch(`rdo_redmine.php?data=${encodeURIComponent(dia)}`, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+      body: formulario
+    });
+    const dados = await resposta.json();
+    if (!resposta.ok) throw new Error(dados.erro || 'Falha ao enviar o RDO ao Redmine.');
+    if (!/^https:\/\/redmine\.rotula\.com\.br\/issues\/\d+$/.test(dados.url)) throw new Error('O Redmine retornou um endereço inválido.');
+    const resultado = document.getElementById('rdoRedmineResultado');
+    if (resultado && rdoDia() === dia) {
+      const link = document.createElement('a');
+      link.href = dados.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Abrir tarefa no Redmine';
+      resultado.replaceChildren(link);
+    }
+    toast(dados.existente ? 'Este RDO já tem uma tarefa no Redmine.' : 'Tarefa criada no Redmine.');
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function rdoGerar(modo) {
   const dia = rdoDia(), btn = document.getElementById(modo === 'gestao' ? 'btnRdoGestao' : 'btnRdoCliente'), rot = btn.textContent;
   btn.disabled = true; btn.textContent = 'Montando…';
@@ -635,8 +767,8 @@ function rdoEnvioHtml(dia, val) {
   const hist = env.length ? `<ul class="rdo-envios">${[...env].reverse().slice(0, 4).map(x => `<li class="${x.ok ? 'ok' : 'falha'}">${x.ok ? '✔ Enviado' : '✖ Falhou'} em ${esc(fdA(String(x.em).slice(0, 10)))} às ${esc(String(x.em).slice(11, 16))} por ${esc(x.por || '')}${x.auto ? ' (automático)' : ''}${x.ok ? ` para ${esc((x.para || []).join(', '))}${(x.cc || []).length ? ` · Cc: ${esc(x.cc.join(', '))}` : ''}` : ''}${(x.falhas || []).length ? ` · não aceito: ${esc(x.falhas.join(', '))}` : ''}</li>`).join('')}</ul>` : '';
   return `<div class="bloco rdo-envio">
     <div class="rdo-valid-txt">${status}${hist}</div>
-    ${admin && e.admin ? `<div class="rdo-envio-botoes"><button class="btn" id="btnRdoEmailCfg">Configurar envio</button>
-      <button class="btn primario" id="btnRdoEmailEnviar" ${val ? '' : 'disabled title="Valide o RDO primeiro"'}>${ult ? 'Reenviar ao cliente' : 'Enviar ao cliente agora'}</button></div>`
+    ${admin && e.admin ? `<div class="rdo-envio-botoes"><button class="btn" id="btnRdoEmailCfg"><span aria-hidden="true">⚙</span> Configurar e-mail</button>
+      <button class="btn primario" id="btnRdoEmailEnviar" ${val ? '' : 'disabled title="Valide o RDO primeiro"'}><span aria-hidden="true">✉</span> ${ult ? 'Reenviar ao cliente' : 'Enviar ao cliente agora'}</button></div>`
       : '<span class="nota">Só o administrador configura e envia.</span>'}
   </div>`;
 }
@@ -708,13 +840,15 @@ async function rdoValidar(dia, retirar) {
 }
 
 document.addEventListener('click', ev => {
-  const t = ev.target.closest && ev.target.closest('#btnRdoEmailCfg, #btnRdoEmailEnviar, #btnRdoCliente, #btnRdoGestao, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
+  const t = ev.target.closest && ev.target.closest('#btnRdoEmailCfg, #btnRdoEmailEnviar, #btnRdoCliente, #btnRdoGestao, #btnRdoRedmine, #btnRdoRedmineCfg, [data-rdo-dia], [data-rdo-del], [data-rdo-validar], [data-rdo-retirar]');
   if (!t) return;
   if (t.dataset.rdoValidar) { rdoValidar(t.dataset.rdoValidar, false); return; }
   if (t.dataset.rdoRetirar) { rdoValidar(t.dataset.rdoRetirar, true); return; }
   if (t.id === 'btnRdoEmailCfg') rdoEmailAbrirCfg();
   else if (t.id === 'btnRdoEmailEnviar') { if (confirm(`Enviar o RDO de ${fdA(rdoDia())} (PDF) para o e-mail do cliente agora?`)) rdoEnviarCliente(rdoDia(), false); }
   else if (t.id === 'btnRdoCliente') rdoGerar('cliente');
+  else if (t.id === 'btnRdoRedmineCfg') rdoConfigurarRedmine();
+  else if (t.id === 'btnRdoRedmine') rdoEnviarRedmineConfigurado(t);
   else if (t.id === 'btnRdoGestao') rdoGerar('gestao');
   else if (t.dataset.rdoDia) rdoIrParaDia(add(rdoDia(), +t.dataset.rdoDia));
   else if (t.dataset.rdoDel) rdoExcluirFoto(+t.dataset.rdoDel);
@@ -733,4 +867,15 @@ document.addEventListener('submit', ev => { if (ev.target.id === 'rdoEmailForm')
 document.addEventListener('click', ev => {
   if (ev.target.closest('#rdoEmFechar, #rdoEmCancelar')) $('#dlgRdoEmail').close();
   else if (ev.target.closest('#rdoEmVer')) rdoEmailPrevia();
+});
+document.addEventListener('change', ev => {
+  if (ev.target.name !== 'rdoAbrangencia') return;
+  const periodo = ev.target.value === 'periodo';
+  document.getElementById('rdoRelDia').hidden = periodo;
+  document.getElementById('rdoRelPeriodo').hidden = !periodo;
+});
+document.addEventListener('click', ev => {
+  for (const menu of document.querySelectorAll('.rdo-menu[open]')) {
+    if (!menu.contains(ev.target)) menu.open = false;
+  }
 });

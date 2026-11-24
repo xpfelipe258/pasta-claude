@@ -163,6 +163,7 @@ const TUT_TOPICOS = [
   { id: 'rdo', mod: 'prod', aba: 'rdo', titulo: 'Relatório diário de obra (RDO)',
     resumo: 'Registro do dia: clima, observações e fotos com comentário. Gera um RDO para o cliente e outro, mais completo, para a gestão.',
     passos: [
+      { t: 'Os mapas de montagem do RDO agora trazem também o fechamento lateral (estrutura): cada trecho dos lados A e H e cada faixa dos oitões aparece como feito no dia, já feito antes ou pendente.', aba: 'rdo', novo: '2026-11-24' },
       { t: 'Escolha o dia com as setas ou o calendário.', alvo: '#rdoCorpo' },
       { t: 'Anote clima e observações. Há campos separados para o cliente e para a gestão; gravam ao sair do campo.' },
       { t: 'Envie as fotos do dia e escreva um comentário em cada uma. A tela reduz a foto antes de enviar.' },

@@ -557,6 +557,28 @@ function reTelhasFech(emp, ini, ate) {
   return { n, m2n, partes, total: fr.total, m2: apTelhaM2(fr), m2Contrato: (fr.telha || {}).m2_total_contrato || 0 };
 }
 
+// Fechamento lateral — estrutura (terças e espaçadores): uma célula por trecho, em cada parte (Lado A, Lado H, Oitão 01, Oitão 20)
+function reMapaFech(emp, ini, cores, ate, validas) {
+  const fr = ((window._frentes || {}).frentes || {}).fechamento;
+  if (!fr || !(fr.partes || []).length) return null;
+  const feitas = new Map(ate.filter(a => (a.tipo || '').toUpperCase() === 'FECHAMENTO').map(a => [`${a.faixa}|${a.rua}`, a]));
+  const n = { per: 0, ant: 0, outra: 0, pend: 0 }, cw = 40, ch = 26, gap = 3, mEsq = 92, mTop = 8;
+  const maxC = Math.max(...fr.partes.map(p => p.celulas.length));
+  const larg = mEsq + maxC * (cw + gap) + 6, alt = mTop + fr.partes.length * (ch + 16) + 4;
+  let svg = `<svg viewBox="0 0 ${larg} ${alt}" style="width:100%;height:auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fechamento lateral">`;
+  const partes = fr.partes.map((p, i) => {
+    const y = mTop + i * (ch + 16), o = { nome: p.nome, per: 0, ant: 0, outra: 0, pend: 0 };
+    svg += reTxt(4, y + ch / 2 + 3, p.nome, 'font-weight="700"');
+    p.celulas.forEach((c, j) => {
+      const row = feitas.get(`${p.id}|${c.trecho}`), st = reEstadoPeca(row, emp, ini, validas), x = mEsq + j * (cw + gap);
+      o[st]++; n[st]++;
+      svg += `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" rx="3" ${rePinta(st, cores, row)}/><text x="${x + cw / 2}" y="${y + ch / 2 + 3}" text-anchor="middle" font-size="8" fill="${st === 'per' ? '#fff' : '#14202b'}" font-family="Arial,Helvetica,sans-serif">${esc(c.trecho)}</text>`;
+    });
+    return o;
+  });
+  return { svg: svg + '</svg>', n, partes, total: soma0(fr.partes, p => p.celulas.length) };
+}
+
 function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já feito / falta em cores fixas, sem cor por empresa)
   const regras = window._regras_baixa, es = emp ? [empresa(emp)].filter(Boolean) : (M.empresas || []);   // sem empresa = geral: vale o catálogo de qualquer empresa
   const cfgAp = (regras && regras.apontamento) || {};
@@ -593,6 +615,10 @@ function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já fe
     const tl = reMapaTelhas(emp, ini, cores, ate, chave, tp);
     if (tl) out[chave === 'telha' ? 'telha' : 'perfil'] = { ...tl, per: meus(tp, true).length, ant: meus(tp, false).length, feitas: tipo(tp).length };
   });
+  if (temJoist || es.some(e => e.servicos.some(s => /FECH.*ESTRUT/.test(ganNorm(s.nome)))) || bmTab('bm_atividades').some(a => (!emp || a.empresa === emp) && ganNorm(a.item_desc || '') === 'FECHAMENTO LATERAL')) {   // fechamento lateral — estrutura
+    const fe = reMapaFech(emp, ini, cores, ate, null);
+    if (fe) out.fech = fe;
+  }
   if (temTFech) {   // telhas do fechamento lateral (catálogo da Globo Aços)
     const tf = reTelhasFech(emp, ini, ate);
     if (tf) out.tfech = { ...tf, per: tf.n.per, ant: tf.n.ant, feitas: tf.n.per + tf.n.ant + tf.n.outra, m2Per: tf.m2n.per, m2Feitas: tf.m2n.per + tf.m2n.ant + tf.m2n.outra };
@@ -810,6 +836,10 @@ function reMapaHtml(d) {
     h += `<h3>${tit} (do eixo 01 ao 20)</h3>` + t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p><div class="mapa-fig">${f.svg}</div>`).join('') +
       `<p class="nota">Cada faixa é ${kind === 'telha' ? 'uma telha' : 'uma fiada de perfilagem'} (177,32 m do eixo A ao H × 0,485 m de largura = ${nf(t.m2, 2)} m²), numerada a partir do eixo 01: ${nf(t.n.per, 0)} feita(s) por ${d.geral ? 'as empresas' : 'esta empresa'} no período (≈ ${nf(t.n.per * t.m2, 0)} m²), ${nf(t.n.ant, 0)} antes, ${nf(t.n.outra, 0)} por outra empresa e ${nf(t.n.pend, 0)} pendente(s) de ${nf(t.total, 0)}. Fonte: apontamentos de montagem (lançados em m² em Lançamentos e no BM).</p>`;
   });
+  if (m.fech) {
+    const f = m.fech;
+    h += `<h3>Fechamento lateral — estrutura (terças e espaçadores)</h3><div class="mapa-fig">${f.svg}</div><p class="nota">${nf(f.n.per, 0)} trecho(s) no período, ${nf(f.n.ant, 0)} antes, ${nf(f.n.outra, 0)} por outra empresa e ${nf(f.n.pend, 0)} pendente(s) de ${nf(f.total, 0)}. Fonte: apontamentos de montagem.</p>`;
+  }
   if (m.tfech) {
     const t = m.tfech, lin = t.partes.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td class="n">${nf(p.total, 0)}</td><td class="n"><b>${nf(p.per, 0)}</b></td><td class="n">${nf(p.ant, 0)}</td><td class="n">${nf(p.outra, 0)}</td><td class="n">${nf(p.pend, 0)}</td><td class="n">${nf(p.m2.per + p.m2.ant + p.m2.outra, 0)} m²</td></tr>`);
     h += '<h3>Telhas do fechamento lateral (lados A e H e oitões 01 e 20)</h3>' + reTab(['Parte do fechamento', '#nTelhas do projeto', '#nNo período', '#nAntes', '#nOutra empresa', '#nPendentes', '#nFeito (m²)'], lin)
