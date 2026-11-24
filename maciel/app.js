@@ -233,7 +233,7 @@ function bmCatalogoServico(servico, fase = '') {
     if ((alvo.includes('PERFILAG') || alvo.includes('PERFILAC'))) return emp === 'GLOBO ACOS' && itemCobGalpao && (ativ.includes('PERFILAG') || ativ.includes('PERFILAC'));
     if (ehTelhar(alvo)) return emp === 'GLOBO ACOS' && itemCobGalpao && !ativ.includes('PERFIL') && (ativ.includes('INSTALACAO DE TELH') || ativ.includes('INSTALACAO DE ISOLAMENTO ACUSTICO') || ativ.includes('FACEFELT'));
     if (alvo === 'FECHAMENTO') return emp === 'GLOBO ACOS' && !itemCobGalpao && (txt.includes('FECHAMENTO LATERAL') || txt.includes('RUFO') || txt.includes('RUFOS'));
-    if (alvo.includes('FECH LATERAL ESTRUTURA') || alvo.includes('FECHAMENTO LATERAL ESTRUTURA')) return (emp === 'EJ' || emp === 'CMM') && txt.includes('FECHAMENTO LATERAL');
+    if (alvo.includes('FECH LATERAL ESTRUTURA') || alvo.includes('FECHAMENTO LATERAL ESTRUTURA')) return txt.includes('FECHAMENTO LATERAL') && !ativ.includes('TELHA');   // qualquer empresa com o item (EJ, CMM, Globo, copiada…)
     return false;
   });
 }
@@ -1405,7 +1405,10 @@ const CLIENTE_FONTES = [
   { chave: 'FECH LATERAL ESTRUTURA', nome: 'Fechamento lateral (estrutura)', unidade: 'vão' },
 ];
 function clienteFonte(c) { let k = ganNorm(c?.servico); if (k === 'FECHAMENTO LATERAL ESTRUTURA') k = 'FECH LATERAL ESTRUTURA'; if (k === 'TELHAR') k = 'INSTALACAO DE TELHAS'; return CLIENTE_FONTES.find(f => f.chave === k) || null; }
-function catalogoQtd(codigos) { return soma0(bmTab('bm_atividades').filter(a => codigos.includes(a.codigo)), a => Number(a.qtd) || 0); }
+// mesma atividade em qualquer empresa: mesmo número do código, com qualquer prefixo (EJ-, CMM-, GLO-, atividade copiada…)
+const bmSufixo = c => String(c || '').replace(/^[A-Za-z][A-Za-z0-9]*-(?=\d)/, '');
+const bmMesmaAtividade = codigos => { const sf = new Set(codigos.map(bmSufixo)); return bmTab('bm_atividades').filter(a => codigos.includes(a.codigo) || sf.has(bmSufixo(a.codigo))); };
+function catalogoQtd(codigos) { return soma0(bmMesmaAtividade(codigos), a => Number(a.qtd) || 0); }
 
 function clienteDatasCronograma(c) {
   if (M.cronograma_padrao === false) return null;   // obra nova: as datas vêm do cadastro do cliente ou do cronograma importado, nunca da G200
@@ -1423,7 +1426,7 @@ function clienteAtividadesCatalogo(c, fonte) {
   if (fonte?.unidade === 'vão') {
     return bmCatalogoServico(c.servico).filter(a => ['VAO', 'VAOS'].includes(ganNorm(a.unidade)));
   }
-  if (fonte) return bmTab('bm_atividades').filter(a => fonte.atividades.includes(a.codigo));
+  if (fonte) return bmMesmaAtividade(fonte.atividades);
   if (c._eclusa) return bmTab('bm_atividades').filter(a => eclusaCodigos(c._eclusa).includes(a.codigo));
   if (ehFrenteAnexa(c.frente)) {
     return ganBmAtividades(c).filter(a => bmAtividadeDeAnexo(a));
@@ -1975,7 +1978,7 @@ function ganBmAtividades(it) {
       return emp === 'GLOBO ACOS' && item.includes('FECHAMENTO LATERAL DO GALPAO') && ativ.includes('TELHA');
     }
     if (ehFechEstrutura) {
-      return (emp === 'EJ' || emp === 'CMM') && item === 'FECHAMENTO LATERAL';
+      return item === 'FECHAMENTO LATERAL' && !ativ.includes('TELHA');   // qualquer empresa com o item
     }
     return fontes.some(f => bmAtividadeCompatServico(a, f)) && bmAtividadePermitida(a, it.frente);
   });
@@ -2008,9 +2011,8 @@ function ganBmResumo(it, ate) {
   if (estruturaMediaEmpresas) {
     const porEmpresa = new Map();
     ats.forEach(a => {
-      const emp = ganNorm(a.empresa);
-      if (!(emp === 'EJ' || emp === 'CMM')) return;
-      const o = porEmpresa.get(a.empresa) || { somaPesos: 0, pct: 0, ds: [] };
+      const o = porEmpresa.get(a.empresa) || { somaPesos: 0, pct: 0, ds: [], qtd: 0 };
+      o.qtd = Math.max(o.qtd, Number(a.qtd) || 0);   // vãos do contrato da empresa
       const peso = a.peso || 0;
       const real = bmRealizado(a, ate);
       const pctAtiv = a.qtd ? Math.min(1, Math.max(0, real / a.qtd)) : 0;
@@ -2020,9 +2022,10 @@ function ganBmResumo(it, ate) {
       porEmpresa.set(a.empresa, o);
     });
     const minhaE = window.USUARIO_RESTRITO ? normEmp(window.USUARIO_RESTRITO) : '';
-    const nomes = (obraLegada() ? ['EJ', 'CMM'] : empresasDaObra()).filter(n => !minhaE || n === minhaE);
-    const pcts = nomes.map(n => { const o = porEmpresa.get(n); return o && o.somaPesos ? o.pct / o.somaPesos : 0; });
-    const pct = Math.min(1, Math.max(0, soma0(pcts, x => x) / nomes.length));
+    // todas as empresas com o item no catálogo (EJ, CMM, Globo…), cada uma pesando pelos vãos do próprio contrato
+    const nomes = [...porEmpresa.keys()].filter(n => !minhaE || normEmp(n) === minhaE);
+    const pesoE = n => porEmpresa.get(n).qtd || 1, somaP = soma0(nomes, pesoE) || 1;
+    const pct = Math.min(1, Math.max(0, soma0(nomes, n => { const o = porEmpresa.get(n); return (o.somaPesos ? o.pct / o.somaPesos : 0) * pesoE(n); }) / somaP));
     const ds = [];
     const porEmp = [];
     porEmpresa.forEach((o, nome) => { if (o.ds.length) { const lista = o.ds.sort((a,b)=>a[0].localeCompare(b[0])); ds.push(...lista); porEmp.push({ nome, ds: lista }); } });
@@ -2130,7 +2133,7 @@ function ganApontResumo(it, ate) {
     if (ganNorm(a.tipo) !== 'FECHAMENTO' || !a.data || a.data > ate) return false;
     const emp = ganNorm(a.empresa), etapa = ganNorm(a.letra);
     if (serv === 'FECHAMENTO') return emp === 'GLOBO ACOS' && (!etapa || etapa.includes('TELHA') || etapa.includes('FECHAMENTO'));
-    return estrutura && (emp === 'EJ' || emp === 'CMM');
+    return estrutura;   // qualquer empresa que montou a estrutura do fechamento
   });
   if (!regs.length) return null;
   const empresas = new Map(), ds = [];

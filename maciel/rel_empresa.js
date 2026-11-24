@@ -754,6 +754,18 @@ function reMesclarBM(bs) {
     if (!o) { itens.set(it.item, { ...it, ats: [...it.ats], _ant: it.pctAnt * it.valor }); return; }
     o.valor += it.valor; o.medido += it.medido; o.medidoPer += it.medidoPer; o._ant += it.pctAnt * it.valor; o.ats.push(...it.ats);
   }));
+  // a mesma atividade em empresas diferentes (mesmo número do código, qualquer prefixo: EJ-, CMM-, GLO-, copiada…) vira uma linha só
+  const chaveAt = c => String(c || '').replace(/^[A-Za-z][A-Za-z0-9]*-(?=\d)/, '');
+  itens.forEach(o => {
+    const m = new Map();
+    o.ats.forEach(x => {
+      const k = chaveAt(x.a.codigo), y = m.get(k);
+      if (!y) { m.set(k, { ...x, a: { ...x.a }, _emps: [x.a.empresa] }); return; }
+      y.a.qtd = (Number(y.a.qtd) || 0) + (Number(x.a.qtd) || 0); y.real += x.real || 0; y.realPer += x.realPer || 0;
+      if (!y._emps.includes(x.a.empresa)) y._emps.push(x.a.empresa);
+    });
+    o.ats = [...m.values()].map(y => { if (y._emps.length > 1) { y.a.codigo = chaveAt(y.a.codigo) + ' · ' + y._emps.join(' + '); y.pct = y.a.qtd ? Math.min(1, y.real / y.a.qtd) : y.pct; } delete y._emps; return y; });
+  });
   const lista = [...itens.values()].map(o => { const pctAnt = o.valor ? o._ant / o.valor : 0, pct = o.valor ? o.medido / o.valor : 0; delete o._ant; return { ...o, pctAnt, pct, pctPer: pct - pctAnt }; });
   lista.sort((a, b) => String(a.item).localeCompare(String(b.item), 'pt-BR', { numeric: true }));
   const contrato = soma0(ok, b => b.contrato), acum = soma0(ok, b => b.acum), per = soma0(ok, b => b.per);
