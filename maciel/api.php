@@ -3381,9 +3381,23 @@ function fechamento_dividir_vaos(array $p, array $emm)
 {
     $e = $p['elev']; $novas = []; $cel = [];
     foreach ($p['celulas'] as $c) {
-        if (!preg_match('/^(\d{2})-(\d{2})$/', $c['trecho'], $m) || !isset($emm[$m[1] . 'a'], $emm[$m[1]], $emm[$m[2]])) { $novas[] = $c; continue; }
-        $meio = $m[1] . 'a';
-        foreach ([[$m[1], $meio], [$meio, $m[2]]] as [$a, $b]) {
+        // lados: 07-08 → 07, 07a, 08 · oitões: AB → A, A1, A2, A3, B (todos os pilares entre as duas estações)
+        if (preg_match('/^(\d{2})-(\d{2})$/', $c['trecho'], $m)) { $ini = $m[1]; $fim = $m[2]; $sep = '-'; }
+        elseif (preg_match('/^([A-Z])([A-Z])$/', $c['trecho'], $m)) { $ini = $m[1]; $fim = $m[2]; $sep = '-'; }
+        else { $novas[] = $c; continue; }
+        if (!isset($emm[$ini], $emm[$fim])) { $novas[] = $c; continue; }
+        $pil = [];
+        foreach ($emm as $n => $v) {
+            if ($v < $emm[$ini] || $v > $emm[$fim]) continue;
+            $temPilar = ($n === $ini || $n === $fim);   // intermediário só conta se há suporte de terça (ST) nele no IFC
+            foreach ($e['sup'] as $st) { if (abs($st[0] - $v) < 400) { $temPilar = true; break; } }
+            if ($temPilar) $pil[$n] = $v;
+        }
+        asort($pil); $pil = array_keys($pil);
+        if (count($pil) < 3) { $novas[] = $c; continue; }
+        $pares = [];
+        for ($i = 0; $i < count($pil) - 1; $i++) $pares[] = [(string)$pil[$i], (string)$pil[$i + 1]];
+        foreach ($pares as [$a, $b]) {
             $x0 = $emm[$a]; $x1 = $emm[$b];
             $nt = 0; $ne = 0;
             foreach ($e['tercas'] as $t) { $c0 = ($t[0] + $t[1]) / 2; if ($c0 > $x0 && $c0 < $x1) $nt++; }
@@ -3395,6 +3409,11 @@ function fechamento_dividir_vaos(array $p, array $emm)
     }
     $p['celulas'] = $novas;
     $p['elev']['cel'] = $cel + $e['cel'];
+    $p['elev']['eixos'] = array_values(array_filter($e['eixos'], function ($x) use ($e) {   // linha da malha sem pilar (sem ST) não é desenhada como pilar
+        if (!empty($x[2])) return true;
+        foreach ($e['sup'] as $st) { if (abs($st[0] - $x[1]) < 400) return true; }
+        return false;
+    }));
     $p['total'] = array_sum(array_column($novas, 'total'));
     return $p;
 }
@@ -3434,7 +3453,7 @@ function frentes_montagem()
             foreach ($d['frentes']['fechamento']['partes'] as &$pp) {
                 if (!isset($el[$pp['id']])) continue;
                 $pp['elev'] = $el[$pp['id']];
-                if (($pp['elev']['vista'] ?? '') === 'lateral') $pp = fechamento_dividir_vaos($pp, $emm);
+                $pp = fechamento_dividir_vaos($pp, ($pp['elev']['vista'] ?? '') === 'lateral' ? $emm : ($d['malha']['estacoes_mm'] ?? []));
             }
             unset($pp);
         }
