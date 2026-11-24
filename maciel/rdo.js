@@ -329,7 +329,7 @@ const RDO_CSS = `<style>
 // ---------------------------------------------------------------- mapas de montagem do dia
 // Três estados, sempre nas mesmas cores: FEITO NO DIA (verde), JÁ TINHA (azul: apontado antes do dia) e FALTA (rosa: ainda não apontado).
 const RDO_COR = { dia: '#16a34a', ant: '#60a5fa', antTr: '#2563eb', falta: '#fecaca', faltaTr: '#f87171' };
-const RDO_COR_MAPA = { forte: RDO_COR.dia, porEmp: false, ant: RDO_COR.ant, antTr: RDO_COR.antTr, pend: RDO_COR.falta, pendTr: RDO_COR.faltaTr };
+const RDO_COR_MAPA = { rotPer: 'no dia', forte: RDO_COR.dia, porEmp: false, ant: RDO_COR.ant, antTr: RDO_COR.antTr, pend: RDO_COR.falta, pendTr: RDO_COR.faltaTr };
 const rdoLegenda = (extra = '') => `<div class="rdo-leg"><span><i style="background:${RDO_COR.dia};border-color:#14202b"></i><b>Produção</b> (feito no dia)</span><span><i style="background:${RDO_COR.ant};border-color:${RDO_COR.antTr}"></i><b>Acumulado anterior</b> (apontado antes do dia)</span><span><i style="background:${RDO_COR.falta};border-color:${RDO_COR.faltaTr}"></i><b>Saldo</b> (ainda não apontado)</span>${extra}</div>`;
 const rdoBarraEmp = (n, tot) => tot > 0 ? `<div class="rdo-barra-emp" title="verde = produção do dia · azul = acumulado anterior · rosa = saldo"><i style="width:${n.ant / tot * 100}%;background:${RDO_COR.ant}"></i><i style="width:${n.per / tot * 100}%;background:${RDO_COR.dia}"></i></div>` : '';
 
@@ -357,7 +357,7 @@ function rdoMapasLegado(dia) {
   });
   if (m.fech) {
     linhas.push(rdoLinhaMapa('Fechamento lateral — estrutura (trechos)', m.fech.n));
-    figs.push(`<h3>Fechamento lateral — estrutura (terças e espaçadores)</h3><div class="mapa-fig">${m.fech.svg}</div><p class="nota">Cada célula é um trecho entre eixos (lados A e H) ou uma faixa do oitão (eixos 01 e 20).</p>`);
+    figs.push(`<h3>Fechamento lateral — estrutura (terças e espaçadores)</h3><div class="mapa-fig">${m.fech.svg}</div><p class="nota">${m.fech.elev ? 'Desenho do IFC: pilares dos eixos (linha cheia) e intermediários (tracejado), terças em azul, espaçadores em roxo e suportes de terça (ST) em laranja; cada vão é pintado pela situação do trecho.' : 'Cada célula é um trecho entre eixos (lados A e H) ou uma faixa do oitão (eixos 01 e 20).'}</p>`);
   }
   if (m.tfech) linhas.push(rdoLinhaMapa('Telhas do fechamento lateral (m²)', m.tfech.m2n, 'm²', 1));   // sem desenho: o resumo por parte fica no relatório das empresas
   const fora = m.foraMontagem && m.foraMontagem.length ? `<p class="nota"><b>${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s)</b> de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço ficam em cinza e fora dos totais.</p>` : '';

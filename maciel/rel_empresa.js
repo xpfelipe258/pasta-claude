@@ -558,10 +558,34 @@ function reTelhasFech(emp, ini, ate) {
 }
 
 // Fechamento lateral — estrutura (terças e espaçadores): uma célula por trecho, em cada parte (Lado A, Lado H, Oitão 01, Oitão 20)
+// mesma elevação do Apontar montagem (desenho do IFC: pilares, terças, espaçadores e ST), com cada vão pintado pela situação
+function reMapaFechElev(fr, feitas, emp, ini, cores, validas) {
+  const n = { per: 0, ant: 0, outra: 0, pend: 0 }, W = 1000, H = 90, mE = 8, mT = 16, mB = 20;
+  let svg = '';
+  const partes = fr.partes.filter(p => p.elev).map(p => {
+    const e = p.elev, o = { nome: p.nome, per: 0, ant: 0, outra: 0, pend: 0 };
+    const sx = W / (e.fim - e.ini), X = v => mE + (v - e.ini) * sx, Z = z => mT + (e.zmax - z) / ((e.zmax - e.zmin) || 1) * H;
+    let g = `<svg viewBox="0 0 ${W + mE * 2} ${H + mT + mB}" style="width:100%;height:auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(p.nome)}">`;
+    p.celulas.forEach(c => {
+      const r = e.cel[c.trecho]; if (!r) return;
+      const row = feitas.get(`${p.id}|${c.trecho}`), st = reEstadoPeca(row, emp, ini, validas);
+      o[st]++; n[st]++;
+      g += `<rect x="${X(r[0])}" y="${mT - 3}" width="${(r[1] - r[0]) * sx}" height="${H + 6}" ${rePinta(st, cores, row)} stroke-width="0.6"/>` + reTxt(X((r[0] + r[1]) / 2), H + mT + 15, c.trecho, 'text-anchor="middle" font-weight="700"');
+    });
+    e.eixos.forEach(([nm, v, pr]) => { g += `<line x1="${X(v)}" x2="${X(v)}" y1="${mT - 4}" y2="${mT + H + 3}" stroke="${pr ? '#344054' : '#98a2b3'}" stroke-width="${pr ? 1.6 : 0.8}" ${pr ? '' : 'stroke-dasharray="3 3"'}/>` + (pr ? reTxt(X(v), mT - 6, nm, 'text-anchor="middle" font-weight="700"') : ''); });
+    e.esp.forEach(([v, z1, z2]) => { g += `<line x1="${X(v)}" x2="${X(v)}" y1="${Z(z2)}" y2="${Z(z1)}" stroke="#7a5af8" stroke-width="0.5"/>`; });
+    e.tercas.forEach(([a, b, z]) => { g += `<line x1="${X(a)}" x2="${X(b)}" y1="${Z(z)}" y2="${Z(z)}" stroke="#0b6bcb" stroke-width="1.3"/>`; });
+    e.sup.forEach(([v, z]) => { g += `<rect x="${X(v) - 1.5}" y="${Z(z) - 1.5}" width="3" height="3" fill="#f79009"/>`; });
+    svg += `<p class="nota"><b>${esc(p.nome)}</b> — ${e.vista === 'frontal' ? 'vista frontal' : 'vista lateral'} · ${o.per} ${cores.rotPer || 'no período'} · ${o.ant} antes · ${o.pend} pendente(s) de ${p.celulas.length}</p>` + g + '</svg>';
+    return o;
+  });
+  return { svg, n, partes, total: soma0(fr.partes, p => p.celulas.length), elev: true };
+}
 function reMapaFech(emp, ini, cores, ate, validas) {
   const fr = ((window._frentes || {}).frentes || {}).fechamento;
   if (!fr || !(fr.partes || []).length) return null;
   const feitas = new Map(ate.filter(a => (a.tipo || '').toUpperCase() === 'FECHAMENTO').map(a => [`${a.faixa}|${a.rua}`, a]));
+  if (fr.partes.some(p => p.elev)) return reMapaFechElev(fr, feitas, emp, ini, cores, validas);
   const n = { per: 0, ant: 0, outra: 0, pend: 0 }, cw = 40, ch = 26, gap = 3, mEsq = 92, mTop = 8;
   const maxC = Math.max(...fr.partes.map(p => p.celulas.length));
   const larg = mEsq + maxC * (cw + gap) + 6, alt = mTop + fr.partes.length * (ch + 16) + 4;
