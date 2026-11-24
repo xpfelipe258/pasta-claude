@@ -4181,7 +4181,12 @@ const apEmpresas = ctx => {
   // também quem tem no catálogo do BM a atividade desse serviço (cadastrada ou copiada de outra empresa): entra como opção de quem montou
   const sufs = new Set(atvs.filter(a => a.controle && sv.has(ganNorm(a.controle))).map(a => suf(a.codigo)));
   sv.forEach(k => { if (k[0] === '#') sufs.add(k.slice(1)); });
-  const doCat = new Set(atvs.filter(a => (a.controle && sv.has(ganNorm(a.controle))) || sufs.has(suf(a.codigo))).map(a => a.empresa));
+  // e pelo nome da atividade no catálogo, conforme o mapa aberto
+  const anexo = /MARQUISE|ECLUSA|PORTARIA|REFEIT|VESTI|PASSARELA|VIVENCIA/;
+  const pNome = { fech: t => t.includes('FECHAMENTO LATERAL') && !t.includes('TELHA'), marq: t => t.includes('MARQUISE'), cont: t => t.includes('CONTRAVENT'),
+    tfech: t => t.includes('FECHAMENTO') && t.includes('TELHA'), telha: t => t.includes('TELHA') && !t.includes('FECHAMENTO'), perfil: t => t.includes('PERFILA'),
+    mapa: t => /JOIST|VIGA/.test(t) && !anexo.test(t), viga: t => /VIGA/.test(t) && !anexo.test(t) }[apEst.modo];
+  const doCat = new Set(atvs.filter(a => (a.controle && sv.has(ganNorm(a.controle))) || sufs.has(suf(a.codigo)) || (pNome && pNome(ganNorm((a.item_desc || '') + ' ' + (a.atividade || ''))))).map(a => a.empresa));
   return M.empresas.filter(e => base.includes(e) || doCat.has(e.nome));
 };
 const apEmpresasDe = servico => M.empresas.filter(e => e.servicos.some(s => s.nome === servico));

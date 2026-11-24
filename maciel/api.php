@@ -2932,6 +2932,9 @@ function soma_producao_atividade_bm($empresa, $servico)
 {
     $c = q('SELECT codigo FROM bm_atividades WHERE empresa = ? AND UPPER(controle) = UPPER(?) ORDER BY codigo', [$empresa, $servico])->fetchColumn();
     if ($c) return $c;
+    $ns = norm_sem_acento($servico);
+    // fechamento lateral (estrutura): a medição já é lançada nas atividades do item "Fechamento Lateral" (fechamento_bm_lancar)
+    if (strpos($ns, 'FECH') !== false && strpos($ns, 'ESTRUTURA') !== false && fechamento_bm_atividades($empresa)['vao']) return false;
     $sufs = [];
     foreach (q('SELECT codigo FROM bm_atividades WHERE UPPER(controle) = UPPER(?)', [$servico])->fetchAll(PDO::FETCH_COLUMN) as $o) $sufs[bm_copia_sufixo($o)] = 1;
     if (preg_match('/TELHA|PERFILA|^FECHAMENTO$/iu', (string)$servico)) {
@@ -2939,8 +2942,21 @@ function soma_producao_atividade_bm($empresa, $servico)
             if (q('SELECT 1 FROM bm_atividades WHERE empresa = ? AND codigo LIKE ?', [$empresa, '%-' . $t])->fetchColumn()) return false;
         }
     }
-    foreach (q('SELECT codigo FROM bm_atividades WHERE empresa = ? ORDER BY codigo', [$empresa])->fetchAll(PDO::FETCH_COLUMN) as $m) {
-        if (isset($sufs[bm_copia_sufixo($m)])) return $m;
+    $todas = q('SELECT codigo, item_desc, atividade FROM bm_atividades WHERE empresa = ? ORDER BY codigo', [$empresa])->fetchAll();
+    foreach ($todas as $m) {
+        if (isset($sufs[bm_copia_sufixo($m['codigo'])])) return $m['codigo'];
+    }
+    // pelo nome: a palavra principal do serviço (JOIST, VIGA, TERÇA…) e, se houver, a frente antes do "–" (MARQUISE…)
+    $partes = preg_split('/\s*[–-]\s+/u', $ns);
+    $frente = count($partes) > 1 ? substr(preg_replace('/[^A-Z]/', '', explode(' ', $partes[0])[0]), 0, 4) : '';
+    $pal = array_values(array_filter(preg_split('/[^A-Z]+/', end($partes)), function ($w) { return strlen($w) >= 4 && !in_array(substr($w, 0, 4), ['ICAM', 'MONT', 'INST', 'PREM'], true); }));
+    if (!$pal) return null;
+    $chave = substr(end($pal), 0, 4);
+    foreach ($todas as $m) {
+        $t = norm_sem_acento(($m['item_desc'] ?? '') . ' ' . ($m['atividade'] ?? ''));
+        if (strpos($t, $chave) === false) continue;
+        if ($frente !== '' ? strpos($t, $frente) === false : preg_match('/MARQUISE|ECLUSA|PORTARIA|REFEIT|VESTI|PASSARELA|VIVENCIA/', $t)) continue;
+        return $m['codigo'];
     }
     return null;
 }
