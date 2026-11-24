@@ -4796,6 +4796,7 @@ function apFrenteHtml(ctx) {
   const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
   const selLeg = apEmpresas(ctx).map(e => leg('joist sel', `selecionado ${esc(e.nome)}`, `--sel:${corSelEmp(e.nome)}`)).join('');
   if (apEst.modo === 'cont' && fr.elevacao) return apContravHtml(fr, feitas, selLeg);
+  if (apEst.modo === 'fech' && fr.partes.some(p => p.elev)) return apFechElevHtml(fr, feitas, etapa, selLeg, leg);
   let h = `<div class="ap-linha ap-mapa-barra">${barra}
     <span class="nota">${ehTF ? `${nf(nFeitas)} de ${nf(nTotal)} trechos · <b>${nf(telFeitas)} de ${nf(fr.total)} telhas</b> ≈ ${nf(telFeitas * m2TF, 1)} de ${nf(fr.total * m2TF, 1)} m² (${nf(fr.total ? telFeitas / fr.total * 100 : 0, 1)}%)` : `${nf(nFeitas)} de ${nf(nTotal)} trechos montados${etapa ? ' nesta etapa' : ''} · ${nf(fr.total)} peças no IFC`}</span>
     <div class="ap-legenda">${leg('joist feita', 'montado')}${leg('joist pend', 'pendente')}${selLeg}</div></div>
@@ -4822,6 +4823,45 @@ function apFrenteHtml(ctx) {
     (fr.por_eixo ? 'As vigas são identificadas pelo eixo do pilar, lado, TAG e GUID originais do IFC. ' : '') +
     (fr.servico || etapa ? `O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico))}</b> do controle de produção.` :
       'Esta frente não tem coluna no controle de produção: o apontamento serve de controle e não soma na produção.') + '</p>';
+  return h;
+}
+
+// Fechamento lateral — estrutura em ELEVAÇÃO (vista lateral nos lados A e H, vista frontal nos oitões), desenhada pelo IFC:
+// pilares dos eixos (cheios) e intermediários (tracejados), terças na altura real e espaçadores; cada vão entre eixos é um trecho clicável.
+const AP_FECH_W = { compacto: 1500, normal: 2600, grande: 4200 };
+function apFechElevSvg(p, feitas, etapa) {
+  const e = p.elev, W = AP_FECH_W[apEst.zoom] || AP_FECH_W.normal, H = 150, mE = 14, mT = 22, mB = 30;
+  const sx = W / (e.fim - e.ini), X = v => mE + (v - e.ini) * sx, Z = z => mT + (e.zmax - z) / ((e.zmax - e.zmin) || 1) * H;
+  let o = `<svg class="apf-elev" viewBox="0 0 ${W + mE * 2} ${H + mT + mB}" width="${W + mE * 2}" height="${H + mT + mB}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(p.nome)}">`;
+  p.celulas.forEach(c => {
+    const r = e.cel[c.trecho]; if (!r) return;
+    const k = `${p.id}|${c.trecho}|${etapa}`, feita = feitas.get(k), emp = apEst.frente.get(`FECHAMENTO|${k}`);
+    const cor = feita ? corSelEmp(feita.empresa || '') : emp ? corSelEmp(emp) : null;
+    const tit = `${p.nome} · trecho ${c.trecho} · ${c.total} peças${feita ? `\nMontado em ${fdA(feita.data)} (${feita.empresa || ''})` : emp ? `\nSelecionado: ${emp}` : '\nPendente: clique para selecionar'}`;
+    o += `<g ${feita ? '' : `data-ap-frente="${esc(k)}" tabindex="0" role="button" style="cursor:pointer"`}><title>${esc(tit)}</title>` +
+      `<rect x="${X(r[0])}" y="${mT - 4}" width="${(r[1] - r[0]) * sx}" height="${H + 8}" fill="${cor || '#ffffff'}" fill-opacity="${feita ? 0.55 : emp ? 0.35 : 0}" stroke="${emp ? '#14202b' : 'none'}" stroke-width="${emp ? 1.5 : 0}"/>` +
+      `<text x="${X((r[0] + r[1]) / 2)}" y="${H + mT + 22}" text-anchor="middle" font-size="11" font-weight="700" fill="#14202b">${esc(c.trecho)}</text></g>`;
+  });
+  e.eixos.forEach(([n, v, princ]) => { const x = X(v);
+    o += `<line x1="${x}" x2="${x}" y1="${mT - 8}" y2="${mT + H + 6}" stroke="${princ ? '#344054' : '#98a2b3'}" stroke-width="${princ ? 3 : 1.6}" ${princ ? '' : 'stroke-dasharray="5 4"'} pointer-events="none"/>` +
+      `<text x="${x}" y="${mT - 11}" text-anchor="middle" font-size="${princ ? 11 : 9}" font-weight="${princ ? 700 : 400}" fill="${princ ? '#14202b' : '#667085'}" pointer-events="none">${esc(n)}</text>`; });
+  e.esp.forEach(([v, z1, z2]) => { o += `<line x1="${X(v)}" x2="${X(v)}" y1="${Z(z2)}" y2="${Z(z1)}" stroke="#7a5af8" stroke-width="1" pointer-events="none"/>`; });
+  e.tercas.forEach(([a, b, z]) => { o += `<line x1="${X(a)}" x2="${X(b)}" y1="${Z(z)}" y2="${Z(z)}" stroke="#0b6bcb" stroke-width="2.2" pointer-events="none"/>`; });
+  e.sup.forEach(([v, z]) => { o += `<rect x="${X(v) - 2.5}" y="${Z(z) - 2.5}" width="5" height="5" fill="#f79009" pointer-events="none"/>`; });
+  return o + '</svg>';
+}
+function apFechElevHtml(fr, feitas, etapa, selLeg, leg) {
+  const nFeitas = fr.partes.reduce((n, p) => n + p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length, 0), nTotal = fr.partes.reduce((n, p) => n + p.celulas.length, 0);
+  const zoom = `<div class="seg">${[['compacto', 'Compacto'], ['normal', 'Normal'], ['grande', 'Grande']].map(([k, v]) => `<button type="button" class="${(apEst.zoom || 'normal') === k ? 'ativa' : ''}" data-ap-zoom="${k}">${v}</button>`).join('')}</div>`;
+  const l = (cor, txt, tr) => `<span><i class="apm-leg" style="background:${tr ? 'none' : cor};border:${tr ? `2px ${tr} ${cor}` : `1px solid ${cor}`}"></i>${txt}</span>`;
+  let h = `<div class="ap-linha ap-mapa-barra">${zoom}<span class="nota">${nf(nFeitas)} de ${nf(nTotal)} trechos montados · ${nf(fr.total)} peças no IFC</span>
+    <div class="ap-legenda">${l('#0b6bcb', 'terça')}${l('#7a5af8', 'espaçador')}${l('#f79009', 'suporte de terça (ST)')}${l('#344054', 'pilar do eixo', 'solid')}${l('#98a2b3', 'pilar intermediário', 'dashed')}${leg('joist feita', 'montado')}${selLeg}</div></div>`;
+  fr.partes.forEach(p => {
+    if (!p.elev) return;
+    const fp = p.celulas.filter(c => feitas.has(`${p.id}|${c.trecho}|${etapa}`)).length;
+    h += `<h3 class="apf-elev-tit">${esc(p.nome)} <span class="nota">${p.elev.vista === 'frontal' ? 'vista frontal (oitão)' : 'vista lateral'} · ${fp}/${p.celulas.length} trechos · ${nf(p.total)} peças</span></h3><div class="tabela-rolagem apm-caixa">${apFechElevSvg(p, feitas, etapa)}</div>`;
+  });
+  h += `<p class="nota">Desenho do IFC do galpão: cada linha azul é uma terça na altura real, entre os pilares dos eixos (linha cheia) e os pilares intermediários (tracejada). Clique no vão para selecionar o trecho; a telha do fechamento é apontada pela Globo Aços em "Telhas de fechamento". Ao apontar, baixam do estoque as terças, os espaçadores e os suportes de terça (ST). O apontamento soma no serviço <b>${esc(cap(etapa || fr.servico || ''))}</b> do controle de produção.</p>`;
   return h;
 }
 

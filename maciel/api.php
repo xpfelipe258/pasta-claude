@@ -3402,6 +3402,15 @@ function frentes_montagem()
     }
     if (!empty($d['frentes']['fechamento'])) {   // regra do sistema: o mapa da estrutura do fechamento lateral NÃO leva telha (a telha é da Globo Aços, apontada em "Telhas de fechamento")
         $d['frentes']['fechamento'] = frente_fechamento_sem_telha($d['frentes']['fechamento']);
+        // desenho em elevação lido do IFC do galpão (terças, espaçadores, suportes e pilares): só para a malha desse galpão
+        $pe = __DIR__ . '/inc/fechamento_elevacao.json';
+        if (is_file($pe) && (int)($d['malha']['comprimento_mm'] ?? 0) === 427500) {
+            $el = json_decode(file_get_contents($pe), true) ?: [];
+            foreach ($d['frentes']['fechamento']['partes'] as &$pp) {
+                if (isset($el[$pp['id']])) $pp['elev'] = $el[$pp['id']];
+            }
+            unset($pp);
+        }
     }
     require_once __DIR__ . '/inc/marquise_mapa.php';
     return frente_contraventamento_g200(marquise_mapa_etapas($d));
