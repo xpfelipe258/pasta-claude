@@ -4916,7 +4916,11 @@ function apGeralHtml() {
     lin(rot, t.n.per + t.n.ant + t.n.outra, t.total);
     fig(rot + ' (do eixo 01 ao 20)', t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p>${f.svg}`).join(''), `Cada faixa é ${u === 'telha(s)' ? 'uma telha' : 'uma fiada de perfilagem'} (${nf(t.m2, 2)} m²).`);
   });
-  if (m.tfech) lin('Telhas do fechamento lateral', m.tfech.n.per + m.tfech.n.ant + m.tfech.n.outra, m.tfech.total);
+  if (m.tfech) {
+    lin('Telhas do fechamento lateral', m.tfech.n.per + m.tfech.n.ant + m.tfech.n.outra, m.tfech.total);
+    const ftf = (window._frentes.frentes || {}).telha_fechamento;
+    if (ftf) fig('Telhas do fechamento lateral (lados A e H e oitões 01 e 20, em elevação)', apTFechSvg(ftf), 'Cada faixa é uma telha; colorida = instalada (cor da empresa), cinza = pendente. O número embaixo de cada trecho é instaladas / total.');
+  }
   const emps = [...new Set((T.apontamentos || []).map(a => a.empresa).filter(Boolean))];
   const sw = c => `<i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;background:${c};border:1px solid #94a3b8"></i>`;
   const leg = emps.map(e => `<span>${sw(corE(e))}${esc(e)}</span>`).join('') + `<span>${sw('#fff')}pendente</span>`;
