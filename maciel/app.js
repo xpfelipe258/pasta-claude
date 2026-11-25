@@ -4628,7 +4628,7 @@ function svgComEstilos(html) {
 function apVistaRel(modo, ate, gerar) {
   const sv = { modo: apEst.modo, zoom: apEst.zoom, frente: apEst.frente }, todos = T.apontamentos;
   try {
-    apEst.modo = modo; apEst.zoom = 'compacto'; apEst.frente = new Map();
+    apEst.modo = modo; apEst.zoom = ['compacto', 'normal', 'grande'].includes(sv.zoom) ? sv.zoom : 'normal'; apEst.frente = new Map();   // mesma escala escolhida no Apontar montagem (padrão: Normal)
     if (ate) T.apontamentos = (todos || []).filter(a => !a.data || a.data <= ate);
     const fr = apFrenteAtual(); return fr ? svgComEstilos(gerar(fr)) : '';
   } catch (e) { console.error('vista do apontamento no relatório', e); return ''; }
