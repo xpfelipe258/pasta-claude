@@ -4958,6 +4958,16 @@ function axAtividades(predio) {   // atividades do catálogo do BM ligadas ao pr
   const ats = bmTab('bm_atividades').filter(a => ganNorm((a.item_desc || '') + ' ' + (a.atividade || '')).includes(k));
   return (ats.length ? ats : bmTab('bm_atividades')).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt', { numeric: true }));
 }
+// atividade de cada peça pelo IFC: vínculo confirmado em Suprimentos › Vínculos (produto + prédio) ou a sugestão automática da mesma tela
+function axChaveSugerida(produto, predio) {
+  if (typeof vcSugerir !== 'function') return '';
+  const up = s => String(s || '').toUpperCase(), d = (M && M.vinculos_material) || {};
+  const dec = d[`${up(produto)}|${predio}`] || d[`${up(produto)}|${up(predio)}`];
+  if (dec && dec.estado === 'confirmado' && dec.atividade) return dec.atividade;
+  const cat = new Map(bmTab('bm_atividades').map(a => [vcChaveAtiv(a.codigo), a]));
+  const sg = vcSugerir(up(produto), predio, cat);
+  return sg ? sg.key : '';
+}
 function apAnexHtml() {
   const d = axCarregar();
   if (!d) return '<p class="vazio">Carregando o mapa dos anexos (IFC)…</p>';
@@ -4967,7 +4977,12 @@ function apAnexHtml() {
   const doPredio = d.pecas.filter(p => p[0] === AX.predio), produtos = [...new Set(doPredio.map(p => p[1]))].sort();
   if (AX.produto && !produtos.includes(AX.produto)) AX.produto = '';
   const vis = doPredio.filter(p => !AX.produto || p[1] === AX.produto), feitas = axFeitas(), m3 = axDo3d();
-  const ats = axAtividades(AX.predio); if (!ats.some(a => a.codigo === AX.atividade)) AX.atividade = ats[0]?.codigo || '';
+  let ats = axAtividades(AX.predio);
+  const chaveIfc = AX.produto ? axChaveSugerida(AX.produto, AX.predio) : '';
+  const sugeridas = chaveIfc ? bmTab('bm_atividades').filter(a => vcChaveAtiv(a.codigo) === chaveIfc) : [];
+  if (sugeridas.length) ats = [...sugeridas, ...ats.filter(a => !sugeridas.includes(a))];
+  if (!AX.ativManual && sugeridas.length) AX.atividade = sugeridas[0].codigo;
+  if (!ats.some(a => a.codigo === AX.atividade)) AX.atividade = ats[0]?.codigo || '';
   const at = ats.find(a => a.codigo === AX.atividade);
   const nF = doPredio.filter(p => feitas.has(p[7]) || m3[p[7]]).length;
   const emps = [...new Set([...feitas.values()].map(a => a.empresa))];
@@ -4976,7 +4991,7 @@ function apAnexHtml() {
   return `<div class="ap-linha ap-mapa-barra">
       <div class="seg">${predios.map(n => `<button type="button" class="${n === AX.predio ? 'ativa' : ''}" data-ax-predio="${esc(n)}">${esc(n)}</button>`).join('')}</div>
       <label class="rot-sel">Produto <select data-ax-produto><option value="">Todos (${nf(doPredio.length)})</option>${produtos.map(n => `<option ${n === AX.produto ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
-      <label class="rot-sel">Atividade do BM <select data-ax-ativ>${ats.map(a => `<option value="${esc(a.codigo)}" ${a.codigo === AX.atividade ? 'selected' : ''}>${esc(a.codigo)} · ${esc(a.atividade)} · ${esc(a.empresa)}</option>`).join('')}</select></label>
+      <label class="rot-sel">Atividade do BM <select data-ax-ativ>${ats.map(a => `<option value="${esc(a.codigo)}" ${a.codigo === AX.atividade ? 'selected' : ''}>${esc(a.codigo)} · ${esc(a.atividade)} · ${esc(a.empresa)}${sugeridas.includes(a) ? ' · sugerida pelo IFC' : ''}</option>`).join('')}</select></label>
     </div>
     <div class="ap-linha"><span class="nota"><b>${nf(nF)} de ${nf(doPredio.length)}</b> peças montadas em ${esc(AX.predio)} · ${nf(AX.sel.size)} selecionada(s)${at ? ` · lança em <b>${esc(at.atividade)}</b> (${esc(at.empresa)}, ${esc(at.unidade || '')})` : ''}</span>
       <button type="button" class="btn" data-ax-todas ${pend.length ? '' : 'disabled'}>Selecionar pendentes visíveis (${nf(pend.length)})</button>
@@ -4984,12 +4999,14 @@ function apAnexHtml() {
       <button type="button" class="btn primario" data-ax-salvar ${AX.sel.size && at ? '' : 'disabled'}>Salvar apontamento (${nf(AX.sel.size)})</button>
       <div class="ap-legenda">${emps.map(e => `<span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:${corE(e)}"></i>${esc(e)}</span>`).join('')}<span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:#f59e0b"></i>selecionada</span><span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:#cbd5e1"></i>pendente</span></div></div>
     <div class="tabela-rolagem apm-caixa">${axSvg(AX.predio, vis, feitas, AX.sel, true, corE, 1100, AX.produto ? doPredio.filter(p => p[1] !== AX.produto) : null)}</div>
-    <p class="nota">Planta do IFC do prédio (vista de cima): cada retângulo é uma peça montável (viga, terça, joist, telha…). Clique para selecionar; a empresa e a unidade vêm da atividade escolhida. A peça apontada aparece também no mapa geral, no RDO e no Modelo 3D; as peças marcadas como içadas/torqueadas no Modelo 3D aparecem aqui como montadas.</p>`;
+    <p class="nota">Planta do IFC do prédio (vista de cima): cada retângulo é uma peça montável (viga, terça, joist, telha…). Escolha o produto: a atividade vem sozinha pelo vínculo do IFC (Suprimentos › Vínculos), e pode ser trocada. Clique para selecionar; a empresa e a unidade vêm da atividade. A peça apontada aparece também no mapa geral, no RDO e no Modelo 3D; as peças marcadas como içadas/torqueadas no Modelo 3D aparecem aqui como montadas.</p>`;
 }
 const APG_PAL = ['#16a34a', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
 function apgCorEmp(e, lista) { if (COR_EMP[e]) return corEmpHex(e); const l = [...new Set([...(lista || []), ...(T.apontamentos || []).map(a => a.empresa).filter(Boolean)])].sort(); return APG_PAL[Math.max(0, l.indexOf(e)) % APG_PAL.length]; }
 async function axSalvar() {
   const pecas = [...AX.sel].map(guid => ({ guid }));
+  const prods = new Set(AX.dados.pecas.filter(p => AX.sel.has(p[7])).map(p => p[1]));
+  if (prods.size > 1 && !confirm(`A seleção tem ${prods.size} produtos diferentes (${[...prods].join(', ')}) e todas vão para a mesma atividade. Para usar a atividade de cada produto pelo IFC, filtre por produto. Continuar assim?`)) return;
   try {
     const r = await postar(API + 'apontamento-pecas', { anexos: true, data: apEst.data, atividade: AX.atividade, pecas, lanca_producao: !apEst.regular, obs: ($('#apObs')?.value || '').trim() || null });
     AX.sel = new Set(); await carregar(); toast(`${nf(r.salvos)} peça(s) apontada(s) · ${r.empresa} · ${nf(r.quantidade)} ${r.unidade || ''}`);
@@ -5533,8 +5550,8 @@ function ligarApontamento() {
     }
   });
   sec.addEventListener('change', ev => {
-    if (ev.target.matches('[data-ax-produto]')) { AX.produto = ev.target.value; return renderApont(); }
-    if (ev.target.matches('[data-ax-ativ]')) { AX.atividade = ev.target.value; return renderApont(); }
+    if (ev.target.matches('[data-ax-produto]')) { AX.produto = ev.target.value; AX.ativManual = false; AX.sel = new Set(); return renderApont(); }
+    if (ev.target.matches('[data-ax-ativ]')) { AX.atividade = ev.target.value; AX.ativManual = true; return renderApont(); }
     const id = ev.target.id;
     if (ev.target.dataset.apDef) {
       apDef[ev.target.dataset.apDef] = ev.target.value;
