@@ -87,6 +87,18 @@ try {
             }
             responder_json(200, $d);
         }
+        if ($rota === 'anexos-mapa') {   // planta dos anexos (peças do IFC) para o Apontar montagem
+            $d = anexos_mapa();
+            if ($d === null) responder_json(404, ['erro' => 'Esta obra não tem o mapa dos anexos.']);
+            $d['m3d'] = [];   // peças marcadas como içadas no Modelo 3D (mesmo GUID do IFC) contam como montadas no mapa
+            try {
+                $gs = array_flip(array_column($d['pecas'], 7));
+                foreach (q("SELECT guid, data, empresa FROM m3d_apontamentos WHERE etapa = 'icada' ORDER BY data")->fetchAll() as $r) {
+                    if (isset($gs[$r['guid']]) && !isset($d['m3d'][$r['guid']])) $d['m3d'][$r['guid']] = ['data' => $r['data'], 'empresa' => $r['empresa'] ?: '3D'];
+                }
+            } catch (Throwable $e) { }
+            responder_json(200, $d);
+        }
         if ($rota === 'parafusos-locais') {
             $d = dado_json_da_obra('ifc_parafusos_locais', 'ifc_parafusos_locais.json');
             if ($d === null) {
@@ -3637,9 +3649,22 @@ function acao_mapa_obra_atualizar(array $corpo, array $usuario)
     }
 }
 
+// Mapa dos anexos da G200 (Portaria, Eclusa, Refeitório, Vestiário): peças do IFC com posição em planta (ferramentas/anexos_mapa.py).
+function anexos_mapa()
+{
+    $salvo = json_decode((string)sistema_ler('anexos_mapa', 'null'), true);
+    if (is_array($salvo)) return $salvo;
+    $p = __DIR__ . '/inc/anexos_mapa.json';
+    if (sistema_ler('dados_legados', '0') !== '1' && (int)((frentes_montagem()['malha']['comprimento_mm'] ?? 0)) !== 427500) return null;
+    return is_file($p) ? json_decode(file_get_contents($p), true) : null;
+}
 function acao_apontamento_pecas(array $corpo, array $usuario)
 {
     $mapa = json_decode((string)sistema_ler('frentes_montagem_obra', 'null'), true);
+    if (!is_array($mapa) && !empty($corpo['anexos'])) {   // anexos da G200: mesmo apontamento por peça (GUID do IFC), com a atividade escolhida
+        $ax = anexos_mapa();
+        $mapa = $ax ? ['versao' => 1, 'pecas' => $ax['pecas']] : null;
+    }
     if (!is_array($mapa)) {
         throw new ErroValidacao('Esta obra não tem o mapa de peças (vem da importação automática).');
     }

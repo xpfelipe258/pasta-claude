@@ -4892,6 +4892,15 @@ function apGeralHtml() {
   }
   if (m.contrav) { lin('Contraventamento (kits)', m.cont.feitas, m.cont.total); fig('Contraventamento — vista elevada', m.contrav.svg, 'Cada X é um kit de contraventamento.'); }
   if (m.fech) { const f = m.fech.n; lin('Fechamento lateral — estrutura (trechos)', f.per + f.ant + f.outra, m.fech.total); fig('Fechamento lateral — estrutura (lados A e H em vista lateral, oitões 01 e 20 em vista frontal)', m.fech.svg); }
+  const ax = axCarregar();   // anexos (Portaria, Eclusa, Refeitório, Vestiário): planta do IFC por prédio
+  if (ax && ax.predios) {
+    const fx = axFeitas(), m3 = axDo3d(), emA = [...new Set([...fx.values()].map(a => a.empresa))];
+    Object.keys(ax.predios).forEach(pr => {
+      const ps = ax.pecas.filter(p => p[0] === pr), nF = ps.filter(p => fx.has(p[7]) || m3[p[7]]).length;
+      lin(`Anexo ${pr} (peças)`, nF, ps.length);
+      fig(`Anexo ${pr} — planta (peças do IFC)`, axSvg(pr, ps, fx, null, false, e => apgCorEmp(e, emA), 1000));
+    });
+  }
   const fr = (window._frentes.frentes || {}).marquise;
   if (fr && fr.partes) {   // marquise: trechos apontados (qualquer etapa) por parte
     const feitas = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'MARQUISE' && (!a.data || a.data <= ate)).map(a => `${a.faixa}|${a.rua}`));
@@ -4916,8 +4925,80 @@ function apGeralHtml() {
     ${figs.join('')}`;
 }
 
+// ---- Anexos da G200 (Portaria, Eclusa, Refeitório, Vestiário): planta do prédio com cada peça montável do IFC, clicável.
+// O apontamento é por peça (GUID) numa atividade do catálogo do BM (rota apontamento-pecas): a peça fica montada aqui, no mapa geral, no RDO e no Modelo 3D.
+const AX = { dados: null, pend: null, predio: '', produto: '', atividade: '', sel: new Set(), zoom: 1 };
+function axCarregar() {
+  if (AX.dados || AX.pend) return AX.dados;
+  AX.pend = fetch(API + 'anexos-mapa', { cache: 'no-store' }).then(r => r.ok ? r.json() : { pecas: [], predios: {} }).catch(() => ({ pecas: [], predios: {} }))
+    .then(j => { AX.dados = j; AX.pend = null; if (apEst.modo === 'anex' || apEst.modo === 'geral') renderApont(); });
+  return null;
+}
+const axFeitas = () => { const m = new Map(); (T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').forEach(a => { if (!m.has(a.letra)) m.set(a.letra, a); }); return m; };
+// 3D: peças marcadas como içadas/torqueadas no Modelo 3D também contam como montadas (M.m3d_montadas: guid → {data, empresa})
+const axDo3d = () => (AX.dados && AX.dados.m3d) || {};
+function axSvg(predio, pecas, feitas, sel, interativo, corE, W = 1100, contexto = null) {
+  const b = AX.dados.predios[predio]; if (!b) return '';
+  const dx = (b.x1 - b.x0) || 1, dy = (b.y1 - b.y0) || 1, H = Math.max(260, Math.min(900, W * dy / dx)), sc = Math.min((W - 20) / dx, (H - 20) / dy);
+  const X = x => 10 + (x - b.x0) * sc, Y = y => H - 10 - (y - b.y0) * sc, m3 = axDo3d();
+  let o = `<svg class="ax-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(predio)}"><rect width="${W}" height="${H}" fill="#fbfcfe"/>`;
+  if (contexto) contexto.forEach(p => { o += `<rect x="${X(p[3])}" y="${Y(p[6])}" width="${Math.max(1, (p[5] - p[3]) * sc)}" height="${Math.max(1, (p[6] - p[4]) * sc)}" fill="none" stroke="#cbd5e1" stroke-width="0.4" pointer-events="none"/>`; });   // demais peças do prédio, só de referência
+  pecas.slice().sort((p, q) => (q[5] - q[3]) * (q[6] - q[4]) - (p[5] - p[3]) * (p[6] - p[4])).forEach(p => {
+    const f = feitas.get(p[7]) || (m3[p[7]] ? { empresa: m3[p[7]].empresa || '3D', data: m3[p[7]].data, de3d: true } : null), s = sel && sel.has(p[7]);
+    const w = Math.max(2, (p[5] - p[3]) * sc), h = Math.max(2, (p[6] - p[4]) * sc);
+    const fundo = /TELHA|RUFO|CALHA/.test(p[1]);   // telhas e calhas ficam claras, por baixo da estrutura
+    const cor = s ? '#f59e0b' : f ? corE(f.empresa) : fundo ? '#eef2f7' : '#94a3b8';
+    const tit = `${p[2] || p[1]} · ${p[1]}${p[10] ? ' · ' + p[10] : ''}${f ? `\nMontada em ${fdA(f.data)} (${f.empresa})${f.de3d ? ' — marcada no Modelo 3D' : ''}` : interativo ? '\nPendente: clique para selecionar' : '\nPendente'}`;
+    o += `<rect x="${X(p[3])}" y="${Y(p[6])}" width="${w}" height="${h}" fill="${cor}" fill-opacity="${f || s ? 0.85 : fundo ? 0.9 : 0.75}" stroke="${s ? '#92400e' : f ? '#14202b' : fundo ? '#d5dce6' : '#475569'}" stroke-width="${s ? 1.4 : fundo ? 0.3 : 0.6}" ${interativo && !f ? `data-ax-guid="${esc(p[7])}" style="cursor:pointer"` : ''}><title>${esc(tit)}</title></rect>`;
+  });
+  return o + '</svg>';
+}
+function axAtividades(predio) {   // atividades do catálogo do BM ligadas ao prédio (pelo nome do item) — de qualquer empresa
+  const k = ganNorm(predio).replace('ECLUSA', 'ECLUSA');
+  const ats = bmTab('bm_atividades').filter(a => ganNorm((a.item_desc || '') + ' ' + (a.atividade || '')).includes(k));
+  return (ats.length ? ats : bmTab('bm_atividades')).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt', { numeric: true }));
+}
+function apAnexHtml() {
+  const d = axCarregar();
+  if (!d) return '<p class="vazio">Carregando o mapa dos anexos (IFC)…</p>';
+  const predios = Object.keys(d.predios || {});
+  if (!predios.length) return '<p class="vazio">Esta obra não tem o mapa dos anexos.</p>';
+  if (!predios.includes(AX.predio)) { AX.predio = predios[0]; AX.produto = ''; AX.sel = new Set(); }
+  const doPredio = d.pecas.filter(p => p[0] === AX.predio), produtos = [...new Set(doPredio.map(p => p[1]))].sort();
+  if (AX.produto && !produtos.includes(AX.produto)) AX.produto = '';
+  const vis = doPredio.filter(p => !AX.produto || p[1] === AX.produto), feitas = axFeitas(), m3 = axDo3d();
+  const ats = axAtividades(AX.predio); if (!ats.some(a => a.codigo === AX.atividade)) AX.atividade = ats[0]?.codigo || '';
+  const at = ats.find(a => a.codigo === AX.atividade);
+  const nF = doPredio.filter(p => feitas.has(p[7]) || m3[p[7]]).length;
+  const emps = [...new Set([...feitas.values()].map(a => a.empresa))];
+  const corE = e => apgCorEmp(e, emps);
+  const pend = vis.filter(p => !feitas.has(p[7]) && !m3[p[7]]);
+  return `<div class="ap-linha ap-mapa-barra">
+      <div class="seg">${predios.map(n => `<button type="button" class="${n === AX.predio ? 'ativa' : ''}" data-ax-predio="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <label class="rot-sel">Produto <select data-ax-produto><option value="">Todos (${nf(doPredio.length)})</option>${produtos.map(n => `<option ${n === AX.produto ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+      <label class="rot-sel">Atividade do BM <select data-ax-ativ>${ats.map(a => `<option value="${esc(a.codigo)}" ${a.codigo === AX.atividade ? 'selected' : ''}>${esc(a.codigo)} · ${esc(a.atividade)} · ${esc(a.empresa)}</option>`).join('')}</select></label>
+    </div>
+    <div class="ap-linha"><span class="nota"><b>${nf(nF)} de ${nf(doPredio.length)}</b> peças montadas em ${esc(AX.predio)} · ${nf(AX.sel.size)} selecionada(s)${at ? ` · lança em <b>${esc(at.atividade)}</b> (${esc(at.empresa)}, ${esc(at.unidade || '')})` : ''}</span>
+      <button type="button" class="btn" data-ax-todas ${pend.length ? '' : 'disabled'}>Selecionar pendentes visíveis (${nf(pend.length)})</button>
+      <button type="button" class="btn" data-ax-limpar ${AX.sel.size ? '' : 'disabled'}>Limpar</button>
+      <button type="button" class="btn primario" data-ax-salvar ${AX.sel.size && at ? '' : 'disabled'}>Salvar apontamento (${nf(AX.sel.size)})</button>
+      <div class="ap-legenda">${emps.map(e => `<span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:${corE(e)}"></i>${esc(e)}</span>`).join('')}<span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:#f59e0b"></i>selecionada</span><span><i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;background:#cbd5e1"></i>pendente</span></div></div>
+    <div class="tabela-rolagem apm-caixa">${axSvg(AX.predio, vis, feitas, AX.sel, true, corE, 1100, AX.produto ? doPredio.filter(p => p[1] !== AX.produto) : null)}</div>
+    <p class="nota">Planta do IFC do prédio (vista de cima): cada retângulo é uma peça montável (viga, terça, joist, telha…). Clique para selecionar; a empresa e a unidade vêm da atividade escolhida. A peça apontada aparece também no mapa geral, no RDO e no Modelo 3D; as peças marcadas como içadas/torqueadas no Modelo 3D aparecem aqui como montadas.</p>`;
+}
+const APG_PAL = ['#16a34a', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
+function apgCorEmp(e, lista) { if (COR_EMP[e]) return corEmpHex(e); const l = [...new Set([...(lista || []), ...(T.apontamentos || []).map(a => a.empresa).filter(Boolean)])].sort(); return APG_PAL[Math.max(0, l.indexOf(e)) % APG_PAL.length]; }
+async function axSalvar() {
+  const pecas = [...AX.sel].map(guid => ({ guid }));
+  try {
+    const r = await postar(API + 'apontamento-pecas', { anexos: true, data: apEst.data, atividade: AX.atividade, pecas, lanca_producao: !apEst.regular, obs: ($('#apObs')?.value || '').trim() || null });
+    AX.sel = new Set(); await carregar(); toast(`${nf(r.salvos)} peça(s) apontada(s) · ${r.empresa} · ${nf(r.quantidade)} ${r.unidade || ''}`);
+  } catch (err) { toast(err.message, true); }
+}
+
 function apMapaHtml(ctx) {
   if (apEst.modo === 'geral') return apGeralHtml();
+  if (apEst.modo === 'anex') return apAnexHtml();
   if (apEst.modo in AP_FRENTE) return apFrenteHtml(ctx);
   if (apEst.modo === 'mapa') {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
@@ -5041,7 +5122,7 @@ function apDefHtml(ctx) {
 }
 const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a.qtd || 0), 0); return `${nf(n)} ${apDef.tipo === 'VIGA' ? 'viga(s)' : 'joist(s)'} nessa região`; };
 
-const AP_MODOS = [['geral', 'Mapa geral (todas)'], ['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
+const AP_MODOS = [['geral', 'Mapa geral (todas)'], ['mapa', 'Mapa (clicar)'], ['anex', 'Anexos (peças)'], ['viga', 'Digitar vigas'],
   ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']];
 function renderApont() {
   if (!M) return;
@@ -5074,7 +5155,8 @@ function renderApont() {
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
   const fr = apFrenteAtual();
-  $('#apMapaTit').textContent = apEst.modo === 'geral' ? 'Mapa geral — tudo o que já foi apontado, por atividade e por vista'
+  $('#apMapaTit').textContent = apEst.modo === 'anex' ? 'Anexos — planta de cada prédio com as peças do IFC (clique para selecionar)'
+    : apEst.modo === 'geral' ? 'Mapa geral — tudo o que já foi apontado, por atividade e por vista'
     : apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
     : apEst.modo === 'viga' ? 'Situação das vigas (eixo × letra)'
     : (fr ? fr.titulo + ' (clique para selecionar)' : 'Carregando o mapa do IFC…');
@@ -5166,11 +5248,19 @@ function apHistMarcar(linhas, marcar) {
   linhas.forEach(c => { c.checked = marcar; c.closest('tr').classList.toggle('ap-hist-sel', marcar); if (marcar) apEst.histSel.add(c.dataset.apHistSel); else apEst.histSel.delete(c.dataset.apHistSel); });
   apHistBarra(apEst.histTotal, document.querySelectorAll('#tabApHist [data-ap-hist-sel]').length);
 }
+// peças apontadas por GUID (anexos) voltam pela rota de peças; as demais pela rota do mapa
+async function apExcluirLinhas(linhas) {
+  const ehPeca = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'PECA').map(a => a.linha));
+  const pecas = linhas.filter(l => ehPeca.has(l)), outras = linhas.filter(l => !ehPeca.has(l));
+  if (pecas.length) await postar(API + 'apontamento-pecas', { excluir: true, linhas: pecas, anexos: true });
+  if (outras.length === 1) await postar(API + 'apontamento', { excluir: true, linha: outras[0] });
+  else if (outras.length) await postar(API + 'apontamento', { excluir: true, linhas: outras });
+}
 async function apHistExcluir(btn) {
   const linhas = [...apEst.histSel].map(Number);
   if (!linhas.length) return;
   if (!btn.dataset.confirmar) { btn.dataset.confirmar = '1'; btn.textContent = `Confirmar exclusão de ${nf(linhas.length)}`; return; }
-  try { await postar(API + 'apontamento', { excluir: true, linhas }); apEst.histSel = new Set(); await carregar(); toast(`${nf(linhas.length)} apontamento(s) excluído(s) e produção ajustada`); }
+  try { await apExcluirLinhas(linhas); apEst.histSel = new Set(); await carregar(); toast(`${nf(linhas.length)} apontamento(s) excluído(s) e produção ajustada`); }
   catch (err) { toast(err.message, true); }
 }
 
@@ -5374,6 +5464,13 @@ function ligarApontamento() {
       });
       return apcRenderSelecao();
     }
+    const axg = ev.target.closest('[data-ax-guid]');
+    if (axg) { const g = axg.dataset.axGuid; if (AX.sel.has(g)) AX.sel.delete(g); else AX.sel.add(g); return renderApont(); }
+    const axp = ev.target.closest('[data-ax-predio]');
+    if (axp) { AX.predio = axp.dataset.axPredio; AX.produto = ''; AX.sel = new Set(); return renderApont(); }
+    if (ev.target.closest('[data-ax-todas]')) { const d = AX.dados, f = axFeitas(), m3 = axDo3d(); d.pecas.filter(p => p[0] === AX.predio && (!AX.produto || p[1] === AX.produto) && !f.has(p[7]) && !m3[p[7]]).forEach(p => AX.sel.add(p[7])); return renderApont(); }
+    if (ev.target.closest('[data-ax-limpar]')) { AX.sel = new Set(); return renderApont(); }
+    if (ev.target.closest('[data-ax-salvar]')) return axSalvar();
     const cel = ev.target.closest('[data-ap-frente]');
     if (cel) {
       if (!apExigirEmpresa()) return;
@@ -5431,11 +5528,13 @@ function ligarApontamento() {
     const ex = ev.target.closest('[data-ap-excluir]');
     if (ex) {
       if (!ex.dataset.confirmar) { ex.dataset.confirmar = '1'; ex.textContent = 'Confirmar exclusão'; return; }
-      try { await postar(API + 'apontamento', { excluir: true, linha: +ex.dataset.apExcluir }); await carregar(); toast('Apontamento excluído e produção ajustada'); }
+      try { await apExcluirLinhas([+ex.dataset.apExcluir]); await carregar(); toast('Apontamento excluído e produção ajustada'); }
       catch (err) { toast(err.message, true); }
     }
   });
   sec.addEventListener('change', ev => {
+    if (ev.target.matches('[data-ax-produto]')) { AX.produto = ev.target.value; return renderApont(); }
+    if (ev.target.matches('[data-ax-ativ]')) { AX.atividade = ev.target.value; return renderApont(); }
     const id = ev.target.id;
     if (ev.target.dataset.apDef) {
       apDef[ev.target.dataset.apDef] = ev.target.value;
