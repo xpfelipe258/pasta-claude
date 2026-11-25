@@ -1041,7 +1041,7 @@ async function m3dLerAba() {
     if (est && eix) {
       // índice das peças montáveis por posição
       const cel = new Map(), add = (k, i) => { if (!cel.has(k)) cel.set(k, []); cel.get(k).push(i); };
-      const vigasEixo = new Map(), suportes = [], vcEixo = new Map();
+      const vigasEixo = new Map(), suportes = [], vcEixo = new Map(), contravPecas = [];
       for (let i = 0; i < d.n; i++) {
         if (d.e.pai[i] >= 0 || d.cRz[i + 1] <= d.cRz[i]) continue;
         const p = m3dPosParse(m3dTxt('pos', i));
@@ -1060,6 +1060,7 @@ async function m3dLerAba() {
           suportes.push(i);
         } else if (/^1\.1\.1/.test(fase) && /CONTRAVENTAMENTO|SUPORTE CONT/.test(nome) && meio !== null) {
           add(`CONTRAVENTAMENTO|${m3dFaixaDe(meio, est)}|${m3dRuaDe(p)}`, i);
+          contravPecas.push([i, m3dRuaDe(p), meio, p]);   // apontamento do mapa em elevação: marca · rua · trecho de estações (A-A1…)
         } else if (/^1\.1\.2/.test(fase) || /FECHAMENTO/.test(nome)) {
           const telha = /TELHA/.test(nome), tipo = telha ? 'TELHAFECH' : 'FECHAMENTO';
           if (p.e1 === p.e2 && (p.e1 === '01' || p.e1 === '20') && meio !== null) {
@@ -1129,6 +1130,14 @@ async function m3dLerAba() {
         else if (t === 'JOIST') (joistDe.get(`${a.rua}|${a.slot}`) || []).forEach(i => marcar(i, dia, `joist rua ${a.rua} nº ${a.slot} (suporte)`));
         else if (t === 'TELHA') (telhaDe.get(parseInt(a.rua, 10)) || []).forEach(i => marcar(i, dia, `telha nº ${a.rua}`));
         else if (t === 'TELHAFECH') { const [tr] = String(a.rua).split('/'); const k = `TELHAFECH|${a.faixa}|${tr}`; contaTf.set(k, (contaTf.get(k) || []).concat([dia])); }
+        else if (t === 'CONTRAVENTAMENTO' && /^[A-H]\d?-[A-H]\d?$/.test(String(a.letra || ''))) {
+          // kit do mapa em elevação: todas as peças de contraventamento da rua entre as duas estações (tirante, CTH06, kit em X e suportes)
+          const [de, ate] = String(a.letra).split('-'), y0 = Math.min(est[de], est[ate]), y1 = Math.max(est[de], est[ate]);
+          if (Number.isFinite(y0) && Number.isFinite(y1)) contravPecas.forEach(([i, rua, meio, pp]) => {
+            const ys = pp.est.map(x => est[x]).filter(v => v !== undefined), lo = ys.length ? Math.min(...ys) : meio, hi = ys.length ? Math.max(...ys) : meio;
+            if (rua === a.rua && lo >= y0 - 300 && hi <= y1 + 300) marcar(i, dia, `contraventamento ${a.faixa} · rua ${a.rua} · ${a.letra}`);
+          });
+        }
         else if (t === 'CONTRAVENTAMENTO' || t === 'FECHAMENTO' || t === 'MARQUISE') (cel.get(`${t}|${a.faixa}|${a.rua}`) || []).forEach(i => marcar(i, dia, `${t.toLowerCase()} ${a.faixa} · ${a.rua}`));
       });
       // telhas do fechamento: o apontamento conta telhas do trecho; vale para as primeiras peças do trecho
