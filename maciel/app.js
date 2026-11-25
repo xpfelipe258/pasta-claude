@@ -5395,10 +5395,27 @@ function apPintarSlot(g, chave) {
   emp ? g.style.setProperty('--sel', corSelEmp(emp)) : g.style.removeProperty('--sel');
 }
 
+// Mapa geral (e telas com vários desenhos, como o fechamento lateral e os anexos): baixa TUDO o que está na tela — quadro-resumo e todas as vistas
+function baixarMapaCompleto(apDiv) {
+  const clone = apDiv.cloneNode(true);
+  const orig = [...apDiv.querySelectorAll('svg')], cop = [...clone.querySelectorAll('svg')];
+  orig.forEach((svg, n) => {   // estilos calculados (classes e variáveis CSS da página) vão para dentro do SVG
+    const a = [svg, ...svg.querySelectorAll('*')], b = [cop[n], ...cop[n].querySelectorAll('*')];
+    a.forEach((el, i) => { const dst = b[i]; if (!dst) return; const cs = getComputedStyle(el);
+      ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'fill-opacity', 'opacity', 'font-size', 'font-weight'].forEach(k => { const v = cs.getPropertyValue(k); if (v) dst.style.setProperty(k, v); }); });
+    cop[n].style.maxWidth = '100%'; cop[n].style.height = 'auto';
+  });
+  clone.querySelectorAll('button, select, input, .tab-ferr, .tf-mais, script').forEach(e => e.remove());
+  clone.querySelectorAll('.tabela-rolagem').forEach(e => { e.style.overflow = 'visible'; e.style.maxHeight = 'none'; });
+  const tit = ($('#apMapaTit')?.textContent || 'Mapa de montagem').replace(/\(clique.*\)/, '').trim();
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(tit)}</title><style>body{font-family:Arial,sans-serif;color:#111;margin:20px}h1{font-size:20px}h3{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ddd;padding:5px}.n{text-align:right}.nota{color:#555;font-size:11px}.apg-barra{height:10px;background:#f1f5f9}.apg-barra i{display:block;height:100%;background:#16a34a}.apg-cel{display:inline-block;min-width:40px;padding:3px;border:1px solid #c4cdd8;margin:2px;font-size:10px}svg{display:block;margin:4px 0}</style></head><body><h1>${esc(tit)}</h1><p class="nota">Situação em ${fdA(apEst.data || hoje())} · ${esc((D && D.obra && D.obra.nome) || '')}</p>${clone.innerHTML}</body></html>`;
+  reAbrirPrevia(html, `mapa-geral-${ref}.html`, `${tit} · ${fdA(ref)}`);
+}
 async function baixarMapa() {
   const apDiv = $('#apMapa');
   const svg = apDiv && apDiv.querySelector('svg');
   if (!svg) { toast('Nenhum mapa para baixar', true); return; }
+  if (apEst.modo === 'geral' || apDiv.querySelectorAll('svg').length > 1) return baixarMapaCompleto(apDiv);
   try {
     toast('Gerando imagem do mapa...');
     const clone = svg.cloneNode(true);

@@ -1035,6 +1035,9 @@ async function m3dLerAba() {
         window._regras_baixa ? window._regras_baixa : fetch(API + 'regras-baixa', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)]);
     } catch (e) { fm = null; }
     const malha = fm && fm.malha, est = malha && malha.estacoes_mm, eix = malha && malha.eixos_mm;
+    // fechamento lateral: trechos de pilar a pilar do Apontar montagem (desenho do IFC, fm.frentes.fechamento.partes[].elev.cel = trecho → [início, fim] em mm)
+    const celFech = new Map(((fm && fm.frentes && fm.frentes.fechamento && fm.frentes.fechamento.partes) || []).map(pt => [pt.id, Object.entries((pt.elev && pt.elev.cel) || {}).filter(([t]) => /a|[A-H]\d|-[A-H]\d|^[A-H]-[A-H]$/.test(t))]));
+    const m3dMeioVao = (parte, mm) => { const l = celFech.get(parte) || []; const c = l.find(([, r]) => mm >= r[0] - 1 && mm <= r[1] + 1); return c ? c[0] : ''; };
     if (est && eix) {
       // índice das peças montáveis por posição
       const cel = new Map(), add = (k, i) => { if (!cel.has(k)) cel.set(k, []); cel.get(k).push(i); };
@@ -1059,8 +1062,14 @@ async function m3dLerAba() {
           add(`CONTRAVENTAMENTO|${m3dFaixaDe(meio, est)}|${m3dRuaDe(p)}`, i);
         } else if (/^1\.1\.2/.test(fase) || /FECHAMENTO/.test(nome)) {
           const telha = /TELHA/.test(nome), tipo = telha ? 'TELHAFECH' : 'FECHAMENTO';
-          if (p.e1 === p.e2 && (p.e1 === '01' || p.e1 === '20') && meio !== null) add(`${tipo}|OITÃO ${p.e1}|${m3dFaixaDe(meio, est)}`, i);
-          else if (p.est.length === 1 && (p.est[0] === 'A' || p.est[0] === 'H')) add(`${tipo}|${p.est[0]}|${m3dRuaDe(p)}`, i);
+          if (p.e1 === p.e2 && (p.e1 === '01' || p.e1 === '20') && meio !== null) {
+            add(`${tipo}|OITÃO ${p.e1}|${m3dFaixaDe(meio, est)}`, i);
+            if (!telha) { const t = m3dMeioVao(`OITÃO ${p.e1}`, meio); if (t) add(`${tipo}|OITÃO ${p.e1}|${t}`, i); }   // trecho de pilar a pilar (A-A1, A1-A3…)
+          } else if (p.est.length === 1 && (p.est[0] === 'A' || p.est[0] === 'H')) {
+            add(`${tipo}|${p.est[0]}|${m3dRuaDe(p)}`, i);
+            const x = [p.e1, p.e2].map(e => eix[e]).filter(v => v !== undefined);
+            if (!telha && x.length) { const t = m3dMeioVao(p.est[0], (Math.min(...x) + Math.max(...x)) / 2); if (t) add(`${tipo}|${p.est[0]}|${t}`, i); }   // 07-07a, 07a-08
+          }
         } else if (p.lado && /MARQUISE|MÃO FRANCESA|TESTEIRA|RUFO|GRAPA/.test(nome + ' ' + fase.toUpperCase())) {
           add(`MARQUISE|${p.lado}|${m3dRuaDe(p)}`, i);
         } else if (nome === 'TELHA COBERTURA') {

@@ -94,6 +94,16 @@ def main(caminhos):
     for p in pecas:   # o mesmo conjunto pode estar em mais de um arquivo
         if p[7] not in vistos:
             vistos.add(p[7]); unicas.append(p)
+    # telhas, calhas e bocais do arquivo 220 sem prédio na fase: ficam com a Eclusa quando estão fora da estrutura da Portaria
+    # (as telhas da cobertura são da Eclusa, confirmado pelo responsável da obra)
+    est = [p for p in unicas if p[0] == 'Portaria' and any(k in p[1] for k in ('VIGA', 'TERÇA', 'MÃO FRANCESA', 'CONTRAVENTAMENTO'))]
+    if est:
+        bx0, by0, bx1, by1 = min(p[3] for p in est), min(p[4] for p in est), max(p[5] for p in est), max(p[6] for p in est)
+        for p in unicas:
+            if p[0] != 'Portaria': continue
+            cx, cy = (p[3] + p[5]) / 2, (p[4] + p[6]) / 2
+            if 'TELHA' in p[1] or 'ECLUSA' in p[1] or not (bx0 - 500 <= cx <= bx1 + 500 and by0 - 500 <= cy <= by1 + 500):
+                p[0] = 'Eclusa'
     # cada prédio é girado para ficar alinhado aos próprios eixos (direção das peças longas), como a vista de cima do 3D
     ang = {}
     for pr in {p[0] for p in unicas}:
