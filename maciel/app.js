@@ -4942,14 +4942,19 @@ function axSvg(predio, pecas, feitas, sel, interativo, corE, W = 1100, contexto 
   const dx = (b.x1 - b.x0) || 1, dy = (b.y1 - b.y0) || 1, H = Math.max(260, Math.min(900, W * dy / dx)), sc = Math.min((W - 20) / dx, (H - 20) / dy);
   const X = x => 10 + (x - b.x0) * sc, Y = y => H - 10 - (y - b.y0) * sc, m3 = axDo3d();
   let o = `<svg class="ax-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(predio)}"><rect width="${W}" height="${H}" fill="#fbfcfe"/>`;
-  if (contexto) contexto.forEach(p => { o += `<rect x="${X(p[3])}" y="${Y(p[6])}" width="${Math.max(1, (p[5] - p[3]) * sc)}" height="${Math.max(1, (p[6] - p[4]) * sc)}" fill="none" stroke="#cbd5e1" stroke-width="0.4" pointer-events="none"/>`; });   // demais peças do prédio, só de referência
-  pecas.slice().sort((p, q) => (q[5] - q[3]) * (q[6] - q[4]) - (p[5] - p[3]) * (p[6] - p[4])).forEach(p => {
+  // contorno real da peça vista de cima (retângulo girado com a peça, lido do IFC); sem ele, a caixa reta
+  const forma = (p, attrs) => p[11] ? `<polygon points="${[0, 2, 4, 6].map(i => `${X(p[11][i]).toFixed(1)},${Y(p[11][i + 1]).toFixed(1)}`).join(' ')}" ${attrs}/>`
+    : `<rect x="${X(p[3])}" y="${Y(p[6])}" width="${Math.max(2, (p[5] - p[3]) * sc)}" height="${Math.max(2, (p[6] - p[4]) * sc)}" ${attrs}/>`;
+  const fundoP = p => /TELHA|RUFO|CALHA|BOCAL/.test(p[1]);
+  if (contexto) contexto.forEach(p => { o += forma(p, `fill="none" stroke="#cbd5e1" stroke-width="0.4" pointer-events="none"`); });   // demais peças do prédio, só de referência
+  pecas.slice().sort((p, q) => (fundoP(q) - fundoP(p)) || ((q[5] - q[3]) * (q[6] - q[4]) - (p[5] - p[3]) * (p[6] - p[4]))).forEach(p => {
     const f = feitas.get(p[7]) || (m3[p[7]] ? { empresa: m3[p[7]].empresa || '3D', data: m3[p[7]].data, de3d: true } : null), s = sel && sel.has(p[7]);
     const w = Math.max(2, (p[5] - p[3]) * sc), h = Math.max(2, (p[6] - p[4]) * sc);
     const fundo = /TELHA|RUFO|CALHA/.test(p[1]);   // telhas e calhas ficam claras, por baixo da estrutura
     const cor = s ? '#f59e0b' : f ? corE(f.empresa) : fundo ? '#eef2f7' : '#94a3b8';
     const tit = `${p[2] || p[1]} · ${p[1]}${p[10] ? ' · ' + p[10] : ''}${f ? `\nMontada em ${fdA(f.data)} (${f.empresa})${f.de3d ? ' — marcada no Modelo 3D' : ''}` : interativo ? '\nPendente: clique para selecionar' : '\nPendente'}`;
-    o += `<rect x="${X(p[3])}" y="${Y(p[6])}" width="${w}" height="${h}" fill="${cor}" fill-opacity="${f || s ? 0.85 : fundo ? 0.9 : 0.75}" stroke="${s ? '#92400e' : f ? '#14202b' : fundo ? '#d5dce6' : '#475569'}" stroke-width="${s ? 1.4 : fundo ? 0.3 : 0.6}" ${interativo && !f ? `data-ax-guid="${esc(p[7])}" style="cursor:pointer"` : ''}><title>${esc(tit)}</title></rect>`;
+    o += forma(p, `fill="${cor}" fill-opacity="${f || s ? 0.9 : fundo ? 0.9 : 0.8}" stroke="${s ? '#92400e' : f ? '#14202b' : fundo ? '#d5dce6' : '#475569'}" stroke-width="${s ? 1.6 : fundo ? 0.3 : 0.7}" stroke-linejoin="round" ${interativo && !f ? `data-ax-guid="${esc(p[7])}" style="cursor:pointer"` : ''}`).replace(/\/>$/, `><title>${esc(tit)}</title></${p[11] ? 'polygon' : 'rect'}>`);
+    if (interativo && !f && !fundo) o += forma(p, `fill="none" stroke="transparent" stroke-width="7" data-ax-guid="${esc(p[7])}" style="cursor:pointer"`).replace(/\/>$/, `><title>${esc(tit)}</title></${p[11] ? 'polygon' : 'rect'}>`);   // área de clique maior nas peças finas
   });
   return o + '</svg>';
 }
