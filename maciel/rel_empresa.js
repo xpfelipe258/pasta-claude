@@ -508,8 +508,8 @@ function reMapaContrav(emp, ini, cores, feitas) {
     if (!comCth.has(p.rua) || !(p.de in estMm || !temMalha)) return;
     const [a, b] = p.rua.split('-'), x0 = xEixo(a), x1 = xEixo(b), y0 = yEst(p.de), y1 = yEst(p.ate), h = Math.max(y1 - y0, 3);
     const row = feitas.get(apcChave(p.marca, p.rua, `${p.de}-${p.ate}`)), st = reEstadoPeca(row, emp, ini, cores.validas); n[st]++;
-    const traco = st === 'pend' ? (cores.pendTr || '#c4cdd8') : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : st === 'ant' && cores.antTr ? cores.antTr : reCorPeca(cores, row);
-    o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${rePinta(st, cores, row)} stroke-width=".6"/>`,
+    const traco = st === 'pend' ? (cores.pendTr || '#64748b') : st === 'outra' ? '#7b8794' : st === 'per' ? '#14202b' : st === 'ant' && cores.antTr ? cores.antTr : reCorPeca(cores, row);
+    o.push(`<rect x="${x0 + 1}" y="${y0}" width="${Math.max(x1 - x0 - 2, 3)}" height="${h}" ${st === 'pend' && !cores.pend ? 'fill="#f8fafc" stroke="#94a3b8"' : rePinta(st, cores, row)} stroke-width=".6"/>`,
       `<line x1="${x0 + 1.5}" y1="${y0}" x2="${x1 - 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/><line x1="${x1 - 1.5}" y1="${y0}" x2="${x0 + 1.5}" y2="${y0 + h}" stroke="${traco}" stroke-width=".9"/>`);
   });
   return { svg: o.join('') + '</svg>', n, total: el.paineis.filter(p => comCth.has(p.rua)).length };
