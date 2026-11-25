@@ -349,7 +349,7 @@ function rdoMapasLegado(dia) {
   if (m.planta) {
     linhas.push(rdoLinhaMapa('Joists', m.planta.nJ), rdoLinhaMapa('Vigas', m.planta.nV));
     figs.push(`<h3>Joists e vigas (planta do galpão)</h3><div class="mapa-fig">${m.planta.svg}</div><p class="nota">Cada retângulo é uma joist (43 por rua); os quadrados nos eixos são as vigas.</p>`);
-    if (m.contrav) { linhas.push(rdoLinhaMapa('Contraventamento (kits)', m.contrav.n)); figs.push(`<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div><p class="nota">Cada X é um kit de contraventamento.</p>`); }
+    if (m.contrav) { linhas.push(rdoLinhaMapa('Contraventamento (kits)', m.contrav.n)); figs.push(`<h3>Contraventamento (vista elevada)</h3><div class="mapa-fig">${m.contrav.svg}</div><p class="nota">${m.contrav.vistaAp ? 'Mesma vista do Apontar montagem: T = tirante (TP), C = CTH06, X = kit CTH; colorido = montado (cor da empresa), cinza = pendente.' : 'Cada X é um kit de contraventamento.'}</p>`); }
   }
   [['Telhas da cobertura (m²)', m.telha], ['Perfilagem das telhas (m²)', m.perfil]].forEach(([rot, t]) => {
     if (!t) return;
@@ -360,7 +360,10 @@ function rdoMapasLegado(dia) {
     linhas.push(rdoLinhaMapa('Fechamento lateral — estrutura (trechos)', m.fech.n));
     figs.push(`<h3>Fechamento lateral — estrutura (terças e espaçadores)</h3><div class="mapa-fig">${m.fech.svg}</div><p class="nota">${m.fech.elev ? 'Desenho do IFC: pilares dos eixos (linha cheia) e intermediários (tracejado), terças em azul, espaçadores em roxo e suportes de terça (ST) em laranja; cada vão é pintado pela situação do trecho.' : 'Cada célula é um trecho entre eixos (lados A e H) ou uma faixa do oitão (eixos 01 e 20).'}</p>`);
   }
-  if (m.tfech) linhas.push(rdoLinhaMapa('Telhas do fechamento lateral (m²)', m.tfech.m2n, 'm²', 1));   // sem desenho: o resumo por parte fica no relatório das empresas
+  if (m.tfech) {
+    linhas.push(rdoLinhaMapa('Telhas do fechamento lateral (m²)', m.tfech.m2n, 'm²', 1));
+    if (m.tfech.svg) figs.push(`<h3>Telhas do fechamento lateral (lados A e H e oitões 01 e 20)</h3><div class="mapa-fig">${m.tfech.svg}</div><p class="nota">Cada faixa é uma telha; colorida = instalada (cor da empresa), cinza = pendente. Embaixo de cada trecho: instaladas / total.</p>`);
+  }
   const fora = m.foraMontagem && m.foraMontagem.length ? `<p class="nota"><b>${nf(soma0(m.foraMontagem, a => a.qtd || 1), 0)} peça(s)</b> de joist/viga/contraventamento apontada(s) por empresa que não tem esse serviço ficam em cinza e fora dos totais.</p>` : '';
   const cinza = [m.planta && m.planta.nJ.outra, m.planta && m.planta.nV.outra, m.contrav && m.contrav.n.outra].some(v => v > 0);
   return { linhas, figs, fora, extraLeg: cinza ? `<span><i style="background:${RE_COR_OUTRA}"></i>Apontado por empresa sem esse serviço</span>` : '' };

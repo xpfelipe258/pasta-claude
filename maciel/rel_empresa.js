@@ -629,6 +629,7 @@ function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já fe
     try { ctx = apContexto(regras); } finally { T.apontamentos = todos; }
     const feitas = new Map(tipo('CONTRAVENTAMENTO').map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
     const pl = reMapaPlanta(ctx, emp, ini, cores), cv = reMapaContrav(emp, ini, cores, feitas);
+    if (cv && typeof apContravSvgRel === 'function') { const v = apContravSvgRel(c); if (v) { cv.svg = v; cv.vistaAp = true; } }   // mesma vista do Apontar montagem (T, C e kits em X), na cor de quem montou
     Object.assign(out, { planta: pl, contrav: cv, ctx,
       joist: { per: qJ(meus('JOIST', true)), ant: qJ(meus('JOIST', false)), total: ctx.limGalpao, feitas: qJ(tipoOk('JOIST')) },
       viga: { per: meus('VIGA', true).length, ant: meus('VIGA', false).length, total: soma0(ctx.cfg.eixos, x => ctx.letrasEixo(x).length), feitas: tipoOk('VIGA').length },
@@ -645,6 +646,7 @@ function reMapa(emp, ini, c, opc) {   // opc: cores próprias (RDO: dia / já fe
   }
   if (temTFech) {   // telhas do fechamento lateral (catálogo da Globo Aços)
     const tf = reTelhasFech(emp, ini, ate);
+    if (tf && typeof apTFechSvgRel === 'function') tf.svg = apTFechSvgRel(c);   // desenho das telhas do fechamento (mesma vista do Apontar montagem)
     if (tf) out.tfech = { ...tf, per: tf.n.per, ant: tf.n.ant, feitas: tf.n.per + tf.n.ant + tf.n.outra, m2Per: tf.m2n.per, m2Feitas: tf.m2n.per + tf.m2n.ant + tf.m2n.outra };
   }
   return out;

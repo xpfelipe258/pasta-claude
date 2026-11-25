@@ -4612,6 +4612,31 @@ function apContravHtml(fr, feitas, legenda) {
     <details id="apcLista"><summary>Selecionar pela lista (${nf(visiveis.length)})</summary><div class="tabela-rolagem" style="max-height:24rem;overflow:auto"><table><thead><tr><th>Marca</th><th>Rua</th><th>Trecho</th><th>Empresa / data</th><th>Ação</th></tr></thead><tbody>${lista || '<tr><td colspan="5">Nenhum item com esses filtros.</td></tr>'}</tbody></table></div></details>
     <p class="nota">Cada kit CTH ou peça individual TP/CTH06 selecionada soma uma unidade em Contraventamento nos Lançamentos. A regularização só atualiza o mapa.</p>`;
 }
+// Desenhos do Apontar montagem para os relatórios (RDO, relatório das empresas, mapa geral): mesma vista da tela, até a data de corte,
+// com os estilos da página copiados para dentro do SVG (o relatório é um documento à parte).
+function svgComEstilos(html) {
+  if (!html) return '';
+  const box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden';
+  box.innerHTML = html; document.body.appendChild(box);
+  const svg = box.querySelector('svg'); if (!svg) { box.remove(); return ''; }
+  [svg, ...svg.querySelectorAll('*')].forEach(el => { const cs = getComputedStyle(el);
+    ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'fill-opacity', 'stroke-opacity', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor'].forEach(k => { const v = cs.getPropertyValue(k); if (v) el.style.setProperty(k, v); }); });
+  svg.removeAttribute('class'); svg.style.maxWidth = '100%'; svg.style.height = 'auto';
+  svg.querySelectorAll('[data-ap-frente],[tabindex],[role="button"]').forEach(e => { e.removeAttribute('data-ap-frente'); e.removeAttribute('tabindex'); });
+  const out = svg.outerHTML; box.remove(); return out;
+}
+function apVistaRel(modo, ate, gerar) {
+  const sv = { modo: apEst.modo, zoom: apEst.zoom, frente: apEst.frente }, todos = T.apontamentos;
+  try {
+    apEst.modo = modo; apEst.zoom = 'compacto'; apEst.frente = new Map();
+    if (ate) T.apontamentos = (todos || []).filter(a => !a.data || a.data <= ate);
+    const fr = apFrenteAtual(); return fr ? svgComEstilos(gerar(fr)) : '';
+  } catch (e) { console.error('vista do apontamento no relatório', e); return ''; }
+  finally { Object.assign(apEst, sv); T.apontamentos = todos; }
+}
+const apContravSvgRel = ate => apVistaRel('cont', ate, fr => fr.elevacao ? apContravSvg(fr.elevacao.paineis, apcFeitas()) : '');
+const apTFechSvgRel = ate => apVistaRel('tfech', ate, fr => apTFechSvg(fr));
+
 function apcFeitas() {
   return new Map((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'CONTRAVENTAMENTO')
     .map(a => [apcChave(a.faixa, a.rua, a.letra || ''), a]));
@@ -4890,7 +4915,7 @@ function apGeralHtml() {
     lin('Joists', m.joist.feitas, m.joist.total); lin('Vigas', m.viga.feitas, m.viga.total);
     fig('Joists e vigas — planta do galpão', m.planta.svg, 'Cada retângulo é uma joist (43 por rua); os quadrados nos eixos são as vigas.');
   }
-  if (m.contrav) { lin('Contraventamento (kits)', m.cont.feitas, m.cont.total); fig('Contraventamento — vista elevada', m.contrav.svg, 'Cada X é um kit de contraventamento.'); }
+  if (m.contrav) { lin('Contraventamento (kits)', m.cont.feitas, m.cont.total); fig('Contraventamento — vista elevada', m.contrav.svg, m.contrav.vistaAp ? 'T = tirante (TP), C = CTH06, X = kit CTH; colorido = montado (cor da empresa), cinza = pendente.' : 'Cada X é um kit de contraventamento.'); }
   if (m.fech) { const f = m.fech.n; lin('Fechamento lateral — estrutura (trechos)', f.per + f.ant + f.outra, m.fech.total); fig('Fechamento lateral — estrutura (lados A e H em vista lateral, oitões 01 e 20 em vista frontal)', m.fech.svg); }
   const ax = axCarregar();   // anexos (Portaria, Eclusa, Refeitório, Vestiário): planta do IFC por prédio
   if (ax && ax.predios) {
@@ -4918,8 +4943,7 @@ function apGeralHtml() {
   });
   if (m.tfech) {
     lin('Telhas do fechamento lateral', m.tfech.n.per + m.tfech.n.ant + m.tfech.n.outra, m.tfech.total);
-    const ftf = (window._frentes.frentes || {}).telha_fechamento;
-    if (ftf) fig('Telhas do fechamento lateral (lados A e H e oitões 01 e 20, em elevação)', apTFechSvg(ftf), 'Cada faixa é uma telha; colorida = instalada (cor da empresa), cinza = pendente. O número embaixo de cada trecho é instaladas / total.');
+    if (m.tfech.svg) fig('Telhas do fechamento lateral (lados A e H e oitões 01 e 20, em elevação)', m.tfech.svg, 'Cada faixa é uma telha; colorida = instalada (cor da empresa), cinza = pendente. O número embaixo de cada trecho é instaladas / total.');
   }
   const emps = [...new Set((T.apontamentos || []).map(a => a.empresa).filter(Boolean))];
   const sw = c => `<i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;background:${c};border:1px solid #94a3b8"></i>`;
