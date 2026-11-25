@@ -4869,7 +4869,55 @@ function apFechElevHtml(fr, feitas, etapa, selLeg, leg) {
   return h;
 }
 
+// Mapa geral (só consulta): todas as atividades que têm apontamento, com todas as vistas — planta de joists e vigas, contraventamento
+// em elevação, fechamento lateral (lados e oitões, desenho do IFC), marquise, telhas, perfilagem e telhas do fechamento — pintadas pela empresa que montou.
+function apGeralHtml() {
+  if (typeof reMapa !== 'function') return '<p class="aviso">Recarregue a página (Ctrl+F5) para ver o mapa geral.</p>';
+  if (!window._frentes) { frentesMontagem(() => renderApont()); return '<p class="vazio">Carregando os mapas do IFC…</p>'; }
+  if (!window._regras_baixa && typeof regrasBaixa === 'function') { regrasBaixa(() => renderApont()); return '<p class="vazio">Carregando as regras de montagem…</p>'; }
+  const ate = apEst.data && apEst.data < hoje() ? hoje() : (apEst.data || hoje());
+  const PAL = ['#16a34a', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
+  const empsAll = [...new Set((T.apontamentos || []).map(a => a.empresa).filter(Boolean))].sort();
+  const corE = e => (COR_EMP[e] ? corEmpHex(e) : PAL[Math.max(0, empsAll.indexOf(e)) % PAL.length]);
+  const m = reMapa('', '0000-01-01', ate, { corEmp: corE, rotPer: 'montado(s)', porEmp: true, validas: null });
+  if (!m) return '<p class="vazio">Esta obra não tem mapas de montagem.</p>';
+  if (m.sem) return `<p class="aviso">${esc(m.sem)}</p>`;
+  const linhas = [], figs = [];
+  const lin = (rot, feitas, total, un = '') => { const p = total ? feitas / total * 100 : 0;
+    linhas.push(`<tr><td><b>${esc(rot)}</b></td><td class="n">${nf(feitas, 0)}${un}</td><td class="n">${nf(total, 0)}${un}</td><td class="n">${nf(Math.max(0, total - feitas), 0)}${un}</td><td class="n"><b>${nf(p, 1)}%</b></td><td style="min-width:140px"><div class="apg-barra"><i style="width:${Math.min(100, p)}%"></i></div></td></tr>`); };
+  const fig = (tit, svg, nota = '') => figs.push(`<section class="apg-fig"><h3>${esc(tit)}</h3><div class="tabela-rolagem">${svg}</div>${nota ? `<p class="nota">${nota}</p>` : ''}</section>`);
+  if (m.planta) {
+    lin('Joists', m.joist.feitas, m.joist.total); lin('Vigas', m.viga.feitas, m.viga.total);
+    fig('Joists e vigas — planta do galpão', m.planta.svg, 'Cada retângulo é uma joist (43 por rua); os quadrados nos eixos são as vigas.');
+  }
+  if (m.contrav) { lin('Contraventamento (kits)', m.cont.feitas, m.cont.total); fig('Contraventamento — vista elevada', m.contrav.svg, 'Cada X é um kit de contraventamento.'); }
+  if (m.fech) { const f = m.fech.n; lin('Fechamento lateral — estrutura (trechos)', f.per + f.ant + f.outra, m.fech.total); fig('Fechamento lateral — estrutura (lados A e H em vista lateral, oitões 01 e 20 em vista frontal)', m.fech.svg); }
+  const fr = (window._frentes.frentes || {}).marquise;
+  if (fr && fr.partes) {   // marquise: trechos apontados (qualquer etapa) por parte
+    const feitas = new Set((T.apontamentos || []).filter(a => (a.tipo || '').toUpperCase() === 'MARQUISE' && (!a.data || a.data <= ate)).map(a => `${a.faixa}|${a.rua}`));
+    let tot = 0, ok = 0, svg = '<div class="apg-marq">';
+    fr.partes.forEach(p => {
+      svg += `<div class="apg-marq-l"><b>${esc(p.nome)}</b>` + p.celulas.map(c => { const f = feitas.has(`${p.id}|${c.trecho}`); tot++; if (f) ok++; const a = f ? (T.apontamentos || []).find(x => (x.tipo || '').toUpperCase() === 'MARQUISE' && x.faixa === p.id && x.rua === c.trecho) : null;
+        return `<span class="apg-cel" style="${a ? `background:${corE(a.empresa)};color:#fff` : ''}" title="${esc(p.nome + ' · ' + c.trecho + (a ? ` · ${a.empresa} · ${fdA(a.data)}${a.letra ? ' · ' + a.letra : ''}` : ' · pendente'))}">${esc(c.trecho)}</span>`; }).join('') + '</div>';
+    });
+    if (ok) { lin('Marquise (trechos com apontamento)', ok, tot); fig('Marquise', svg + '</div>', 'Trecho pintado = já tem apontamento em alguma etapa da marquise.'); }
+  }
+  [['Telhas da cobertura', m.telha, 'telha(s)'], ['Perfilagem das telhas', m.perfil, 'faixa(s)']].forEach(([rot, t, u]) => {
+    if (!t) return;
+    lin(rot, t.n.per + t.n.ant + t.n.outra, t.total);
+    fig(rot + ' (do eixo 01 ao 20)', t.fases.map(f => `<p class="nota"><b>${esc(f.nome)}</b></p>${f.svg}`).join(''), `Cada faixa é ${u === 'telha(s)' ? 'uma telha' : 'uma fiada de perfilagem'} (${nf(t.m2, 2)} m²).`);
+  });
+  if (m.tfech) lin('Telhas do fechamento lateral', m.tfech.n.per + m.tfech.n.ant + m.tfech.n.outra, m.tfech.total);
+  const emps = [...new Set((T.apontamentos || []).map(a => a.empresa).filter(Boolean))];
+  const sw = c => `<i style="display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;background:${c};border:1px solid #94a3b8"></i>`;
+  const leg = emps.map(e => `<span>${sw(corE(e))}${esc(e)}</span>`).join('') + `<span>${sw('#fff')}pendente</span>`;
+  return `<div class="ap-linha ap-mapa-barra"><span class="nota">Só consulta: para apontar, escolha a atividade nos botões acima. Situação até ${fdA(ate)}.</span><div class="ap-legenda">${leg}</div></div>
+    <div class="tabela-rolagem"><table><thead><tr><th>Atividade</th><th class="n">Feito</th><th class="n">Total</th><th class="n">Falta</th><th class="n">% concluído</th><th>Avanço</th></tr></thead><tbody>${linhas.join('') || '<tr><td colspan="6" class="vazio">Nenhuma atividade com apontamento.</td></tr>'}</tbody></table></div>
+    ${figs.join('')}`;
+}
+
 function apMapaHtml(ctx) {
+  if (apEst.modo === 'geral') return apGeralHtml();
   if (apEst.modo in AP_FRENTE) return apFrenteHtml(ctx);
   if (apEst.modo === 'mapa') {
     const leg = (cls, txt, st = '') => `<span><i class="apm-leg ${cls}" ${st ? `style="${st}"` : ''}></i>${txt}</span>`;
@@ -4993,7 +5041,7 @@ function apDefHtml(ctx) {
 }
 const apDefPrevTxt = ctx => { const n = apDefLinhas(ctx).reduce((s, a) => s + (a.qtd || 0), 0); return `${nf(n)} ${apDef.tipo === 'VIGA' ? 'viga(s)' : 'joist(s)'} nessa região`; };
 
-const AP_MODOS = [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
+const AP_MODOS = [['geral', 'Mapa geral (todas)'], ['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'],
   ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']];
 function renderApont() {
   if (!M) return;
@@ -5026,7 +5074,8 @@ function renderApont() {
   $('#apBarra').innerHTML = apBarraHtml(ctx);
   $('#apForm').innerHTML = apFormHtml(regras, ctx);
   const fr = apFrenteAtual();
-  $('#apMapaTit').textContent = apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
+  $('#apMapaTit').textContent = apEst.modo === 'geral' ? 'Mapa geral — tudo o que já foi apontado, por atividade e por vista'
+    : apEst.modo === 'mapa' ? 'Mapa de montagem (clique para selecionar)'
     : apEst.modo === 'viga' ? 'Situação das vigas (eixo × letra)'
     : (fr ? fr.titulo + ' (clique para selecionar)' : 'Carregando o mapa do IFC…');
   const seguro = (rot, fn) => { try { return fn(); } catch (e) { console.error('Apontar montagem —', rot, e); return `<p class="aviso">Não foi possível montar ${rot}: ${esc(e.message || e)}</p>`; } };

@@ -435,7 +435,7 @@ function reSuprimentos(emp, ini, fim, c) {
 // cor forte da empresa = montada por ela NO PERÍODO; cor clara = montada por ela antes do período; cinza = montada por outra empresa; branco = pendente.
 const RE_COR_OUTRA = '#b8c2cc';
 const reEstadoPeca = (row, emp, ini, validas) => (!row ? 'pend' : (emp ? row.empresa === emp : (!validas || validas.has(row.empresa))) ? (row.data >= ini ? 'per' : 'ant') : 'outra');   // geral: só empresas com montagem (validas) pintam a peça; as demais ficam em cinza   // sem empresa (geral): toda peça apontada é das empresas, na cor de quem montou
-const reCorPeca = (cores, row) => (cores.porEmp && row && row.empresa ? (corEmpHex(row.empresa) || cores.forte) : cores.forte);
+const reCorPeca = (cores, row) => (cores.porEmp && row && row.empresa ? ((cores.corEmp || corEmpHex)(row.empresa) || cores.forte) : cores.forte);
 const rePinta = (est, cores, row) => { const f = reCorPeca(cores, row); return ({ pend: cores.pend ? `fill="${cores.pend}" stroke="${cores.pendTr || '#c4cdd8'}"` : 'fill="#ffffff" stroke="#c4cdd8"',
   ant: cores.ant ? `fill="${cores.ant}" stroke="${cores.antTr || cores.ant}"` : `fill="${f}" fill-opacity=".35" stroke="${f}" stroke-opacity=".6"`,
   per: `fill="${f}" stroke="#14202b" stroke-width="1.2"`, outra: `fill="${RE_COR_OUTRA}" stroke="#94a3b8"` })[est]; };
@@ -570,7 +570,7 @@ function reMapaFechElev(fr, feitas, emp, ini, cores, validas) {
       const r = e.cel[c.trecho]; if (!r) return;
       const row = feitas.get(`${p.id}|${c.trecho}`) || (c.pai && feitas.get(`${p.id}|${c.pai}`)), st = reEstadoPeca(row, emp, ini, validas);
       o[st]++; n[st]++;
-      g += `<rect x="${X(r[0])}" y="${mT - 3}" width="${(r[1] - r[0]) * sx}" height="${H + 6}" ${rePinta(st, cores, row)} stroke-width="0.6"/>` + reTxt(X((r[0] + r[1]) / 2), H + mT + 15, c.trecho, 'text-anchor="middle" font-weight="700"');
+      g += `<rect x="${X(r[0])}" y="${mT - 3}" width="${(r[1] - r[0]) * sx}" height="${H + 6}" ${rePinta(st, cores, row)} stroke-width="0.6"/>` + ((r[1] - r[0]) * sx >= 34 ? reTxt(X((r[0] + r[1]) / 2), H + mT + 15, c.trecho, 'text-anchor="middle" font-weight="700"') : '');
     });
     e.eixos.forEach(([nm, v, pr]) => { g += `<line x1="${X(v)}" x2="${X(v)}" y1="${mT - 4}" y2="${mT + H + 3}" stroke="${pr ? '#344054' : '#98a2b3'}" stroke-width="${pr ? 1.6 : 0.8}" ${pr ? '' : 'stroke-dasharray="3 3"'}/>` + (pr ? reTxt(X(v), mT - 6, nm, 'text-anchor="middle" font-weight="700"') : ''); });
     e.esp.forEach(([v, z1, z2]) => { g += `<line x1="${X(v)}" x2="${X(v)}" y1="${Z(z2)}" y2="${Z(z1)}" stroke="#7a5af8" stroke-width="0.5"/>`; });

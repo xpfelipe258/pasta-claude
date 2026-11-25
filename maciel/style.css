@@ -2111,3 +2111,9 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .qual-pizza-item b { white-space:nowrap; font-size:.9rem; }
 .qual-pizza-item small { color:var(--fg2); font-weight:400; font-size:.8rem; margin-left:5px; }
 .qual-pizza-legenda .nota { margin:4px 0 0; }
+
+/* Apontar montagem › Mapa geral */
+.apg-fig{margin:18px 0 6px}.apg-fig h3{font-size:14px;margin:0 0 6px}
+.apg-barra{height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden}.apg-barra i{display:block;height:100%;background:#16a34a}
+.apg-marq{display:grid;gap:6px}.apg-marq-l{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.apg-marq-l b{min-width:160px;font-size:12px}
+.apg-cel{display:inline-block;min-width:46px;padding:4px 6px;border:1px solid #c4cdd8;border-radius:4px;font-size:11px;text-align:center;background:#fff}
