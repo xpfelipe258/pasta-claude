@@ -5435,7 +5435,8 @@ function baixarMapaCompleto(apDiv) {
   });
   clone.querySelectorAll('button, select, input, .tab-ferr, .tf-mais, script').forEach(e => e.remove());
   clone.querySelectorAll('.tabela-rolagem').forEach(e => { e.style.overflow = 'visible'; e.style.maxHeight = 'none'; });
-  const tit = ($('#apMapaTit')?.textContent || 'Mapa de montagem').replace(/\(clique.*\)/, '').trim();
+  const tit = apEst.modo === 'geral' ? 'MAPEAMENTO GERAL — tudo o que já foi apontado, por atividade e por vista'
+    : ($('#apMapaTit')?.textContent || 'Mapa de montagem').replace(/\(clique.*\)/, '').trim();
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(tit)}</title><style>body{font-family:Arial,sans-serif;color:#111;margin:20px}h1{font-size:20px}h3{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ddd;padding:5px}.n{text-align:right}.nota{color:#555;font-size:11px}.apg-barra{height:10px;background:#f1f5f9}.apg-barra i{display:block;height:100%;background:#16a34a}.apg-cel{display:inline-block;min-width:40px;padding:3px;border:1px solid #c4cdd8;margin:2px;font-size:10px}svg{display:block;margin:4px 0}</style></head><body><h1>${esc(tit)}</h1><p class="nota">Situação em ${fdA(apEst.data || hoje())} · ${esc((D && D.obra && D.obra.nome) || '')}</p>${clone.innerHTML}</body></html>`;
   reAbrirPrevia(html, `mapa-geral-${ref}.html`, `${tit} · ${fdA(ref)}`);
 }
