@@ -1059,8 +1059,27 @@ th{background:#eef2f7}td.n,th.n{text-align:right;white-space:nowrap}tr.grupo td{
 
 function reSecao(titulo, html) { return `<h2>${titulo}</h2>${html}`; }
 // Seções do relatório (a pessoa escolhe quais entram; a numeração acompanha as escolhidas)
+// Painel de produtividade (mesma conta da aba): previsto do Planejamento de montagem × realizado no período, com farol
+function reSecPainelProd(d) {
+  if (typeof painelProdDados !== 'function') return '<p class="aviso">Painel de produtividade indisponível (recarregue a página).</p>';
+  let ks = painelProdDados(d.ini, d.fim, d.corte);
+  if (!d.geral) ks = ks.filter(k => normEmp(k.emp) === normEmp(d.emp));
+  if (!ks.length) return '<p class="nota">Nenhuma atividade planejada ou executada no período.</p>';
+  const comPrev = ks.filter(k => k.pct != null), media = comPrev.length ? soma0(comPrev, k => Math.min(100, k.pct)) / comPrev.length : null;
+  const cor = { verde: '#16a34a', amarelo: '#d97706', vermelho: '#dc2626', pendente: '#64748b' };
+  const sit = k => { const [c, t] = farol(k.pct, k.prevTotal === 0); return `<b style="color:${cor[c] || '#334155'}">${t}</b>`; };
+  let ult = null, linhas = [];
+  ks.forEach(k => {
+    if (d.geral && k.emp !== ult) { ult = k.emp; linhas.push(`<tr class="grupo"><td colspan="7"><b>${esc(k.emp)}</b></td></tr>`); }
+    linhas.push(`<tr><td>${esc(cap(k.serv))}${k.un ? ` <span class="nota">(${esc(k.un)})</span>` : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td><td class="n">${k.prevTotal ? nf(k.real - k.prev, 1) : '—'}</td><td class="n">${k.pct == null ? '—' : nf(k.pct, 0) + '%'}</td><td>${sit(k)}</td></tr>`);
+  });
+  return `<p class="nota">Previsto = Planejamento de montagem (planos 5W2H) no período de ${fdA(d.ini)} a ${fdA(d.fim)}; realizado = tudo o que foi lançado no período (grade de produção e BM). ${comPrev.length ? `Atingimento médio: <b>${nf(media, 0)}%</b> em ${comPrev.length} atividade(s) planejada(s).` : ''}</p>
+    <table><thead><tr><th>Atividade</th><th class="n">Planejado no período</th><th class="n">Previsto até ${fdA(d.corte)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">%</th><th>Farol</th></tr></thead><tbody>${linhas.join('')}</tbody></table>`;
+}
+
 const RE_SECOES = [
   ['resumo', 'Resumo executivo (cartões)', () => 'Resumo executivo', reSecResumo, false],
+  ['painelprod', 'Painel de produtividade — previsto (planejamento de montagem) × realizado', () => 'Painel de produtividade — previsto × realizado no período', reSecPainelProd, true],
   ['prodperiodo', 'Produção realizada no período — atividades com avanço e quantidade', () => 'Produção realizada no período — atividades com avanço', reSecProdPeriodo, true],
   ['producao', 'Resumo de produção do período', () => 'Resumo de produção do período', reSecProducao, true],
   ['semanas', 'Meta da semana — atingimento', () => 'Meta da semana — atingimento', reSecSemanas, true],
@@ -1153,7 +1172,7 @@ function reOpcPadrao() {
 const RE_ATALHOS = {
   tudo: null,
   soprod: ['prodperiodo'],
-  producao: ['resumo', 'prodperiodo', 'producao', 'semanas', 'atividades', 'planos', 'previsto'],
+  producao: ['resumo', 'painelprod', 'prodperiodo', 'producao', 'semanas', 'atividades', 'planos', 'previsto'],
   financeiro: ['resumo', 'bm', 'financeiro', 'equip'],
   pessoas: ['resumo', 'efetivo', 'suprimentos', 'impactos'],
 };

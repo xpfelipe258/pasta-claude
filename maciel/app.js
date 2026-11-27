@@ -633,11 +633,8 @@ function obraSemNomesG200(raiz) {
 }
 
 // ------------------------------------------------------------ PAINEL (por período)
-function renderPainel() {
-  const inicio = per.ini, fim = per.fim;   // o período escolhido na barra (De / até)
-  const c = minD(ref, per.fim);
-  plIndicePainel();   // planos 5W2H ativos (Farol, alertas e bloco de planejamento)
-  if (!PL.dados && !PL._carregandoPainel) { PL._carregandoPainel = true; plCarregar().then(() => { PL._carregandoPainel = false; if (abaAtual === 'painel') renderPainel(); }); }
+// Painel de produtividade: previsto do Planejamento de montagem (planos 5W2H) × realizado no período (grade e BM), por empresa; também no relatório geral
+function painelProdDados(inicio, fim, c) {
   const ksAll = plFarolSemanal(inicio, fim, c);
   // tudo o que foi executado no período, mesmo fora do plano 5W2H (catálogo do BM: grade e lançamentos do BM, por empresa)
   if (typeof lcDados === 'function' && c >= inicio) (M.empresas || []).forEach(e => {
@@ -652,6 +649,14 @@ function renderPainel() {
     }));
   });
   ksAll.sort((a, b) => a.emp.localeCompare(b.emp) || String(a.serv).localeCompare(String(b.serv)));
+  return ksAll;
+}
+function renderPainel() {
+  const inicio = per.ini, fim = per.fim;   // o período escolhido na barra (De / até)
+  const c = minD(ref, per.fim);
+  plIndicePainel();   // planos 5W2H ativos (Farol, alertas e bloco de planejamento)
+  if (!PL.dados && !PL._carregandoPainel) { PL._carregandoPainel = true; plCarregar().then(() => { PL._carregandoPainel = false; if (abaAtual === 'painel') renderPainel(); }); }
+  const ksAll = painelProdDados(inicio, fim, c);
 
   // --- filtro de empresa ---
   const emps = [...new Set(ksAll.map(k => k.emp))];
