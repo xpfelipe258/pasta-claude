@@ -1658,7 +1658,7 @@ function plFarolSemanal(inicio, fim, corte) {
     const prevTotal = soma0([...previsto.values()], qtd => qtd);
     const prev = soma0([...previsto].filter(([dia]) => dia <= corte), ([, qtd]) => qtd);
     const real = soma0(plSerieLancamentos(atividade, emp).filter(([dia]) => dia >= inicio && dia <= minD(fim, corte)), ([, qtd]) => qtd);   // executado no período escolhido
-    return { emp, serv, un, prevTotal, prev, real, pct: prev > 0 ? real / prev * 100 : null };
+    return { emp, serv, un, prevTotal, prev, real, pct: prev > 0 ? real / prev * 100 : null, ativ: atividade };
   }).sort((a, b) => a.emp.localeCompare(b.emp) || a.serv.localeCompare(b.serv));
 }
 

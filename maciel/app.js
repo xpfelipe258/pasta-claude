@@ -634,6 +634,8 @@ function obraSemNomesG200(raiz) {
 
 // ------------------------------------------------------------ PAINEL (por período)
 // Painel de produtividade: previsto do Planejamento de montagem (planos 5W2H) × realizado no período (grade e BM), por empresa; também no relatório geral
+// códigos (sem prefixo) das atividades do catálogo ligadas a uma linha do cronograma
+function painelCods(a) { try { return new Set((a.it._bmAt ? [a.it._bmAt] : ganBmAtividades(a.it)).map(x => bmSufixo(x.codigo))); } catch (err) { return new Set(); } }
 function painelProdDados(inicio, fim, c) {
   const ksAll = plFarolSemanal(inicio, fim, c);
   // tudo o que foi executado no período, mesmo fora do plano 5W2H (catálogo do BM: grade e lançamentos do BM, por empresa)
@@ -642,26 +644,31 @@ function painelProdDados(inicio, fim, c) {
     let q; try { q = lcDados(e.nome, inicio, c); } catch (err) { return; }
     q.itens.forEach(x => x.ats.forEach(t => {
       if (!(t.per > 0)) return;
-      const n = ganNorm(t.a.atividade || '');
-      const ja = ksAll.find(k => normEmp(k.emp) === normEmp(e.nome) && (ganNorm(k.serv).startsWith(n) || n.startsWith(ganNorm(k.serv).replace(/ \(PREVISAO COMPARTILHADA\)$/, ''))));
+      const n = ganNorm(t.a.atividade || ''), suf = bmSufixo(t.a.codigo);
+      // a mesma atividade já no plano 5W2H (linha do cronograma ligada a esta atividade do catálogo) ou com o mesmo nome: uma linha só
+      const mesmaUn = k => { const u = x => (typeof plUnidadeCatalogo === 'function' ? plUnidadeCatalogo(x) : ganNorm(x)); return !k.un || u(k.un) === u(t.a.unidade); };
+      const ja = ksAll.find(k => normEmp(k.emp) === normEmp(e.nome) && !k.cod && mesmaUn(k) && ((k.ativ && painelCods(k.ativ).has(suf))
+        || ganNorm(k.serv).startsWith(n) || n.startsWith(ganNorm(k.serv).replace(/ \(PREVISAO COMPARTILHADA\)$/, ''))));
       if (ja) { ja.real = Math.max(ja.real, t.per); ja.pct = ja.prev > 0 ? ja.real / ja.prev * 100 : null; return; }
-      ksAll.push({ emp: e.nome, serv: t.a.atividade, un: t.a.unidade || '', prevTotal: 0, prev: 0, real: t.per, pct: null, foraPlano: true, cod: t.a.codigo });
+      ksAll.push({ emp: e.nome, serv: t.a.atividade, un: t.a.unidade || '', prevTotal: 0, prev: 0, real: t.per, pct: null, foraPlano: true, cod: t.a.codigo, qtdAtiv: Number(t.a.qtd) || 0 });
     }));
   });
   ksAll.sort((a, b) => a.emp.localeCompare(b.emp) || String(a.serv).localeCompare(String(b.serv)));
   // sem plano 5W2H: o previsto vem do cronograma do Planejamento de montagem (mesma conta da "Sugestão do cronograma"), pela linha ligada à atividade do catálogo
   if (typeof plAtividades === 'function' && typeof plSugestao === 'function') {
     let ativs = []; try { ativs = plAtividades(); } catch (err) { ativs = []; }
-    const codsDe = a => { try { return (a.it._bmAt ? [a.it._bmAt] : ganBmAtividades(a.it)).map(x => bmSufixo(x.codigo)); } catch (err) { return []; } };
-    const idx = ativs.map(a => ({ a, cods: new Set(codsDe(a)) }));
+    const idx = ativs.map(a => ({ a, cods: painelCods(a) }));
     ksAll.filter(k => !(k.prevTotal > 0)).forEach(k => {
       const suf = k.cod ? bmSufixo(k.cod) : '';
       const hit = (suf && idx.find(x => x.cods.has(suf) && (!x.a.empresas.length || x.a.empresas.some(n => normEmp(n) === normEmp(k.emp)))))
         || idx.find(x => ganNorm(x.a.nome || x.a.it.servico || '').startsWith(ganNorm(k.serv)) && x.a.empresas.some(n => normEmp(n) === normEmp(k.emp)));
       if (!hit) return;
       let sg; try { sg = plSugestao(hit.a, inicio, fim); } catch (err) { return; }
-      const nEmp = Math.max(1, hit.a.empresas.length);   // serviço dividido entre empresas: parte igual de cada uma
-      k.prevTotal = sg.previstoPeriodo / nEmp; k.prev = sg.prevPerRef / nEmp;
+      // o cronograma pode estar em outra unidade (%, peças do IFC…): vale a FRAÇÃO prevista no período, aplicada à quantidade
+      // contratada desta atividade no catálogo da empresa (mesma unidade e quantidade de Lançamentos e do catálogo)
+      const qL = Number(sg.qtd) || 0;
+      if (!(qL > 0) || !(k.qtdAtiv > 0)) return;
+      k.prevTotal = sg.previstoPeriodo / qL * k.qtdAtiv; k.prev = sg.prevPerRef / qL * k.qtdAtiv;
       if (k.prevTotal > 0) { k.pct = k.prev > 0 ? k.real / k.prev * 100 : null; k.fontePrev = 'cronograma'; k.foraPlano = false; }
     });
   }
