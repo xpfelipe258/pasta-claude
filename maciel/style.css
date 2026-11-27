@@ -2121,3 +2121,5 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 /* Transferência de saldo entre empresas (BM) */
 dialog.bm-transf-dlg { width: min(1280px, 96vw); max-width: 96vw; }
 dialog.bm-transf-dlg .tiles { margin: 10px 0; }
+.bm-transf-sel { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.bm-transf-sel .nota { margin-left: 6px; }

@@ -6226,14 +6226,14 @@ function bmItens(emp, ate, snap) {
 // nada nela (o realizado fica no que estava no fechamento; o resto é medido pela empresa que recebeu, no item do aditivo).
 function bmRealCapTransf(emp, a, ate) {
   const real = bmRealizado(a, ate);
+  let transf = 0;
   for (const t of bmTransfs()) {
     if (t.de !== emp) continue;
-    const l = (t.linhas || []).find(x => x.codigo_de === a.codigo);
-    if (!l) continue;
     const corte = t.corte || ((bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((x, y) => x.corte.localeCompare(y.corte))[t.bm - 1]) || {}).corte;
-    if (corte && ate > corte) return Math.min(real, +l.realizado || 0);
+    if (!corte || ate <= corte) continue;
+    transf += soma0((t.linhas || []).filter(x => x.codigo_de === a.codigo), x => +x.saldo || 0);
   }
-  return real;
+  return transf > 0 ? Math.min(real, Math.max(0, (+a.qtd || 0) - transf)) : real;   // a cedente só mede o que sobrou depois da transferência
 }
 
 function bmPeriodos(emp) {
@@ -6655,11 +6655,21 @@ function renderBMPeriodos(box) {
 // ---- Transferência de saldo entre empresas (Períodos e deduções) ----
 function bmTransfTabela(r, comCedente = true) {
   const un = l => esc(l.unidade || '');
-  const linhas = r.linhas.map(l => `<tr><td class="nota" style="white-space:nowrap">${esc(l.codigo_de)}</td><td>${esc(l.atividade)}<div class="nota">${esc(l.item)} ${esc(cap(l.item_desc || ''))}</div></td><td class="n">${nf(l.qtd, 2)} ${un(l)}</td><td class="n">${nf(l.realizado, 2)}</td><td class="n"><b>${nf(l.saldo, 2)} ${un(l)}</b></td>
+  const linhas = r.linhas.map(l => `<tr><td class="nota" style="white-space:nowrap">${esc(l.codigo_de)}</td><td>${esc(l.atividade)}<div class="nota">${esc(l.item)} ${esc(cap(l.item_desc || ''))}</div></td><td class="n">${nf(l.qtd, 2)} ${un(l)}</td><td class="n">${nf(l.realizado, 2)}${l.ja_transferido ? `<div class="nota">já transferido antes: ${nf(l.ja_transferido, 2)}</div>` : ''}</td><td class="n"><b>${nf(l.saldo, 2)} ${un(l)}</b>${l.disponivel != null && l.disponivel - l.saldo > 1e-6 ? `<div class="nota">de ${nf(l.disponivel, 2)} disponível</div>` : ''}</td>
     ${comCedente ? `<td class="n">${rs2(l.unit_de)}</td><td class="n">${rs2(l.valor_de)}</td>` : ''}<td class="n">${rs2(l.unit_para)}${l.preco_de_cedente ? '<div class="nota">sem atividade igual: preço da cedente</div>' : ''}</td><td class="n"><b>${rs2(l.valor_para)}</b></td><td class="nota" style="white-space:nowrap">${esc(l.codigo_para || '—')}</td></tr>`).join('');
-  return `<div class="tabela-rolagem" style="max-height:55vh"><table data-sem-ferramentas><thead><tr><th>Código</th><th>Atividade</th><th class="n">Contratado</th><th class="n">Realizado até o BM${r.bm}</th><th class="n">Saldo transferido</th>${comCedente ? `<th class="n">Preço ${esc(r.de)}</th><th class="n">Valor ${esc(r.de)}</th>` : ''}<th class="n">Preço ${esc(r.para)}</th><th class="n">Valor ${esc(r.para)}</th><th>Atividade igual na ${esc(r.para)}</th></tr></thead>
+  return `<div class="tabela-rolagem" style="max-height:55vh"><table data-sem-ferramentas><thead><tr><th>Código</th><th>Atividade</th><th class="n">Contratado</th><th class="n">Realizado até o BM${r.bm}</th><th class="n">Quantidade transferida</th>${comCedente ? `<th class="n">Preço ${esc(r.de)}</th><th class="n">Valor ${esc(r.de)}</th>` : ''}<th class="n">Preço ${esc(r.para)}</th><th class="n">Valor ${esc(r.para)}</th><th>Atividade igual na ${esc(r.para)}</th></tr></thead>
     <tbody>${linhas || '<tr><td colspan="10" class="vazio">Nenhuma atividade com saldo.</td></tr>'}</tbody>
     <tfoot><tr><th colspan="5">Total (${r.linhas.length} atividade(s))</th>${comCedente ? `<th></th><th class="n">${rs2(r.total_de)}</th>` : ''}<th></th><th class="n">${rs2(r.total_para)}</th><th></th></tr></tfoot></table></div>`;
+}
+// Prévia selecionável: marcar atividades (ou todas) e a quantidade de cada uma (padrão = todo o saldo disponível).
+function bmTransfSelHtml(r) {
+  const un = l => esc(l.unidade || '');
+  const linhas = r.linhas.map((l, i) => `<tr data-bt-lin="${i}"><td><input type="checkbox" data-bt-chk checked aria-label="Transferir ${esc(l.codigo_de)}"></td><td class="nota" style="white-space:nowrap">${esc(l.codigo_de)}</td><td>${esc(l.atividade)}<div class="nota">${esc(l.item)} ${esc(cap(l.item_desc || ''))}</div></td><td class="n">${nf(l.qtd, 2)} ${un(l)}</td><td class="n">${nf(l.realizado, 2)}${l.ja_transferido ? `<div class="nota">já transferido: ${nf(l.ja_transferido, 2)}</div>` : ''}</td><td class="n"><b>${nf(l.disponivel, 2)}</b> ${un(l)}</td>
+    <td class="n" style="white-space:nowrap"><input type="number" data-bt-qtd min="0" max="${l.disponivel}" step="any" value="${l.disponivel}" style="width:7.5em;text-align:right"> ${un(l)}</td>
+    <td class="n">${rs2(l.unit_de)}</td><td class="n" data-bt-vde></td><td class="n">${rs2(l.unit_para)}${l.preco_de_cedente ? '<div class="nota">sem atividade igual: preço da cedente</div>' : ''}</td><td class="n"><b data-bt-vpara></b></td><td class="nota" style="white-space:nowrap">${esc(l.codigo_para || '—')}</td></tr>`).join('');
+  return `<div class="bm-transf-sel"><button type="button" class="btn" data-bt-todas>Selecionar todas</button><button type="button" class="btn" data-bt-nenhuma>Limpar seleção</button><button type="button" class="btn" data-bt-restante>Quantidade = todo o saldo</button><span data-bt-resumo class="nota"></span></div>
+    <div class="tabela-rolagem" style="max-height:52vh"><table data-sem-ferramentas><thead><tr><th><input type="checkbox" data-bt-chk-todas checked aria-label="Selecionar todas"></th><th>Código</th><th>Atividade</th><th class="n">Contratado</th><th class="n">Realizado até o BM${r.bm}</th><th class="n">Saldo disponível</th><th class="n">Quantidade a transferir</th><th class="n">Preço ${esc(r.de)}</th><th class="n">Valor ${esc(r.de)}</th><th class="n">Preço ${esc(r.para)}</th><th class="n">Valor ${esc(r.para)}</th><th>Atividade igual na ${esc(r.para)}</th></tr></thead>
+    <tbody>${linhas}</tbody><tfoot><tr><th colspan="8" data-bt-tot-rot>Total</th><th class="n" data-bt-tot-de></th><th></th><th class="n" data-bt-tot-para></th><th></th></tr></tfoot></table></div>`;
 }
 function bmTransfDialogo(html) {
   const dlg = document.createElement('dialog'); dlg.className = 'bm-copiar bm-transf-dlg'; dlg.innerHTML = html; document.body.appendChild(dlg);
@@ -6668,23 +6678,56 @@ function bmTransfDialogo(html) {
 function bmTransfAbrir(de) {
   const outras = (M.empresas || []).map(e => e.nome).filter(n => n !== de);
   const dlg = bmTransfDialogo(`<form method="dialog"><h2>Transferir saldo da ${esc(de)} para outra empresa</h2>
-    <p class="nota">Todo o saldo do catálogo da ${esc(de)} (contratado − realizado no fechamento do último BM) passa para a empresa escolhida como <b>aditivo de contrato</b> (item novo ADT), com o <b>preço unitário da empresa que recebe</b>. A ${esc(de)} fica com saldo zerado nessas atividades; os BMs já fechados não mudam. Fica registrado em Descontos e aditivos das duas empresas.</p>
+    <p class="nota">Escolha as atividades e a quantidade de cada uma (o padrão é todo o saldo: contratado − realizado no fechamento do último BM − o que já foi transferido antes). O selecionado passa para a empresa escolhida como <b>aditivo de contrato</b> (item novo ADT), com o <b>preço unitário da empresa que recebe</b>, e sai do saldo da ${esc(de)}; os BMs já fechados não mudam. Fica registrado em Descontos e aditivos das duas empresas.</p>
     <label class="rot-sel">Empresa que recebe <select data-bt-para>${outras.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
     <div data-bt-prev><p class="vazio">Calculando…</p></div>
     <div class="acoes"><button type="button" class="btn" data-bt-cancelar>Cancelar</button><button type="button" class="btn primario" data-bt-ok disabled>Transferir</button></div></form>`);
   let ultimo = null;
+  const ok = dlg.querySelector('[data-bt-ok]');
+  const selecao = () => [...dlg.querySelectorAll('[data-bt-lin]')].map(tr => {
+    const l = ultimo.linhas[+tr.dataset.btLin], inp = tr.querySelector('[data-bt-qtd]'), v = Number(String(inp.value).replace(',', '.'));
+    return { l, tr, inp, marcado: tr.querySelector('[data-bt-chk]').checked, qtd: isFinite(v) ? v : NaN };
+  });
+  const recalc = () => {
+    let tDe = 0, tPara = 0, n = 0, erro = '';
+    for (const s of selecao()) {
+      const q = s.marcado ? s.qtd : 0, inval = s.marcado && (!(q > 0) || q > s.l.disponivel + 1e-6);
+      s.inp.disabled = !s.marcado; s.inp.classList.toggle('tem-erro', inval); s.tr.style.opacity = s.marcado ? '' : '.45';
+      if (inval) erro = `${s.l.codigo_de}: informe uma quantidade maior que 0 e até ${nf(s.l.disponivel, 2)}.`;
+      const vde = s.marcado && !inval ? Math.round(q * s.l.unit_de * 100) / 100 : 0, vpara = s.marcado && !inval ? Math.round(q * s.l.unit_para * 100) / 100 : 0;
+      s.tr.querySelector('[data-bt-vde]').textContent = s.marcado ? rs2(vde) : '—'; s.tr.querySelector('[data-bt-vpara]').textContent = s.marcado ? rs2(vpara) : '—';
+      if (s.marcado && !inval) { tDe += vde; tPara += vpara; n++; }
+    }
+    dlg.querySelector('[data-bt-tot-rot]').textContent = `Total selecionado (${n} de ${ultimo.linhas.length} atividade(s))`;
+    dlg.querySelector('[data-bt-tot-de]').textContent = rs2(tDe); dlg.querySelector('[data-bt-tot-para]').textContent = rs2(tPara);
+    dlg.querySelector('[data-bt-resumo]').innerHTML = erro ? `<span class="valor-neg">${esc(erro)}</span>` : `${n} atividade(s) · ${esc(de)} cede ${rs2(tDe)} · ${esc(ultimo.para)} recebe ${rs2(tPara)}`;
+    const todas = dlg.querySelector('[data-bt-chk-todas]'), marc = selecao().filter(s => s.marcado).length;
+    todas.checked = marc === ultimo.linhas.length; todas.indeterminate = marc > 0 && marc < ultimo.linhas.length;
+    ok.disabled = !n || !!erro; ok.dataset.conf = ''; ok.textContent = 'Transferir'; ok._tot = tPara;
+  };
   const prev = async () => {
-    const para = dlg.querySelector('[data-bt-para]').value, alvo = dlg.querySelector('[data-bt-prev]'), ok = dlg.querySelector('[data-bt-ok]');
+    const para = dlg.querySelector('[data-bt-para]').value, alvo = dlg.querySelector('[data-bt-prev]');
     ok.disabled = true; alvo.innerHTML = '<p class="vazio">Calculando…</p>';
-    try { ultimo = await postar(API + 'bm/transferir', { de, para, simular: true }); alvo.innerHTML = `<p><b>Após o BM${ultimo.bm} da ${esc(de)}:</b> ${ultimo.linhas.length} atividade(s) com saldo · ${esc(de)} cede ${rs2(ultimo.total_de)} · ${esc(para)} recebe ${rs2(ultimo.total_para)} (preço da ${esc(para)})</p>` + bmTransfTabela(ultimo); ok.disabled = !ultimo.linhas.length; }
-    catch (err) { alvo.innerHTML = `<p class="aviso">${esc(err.message)}</p>`; }
+    try {
+      ultimo = await postar(API + 'bm/transferir', { de, para, simular: true });
+      if (!ultimo.linhas.length) { alvo.innerHTML = `<p class="vazio">A ${esc(de)} não tem saldo para transferir depois do BM${ultimo.bm}.</p>`; return; }
+      alvo.innerHTML = `<p><b>Após o BM${ultimo.bm} da ${esc(de)}:</b> ${ultimo.linhas.length} atividade(s) com saldo · todo o saldo = ${rs2(ultimo.total_de)} a preço da ${esc(de)} · ${rs2(ultimo.total_para)} a preço da ${esc(para)}</p>` + bmTransfSelHtml(ultimo);
+      const marcarTodas = v => { dlg.querySelectorAll('[data-bt-chk]').forEach(c => { c.checked = v; }); recalc(); };
+      alvo.querySelector('[data-bt-chk-todas]').onchange = ev => marcarTodas(ev.target.checked);
+      alvo.querySelector('[data-bt-todas]').onclick = () => marcarTodas(true);
+      alvo.querySelector('[data-bt-nenhuma]').onclick = () => marcarTodas(false);
+      alvo.querySelector('[data-bt-restante]').onclick = () => { selecao().forEach(s => { s.inp.value = s.l.disponivel; }); recalc(); };
+      alvo.querySelectorAll('[data-bt-chk], [data-bt-qtd]').forEach(e => { e.oninput = recalc; e.onchange = recalc; });
+      recalc();
+    } catch (err) { alvo.innerHTML = `<p class="aviso">${esc(err.message)}</p>`; }
   };
   dlg.querySelector('[data-bt-para]').onchange = prev;
   dlg.querySelector('[data-bt-cancelar]').onclick = () => dlg.close();
-  dlg.querySelector('[data-bt-ok]').onclick = async ev => {
-    const b = ev.currentTarget;
-    if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = `Confirmar: transferir ${rs2(ultimo.total_para)} para a ${ultimo.para}`; return; }
-    try { const r = await postar(API + 'bm/transferir', { de, para: ultimo.para }); dlg.close(); await carregar(); toast(`Saldo da ${r.de} transferido para a ${r.para}: aditivo ${r.item_para} de ${rs2(r.total_para)}`); }
+  ok.onclick = async () => {
+    const linhas = selecao().filter(s => s.marcado).map(s => ({ codigo: s.l.codigo_de, qtd: s.qtd }));
+    if (!linhas.length) return;
+    if (ok.dataset.conf !== '1') { ok.dataset.conf = '1'; ok.textContent = `Confirmar: transferir ${linhas.length} atividade(s) · ${rs2(ok._tot)} para a ${ultimo.para}`; return; }
+    try { const r = await postar(API + 'bm/transferir', { de, para: ultimo.para, linhas }); dlg.close(); await carregar(); toast(`Saldo da ${r.de} transferido para a ${r.para}: aditivo ${r.item_para} de ${rs2(r.total_para)}`); }
     catch (err) { toast(err.message, true); }
   };
   prev();
@@ -6694,7 +6737,7 @@ function bmTransfVer(id) {
   if (!r) return toast('Transferência não encontrada (recarregue a página).', true);
   const dlg = bmTransfDialogo(`<form method="dialog"><h2>Aditivo — transferência nº ${r.id}</h2>
     <p>Saldo da <b>${esc(r.de)}</b> após o <b>BM${r.bm}</b> passado para a <b>${esc(r.para)}</b> em ${fdA(r.data)}${r.por ? ' por ' + esc(r.por) : ''}. Item do aditivo na ${esc(r.para)}: <b>${esc(r.item_para || '')}</b>.</p>
-    <div class="tiles">${bmTile('Atividades transferidas', nf(r.linhas.length, 0), 'saldo após o fechamento do BM' + r.bm, 'var(--acento)')}${bmTile(`Valor cedido pela ${r.de}`, rs2(r.total_de), `saldo a preço da ${r.de} (zerado)`, 'var(--vermelho)')}${bmTile(`Aditivo na ${r.para}`, rs2(r.total_para), `item ${r.item_para || ''} · preço da ${r.para}`, 'var(--verde)')}${bmTile('Diferença de preço', rs2(r.total_para - r.total_de), `${r.para} − ${r.de}`, 'var(--fg3)')}</div>
+    <div class="tiles">${bmTile('Atividades transferidas', nf(r.linhas.length, 0), 'saldo depois do fechamento do BM' + r.bm, 'var(--acento)')}${bmTile(`Valor cedido pela ${r.de}`, rs2(r.total_de), `quantidade transferida a preço da ${r.de}`, 'var(--vermelho)')}${bmTile(`Aditivo na ${r.para}`, rs2(r.total_para), `item ${r.item_para || ''} · preço da ${r.para}`, 'var(--verde)')}${bmTile('Diferença de preço', rs2(r.total_para - r.total_de), `${r.para} − ${r.de}`, 'var(--fg3)')}</div>
     ${bmTransfTabela(r)}
     <div class="acoes"><button type="button" class="btn primario" data-bt-fechar>Fechar</button></div></form>`);
   dlg.querySelector('[data-bt-fechar]').onclick = () => dlg.close();

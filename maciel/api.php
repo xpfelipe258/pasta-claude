@@ -2127,7 +2127,20 @@ function acao_bm_transferir(array $corpo, array $usuario)
     if (!$empPara || !q('SELECT 1 FROM empresas WHERE nome = ?', [$de])->fetchColumn()) throw new ErroValidacao('Empresa inválida.');
     $n = (int)q('SELECT MAX(bm) FROM bm_fechamentos WHERE empresa = ?', [$de])->fetchColumn();
     if ($n < 1) throw new ErroValidacao("$de ainda não tem BM fechado: feche o último BM antes de transferir o saldo.");
-    foreach (bm_transf_ler() as $t) if (($t['de'] ?? '') === $de && (int)($t['bm'] ?? 0) === $n) throw new ErroValidacao("O saldo de $de após o BM$n já foi transferido para {$t['para']}.");
+    $ja = [];   // quantidade já transferida antes, por atividade da empresa que cede
+    foreach (bm_transf_ler() as $t) if (($t['de'] ?? '') === $de) foreach (($t['linhas'] ?? []) as $l) $ja[$l['codigo_de']] = ($ja[$l['codigo_de']] ?? 0) + (float)($l['saldo'] ?? 0);
+    // seleção (só ao gravar): {codigo: quantidade a transferir}; sem seleção = todo o saldo disponível
+    $sel = null;
+    if (empty($corpo['simular']) && isset($corpo['linhas'])) {
+        if (!is_array($corpo['linhas'])) throw new ErroValidacao('Seleção de atividades inválida.');
+        $sel = [];
+        foreach ($corpo['linhas'] as $l) {
+            $q = numero($l['qtd'] ?? null);
+            if (!is_array($l) || !isset($l['codigo']) || $q === null || $q < 0) throw new ErroValidacao('Quantidade inválida na seleção.');
+            if ($q > 0) $sel[(string)$l['codigo']] = (float)$q;
+        }
+        if (!$sel) throw new ErroValidacao('Selecione ao menos uma atividade com quantidade a transferir.');
+    }
     $fech = [];
     foreach (q('SELECT codigo, realizado FROM bm_fech_atividades WHERE empresa = ? AND bm = ?', [$de, $n])->fetchAll() as $r) $fech[$r['codigo']] = (float)$r['realizado'];
     $ativDe = q('SELECT * FROM bm_atividades WHERE empresa = ? ORDER BY item, codigo', [$de])->fetchAll();
@@ -2136,8 +2149,15 @@ function acao_bm_transferir(array $corpo, array $usuario)
     $itDe = $porItem($ativDe); $itPara = $porItem($ativPara);
     $linhas = []; $totDe = 0; $totPara = 0;
     foreach ($ativDe as $a) {
-        $qtd = (float)$a['qtd']; $real = min($qtd, $fech[$a['codigo']] ?? 0); $saldo = round($qtd - $real, 4);
-        if ($saldo <= 1e-6) continue;
+        $qtd = (float)$a['qtd']; $real = min($qtd, $fech[$a['codigo']] ?? 0); $jaT = (float)($ja[$a['codigo']] ?? 0);
+        $disp = round(max(0, $qtd - $real - $jaT), 4);
+        if ($disp <= 1e-6) continue;
+        if ($sel !== null) {
+            if (!isset($sel[$a['codigo']])) continue;
+            if ($sel[$a['codigo']] > $disp + 1e-6) throw new ErroValidacao("{$a['codigo']}: a quantidade a transferir (" . str_replace('.', ',', (string)$sel[$a['codigo']]) . ') passa do saldo disponível (' . str_replace('.', ',', (string)$disp) . ').');
+            $saldo = round(min($sel[$a['codigo']], $disp), 4);
+            unset($sel[$a['codigo']]);
+        } else $saldo = $disp;
         $pDe = bm_transf_preco($a, $itDe[$a['item']]);
         $par = null; foreach ($ativPara as $b) if (bm_copia_sufixo($b['codigo']) === bm_copia_sufixo($a['codigo'])) { $par = $b; break; }
         $pPara = $par ? bm_transf_preco($par, $itPara[$par['item']]) : null;
@@ -2145,9 +2165,10 @@ function acao_bm_transferir(array $corpo, array $usuario)
         $vDe = round($saldo * $pDe['unit'], 2); $vPara = round($saldo * $unit, 2);
         $totDe += $vDe; $totPara += $vPara;
         $linhas[] = ['codigo_de' => $a['codigo'], 'codigo_para' => $par['codigo'] ?? '', 'item' => $a['item'], 'item_desc' => $a['item_desc'], 'atividade' => $a['atividade'], 'unidade' => $a['unidade'],
-            'qtd' => $qtd, 'realizado' => $real, 'saldo' => $saldo, 'unit_de' => round($pDe['unit'], 4), 'unit_para' => round($unit, 4), 'preco_de_cedente' => !$pPara || !($pPara['unit'] > 0),
+            'qtd' => $qtd, 'realizado' => $real, 'ja_transferido' => round($jaT, 4), 'disponivel' => $disp, 'saldo' => $saldo, 'unit_de' => $pDe['unit'], 'unit_para' => $unit,   // sem arredondar: a tela recalcula o valor com o mesmo preço 'preco_de_cedente' => !$pPara || !($pPara['unit'] > 0),
             'valor_de' => $vDe, 'valor_para' => $vPara];
     }
+    if ($sel) throw new ErroValidacao('Atividade sem saldo disponível na seleção: ' . implode(', ', array_keys($sel)) . '.');
     $pers = bm_periodos_numerados($de); $corte = isset($pers[$n]) ? substr((string)$pers[$n], 0, 10) : '';
     $res = ['de' => $de, 'para' => $para, 'bm' => $n, 'corte' => $corte, 'linhas' => $linhas, 'total_de' => round($totDe, 2), 'total_para' => round($totPara, 2)];
     if (!empty($corpo['simular']) || !$linhas) return $res;
@@ -2163,7 +2184,7 @@ function acao_bm_transferir(array $corpo, array $usuario)
     // registro em Períodos e deduções (Descontos e aditivos): informativo, não entra no valor a faturar
     $ins = 'INSERT INTO bm_deducoes (empresa, bm, data, tipo, descricao, valor, contrato) VALUES (?, ?, ?, ?, ?, ?, ?)';
     q($ins, [$para, $n + 1, $data, 'ADITIVO', "Transferência nº $id: saldo recebido da $de após o BM$n (item {$adt['item']}, " . count($linhas) . ' atividade(s), preço da ' . $para . ')', $reg['total_para'], 'RÓTULA']);
-    q($ins, [$de, $n + 1, $data, 'ADITIVO', "Transferência nº $id: saldo cedido para a $para após o BM$n (" . count($linhas) . ' atividade(s); saldo zerado)', -$reg['total_de'], 'RÓTULA']);
+    q($ins, [$de, $n + 1, $data, 'ADITIVO', "Transferência nº $id: saldo cedido para a $para após o BM$n (" . count($linhas) . ' atividade(s); quantidades saem do saldo da ' . $de . ')', -$reg['total_de'], 'RÓTULA']);
     return $reg;
 }
 
