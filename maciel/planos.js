@@ -43,7 +43,8 @@ function plDistribuirTaxa(qtd, n, taxa, inteiro) {
 }
 // meta/dia em vigor: a digitada no plano; em branco, a meta atual do cadastro (cronograma); sem nenhuma, quantidade ÷ dias do período
 function plMeta(it, ativ, nDias) {
-  const m = Number(it.meta_dia) > 0 ? Number(it.meta_dia) : Number(ativ?.it?.meta_dia) > 0 ? Number(ativ.it.meta_dia) : 0;
+  const av = ativ && typeof plAtivDaEmpresas === 'function' ? plAtivDaEmpresas(ativ, plEmpresasDoItem(it, ativ)) || ativ : ativ;   // meta do cronograma só das empresas do item
+  const m = Number(it.meta_dia) > 0 ? Number(it.meta_dia) : Number(av?.it?.meta_dia) > 0 ? Number(av.it.meta_dia) : 0;
   return m > 0 ? m : it.qtd / Math.max(1, nDias);
 }
 const plInteiro = un => ['un', 'vão', 'RUA'].includes(plUnidadeCatalogo(un));
@@ -268,10 +269,42 @@ function plAtividades(forcar) {
   });
   migra.forEach((ks, chave) => migra.set(chave, [...new Set(ks.map(k => chaveDe.get(k) || k))]));
   PL._migra = migra;
+  PL._atvEmp = new Map();
   PL._atv = final.sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || (a.it._bmAt?.linha || 0) - (b.it._bmAt?.linha || 0) || a.nome.localeCompare(b.nome));
   return PL._atv;
 }
 const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
+// Recorte da atividade para as empresas executoras do plano: quantidade e preço do catálogo SÓ dessas empresas e realizado SÓ do que elas
+// lançaram. emps vazio = todas as empresas (a atividade inteira). Devolve null quando nenhuma das empresas executa a atividade.
+function plAtivDaEmpresas(a, emps) {
+  if (!a || !emps || !emps.length) return a;
+  const sel = new Set(emps.map(normEmp)), da = (a.empresas || []).filter(e => sel.has(normEmp(e)));
+  if (!da.length) return null;
+  if (da.length === a.empresas.length) return a;
+  PL._atvEmp ||= new Map();
+  const ck = a.chave + '|' + [...sel].sort().join(',');
+  if (PL._atvEmp.has(ck)) return PL._atvEmp.get(ck);
+  const base = plBase(), ats0 = a.it._bmAts || (a.it._bmAt ? [a.it._bmAt] : []), ats = ats0.filter(x => sel.has(normEmp(x.empresa)));
+  const qtd = ats.length ? soma0(ats, x => Number(x.qtd) || 0) : (Number(a.qtd) || 0) * da.length / a.empresas.length;
+  const pe = (a.linha.porEmp || []), tudo = soma0(plSerieReal(a), ([, v]) => v), somaPe = soma0(pe, x => soma0(x.ds, ([, v]) => v)), k = somaPe > 0 ? Math.min(1, tudo / somaPe) : 1;
+  const porDia = new Map();
+  pe.filter(x => sel.has(normEmp(x.nome))).forEach(x => x.ds.forEach(([d, v]) => porDia.set(d, (porDia.get(d) || 0) + v * k)));
+  const ds = [...porDia].sort((x, y) => x[0].localeCompare(y[0])), real = soma0(ds.filter(([d]) => d <= base), ([, v]) => v);
+  const f = Number(a.qtd) > 0 ? qtd / Number(a.qtd) : 1;
+  const it = { ...a.it, qtd, peso: qtd || 1, meta_dia: (Number(a.it.meta_dia) || 0) * f, responsavel: da.join(' / '), ...(ats.length ? { _bmAt: ats[0], _bmAts: ats.length > 1 ? ats : undefined } : {}) };
+  const prevAc = prevCliente(it, base);
+  const status = qtd > 0 && real >= qtd * (1 - PL_TOL_CONCLUSAO) ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+  const r = { ...a, qtd, realAc: real, prevAc, status, empresas: da, it, codigos: ats.length ? ats.map(x => x.codigo) : a.codigos,
+    nome: ats.length && new Set(ats.map(x => x.atividade)).size === 1 ? cap(`${ats[0].atividade} · ${bmSufixo(ats[0].codigo)}`) : a.nome,
+    linha: { ...a.linha, it, realAc: real, prevAc, status, dsReal: ds, porEmp: pe.filter(x => sel.has(normEmp(x.nome))), pctReal: qtd ? Math.min(1, real / qtd) : 0 } };
+  PL._atvEmp.set(ck, r);
+  return r;
+}
+const plAtividadesDe = emps => plAtividades().map(a => plAtivDaEmpresas(a, emps)).filter(Boolean);
+const plWizEmps = () => (PL.wiz && Array.isArray(PL.wiz.empresas) ? PL.wiz.empresas : []);
+const plAtivWiz = chave => plAtivDaEmpresas(plAtivPorChave(chave), plWizEmps());
+// empresas executoras que podem ser escolhidas no plano: as que têm atividade no catálogo/cronograma
+const plEmpresasExecutoras = () => M.empresas.map(e => e.nome).filter(n => plAtividades().some(a => (a.empresas || []).some(e => normEmp(e) === normEmp(n))));
 
 // Realizado por dia da atividade: vem do que foi lançado. Frentes anexas (Eclusa, Portaria...) usam só as colunas da própria
 // frente e, na Eclusa, o avanço do BM; as demais usam a série do Gantt (produção, BM e apontamentos, a fonte maior).
@@ -577,7 +610,7 @@ function plSugPeriodo() {
 }
 function plSugLinhas(ini, fim) {
   const g = PL.sug;
-  return plAtividades().map(a => ({ a, s: plSugestao(a, ini, fim) }))
+  return plAtividadesDe(g.emp ? [g.emp] : []).map(a => ({ a, s: plSugestao(a, ini, fim) }))
     .filter(({ a, s }) => (g.concl || !s.concluida) && (!a.ini || a.ini <= fim) && (s.concluida ? (a.prazo || fim) >= ini : true))
     .sort((x, y) => (y.s.precisa > 1e-9) - (x.s.precisa > 1e-9) || (x.s.desvio / (x.a.qtd || 1)) - (y.s.desvio / (y.a.qtd || 1)) || x.a.frente.localeCompare(y.a.frente));
 }
@@ -667,6 +700,7 @@ function renderSugestao(box) {
     <button class="btn primario" data-pl-sug-criar ${g.sel.size ? '' : 'disabled'}>Criar planejamento com ${g.sel.size} selecionada(s)</button></div>
     <div class="bloco pl-sug-per"><div class="acoes"><b>Período</b><div class="seg" id="plSugPreset">${presets.map(([k, r]) => `<button data-pl-sug-preset="${k}" class="${g.preset === k ? 'ativa' : ''}">${r}</button>`).join('')}</div>
       <label class="rot-sel">de <input type="date" data-pl-sug-data="ini" value="${ini}"></label><label class="rot-sel">até <input type="date" data-pl-sug-data="fim" value="${fim}"></label>
+      <label class="rot-sel" title="Só as atividades, quantidades e o realizado da empresa escolhida">Empresa executora <select data-pl-sug-emp><option value="">Todas as empresas</option>${plEmpresasExecutoras().map(n => `<option ${n === g.emp ? 'selected' : ''} value="${esc(n)}">${esc(n)}</option>`).join('')}</select></label>
       <span class="nota">${plDias(ini, fim).length} dias úteis · realizado até ${fdA(base)} (data de referência)</span></div></div>`;
   if (!linhas.length) {
     box.innerHTML = h + '<div class="bloco pl-vazio"><h3>Nada previsto para este período</h3><p>Nenhuma atividade do cronograma cai nestas datas. Escolha outro período.</p></div>';
@@ -702,9 +736,9 @@ function renderSugestao(box) {
 function plCriarDaSugestao() {
   const g = PL.sug, [ini, fim] = plSugPeriodo();
   const w = { id: '', passo: 3, nome: `Planejamento ${fdA(ini)} a ${fdA(fim)}`, inicio: ini, fim, responsavel: '',
-    objetivo: `Recuperar o atraso e cumprir o previsto no cronograma até ${fdA(fim)}.`, status: 'ativo', sel: new Map(), busca: '', frente: '' };
+    objetivo: `Recuperar o atraso e cumprir o previsto no cronograma até ${fdA(fim)}.`, status: 'ativo', empresas: g.emp ? [g.emp] : [], sel: new Map(), busca: '', frente: '' };
   PL.wiz = w;
-  plAtividades().filter(a => g.sel.has(a.chave)).forEach(a => w.sel.set(a.chave, plItemPadrao(a, w)));
+  plAtividadesDe(w.empresas).filter(a => g.sel.has(a.chave)).forEach(a => w.sel.set(a.chave, plItemPadrao(a, w)));
   if (!w.sel.size) { PL.wiz = null; return toast('Marque ao menos uma atividade.', true); }
   plWizRender();
 }
@@ -762,7 +796,7 @@ function plRenderPainel() {
   const dRest = c.diasRest;
   const selEmp = emps.length > 1 ? `<label class="rot-sel pl-emp-sel" title="Só as atividades em que a empresa está no Who, com a parte e o realizado dela">Empresa <select id="plEmpPl"><option value="">Todas as empresas</option>${emps.map(e => `<option value="${esc(e)}" ${e === vis.emp ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : '';
   let h = `<div class="bloco pl-cab"><div><h3>${esc(pl.nome)} ${plFarol(st)}</h3>
-      <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s)${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado só dentro do período (${fdA(pl.inicio)} a ${fdA(minD(pl.fim, c.baseRef))})</p>
+      <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s) · empresa executora: <b>${Array.isArray(pl.empresas) && pl.empresas.length ? esc(pl.empresas.join(' / ')) : 'todas as empresas'}</b>${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado só dentro do período (${fdA(pl.inicio)} a ${fdA(minD(pl.fim, c.baseRef))})</p>
       ${pl.objetivo ? `<p class="pl-objetivo">${esc(pl.objetivo)}</p>` : ''}
       ${selEmp ? `<div class="barra-acoes">${selEmp}${vis.emp ? `<span class="nota">realizado só do que a ${esc(vis.emp)} lançou · ${c.itens.length} de ${pl.itens.length} atividade(s)</span>` : ''}</div>` : ''}</div>
     <div class="acoes"><button class="btn" data-pl-editar>Editar planejamento</button><button class="btn primario" data-pl-doc>Baixar planejamento</button><button class="btn" data-pl-csv>Exportar CSV</button>
@@ -779,7 +813,10 @@ function plRenderPainel() {
   plRenderCorpo(vis.pl, c);
 }
 // Empresas do plano (Who de cada atividade) e a visão escolhida no plano aberto ("Empresa": só a parte e o realizado dela).
-function plEmpresasDoPlano(pl) { return [...new Set((pl.itens || []).flatMap(it => plEmpresasDoItem(it, plAtivPorChave(it.chave))))].filter(Boolean); }
+function plEmpresasDoPlano(pl) {
+  if (Array.isArray(pl.empresas) && pl.empresas.length) return pl.empresas.slice();   // plano de empresas escolhidas
+  return [...new Set((pl.itens || []).flatMap(it => plEmpresasDoItem(it, plAtivPorChave(it.chave))))].filter(Boolean);
+}
 function plVistaDoPlano(pl) {
   const emp = PL.empPl && plEmpresasDoPlano(pl).includes(PL.empPl) ? PL.empPl : '';
   const c = plCalc(pl, emp);
@@ -950,11 +987,12 @@ function plW5(pl, c, box) {
 // ---------------------------------------------------------------- assistente: novo planejamento / editar
 function plWizNovo() {
   const hj = plBase(), ini = diaUtil(hj) ? hj : somarDiasUteis(hj, 1);
-  PL.wiz = { id: '', passo: 1, nome: '', inicio: ini, fim: somarDiasUteis(ini, 19), responsavel: '', objetivo: '', status: 'ativo', sel: new Map(), busca: '', frente: '' };
+  const minha = window.USUARIO_RESTRITO ? plEmpresasExecutoras().filter(n => normEmp(n) === normEmp(window.USUARIO_RESTRITO)) : [];
+  PL.wiz = { id: '', passo: 1, nome: '', inicio: ini, fim: somarDiasUteis(ini, 19), responsavel: '', objetivo: '', status: 'ativo', empresas: minha, sel: new Map(), busca: '', frente: '' };
   plWizRender();
 }
 function plWizEditar(pl) {
-  PL.wiz = { id: pl.id, passo: 1, nome: pl.nome, inicio: pl.inicio, fim: pl.fim, responsavel: pl.responsavel || '', objetivo: pl.objetivo || '', status: pl.status || 'ativo',
+  PL.wiz = { id: pl.id, passo: 1, nome: pl.nome, inicio: pl.inicio, fim: pl.fim, responsavel: pl.responsavel || '', objetivo: pl.objetivo || '', status: pl.status || 'ativo', empresas: Array.isArray(pl.empresas) ? pl.empresas.slice() : [],
     sel: new Map(pl.itens.map(i => [i.chave, { ...i }])), busca: '', frente: '' };
   plWizRender();
 }
@@ -986,17 +1024,21 @@ function plWizRender() {
     corpo = `<div class="pl-form"><label class="largo">Nome do planejamento<input data-pl-w="nome" value="${esc(w.nome)}" placeholder="Ex.: Semana 12 a 23/10 — Cobertura e Eclusa" maxlength="120"></label>
       <label>Início da execução<input type="date" data-pl-w="inicio" value="${w.inicio}"></label><label>Fim da execução<input type="date" data-pl-w="fim" value="${w.fim}"></label>
       <label>Responsável pelo plano<input data-pl-w="responsavel" value="${esc(w.responsavel)}" maxlength="120"></label>
+      <div class="largo pl-quem pl-wemp"><span class="pl-quem-rot"><b>Empresa executora</b> <span class="pl-obrig">obrigatório</span> <span class="nota">as atividades, quantidades, preços e o realizado vêm só do catálogo e da produção das empresas escolhidas</span></span>
+        <div class="pl-quem-chips"><label class="pl-chip ${(w.empresas && w.empresas.length) || w._semEmp ? '' : 'on'}"><input type="checkbox" data-pl-wemp-todas ${(w.empresas && w.empresas.length) || w._semEmp ? '' : 'checked'}> Todas as empresas</label>
+        ${plEmpresasExecutoras().map(n => `<label class="pl-chip ${(w.empresas || []).includes(n) ? 'on' : ''}"><input type="checkbox" data-pl-wemp="${esc(n)}" ${(w.empresas || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('')}</div></div>
       <label class="largo">Objetivo do período (por quê)<textarea data-pl-w="objetivo" rows="2" maxlength="800" placeholder="O que precisa estar pronto ao fim do período e por quê">${esc(w.objetivo)}</textarea></label></div>
-      <p class="nota">${w.inicio && w.fim && w.fim >= w.inicio ? `${plDias(w.inicio, w.fim).length} dias úteis no período.` : 'Informe um período válido.'}</p>`;
+      <p class="nota">${w.inicio && w.fim && w.fim >= w.inicio ? `${plDias(w.inicio, w.fim).length} dias úteis no período.` : 'Informe um período válido.'} ${w.empresas && w.empresas.length ? `Plano de <b>${esc(w.empresas.join(' / '))}</b>: ${plAtividadesDe(w.empresas).length} atividade(s) no catálogo.` : `Plano de todas as empresas: ${plAtividades().length} atividade(s).`}</p>`;
   } else if (w.passo === 2) {
-    const ats = plAtividades(), frentes = [...new Set(ats.map(a => a.frente))];
+    plWizAjustarEmpresas();
+    const ats = plAtividadesDe(plWizEmps()), frentes = [...new Set(ats.map(a => a.frente))];
     const f = w.busca.toUpperCase();
     const vis = ats.filter(a => (!w.frente || a.frente === w.frente) && (!f || ganNorm(a.nome + ' ' + a.frente + ' ' + a.empresas.join(' ')).includes(ganNorm(f))));
     const sobrepoe = a => plSugestao(a, w.inicio, w.fim).precisa > 1e-9;
     corpo = `<div class="pl-barra-sel"><input type="search" class="input-filtro" data-pl-busca placeholder="Buscar atividade, frente ou empresa…" value="${esc(w.busca)}">
       <select data-pl-frente><option value="">Todas as frentes</option>${frentes.map(x => `<option ${x === w.frente ? 'selected' : ''} value="${esc(x)}">${esc(cap(x))}</option>`).join('')}</select>
       <button class="btn" data-pl-sugerir>Sugerir pelo cronograma</button><button class="btn" data-pl-todas>Marcar visíveis</button><button class="btn" data-pl-nenhuma>Limpar</button>
-      <span class="nota"><b>${w.sel.size}</b> selecionada(s) · ${ats.length} atividades no cronograma</span></div>
+      <span class="nota"><b>${w.sel.size}</b> selecionada(s) · ${ats.length} atividades ${plWizEmps().length ? 'de ' + esc(plWizEmps().join(' / ')) + ' (catálogo e produção só dela' + (plWizEmps().length > 1 ? 's' : '') + ')' : 'do catálogo (todas as empresas)'}</span></div>
       <div class="tabela-rolagem pl-lista"><table class="pl-tab"><thead><tr><th></th><th>Atividade</th><th>Frente</th><th>Empresa</th><th class="n">Contrato</th><th class="n" title="Produção lançada dentro do período do planejamento (início e fim escolhidos)">Realizado no período</th><th class="n">Precisa realizar</th><th>Cronograma</th><th>Situação</th></tr></thead><tbody>` +
       (vis.length ? vis.map(a => `<tr class="${w.sel.has(a.chave) ? 'marcada' : ''} ${sobrepoe(a) ? '' : 'fora'}"><td><input type="checkbox" data-pl-marca="${esc(a.chave)}" ${w.sel.has(a.chave) ? 'checked' : ''}></td>
         <td><b title="${esc(a.itemDesc || '')}">${esc(a.nome)}</b></td><td>${esc(cap(a.frente))}</td><td>${esc(a.empresas.join(' / ') || '—')}</td><td class="n">${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)}</td><td class="n">${plFmt(plSugestao(a, w.inicio, w.fim).realPeriodo, a.unidade)}</td>
@@ -1007,7 +1049,7 @@ function plWizRender() {
     itens.forEach(plDivisaoSync);   // 2 ou mais empresas: abre a divisão por empresa (produção e financeiro)
     corpo = `<p class="nota">Preencha o 5W2H de cada atividade. O quê, onde, quem e a quantidade já vêm sugeridos do cronograma. A divisão por dia usa a meta/dia atual de cada atividade (ou a que você digitar) e, no painel, também o ritmo real.</p>
       <div class="barra-acoes"><button class="btn" data-pl-aplicar-periodo>Aplicar o período do plano a todas</button><span class="nota">${itens.length} atividade(s)</span></div><div class="pl-cartoes5">` +
-      itens.map(it => { const a = plAtivPorChave(it.chave), k = esc(it.chave); const campo = (nome, rot, tipo = 'text', extra = '') => `<label>${rot}<input ${tipo === 'num' ? 'type="number" step="any" min="0"' : tipo === 'date' ? 'type="date"' : 'type="text" maxlength="500"'} data-pl-i="${nome}" data-k="${k}" value="${esc(it[nome] ?? '')}" ${extra}></label>`;
+      itens.map(it => { const a = plAtivWiz(it.chave), k = esc(it.chave); const campo = (nome, rot, tipo = 'text', extra = '') => `<label>${rot}<input ${tipo === 'num' ? 'type="number" step="any" min="0"' : tipo === 'date' ? 'type="date"' : 'type="text" maxlength="500"'} data-pl-i="${nome}" data-k="${k}" value="${esc(it[nome] ?? '')}" ${extra}></label>`;
         return `<div class="pl-w5card" data-k="${k}"><div class="pl-w5cab"><b>${esc(it.atividade)}</b><span class="nota">${esc(cap(it.frente))}${a ? ` · contrato ${plFmt(a.qtd, a.unidade)} ${esc(a.unidade)} · realizado no período ${plFmt(plSugestao(a, PL.wiz.inicio, PL.wiz.fim).realPeriodo, a.unidade)}` : ' · atividade não está mais no cronograma'}</span>
             <button class="btn-link" data-pl-remover="${k}" title="Tirar do planejamento">remover</button></div>
           <div class="pl-form5">${campo('o_que', '<span><b>What</b> — O quê</span>')}${campo('por_que', '<span><b>Why</b> — Por quê</span>')}${campo('onde', '<span><b>Where</b> — Onde</span>')}
@@ -1030,7 +1072,7 @@ function plWizRender() {
 // Taxa por dia do item: escolher entre a taxa NECESSÁRIA para fechar a quantidade no período, o RITMO REAL (semana anterior) e a META do cronograma.
 // Who — empresa(s) que executam a atividade (seleção obrigatória): uma ou mais das empresas da obra + "outra" (texto livre).
 function plQuemLista(it) {
-  const todas = M.empresas.map(e => e.nome), txt = ganNorm(it.empresa || '');
+  const todas = plWizEmps().length ? plWizEmps().slice() : M.empresas.map(e => e.nome), txt = ganNorm(it.empresa || '');
   const marcadas = todas.filter(n => txt.includes(ganNorm(n)));
   let resto = String(it.empresa || '');
   marcadas.forEach(n => { resto = resto.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ''); });
@@ -1041,7 +1083,7 @@ function plQuemSelect(it, a, k) {
   const q = plQuemLista(it), sugeridas = a?.empresas || [];
   return `<div class="pl-quem" data-k="${k}"><span class="pl-quem-rot"><b>Who</b> — Empresa que executa <span class="pl-obrig">obrigatório</span></span>
     <div class="pl-quem-chips">${q.todas.map(n => `<label class="pl-chip ${q.marcadas.includes(n) ? 'on' : ''}" title="${sugeridas.includes(n) ? 'Executa esta atividade na grade de lançamentos' : ''}"><input type="checkbox" data-pl-quem="${esc(n)}" data-k="${k}" ${q.marcadas.includes(n) ? 'checked' : ''}> ${esc(n)}${sugeridas.includes(n) ? ' <span class="nota">•</span>' : ''}</label>`).join('')}
-      <label class="pl-chip-outra">outra: <input type="text" maxlength="60" data-pl-quem-outra data-k="${k}" value="${esc(q.outra)}" placeholder="empresa/equipe"></label></div></div>`;
+      ${plWizEmps().length ? '' : `<label class="pl-chip-outra">outra: <input type="text" maxlength="60" data-pl-quem-outra data-k="${k}" value="${esc(q.outra)}" placeholder="empresa/equipe"></label>`}</div></div>`;
 }
 function plQuemAplicar(it, antes) {   // grava no item a escolha (empresa e quem); antes = valor anterior de empresa
   const q = plQuemLista(it), nomes = [...q.marcadas, ...(it._outra ? [it._outra.trim()] : [])].filter(Boolean);
@@ -1052,7 +1094,7 @@ function plQuemAplicar(it, antes) {   // grava no item a escolha (empresa e quem
 // O valor sugerido é a quantidade × preço unitário do catálogo do BM; ao digitar o valor ele passa a ser manual. it.custo = soma dos valores.
 const plEmpresasMarcadas = it => { const q = plQuemLista(it), o = String(q.outra || '').trim(); return [...q.marcadas, ...(o ? [o] : [])]; };
 function plPrecoUnit(it, emp) {   // preço unitário do catálogo do BM; com `emp`, o da própria empresa (cada uma tem o seu valor)
-  try { const a = plAtivPorChave(it.chave); if (a && typeof pjPreco === 'function') return pjPreco(a, 'RÓTULA', new Map(), emp || '', it).unit || 0; } catch { /* sem preço */ }
+  try { const a = plAtivPorChave(it.chave); if (a && typeof pjPreco === 'function') return pjPreco(a, 'RÓTULA', new Map(), emp || (plWizEmps().length === 1 ? plWizEmps()[0] : ''), it).unit || 0; } catch { /* sem preço */ }
   return 0;
 }
 const plArred = (v, inteiro) => (inteiro ? Math.round(v) : +v.toFixed(3));
@@ -1187,6 +1229,7 @@ function plWizValidar(passo) {
     if (!w.nome.trim()) return 'Dê um nome ao planejamento.';
     if (!ehISO(w.inicio) || !ehISO(w.fim)) return 'Informe o início e o fim da execução.';
     if (w.fim < w.inicio) return 'O fim da execução não pode ser antes do início.';
+    if (w._semEmp && !(w.empresas || []).length) return 'Escolha a empresa executora (ou "Todas as empresas").';
   }
   if (passo >= 2 && !w.sel.size) return 'Marque ao menos uma atividade.';
   if (passo >= 3) {
@@ -1194,6 +1237,7 @@ function plWizValidar(passo) {
       if (!(Number(it.qtd) > 0)) return `${it.atividade}: informe a quantidade (How much).`;
       if (!ehISO(it.inicio) || !ehISO(it.fim) || it.fim < it.inicio) return `${it.atividade}: confira o início e o fim (When).`;
       if (!String(it.empresa || '').trim()) return `${it.atividade}: selecione a empresa que irá executar (Who).`;
+      if (plWizEmps().length) { const fora = String(it.empresa).split(/\s*\/\s*/).filter(e => e && !plWizEmps().some(x => normEmp(x) === normEmp(e))); if (fora.length) return `${it.atividade}: ${fora.join(', ')} não é empresa executora deste plano (${plWizEmps().join(' / ')}).`; }
       if (Array.isArray(it.divisao) && it.divisao.length >= 2) {
         const soma = it.divisao.reduce((t, d) => t + (Number(d.qtd) || 0), 0), dif = Number(it.qtd) - soma;
         for (const d of it.divisao) {
@@ -1212,7 +1256,7 @@ async function plWizSalvar(rascunho) {
   const w = PL.wiz, erro = rascunho ? plWizValidar(1) : plWizValidar(3);
   if (erro) return plWizMsg(erro, true);
   const status = rascunho ? 'rascunho' : (w.status === 'rascunho' ? 'ativo' : w.status);   // publicar um rascunho o torna ativo
-  const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status,
+  const plano = { id: w.id || '', nome: w.nome.trim(), inicio: w.inicio, fim: w.fim, responsavel: w.responsavel.trim(), objetivo: w.objetivo.trim(), status, empresas: plWizEmps().slice(),
     itens: [...w.sel.values()].map(i => ({ ...i, qtd: Number(i.qtd) || 0, peso: Number(i.peso) > 0 ? Number(i.peso) : 1, custo: i.custo === '' || i.custo == null ? null : Number(i.custo), meta_dia: Number(i.meta_dia) > 0 ? Number(i.meta_dia) : null,
       divisao: Array.isArray(i.divisao) && i.divisao.length >= 2 ? i.divisao.map(d => ({ empresa: d.empresa, qtd: Number(d.qtd) || 0, valor: d.valor === '' || d.valor == null ? null : Number(d.valor), valor_manual: !!d.valor_manual, como: d.como || '', inicio: d.inicio || i.inicio || '', fim: d.fim || i.fim || '', quando_manual: !!d.quando_manual })) : [] })) };
   try {
@@ -1586,14 +1630,14 @@ document.addEventListener('click', async ev => {
   if (t.closest('[data-pl-rascunho-salvar]')) return plWizSalvar(true);
   if (t.closest('[data-pl-criar]')) return plWizSalvar();
   const marca = t.closest('[data-pl-marca]');
-  if (marca) { const a = plAtivPorChave(marca.dataset.plMarca); if (marca.checked) { if (a && !w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); } else w.sel.delete(marca.dataset.plMarca); return plWizRender(); }
+  if (marca) { const a = plAtivWiz(marca.dataset.plMarca); if (marca.checked) { if (a && !w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); } else w.sel.delete(marca.dataset.plMarca); return plWizRender(); }
   if (t.closest('[data-pl-sugerir]')) {
-    plAtividades().filter(a => plSugestao(a, w.inicio, w.fim).precisa > 1e-9).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
+    plAtividadesDe(plWizEmps()).filter(a => plSugestao(a, w.inicio, w.fim).precisa > 1e-9).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
     return plWizRender();
   }
   if (t.closest('[data-pl-todas]')) {
     const f = w.busca;
-    plAtividades().filter(a => (!w.frente || a.frente === w.frente) && (!f || ganNorm(a.nome + ' ' + a.frente + ' ' + a.empresas.join(' ')).includes(ganNorm(f)))).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
+    plAtividadesDe(plWizEmps()).filter(a => (!w.frente || a.frente === w.frente) && (!f || ganNorm(a.nome + ' ' + a.frente + ' ' + a.empresas.join(' ')).includes(ganNorm(f)))).forEach(a => { if (!w.sel.has(a.chave)) w.sel.set(a.chave, plItemPadrao(a, w)); });
     return plWizRender();
   }
   if (t.closest('[data-pl-nenhuma]')) { w.sel.clear(); return plWizRender(); }
@@ -1606,7 +1650,19 @@ document.addEventListener('click', async ev => {
 });
 function plWizPrepararItens() {   // itens novos recebem as datas dentro do período do plano
   const w = PL.wiz;
-  w.sel.forEach((it, k) => { if (!it.inicio || !it.fim) { const a = plAtivPorChave(k); if (a) w.sel.set(k, plItemPadrao(a, w)); } });
+  w.sel.forEach((it, k) => { if (!it.inicio || !it.fim) { const a = plAtivWiz(k); if (a) w.sel.set(k, plItemPadrao(a, w)); } });
+}
+// Empresas executoras mudaram: sai a atividade que nenhuma delas executa; a que tinha empresa de fora no Who é refeita com as do plano
+// (quantidade, contrato e realizado só delas).
+function plWizAjustarEmpresas() {
+  const w = PL.wiz, emps = plWizEmps();
+  if (!w || !emps.length) return;
+  [...w.sel.entries()].forEach(([k, it]) => {
+    const a = plAtivWiz(k);
+    if (!a) { w.sel.delete(k); return; }
+    const fora = String(it.empresa || '').split(/\s*\/\s*/).filter(e => e && !emps.some(x => normEmp(x) === normEmp(e)));
+    if (fora.length || !String(it.empresa || '').trim()) w.sel.set(k, { ...plItemPadrao(a, w), inicio: it.inicio || '', fim: it.fim || '', como: it.como || '', obs: it.obs || '', portoes: it.portoes });
+  });
 }
 document.addEventListener('input', ev => {
   const w = PL.wiz, t = ev.target;
@@ -1657,6 +1713,13 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', ev => {
   const w = PL.wiz, t = ev.target;
   if (w && t.closest && t.closest('#plModal')) { w._sujo = true; plRascunhoSalvar(); }
+  if (t.dataset.plSugEmp !== undefined) { PL.sug.emp = t.value; PL.sug.sel = null; renderPlanejamento(); return; }   // Sugestão: empresa executora
+  if ((t.dataset.plWemp !== undefined || t.dataset.plWempTodas !== undefined) && w) {   // empresa executora do plano (passo 1)
+    if (t.dataset.plWempTodas !== undefined) { w.empresas = []; w._semEmp = !t.checked; }   // desmarcar "Todas" sem escolher nenhuma: pede a empresa
+    else { const set = new Set(w.empresas || []); t.checked ? set.add(t.dataset.plWemp) : set.delete(t.dataset.plWemp); w.empresas = plEmpresasExecutoras().filter(n => set.has(n)); w._semEmp = !w.empresas.length; }
+    plWizRender();
+    return;
+  }
   if (t.dataset.plQuem !== undefined && w) {   // marcar/desmarcar empresa que executa
     const it = w.sel.get(t.dataset.k);
     if (!it) return;
@@ -1677,7 +1740,7 @@ document.addEventListener('change', ev => {
   if (t.dataset.plTaxa !== undefined && w) {   // escolher a taxa por dia do item no assistente 5W2H
     const it = w.sel.get(t.dataset.k);
     if (!it || !t.value) return;
-    const tx = plTaxasItem(it, plAtivPorChave(it.chave));
+    const tx = plTaxasItem(it, plAtivWiz(it.chave));
     it.meta_dia = t.value === 'nec' ? +tx.nec.toFixed(3) : t.value === 'rit' ? +tx.rit.toFixed(3) : '';   // meta do cronograma = em branco (acompanha a meta atual)
     const campo = [...document.querySelectorAll('[data-pl-i="meta_dia"]')].find(x => x.dataset.k === t.dataset.k);
     if (campo) campo.value = it.meta_dia;

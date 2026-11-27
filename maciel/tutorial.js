@@ -182,6 +182,8 @@ const TUT_TOPICOS = [
     passos: [
       { t: 'A "Sugestão do cronograma" mostra, para o período escolhido, o saldo de cada atividade e a taxa por dia necessária.', alvo: '#segPlanSub' },
       { t: 'Marque as atividades e clique em "Criar planejamento": o assistente abre já com quantidades e datas sugeridas.' },
+      { t: 'No primeiro passo do assistente escolha a "Empresa executora": todas as empresas ou só as que você marcar. Com empresa escolhida, a lista de atividades, as quantidades, os preços e o realizado vêm só do catálogo e da produção dela, e o Who de cada atividade só aceita essas empresas.', novo: '2026-11-27' },
+      { t: 'Na "Sugestão do cronograma" também dá para escolher a empresa executora: a sugestão e o plano criado a partir dela ficam só com essa empresa.', alvo: '[data-pl-sug-emp]', novo: '2026-11-27' },
       { t: 'A lista de atividades é a mesma do catálogo e de Lançamentos, com o mesmo nome e código (ex.: "Pré-montagem de joist · 3.1.1-02"). A mesma atividade feita por duas empresas aparece uma vez só, com as duas.', novo: '2026-11-27' },
       { t: 'O realizado de cada atividade do plano conta só o que as empresas escolhidas no Who lançaram. Plano da EJ conta só a produção da EJ.', novo: '2026-11-27' },
       { t: 'No plano aberto, escolha a "Empresa" para ver só as atividades dela, com a parte e o realizado dela (curva S e cartões também).', alvo: '#plEmpPl', novo: '2026-11-27' },

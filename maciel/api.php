@@ -4854,6 +4854,15 @@ function acao_planos(array $corpo, array $usuario)
         }
     }
     $rasc = (($p['status'] ?? '') === 'rascunho');   // rascunho: guarda o que já foi preenchido (sem quantidade/atividades obrigatórias) para continuar depois
+    // empresa(s) executora(s) do plano: lista vazia = todas as empresas; com empresas, o Who de cada atividade precisa ser uma delas
+    $empPlano = [];
+    foreach ((is_array($p['empresas'] ?? null) ? $p['empresas'] : []) as $e) {
+        $e = plano_texto($e, 60);
+        if ($e !== '' && !in_array($e, $empPlano, true)) { $empPlano[] = $e; }
+        if (count($empPlano) > 20) { break; }
+    }
+    $normEmp = function ($t) { return mb_strtoupper(trim(preg_replace('/\s+/', ' ', (string)$t)), 'UTF-8'); };
+    $empPlanoN = array_map($normEmp, $empPlano);
     $itens = [];
     foreach (($p['itens'] ?? []) as $k => $it) {
         if (!is_array($it)) {
@@ -4874,6 +4883,13 @@ function acao_planos(array $corpo, array $usuario)
             $qtd = ($qtd !== null && $qtd > 0) ? $qtd : 0;
         } elseif ($qtd === null || $qtd <= 0) {
             throw new ErroValidacao('Atividade ' . plano_texto($it['atividade'] ?? $chave, 80) . ': informe a quantidade a executar no período (maior que zero).');
+        }
+        if ($empPlano && !$rasc) {
+            foreach (preg_split('#\s*/\s*#', (string)($it['empresa'] ?? '')) as $ie) {
+                if (trim($ie) !== '' && !in_array($normEmp($ie), $empPlanoN, true)) {
+                    throw new ErroValidacao('Atividade ' . plano_texto($it['atividade'] ?? $chave, 80) . ': ' . trim($ie) . ' não é empresa executora deste plano (' . implode(' / ', $empPlano) . ').');
+                }
+            }
         }
         $iIni = plano_data($it['inicio'] ?? '', 'o início da atividade ' . $n, true);
         $iFim = plano_data($it['fim'] ?? '', 'o fim da atividade ' . $n, true);
@@ -4903,7 +4919,7 @@ function acao_planos(array $corpo, array $usuario)
     $quem = (string)($usuario['nome'] ?? $usuario['login'] ?? '');
     $novo = ['id' => $id, 'nome' => $nome, 'inicio' => $ini, 'fim' => $fim, 'responsavel' => plano_texto($p['responsavel'] ?? '', 120),
         'objetivo' => plano_texto($p['objetivo'] ?? '', 800), 'status' => in_array(($p['status'] ?? ''), ['ativo', 'concluido', 'arquivado', 'rascunho'], true) ? $p['status'] : 'ativo',
-        'itens' => $itens, 'atualizado_em' => $agora, 'atualizado_por' => $quem];
+        'empresas' => $empPlano, 'itens' => $itens, 'atualizado_em' => $agora, 'atualizado_por' => $quem];
     $achou = false;
     if ($id !== '') {
         foreach ($doc['planos'] as $i => $ex) {
