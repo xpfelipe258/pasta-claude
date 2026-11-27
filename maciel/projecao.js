@@ -67,7 +67,10 @@ function pjPreco(ativ, R, cache, emp, it0) {
   const daEmp = e => ats.filter(a => ganNorm(a.empresa) === ganNorm(e));
   const unitEmp = e => { const l = daEmp(e); if (!l.length) return 0; const v = pjValorCatalogo(l, R, cache); return v.qtd > 0 && v.total > 0 ? v.total / v.qtd : 0; };
   if (emp && daEmp(emp).length) return resp(unitEmp(emp), 'BM ' + emp);
-  const empresasCat = [...new Set(ats.map(a => a.empresa))];
+  // sem empresa na tela: vale o preço das empresas escolhidas no Who do plano (plano só da EJ = preço da EJ)
+  const who = !emp && it0 && typeof plEmpresasDoItem === 'function' ? plEmpresasDoItem(it0, ativ).filter(e => daEmp(e).length) : [];
+  if (who.length === 1) return resp(unitEmp(who[0]), 'BM ' + who[0]);
+  const empresasCat = who.length >= 2 ? who : [...new Set(ats.map(a => a.empresa))];
   if (!emp && empresasCat.length >= 2) {
     const dv = Array.isArray(it0?.divisao) && it0.divisao.length >= 2 ? it0.divisao : null;
     const lista = dv ? dv.map(d => ({ e: empresasCat.find(c => ganNorm(c) === ganNorm(d.empresa)), q: Number(d.qtd) || 0 })).filter(x => x.e)

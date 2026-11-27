@@ -194,7 +194,9 @@ const PLD_REGRAS = {
 // 'galpao' = tudo cuja frente começa com GALPÃO (inclui a marquise); o resto entra no fluxo dos anexos
 const pldFluxoDe = frente => (/^GALPAO/.test(ganNorm(frente)) ? 'galpao' : 'anexo');
 function pldEtapasDe(x) {
-  const it = x.it, serv = ganNorm(x.ativ?.it?.servico || it.atividade), fluxo = pldFluxoDe(it.frente);
+  const it = x.it, fluxo = pldFluxoDe(it.frente);
+  // atividade do catálogo ("Instalação de vigas principais · 3.1.3-01"): a frente (marquise, fechamento lateral) entra no texto para achar a etapa certa
+  const serv = ganNorm((fluxo === 'galpao' && x.ativ?.it?._bmAt ? it.frente + ' ' : '') + (x.ativ?.it?.servico || it.atividade));
   const reg = PLD_REGRAS[fluxo].find(([re]) => re.test(serv));
   return { fluxo, ids: reg ? reg[1] : [] };
 }

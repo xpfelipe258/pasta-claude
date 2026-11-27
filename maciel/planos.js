@@ -132,10 +132,11 @@ function plEmpresasDe(it) {
   });
   return nomes;
 }
-// Todas as atividades do planejamento. Galpão e Eclusa: as linhas do cronograma (Gantt), com o catálogo do BM como fonte de quantidade e preço.
-// Anexos (Portaria, Refeitório, Vestiário, Passarelas, Área de Vivência): cada linha vira as ATIVIDADES DO CATÁLOGO DO BM que ela contém (mesmo código,
-// nome, unidade, quantidade e preço de Produção/Medição), e as atividades do catálogo sem linha no cronograma entram no período do prédio.
-// Assim o valor planejado nunca passa do contrato e o que é lançado em Produção alimenta o planejamento.
+// Todas as atividades do planejamento = as ATIVIDADES DO CATÁLOGO DO BM, com o mesmo nome, código, unidade e quantidade de Produção (Lançamentos)
+// e da Medição. Cada linha do cronograma (Gantt) vira as atividades do catálogo que ela contém e empresta as datas (início e prazo); a mesma
+// atividade em mais de uma empresa (EJ-3.1.1-02 e CMM-3.1.1-02: mesmo número) é UMA atividade do plano com as duas empresas, e o que cada
+// empresa lançou fica separado (porEmp), para o plano de uma empresa só contar o realizado dela. Atividades do catálogo sem linha no cronograma
+// entram com as datas do item/prédio; só as linhas sem nenhuma atividade no catálogo (ex.: fechamento em ACM, não contratado) ficam como linha.
 const plCodigoCurto = c => String(c || '').replace(/^[A-Z]+-/, '');
 function plDatasPredio(ls, pr) {
   const tok = { P: /PORTARIA/, R: /REFEITORIO/, V: /VESTIARIO/, PD: /PEDESTRE|PASSARELA|VIVENCIA/, AV: /VIVENCIA|PASSARELA/, E: /ECLUSA/ }[pr];
@@ -160,7 +161,46 @@ function plItemDoCatalogo(at, modelo, base, somenteLancamentos = false) {
   const linha = { it, ini, fimPrev: prazo, prazo, ri: ds.length ? ds[0][0] : null, rf: status === 'CONCLUÍDO' && ds.length ? ds[ds.length - 1][0] : (ds.length ? base : null), ultimo: ds.length ? ds[ds.length - 1][0] : null,
     realAc: real, prevAc, pctReal: qtd ? Math.min(1, real / qtd) : 0, pctPrev: qtd ? Math.min(1, prevAc / qtd) : 0, projecao: null, status, porEmp: ds.length ? [{ nome: at.empresa, ds }] : [], dsReal: ds };
   return { chave: 'BM|' + at.codigo, nome: cap(it.servico), frente, fase: ganFaseNumero(it), unidade: at.unidade || 'un', qtd, ini, prazo, status, realAc: real, prevAc,
-    empresas: [at.empresa], it, linha, codigo: at.codigo, itemBm: at.item, itemDesc: at.item_desc };
+    empresas: [at.empresa], it, linha, codigo: at.codigo, codigos: [at.codigo], itemBm: at.item, itemDesc: at.item_desc };
+}
+// Atividades do catálogo (com quantidade) que uma linha do cronograma contém: as mesmas que o Gantt, a Projeção e o Pronto para iniciar usam.
+function plCatalogoDaLinha(l) {
+  const it = l.it;
+  if (it._bmAt) return [];
+  let ats = ganBmAnexoLinha(it);
+  if (!ats) {
+    try { ats = typeof pjAtividadesBm === 'function' ? pjAtividadesBm(it) : plCatalogoFisico(it); } catch (err) { ats = []; }
+  }
+  const unicos = new Map((ats || []).filter(a => a.codigo && Number(a.qtd) > 0 && !plUnidadePercentual(a.unidade)).map(a => [a.empresa + '|' + a.codigo, a]));
+  return [...unicos.values()];
+}
+const plChaveGrupo = at => bmSufixo(at.codigo) + '|' + plUnidadeCatalogo(at.unidade);   // mesma atividade em empresas diferentes
+// Uma atividade do plano feita por várias empresas (mesmo número no catálogo): soma das quantidades e do realizado, realizado de cada empresa separado.
+function plItemDoGrupo(ats, modelo, base, somente, alt) {
+  const partes = ats.map(at => plItemDoCatalogo(at, modelo, base, somente));
+  let g = partes[0];
+  if (partes.length > 1) {
+    const suf = bmSufixo(ats[0].codigo), nomes = [...new Set(ats.map(a => String(a.atividade || '').trim()).filter(Boolean))];
+    const qtd = soma0(partes, p => p.qtd), real = soma0(partes, p => p.realAc);
+    const it = { ...g.it, servico: `${nomes.join(' / ')} · ${suf}`, qtd, peso: qtd || 1, meta_dia: soma0(partes, p => Number(p.it.meta_dia) || 0), responsavel: [...new Set(ats.map(a => a.empresa))].join(' / ') };
+    const porDia = new Map();
+    partes.forEach(p => (p.linha.dsReal || []).forEach(([d, v]) => porDia.set(d, (porDia.get(d) || 0) + v)));
+    const ds = [...porDia].sort((x, y) => x[0].localeCompare(y[0]));
+    const porEmp = new Map();
+    partes.forEach(p => (p.linha.porEmp || []).forEach(pe => { const o = porEmp.get(pe.nome) || { nome: pe.nome, ds: [] }; o.ds = o.ds.concat(pe.ds); porEmp.set(pe.nome, o); }));
+    const prevAc = prevCliente(it, base);
+    const status = qtd > 0 && real >= qtd * (1 - PL_TOL_CONCLUSAO) ? 'CONCLUÍDO' : prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= prevAc ? 'ADIANTADO' : real >= prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    const linha = { ...g.linha, it, realAc: real, prevAc, pctReal: qtd ? Math.min(1, real / qtd) : 0, pctPrev: qtd ? Math.min(1, prevAc / qtd) : 0, status, porEmp: [...porEmp.values()], dsReal: ds,
+      ri: ds.length ? ds[0][0] : null, rf: status === 'CONCLUÍDO' && ds.length ? ds[ds.length - 1][0] : (ds.length ? base : null), ultimo: ds.length ? ds[ds.length - 1][0] : null };
+    g = { ...g, chave: 'BMS|' + suf, nome: cap(it.servico), qtd, status, realAc: real, prevAc, empresas: [...new Set(ats.map(a => a.empresa))], it: { ...it, _bmAts: ats }, linha: { ...linha, it: { ...it, _bmAts: ats } }, codigos: ats.map(a => a.codigo) };
+  }
+  // A linha do cronograma pode ter lançamentos que não estão no catálogo (ex.: colunas da Eclusa na grade): vale a fonte maior, nunca a soma.
+  if (alt && alt.real > g.realAc + 1e-9 && alt.ds && alt.ds.length) {
+    const real = Math.min(alt.real, g.qtd || alt.real), ds = alt.ds.slice().sort((x, y) => x[0].localeCompare(y[0]));
+    const status = g.qtd > 0 && real >= g.qtd * (1 - PL_TOL_CONCLUSAO) ? 'CONCLUÍDO' : g.prevAc === 0 && real === 0 ? 'NÃO INICIADO' : real >= g.prevAc ? 'ADIANTADO' : real >= g.prevAc * 0.95 ? 'NO LIMITE' : 'ATRASADO';
+    g = { ...g, realAc: real, status, linha: { ...g.linha, realAc: real, status, dsReal: ds, porEmp: alt.porEmp && alt.porEmp.length ? alt.porEmp : g.linha.porEmp, pctReal: g.qtd ? Math.min(1, real / g.qtd) : 0, ri: ds[0][0], ultimo: ds[ds.length - 1][0] } };
+  }
+  return g;
 }
 function plAtividades(forcar) {
   if (PL._atv && !forcar) return PL._atv;
@@ -168,41 +208,67 @@ function plAtividades(forcar) {
   faseFiltro = '';
   let ls = [];
   try { ls = ganLinhas(plBase()); } finally { faseFiltro = f; }   // até a data de referência (não o fim do período da barra), senão lançamentos recentes ficam de fora
-  const base = plBase(), usados = new Set(), migra = new Map(), lista = [];
+  const base = plBase(), usados = new Set(), migra = new Map(), lista = [], grupos = new Map(), datasItem = new Map();
+  // 1) linhas do cronograma: viram as atividades do catálogo que contêm (agrupadas por número entre as empresas)
   ls.forEach(original => {
     let l = original;
     const vaos = plFechamentoEmVaos(l.it) && plEscopoVaos(l.it) > 0;
     const percentual = l.it.bm_percentual || l.it.fonte_pct || plUnidadePercentual(l.it.unidade);
-    const vinculados = percentual ? plCatalogoFisico(l.it) : [];
-    const unidades = new Set(vinculados.map(a => plUnidadeCatalogo(a.unidade)));
-    // Uma linha com várias atividades distintas mantém as quantidades de cada código.
-    const separar = percentual && !vaos && vinculados.length > 1;
-    if (vaos || (percentual && unidades.size === 1 && !separar)) l = plLinhaQuantidade(l, vinculados, base, vaos);
-    const cat = separar ? vinculados : l.quantidadeFisica ? null : ganBmAnexoLinha(l.it);
-    if (!cat || !cat.length) {
-      const base0 = () => ({ chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
+    const cat = plCatalogoDaLinha(l).filter(at => !usados.has(at.codigo));
+    if (!cat.length) {
+      if (vaos || (percentual && new Set(plCatalogoFisico(l.it).map(a => plUnidadeCatalogo(a.unidade))).size === 1)) l = plLinhaQuantidade(l, plCatalogoFisico(l.it), base, vaos);
+      const a = { chave: ganDataKey(l.it), nome: cap(l.it.servico_exib || l.it.servico), frente: l.it.frente || 'SEM FRENTE', fase: ganFaseNumero(l.it),
         unidade: l.unidade || plUnidade(l.it), qtd: Number(l.it.qtd) || 0, ini: l.ini || null, prazo: l.prazo || l.fimPrev || null, status: l.status,
-        realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l });
-      const a = base0();
+        realAc: l.realAc || 0, prevAc: l.prevAc || 0, empresas: plEmpresasDe(l.it), it: l.it, linha: l };
       if (l.it._eclusa) a.acumulado = true;   // Eclusa vigas/joists: realizado = acumulado lançado, em unidades
       lista.push(a);
       return;
     }
-    const novas = [];
-    cat.forEach(at => { if (usados.has(at.codigo)) return; usados.add(at.codigo); novas.push(plItemDoCatalogo(at, l, base, separar)); });
-    migra.set(ganDataKey(l.it), novas.map(a => a.chave));   // plano salvo com a linha antiga passa para as atividades do catálogo
-    lista.push(...novas);
+    const chaves = [];
+    const porGrupo = new Map();
+    cat.forEach(at => { usados.add(at.codigo); const k = plChaveGrupo(at); if (!porGrupo.has(k)) porGrupo.set(k, []); porGrupo.get(k).push(at); });
+    porGrupo.forEach((ats, k) => {
+      if (!grupos.has(k)) { const g = { ats: [], modelo: l, somente: percentual && !vaos && cat.length > 1, alt: null, pos: lista.length }; grupos.set(k, g); lista.push(g); }
+      const g = grupos.get(k);
+      ats.forEach(at => { if (!g.ats.includes(at)) g.ats.push(at); });
+      if (porGrupo.size === 1 && !percentual && !vaos && !l.it.bm_percentual) g.alt = { real: l.realAc || 0, ds: l.dsReal || [], porEmp: l.porEmp || [] };
+      chaves.push(k);
+      ats.forEach(at => { const d = datasItem.get(at.item) || { ini: null, prazo: null, it: l.it };
+        const pr = l.prazo || l.fimPrev;
+        if (l.ini && (!d.ini || l.ini < d.ini)) d.ini = l.ini;
+        if (pr && (!d.prazo || pr > d.prazo)) d.prazo = pr;
+        datasItem.set(at.item, d); });
+    });
+    migra.set(ganDataKey(l.it), chaves);   // plano salvo com a linha antiga passa para as atividades do catálogo
   });
-  // atividades do catálogo dos anexos que não pertencem a nenhuma linha do cronograma (escadas, linha de vida, marquise, QDF, comuns...)
-  const fora = new Set(usados);
-  ECLUSA_VJ.forEach(e => (e[2] || []).forEach(c => fora.add(c)));
-  ls.forEach(l => ganBmAtividadesEspecificas(l.it).forEach(a => fora.add(a.codigo)));
-  bmTab('bm_atividades').filter(a => /^3\.(3|4)\./.test(String(a.item)) && a.codigo && !fora.has(a.codigo)).forEach(at => {
-    const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
-    lista.push(plItemDoCatalogo(at, { ...plDatasPredio(ls, pr), it: { frente: ANEXO_FRENTE[pr] || ANEXO_FRENTE.C, fase: '1' } }, base));
+  // 2) atividades do catálogo que nenhuma linha do cronograma contém (contraventamento, checklists, facefelt, linha de vida, calhas, escadas, QDF, aditivos…)
+  bmTab('bm_atividades').filter(a => a.codigo && !usados.has(a.codigo) && Number(a.qtd) > 0 && !plUnidadePercentual(a.unidade)).forEach(at => {
+    usados.add(at.codigo);
+    const k = plChaveGrupo(at);
+    if (grupos.has(k)) { grupos.get(k).ats.push(at); return; }
+    let modelo = null;
+    const di = datasItem.get(at.item) || [...datasItem].find(([item]) => String(item).split('.').slice(0, 2).join('.') === String(at.item).split('.').slice(0, 2).join('.') && /^3\.[12]\./.test(String(at.item)))?.[1];
+    if (/^3\.(3|4)\./.test(String(at.item))) {   // anexos: período e frente do prédio (como antes)
+      const pr = anexoPredio(`${at.atividade} ${/ANEXOS \(/i.test(at.item_desc || '') ? '' : at.item_desc}`) || (/REFEITORIO/.test(ganNorm(at.item_desc)) && /VESTIARIO/.test(ganNorm(at.item_desc)) ? 'R' : null);
+      modelo = { ...plDatasPredio(ls, pr), it: { frente: ANEXO_FRENTE[pr] || ANEXO_FRENTE.C, fase: '1' } };
+    } else if (di) modelo = { ini: di.ini, prazo: di.prazo, it: { frente: di.it.frente, fase: '1' } };
+    else modelo = { ini: null, prazo: null, it: { frente: String(at.item_desc || 'Catálogo de atividades').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 60), fase: '1' } };
+    const g = { ats: [at], modelo, somente: false, alt: null, pos: lista.length };
+    grupos.set(k, g); lista.push(g);
   });
+  // 3) monta os itens (grupo de atividades do catálogo → uma atividade do plano)
+  const chaveDe = new Map();
+  const final = lista.map(x => {
+    if (!x.ats) return x;
+    const a = plItemDoGrupo(x.ats, x.modelo, base, x.somente, x.ats.length && x.alt ? x.alt : null);
+    grupos.forEach((g, k) => { if (g === x) chaveDe.set(k, a.chave); });
+    // plano salvo com a atividade de uma empresa só (BM|EJ-3.1.3-01) passa para a atividade do plano que reúne as empresas
+    if (a.codigos.length > 1) a.codigos.forEach(c => migra.set('BM|' + c, [a.chave]));
+    return a;
+  });
+  migra.forEach((ks, chave) => migra.set(chave, [...new Set(ks.map(k => chaveDe.get(k) || k))]));
   PL._migra = migra;
-  PL._atv = lista.sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || (a.it._bmAt?.linha || 0) - (b.it._bmAt?.linha || 0) || a.nome.localeCompare(b.nome));
+  PL._atv = final.sort((a, b) => a.frente.localeCompare(b.frente) || (a.ini || '').localeCompare(b.ini || '') || (a.it._bmAt?.linha || 0) - (b.it._bmAt?.linha || 0) || a.nome.localeCompare(b.nome));
   return PL._atv;
 }
 const plAtivPorChave = chave => plAtividades().find(a => a.chave === chave);
@@ -232,6 +298,22 @@ function plSerieReal(a) {
 }
 
 // ---------------------------------------------------------------- cálculo do plano
+// Realizado do item do plano: só o que as empresas escolhidas no 5W2H (Who) lançaram. Plano da EJ numa atividade feita por EJ e CMM
+// conta só a produção da EJ (e o contrato da EJ para "atividade encerrada"). Sem empresa escolhida, ou com todas, vale a atividade inteira.
+function plSerieDoItem(it, ativ) {
+  if (!ativ) return { serie: [], contrato: 0, restrito: false };
+  if (plFechamentoEmVaos(ativ.it) && !ativ.it._bmAt) return { serie: plEmpresasDoItem(it, ativ).flatMap(emp => plSerieLancamentos(ativ, emp)), contrato: Number(ativ.qtd) || 0, restrito: false };
+  const tudo = plSerieReal(ativ), inteiro = { serie: tudo, contrato: Number(ativ.qtd) || 0, restrito: false };
+  const pe = ativ.linha?.porEmp || [], emps = plEmpresasDoItem(it, ativ);
+  if (ativ.it.bm_percentual || !emps.length) return inteiro;
+  const doItem = new Set(emps.map(normEmp)), daAtiv = new Set([...(ativ.empresas || []), ...pe.map(x => x.nome)].map(normEmp));
+  if (![...daAtiv].some(e => !doItem.has(e))) return inteiro;   // o plano cobre todas as empresas da atividade
+  const ats = ativ.it._bmAts || (ativ.it._bmAt ? [ativ.it._bmAt] : []);
+  const somaPe = soma0(pe, x => soma0(x.ds, ([, v]) => v)), tot = soma0(tudo, ([, v]) => v), k = somaPe > 0 ? Math.min(1, tot / somaPe) : 1;   // grade + BM do mesmo trabalho não contam em dobro
+  const serie = pe.filter(x => doItem.has(normEmp(x.nome))).flatMap(x => x.ds.map(([d, v]) => [d, v * k]));
+  const contrato = ats.length ? soma0(ats.filter(a => doItem.has(normEmp(a.empresa))), a => Number(a.qtd) || 0) : 0;
+  return { serie, contrato, restrito: true, empresas: emps };
+}
 const PL_TOL_CONCLUSAO = 0.002;   // 0,2%: arredondamento de m²/telhas não deixa atividade terminada como "em andamento"
 function plCalcItem(pl0, it0, base) {
   const pl = it0._plano || pl0;   // item vindo de outro plano (visão combinada no Painel): vale a janela do plano dele
@@ -245,9 +327,7 @@ function plCalcItem(pl0, it0, base) {
   const mapaPlan = new Map(dias.map((d, i) => [d, plan[i]]));
   const cabeNoPeriodo = meta * dias.length >= restante - 1e-9;   // false: a meta atual não fecha a quantidade no período
   const real = new Map();
-  const serie = ativ && plFechamentoEmVaos(ativ.it)
-    ? plEmpresasDoItem(it, ativ).flatMap(emp => plSerieLancamentos(ativ, emp))
-    : ativ ? plSerieReal(ativ) : [];
+  const sd = plSerieDoItem(it, ativ), serie = sd.serie;
   serie.forEach(([d, v]) => {
     if (d >= pl.inicio && d <= pl.fim && d <= base) real.set(d, (real.get(d) || 0) + v);
   });
@@ -256,8 +336,8 @@ function plCalcItem(pl0, it0, base) {
   mapaPlan.forEach((v, d) => { if (d <= base) planAc += v; });
   // Atividade já encerrada na obra (acumulado de toda a obra até a data de referência ≥ contrato) conta como concluída no plano,
   // mesmo que parte tenha sido produzida antes do início do plano. Tolerância de 0,2% para sobra de arredondamento (ex.: 99,9% em m²).
-  const contrato = ativ ? Number(ativ.qtd) || 0 : 0;
-  const acObra = ativ ? soma0(plSerieReal(ativ).filter(([d]) => d <= plBase()), ([, v]) => v) : 0;
+  const contrato = sd.contrato;
+  const acObra = ativ ? soma0((sd.restrito ? serie : plSerieReal(ativ)).filter(([d]) => d <= plBase()), ([, v]) => v) : 0;
   const fechouObra = contrato > 0 && acObra >= contrato * (1 - PL_TOL_CONCLUSAO);
   const fechouPlano = it.qtd > 0 && realAc >= it.qtd * (1 - PL_TOL_CONCLUSAO);
   const falta = fechouObra || fechouPlano ? 0 : Math.max(0, it.qtd - realAc);
@@ -284,14 +364,18 @@ function plCalcItem(pl0, it0, base) {
   const termina = (qtd, taxa, de) => (taxa > 0 && qtd > 0 && Math.ceil(qtd / taxa) <= 400 ? somarDiasUteis(de, Math.ceil(qtd / taxa)) : null);
   const terminaMeta = termina(restante, meta, add(it.inicio, -1));           // pela meta, a partir do início planejado
   const terminaRitmo = falta <= 1e-9 ? (concluiu || base) : termina(falta, taxaProj, maxD(base, add(it.inicio, -1)));   // pelo ritmo (ou meta), a partir de agora
-  return { it, ativ, r0, acObra, contrato, fechouObra, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
+  return { it, ativ, r0, acObra, contrato, fechouObra, soEmpresas: sd.restrito ? sd.empresas : null, dias, mapaPlan, real, realAc, planAc, falta, diasRest, ritmoAtual, ritmoNec, status, meta, cabeNoPeriodo, taxaProj, terminaMeta, terminaRitmo,
     pctPlan: it.qtd ? Math.min(1, planAc / it.qtd) : 0, pctReal: fechouObra || fechouPlano ? 1 : it.qtd ? Math.min(1, realAc / it.qtd) : 0,
     primeiro: datasReais[0] || null, ultimo: datasReais[datasReais.length - 1] || null, concluiu, redistrib };
 }
-function plCalc(pl) {
+// emp: visão de UMA empresa (Painel com filtro de empresa, plano aberto com "Empresa"): só as atividades em que ela está no Who, com a parte dela
+// (divisão do 5W2H ou partes iguais) e só o que ELA lançou; a curva S e os cartões passam a ser dela.
+function plCalc(pl, emp) {
   const baseRef = plBase();
   const base = baseRef < pl.inicio ? add(pl.inicio, -1) : minD(baseRef, pl.fim);
-  const itens = pl.itens.map(it => plCalcItem(pl, it, base));
+  let itens = pl.itens.map(it => plCalcItem(pl, it, base));
+  if (emp && typeof pjDaEmpresa === 'function')
+    itens = pjDaEmpresa({ itens, base }, emp, pl).itens.filter(x => plEmpresasDoItem(x.it, x.ativ).some(e => normEmp(e) === normEmp(emp)));
   const pesoTot = soma0(itens, c => c.it.peso || 1) || 1;
   const diasPlano = plDias(pl.inicio, pl.fim);
   const planPct = [], realPct = [];
@@ -318,7 +402,7 @@ function plCalc(pl) {
   const proj = diasPlano.map((d, i) => (i <= iBase ? null : iBase >= 0 ? Math.min(100, pctReal + ritmo * (i - iBase)) : null));
   const nec = diasPlano.map((d, i) => (i < iBase ? null : i === iBase ? pctReal : Math.min(100, pctReal + (100 - pctReal) * (i - iBase) / Math.max(1, diasPlano.length - 1 - iBase))));
   const atrasadas = itens.filter(c => c.status === 'ATRASADO').length, concl = itens.filter(c => c.status === 'CONCLUÍDO').length;
-  return { base, baseRef, itens, pesoTot, diasPlano, planPct, realPct, proj, nec, pctPlan, pctReal, desvio: pctReal - pctPlan, diasRest, ritmo, atrasadas, concl,
+  return { base, baseRef, itens, emp: emp || '', pesoTot, diasPlano, planPct, realPct, proj, nec, pctPlan, pctReal, desvio: pctReal - pctPlan, diasRest, ritmo, atrasadas, concl,
     falta: Math.max(0, 100 - pctReal), terminaEm: ritmo > 0.05 && pctReal < 100 && Math.ceil((100 - pctReal) / ritmo) <= 250 ? somarDiasUteis(base, Math.ceil((100 - pctReal) / ritmo)) : null };
 }
 function plStatusPlano(c) {
@@ -360,7 +444,7 @@ function plMigrarEclusa(planos) {
   let novos = null;
   planos.forEach(p => {
     if (!(p.itens || []).some(i => /ECLUSA/.test(ganNorm(i.chave)) && /VIGAS E JOISTS/.test(ganNorm(i.chave + ' ' + (i.atividade || ''))))) return;
-    novos ||= plAtividades().filter(a => a.it._eclusa);
+    novos ||= ECLUSA_VJ.map(e => plAtividades().find(a => a.it._eclusa === e[0] || (a.codigos || []).some(c => (e[2] || []).includes(c)))).filter(Boolean);
     if (novos.length < 2) return;
     const tot = soma0(novos, a => a.qtd) || 1;
     p.itens = p.itens.flatMap(i => {
@@ -399,16 +483,38 @@ function plMigrarAnexos(planos) {
     if (!(p.itens || []).some(i => !vivas.has(i.chave) && mapa.has(i.chave))) return;
     p.itens = p.itens.flatMap(i => {
       if (vivas.has(i.chave) || !mapa.has(i.chave)) return [i];
+      const destinos = mapa.get(i.chave).map(plAtivPorChave).filter(Boolean);
       const f = Number(i.qtd_contrato) > 0 ? Math.min(1, Math.max(0, Number(i.qtd) / Number(i.qtd_contrato))) : 1;
-      return mapa.get(i.chave).map(plAtivPorChave).filter(Boolean).map(a => {
+      return destinos.map(a => {
         if (plUnidadePercentual(i.unidade) && !plUnidadePercentual(a.unidade)) {
           const item = { ...i, chave: a.chave, atividade: a.nome, unidade: a.unidade, qtd_contrato: a.qtd };
           plConverterItemPercentual(item, a);
           return item;
         }
+        // mesma unidade e um destino só (linha do galpão → atividade do catálogo, atividade de uma empresa → atividade das empresas):
+        // a quantidade planejada, a meta e a empresa escolhida (Who) não mudam
+        if (destinos.length === 1 && plUnidadeCatalogo(i.unidade) === plUnidadeCatalogo(a.unidade))
+          return { ...i, chave: a.chave, atividade: a.nome, unidade: a.unidade, qtd_contrato: a.qtd, qtd: Math.min(Number(i.qtd) || 0, a.qtd || Number(i.qtd) || 0), empresa: i.empresa || a.empresas.join(' / ') };
         return ({ ...i, chave: a.chave, atividade: a.nome, unidade: a.unidade, qtd_contrato: a.qtd,
-        qtd: plInteiro(a.unidade) ? Math.max(1, Math.round(a.qtd * f)) : +(a.qtd * f).toFixed(1), meta_dia: null, empresa: a.empresas.join(' / ') || i.empresa, o_que: `Executar ${a.nome}` });
+        qtd: plInteiro(a.unidade) ? Math.max(1, Math.round(a.qtd * f)) : +(a.qtd * f).toFixed(1), meta_dia: null, empresa: i.empresa || a.empresas.join(' / '), o_que: `Executar ${a.nome}` });
       });
+    });
+    // duas atividades antigas (EJ e CMM) que viraram a mesma atividade do plano: um item só, com a divisão por empresa
+    const porChave = new Map();
+    p.itens = p.itens.filter(i => {
+      const j = porChave.get(i.chave);
+      if (!j) { porChave.set(i.chave, i); return true; }
+      const div = (Array.isArray(j.divisao) && j.divisao.length ? j.divisao : [{ empresa: j.empresa, qtd: Number(j.qtd) || 0, valor: 0, como: j.como || '', inicio: j.inicio, fim: j.fim }]);
+      div.push({ empresa: i.empresa, qtd: Number(i.qtd) || 0, valor: 0, como: i.como || '', inicio: i.inicio, fim: i.fim });
+      j.divisao = div.filter(d => d.empresa);
+      j.qtd = +((Number(j.qtd) || 0) + (Number(i.qtd) || 0)).toFixed(4);
+      j.peso = (Number(j.peso) || 1) + (Number(i.peso) || 1);
+      if (j.meta_dia || i.meta_dia) j.meta_dia = +((Number(j.meta_dia) || 0) + (Number(i.meta_dia) || 0)).toFixed(4);
+      j.empresa = [...new Set([j.empresa, i.empresa].flatMap(e => String(e || '').split(/\s*\/\s*/)).filter(Boolean))].join(' / ');
+      if (i.inicio && (!j.inicio || i.inicio < j.inicio)) j.inicio = i.inicio;
+      if (i.fim && (!j.fim || i.fim > j.fim)) j.fim = i.fim;
+      if (j.divisao.length < 2) delete j.divisao;
+      return false;
     });
   });
 }
@@ -651,12 +757,14 @@ function plRenderPainel() {
       <div class="acoes"><button class="btn primario" data-pl-editar>Continuar editando</button><button class="btn perigo" data-pl-excluir>Excluir</button></div></div>`;
     return;
   }
-  const c = plCalc(pl), st = plStatusPlano(c);
+  const vis = plVistaDoPlano(pl), c = vis.c, st = plStatusPlano(c), emps = plEmpresasDoPlano(pl);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const dRest = c.diasRest;
+  const selEmp = emps.length > 1 ? `<label class="rot-sel pl-emp-sel" title="Só as atividades em que a empresa está no Who, com a parte e o realizado dela">Empresa <select id="plEmpPl"><option value="">Todas as empresas</option>${emps.map(e => `<option value="${esc(e)}" ${e === vis.emp ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : '';
   let h = `<div class="bloco pl-cab"><div><h3>${esc(pl.nome)} ${plFarol(st)}</h3>
       <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s)${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado só dentro do período (${fdA(pl.inicio)} a ${fdA(minD(pl.fim, c.baseRef))})</p>
-      ${pl.objetivo ? `<p class="pl-objetivo">${esc(pl.objetivo)}</p>` : ''}</div>
+      ${pl.objetivo ? `<p class="pl-objetivo">${esc(pl.objetivo)}</p>` : ''}
+      ${selEmp ? `<div class="barra-acoes">${selEmp}${vis.emp ? `<span class="nota">realizado só do que a ${esc(vis.emp)} lançou · ${c.itens.length} de ${pl.itens.length} atividade(s)</span>` : ''}</div>` : ''}</div>
     <div class="acoes"><button class="btn" data-pl-editar>Editar planejamento</button><button class="btn primario" data-pl-doc>Baixar planejamento</button><button class="btn" data-pl-csv>Exportar CSV</button>
       <button class="btn" data-pl-status="${pl.status === 'concluido' ? 'ativo' : 'concluido'}">${pl.status === 'concluido' ? 'Reabrir' : 'Marcar concluído'}</button>
       <button class="btn perigo" data-pl-excluir>Excluir</button></div></div>`;
@@ -665,10 +773,17 @@ function plRenderPainel() {
     tile('Realizado no período', nf(c.pctReal, 1) + '%', `desvio ${c.desvio >= 0 ? '+' : ''}${nf(c.desvio, 1)} p.p.`, c.desvio < -5 ? 'var(--vermelho)' : c.desvio < -1 ? 'var(--amarelo)' : 'var(--verde)') +
     tile('Falta', nf(c.falta, 1) + '%', dRest ? `${nf(c.falta / dRest, 1)} p.p. por dia útil (${dRest} dias úteis)` : 'prazo do plano encerrado', 'var(--acento)') +
     tile('Ritmo atual', nf(c.ritmo, 1) + ' p.p./dia', c.terminaEm ? `no ritmo, termina em ${fdA(c.terminaEm)}` : c.pctReal >= 100 ? 'plano concluído' : c.ritmo > 0 ? 'ritmo baixo demais para fechar o plano' : 'sem lançamentos recentes para projetar', (c.terminaEm && c.terminaEm <= pl.fim) || c.pctReal >= 100 ? 'var(--verde)' : 'var(--vermelho)') +
-    tile('Atividades', `${c.concl}/${pl.itens.length}`, `${c.atrasadas} atrasada(s)`, c.atrasadas ? 'var(--vermelho)' : 'var(--verde)') + '</div>';
+    tile('Atividades', `${c.concl}/${c.itens.length}`, `${c.atrasadas} atrasada(s)`, c.atrasadas ? 'var(--vermelho)' : 'var(--verde)') + '</div>';
   h += `<div class="seg pl-abas" id="plAbas">${PL_ABAS.map(([k, r]) => `<button data-pl-vista="${k}" class="${k === PL.vista ? 'ativa' : ''}">${r}</button>`).join('')}</div><div id="plCorpo"></div>`;
   box.innerHTML = h;
-  plRenderCorpo(pl, c);
+  plRenderCorpo(vis.pl, c);
+}
+// Empresas do plano (Who de cada atividade) e a visão escolhida no plano aberto ("Empresa": só a parte e o realizado dela).
+function plEmpresasDoPlano(pl) { return [...new Set((pl.itens || []).flatMap(it => plEmpresasDoItem(it, plAtivPorChave(it.chave))))].filter(Boolean); }
+function plVistaDoPlano(pl) {
+  const emp = PL.empPl && plEmpresasDoPlano(pl).includes(PL.empPl) ? PL.empPl : '';
+  const c = plCalc(pl, emp);
+  return { pl: emp ? { ...pl, itens: c.itens.map(x => x.it) } : pl, c, emp };
 }
 
 function plRenderCorpo(pl, c) {
@@ -1150,7 +1265,7 @@ function plOrigemRealizado(a, ini, fim, todas) {
       if (per || ac || todas) grade.push({ empresa: e.nome, coluna: s.nome, col: s.col, frente: s.frente, per, ac, dias, junta: f !== 1 });
     });
   });
-  const ats = it._bmAt ? [it._bmAt] : it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
+  const ats = it._bmAt ? (it._bmAts || [it._bmAt]) : it._eclusa ? bmTab('bm_atividades').filter(x => eclusaCodigos(it._eclusa).includes(x.codigo))
     : ehFrenteAnexa(it.frente) || ganBmAtividadesEspecificas(it).length ? ganBmAtividadesEspecificas(it) : ganBmAtividades(it);   // anexo: só as atividades do BM da própria frente (como plSerieReal)
   ats.forEach(at => {
     let per = 0, ac = 0;
@@ -1267,7 +1382,7 @@ function plConferirLancamentos() {
     });
     if (!(tot > 0)) return;
     const un = at.unidade || '', rot = `${at.empresa} · ${at.codigo} — ${at.item_desc || ''} ${at.atividade || ''}`.replace(/\s+/g, ' ').trim();
-    const donos = donosBm.get(at.empresa + '|' + at.codigo) || [], proprio = ats.find(a => a.codigo === at.codigo);
+    const donos = donosBm.get(at.empresa + '|' + at.codigo) || [], proprio = ats.find(a => (a.codigos || [a.codigo]).includes(at.codigo));
     const linha = (sev, situ, onde, plano, como) => linhas.push({ sev, origem: 'BM', alvo: rot, lancado: ate, un, plano, situ, onde, como, chave: proprio ? proprio.chave : (donos[0] ? donos[0].chave : '') });
     if (!donos.length) {
       if (ate > 0) linha('alta', 'NÃO CONTA', 'nenhuma atividade do plano', 0, 'A atividade não está em nenhum planejamento. Inclua a atividade (ou a linha do cronograma que a cobre) no plano; enquanto isso o avanço não aparece.');
@@ -1430,7 +1545,7 @@ document.addEventListener('click', async ev => {
   const g = t.closest('[data-pl-gantt]');
   if (g) { PL.atv = PL.atv === g.dataset.plGantt ? '' : g.dataset.plGantt; PL.vista = 'resumo'; return plRenderPainel(); }
   const lin = t.closest('tr[data-pl-linha]');
-  if (lin && !t.closest('button')) { PL.atv = lin.dataset.plLinha; const s = $('#plAtv'); if (s) { s.value = PL.atv; plDesenharCurva(pl, plCalc(pl)); } return; }
+  if (lin && !t.closest('button')) { PL.atv = lin.dataset.plLinha; const s = $('#plAtv'); if (s) { s.value = PL.atv; const v = plVistaDoPlano(pl); plDesenharCurva(v.pl, v.c); } return; }
   const st = t.closest('[data-pl-status]');
   if (st && pl) {
     try { await postar(API + 'planos', { plano: { ...pl, status: st.dataset.plStatus } }); await plCarregar(true); toast('Planejamento atualizado ' + ONDE); renderPlanejamento(); } catch (e) { toast(e.message, true); }
@@ -1578,7 +1693,8 @@ document.addEventListener('change', ev => {
   }
   if (t.dataset.plSugMarca !== undefined) { t.checked ? PL.sug.sel.add(t.dataset.plSugMarca) : PL.sug.sel.delete(t.dataset.plSugMarca); return renderPlanejamento(); }
   if (t.dataset.plSugConcl !== undefined) { PL.sug.concl = t.checked; return renderPlanejamento(); }
-  if (t.id === 'plAtv') { PL.atv = t.value; const pl = plPlano(PL.sel); if (pl) plDesenharCurva(pl, plCalc(pl)); return; }
+  if (t.id === 'plAtv') { PL.atv = t.value; const pl = plPlano(PL.sel); if (pl) { const v = plVistaDoPlano(pl); plDesenharCurva(v.pl, v.c); } return; }
+  if (t.id === 'plEmpPl') { PL.empPl = t.value; PL.atv = ''; plRenderPainel(); return; }
   if (!w) return;
   if (t.dataset.plFrente !== undefined) { w.frente = t.value; plWizRender(); }
   if (t.dataset.plW && (t.dataset.plW === 'inicio' || t.dataset.plW === 'fim')) plWizRender();
@@ -1674,6 +1790,9 @@ function plCasaLinha(e, k) {   // atividade do plano ↔ linha de meta do Farol 
   if (!a || !e.emps.includes(k.emp)) return false;
   const sa = ganNorm(a.it.servico), sk = ganNorm(k.serv);
   if (sa === sk || (ehTelhar(sa) && ehTelhar(sk))) return true;
+  // atividade do catálogo: casa pela coluna de produção ligada (controle) ou pelo nome da atividade
+  const ats = a.it._bmAts || (a.it._bmAt ? [a.it._bmAt] : []);
+  if (ats.length) return ats.some(x => (x.controle && ganNorm(x.controle) === sk) || ganNorm(x.atividade) === sk || (ehTelhar(ganNorm(x.atividade)) && ehTelhar(sk)));
   if (ehFrenteAnexa(a.it.frente)) return false;
   return servicoCompat(a.it.servico, k.serv);
 }
@@ -1716,7 +1835,7 @@ async function renderPainelPlanos() {
   const pl = plPlanoCombinado(sel, emp);
   const optsPl = `<option value="">Todos os planos ativos (${planos.length})</option>` + planos.map(p => `<option value="${esc(p.id)}" ${p.id === PL.pp.plano ? 'selected' : ''}>${esc(p.nome)} · ${fd(p.inicio)} a ${fd(p.fim)}</option>`).join('');
   if (!pl) { box.innerHTML = `${cab}<div class="barra-acoes"><label class="rot-sel">Plano <select id="ppPlano">${optsPl}</select></label></div><p class="nota">Nenhuma atividade de ${esc(emp)} nos planos ativos.</p>`; return; }
-  const c = plCalc(pl), st = plStatusPlano(c);
+  const c = plCalc(pl, emp), st = plStatusPlano(c);   // com empresa no filtro: só a parte e o realizado dela
   if (PL.pp.atv && !pl.itens.some(i => i.chave === PL.pp.atv)) PL.pp.atv = '';
   const optsAt = `<option value="">Todo o plano (ponderado)</option>` + pl.itens.map(i => `<option value="${esc(i.chave)}" ${PL.pp.atv === i.chave ? 'selected' : ''}>${esc(i.atividade)} · ${esc(cap(i.frente))}</option>`).join('');
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;

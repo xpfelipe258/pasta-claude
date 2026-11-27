@@ -635,7 +635,7 @@ function obraSemNomesG200(raiz) {
 // ------------------------------------------------------------ PAINEL (por período)
 // Painel de produtividade: previsto do Planejamento de montagem (planos 5W2H) × realizado no período (grade e BM), por empresa; também no relatório geral
 // códigos (sem prefixo) das atividades do catálogo ligadas a uma linha do cronograma
-function painelCods(a) { try { return new Set((a.it._bmAt ? [a.it._bmAt] : ganBmAtividades(a.it)).map(x => bmSufixo(x.codigo))); } catch (err) { return new Set(); } }
+function painelCods(a) { try { return new Set((a.it._bmAt ? (a.it._bmAts || [a.it._bmAt]) : ganBmAtividades(a.it)).map(x => bmSufixo(x.codigo))); } catch (err) { return new Set(); } }
 function painelProdDados(inicio, fim, c) {
   const ksAll = plFarolSemanal(inicio, fim, c);
   // tudo o que foi executado no período, mesmo fora do plano 5W2H (catálogo do BM: grade e lançamentos do BM, por empresa)
@@ -2006,7 +2006,7 @@ function ganBmAnexoLinha(it) {
 }
 
 function ganBmAtividades(it) {
-  if (it._bmAt) return [it._bmAt];
+  if (it._bmAt) return it._bmAts || [it._bmAt];
   const anexo = ganBmAnexoLinha(it);
   if (anexo) return anexo;
   const serv = ganNorm(it.servico), frente = ganNorm(it.frente), fontes = ganServicosFonte(it).map(ganNorm);
