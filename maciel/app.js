@@ -645,10 +645,26 @@ function painelProdDados(inicio, fim, c) {
       const n = ganNorm(t.a.atividade || '');
       const ja = ksAll.find(k => normEmp(k.emp) === normEmp(e.nome) && (ganNorm(k.serv).startsWith(n) || n.startsWith(ganNorm(k.serv).replace(/ \(PREVISAO COMPARTILHADA\)$/, ''))));
       if (ja) { ja.real = Math.max(ja.real, t.per); ja.pct = ja.prev > 0 ? ja.real / ja.prev * 100 : null; return; }
-      ksAll.push({ emp: e.nome, serv: t.a.atividade, un: t.a.unidade || '', prevTotal: 0, prev: 0, real: t.per, pct: null, foraPlano: true });
+      ksAll.push({ emp: e.nome, serv: t.a.atividade, un: t.a.unidade || '', prevTotal: 0, prev: 0, real: t.per, pct: null, foraPlano: true, cod: t.a.codigo });
     }));
   });
   ksAll.sort((a, b) => a.emp.localeCompare(b.emp) || String(a.serv).localeCompare(String(b.serv)));
+  // sem plano 5W2H: o previsto vem do cronograma do Planejamento de montagem (mesma conta da "Sugestão do cronograma"), pela linha ligada à atividade do catálogo
+  if (typeof plAtividades === 'function' && typeof plSugestao === 'function') {
+    let ativs = []; try { ativs = plAtividades(); } catch (err) { ativs = []; }
+    const codsDe = a => { try { return (a.it._bmAt ? [a.it._bmAt] : ganBmAtividades(a.it)).map(x => bmSufixo(x.codigo)); } catch (err) { return []; } };
+    const idx = ativs.map(a => ({ a, cods: new Set(codsDe(a)) }));
+    ksAll.filter(k => !(k.prevTotal > 0)).forEach(k => {
+      const suf = k.cod ? bmSufixo(k.cod) : '';
+      const hit = (suf && idx.find(x => x.cods.has(suf) && (!x.a.empresas.length || x.a.empresas.some(n => normEmp(n) === normEmp(k.emp)))))
+        || idx.find(x => ganNorm(x.a.nome || x.a.it.servico || '').startsWith(ganNorm(k.serv)) && x.a.empresas.some(n => normEmp(n) === normEmp(k.emp)));
+      if (!hit) return;
+      let sg; try { sg = plSugestao(hit.a, inicio, fim); } catch (err) { return; }
+      const nEmp = Math.max(1, hit.a.empresas.length);   // serviço dividido entre empresas: parte igual de cada uma
+      k.prevTotal = sg.previstoPeriodo / nEmp; k.prev = sg.prevPerRef / nEmp;
+      if (k.prevTotal > 0) { k.pct = k.prev > 0 ? k.real / k.prev * 100 : null; k.fontePrev = 'cronograma'; k.foraPlano = false; }
+    });
+  }
   return ksAll;
 }
 function renderPainel() {
@@ -694,7 +710,7 @@ function renderPainel() {
     [...ks].sort((a, b) => a.emp.localeCompare(b.emp) || (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct)).forEach(k => {
       if (k.emp !== ult) { ult = k.emp; hx += `<tr class="grupo"><td colspan="5"><span class="emp-tag" style="--c:${corEmp(ult)}">${esc(ult)}</span></td></tr>`; }
       const semMeta = k.prevTotal === 0, pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
-      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
+      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : k.fontePrev ? ' <span class="nota">· previsto do cronograma</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
         <td><div class="barra" title="${nf(pctTot)}% do planejado no período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
     });
     $('#tabFarol').innerHTML = hx + '</tbody>';
@@ -709,7 +725,7 @@ function renderPainel() {
     const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
     const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
     const atrasado = k.prev > 0 && k.real === 0 && c >= inicio;
-    h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
+    h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : k.fontePrev ? ' <span class="nota">· previsto do cronograma</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
       <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
       <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
       <td><div class="barra" title="${nf(pctTot)}% do planejado no período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;

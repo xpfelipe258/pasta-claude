@@ -1071,9 +1071,9 @@ function reSecPainelProd(d) {
   let ult = null, linhas = [];
   ks.forEach(k => {
     if (d.geral && k.emp !== ult) { ult = k.emp; linhas.push(`<tr class="grupo"><td colspan="7"><b>${esc(k.emp)}</b></td></tr>`); }
-    linhas.push(`<tr><td>${esc(cap(k.serv))}${k.un ? ` <span class="nota">(${esc(k.un)})</span>` : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td><td class="n">${k.prevTotal ? nf(k.real - k.prev, 1) : '—'}</td><td class="n">${k.pct == null ? '—' : nf(k.pct, 0) + '%'}</td><td>${sit(k)}</td></tr>`);
+    linhas.push(`<tr><td>${esc(cap(k.serv))}${k.un ? ` <span class="nota">(${esc(k.un)})</span>` : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : k.fontePrev ? ' <span class="nota">· previsto do cronograma</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td><td class="n">${k.prevTotal ? nf(k.real - k.prev, 1) : '—'}</td><td class="n">${k.pct == null ? '—' : nf(k.pct, 0) + '%'}</td><td>${sit(k)}</td></tr>`);
   });
-  return `<p class="nota">Previsto = Planejamento de montagem (planos 5W2H) no período de ${fdA(d.ini)} a ${fdA(d.fim)}; realizado = tudo o que foi lançado no período (grade de produção e BM). ${comPrev.length ? `Atingimento médio: <b>${nf(media, 0)}%</b> em ${comPrev.length} atividade(s) planejada(s).` : ''}</p>
+  return `<p class="nota">Previsto = Planejamento de montagem: plano 5W2H da atividade ou, sem plano, o cronograma da atividade no período de ${fdA(d.ini)} a ${fdA(d.fim)}; realizado = tudo o que foi lançado no período (grade de produção e BM). ${comPrev.length ? `Atingimento médio: <b>${nf(media, 0)}%</b> em ${comPrev.length} atividade(s) planejada(s).` : ''}</p>
     <table><thead><tr><th>Atividade</th><th class="n">Planejado no período</th><th class="n">Previsto até ${fdA(d.corte)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">%</th><th>Farol</th></tr></thead><tbody>${linhas.join('')}</tbody></table>`;
 }
 
