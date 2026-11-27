@@ -102,9 +102,10 @@ const TUT_TOPICOS = [
     ],
     dica: 'Só administradores veem a Central. Os demais usuários entram direto na obra.' },
 
-  { id: 'painel', mod: 'prod', aba: 'painel', titulo: 'Painel e faróis',
+  { id: 'painel', mod: 'prod', aba: 'painel', titulo: 'Painel de produtividade e faróis',
     resumo: 'Visão geral do período: quanto estava previsto, quanto foi realizado e onde a obra está atrasada.',
     passos: [
+      { t: 'O Painel de produtividade segue o período escolhido na barra (De / até): o previsto vem do planejamento 5W2H e o realizado é tudo o que foi lançado no período, na grade e no BM (inclusive fechamento lateral, telhas e anexos). Atividade executada sem estar no plano aparece marcada como "fora do plano".', aba: 'painel', novo: '2026-11-27' },
       { t: '"Executivo" mostra só o essencial (gestão à vista); "Detalhado" mostra todas as tabelas e planos.', alvo: '#segPainelModo' },
       { t: 'Escolha o período (Semana, Mês, Últimos 30 dias, Obra toda) ou digite as datas. Todos os números do Painel seguem esse período.', alvo: '#barraPeriodo' },
       { t: 'Os cartões resumem previsto × realizado do período.', alvo: '#tiles' },

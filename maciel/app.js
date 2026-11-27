@@ -634,11 +634,24 @@ function obraSemNomesG200(raiz) {
 
 // ------------------------------------------------------------ PAINEL (por período)
 function renderPainel() {
-  const inicio = segunda(ref), fim = add(inicio, 6);
-  const c = ref;
+  const inicio = per.ini, fim = per.fim;   // o período escolhido na barra (De / até)
+  const c = minD(ref, per.fim);
   plIndicePainel();   // planos 5W2H ativos (Farol, alertas e bloco de planejamento)
   if (!PL.dados && !PL._carregandoPainel) { PL._carregandoPainel = true; plCarregar().then(() => { PL._carregandoPainel = false; if (abaAtual === 'painel') renderPainel(); }); }
   const ksAll = plFarolSemanal(inicio, fim, c);
+  // tudo o que foi executado no período, mesmo fora do plano 5W2H (catálogo do BM: grade e lançamentos do BM, por empresa)
+  if (typeof lcDados === 'function' && c >= inicio) (M.empresas || []).forEach(e => {
+    if (window.USUARIO_RESTRITO && normEmp(e.nome) !== normEmp(window.USUARIO_RESTRITO)) return;
+    let q; try { q = lcDados(e.nome, inicio, c); } catch (err) { return; }
+    q.itens.forEach(x => x.ats.forEach(t => {
+      if (!(t.per > 0)) return;
+      const n = ganNorm(t.a.atividade || '');
+      const ja = ksAll.find(k => normEmp(k.emp) === normEmp(e.nome) && (ganNorm(k.serv).startsWith(n) || n.startsWith(ganNorm(k.serv).replace(/ \(PREVISAO COMPARTILHADA\)$/, ''))));
+      if (ja) { ja.real = Math.max(ja.real, t.per); ja.pct = ja.prev > 0 ? ja.real / ja.prev * 100 : null; return; }
+      ksAll.push({ emp: e.nome, serv: t.a.atividade, un: t.a.unidade || '', prevTotal: 0, prev: 0, real: t.per, pct: null, foraPlano: true });
+    }));
+  });
+  ksAll.sort((a, b) => a.emp.localeCompare(b.emp) || String(a.serv).localeCompare(String(b.serv)));
 
   // --- filtro de empresa ---
   const emps = [...new Set(ksAll.map(k => k.emp))];
@@ -654,7 +667,7 @@ function renderPainel() {
   document.querySelectorAll('#segPainelModo button').forEach(b => b.classList.toggle('ativa', b.dataset.painelModo === painelModo));
   const ks = painelEmpFiltro ? ksAll.filter(k => k.emp === painelEmpFiltro) : ksAll;
   const du = contarDiasUteis(add(inicio, -1), c);
-  $('#notaFarol').textContent = `Planejamento 5W2H · semana de ${fdA(inicio)} a ${fdA(fim)} · corte em ${fdA(c)}`;
+  $('#notaFarol').textContent = `Período de ${fdA(inicio)} a ${fdA(fim)} · corte em ${fdA(c)} · previsto = planejamento 5W2H; realizado = tudo o que foi lançado no período (grade e BM)`;
 
   const tile = (rot, linhas, cor) => {
     const comPrevisao = linhas.filter(k => k.pct != null);
@@ -665,36 +678,36 @@ function renderPainel() {
       <div class="sub">${noPrazo} de ${comPrevisao.length} atividades no prazo até ${fd(c)}</div></div>`;
   };
   $('#tiles').innerHTML = !ks.length
-    ? `<div class="bloco vazio">Nenhuma atividade 5W2H planejada de ${fdA(inicio)} a ${fdA(fim)}.</div>`
+    ? `<div class="bloco vazio">Nenhuma atividade planejada ou executada de ${fdA(inicio)} a ${fdA(fim)}.</div>`
     : painelEmpFiltro ? tile(painelEmpFiltro, ks, corEmp(painelEmpFiltro))
       : tile('Geral da obra', ks, 'var(--fg)') + emps.map(emp => tile(emp, ks.filter(k => k.emp === emp), corEmp(emp))).join('');
 
   if (exec) {
     // gestão à vista: serviço, realizado / previsto, % e farol; os piores primeiro dentro de cada empresa
-    let hx = '<thead><tr><th>Atividade</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% da planejado na semana</th></tr></thead><tbody>';
+    let hx = '<thead><tr><th>Atividade</th><th class="n">Realizado / previsto</th><th class="n">%</th><th>Situação</th><th style="min-width:110px">% do planejado no período</th></tr></thead><tbody>';
     let ult = null;
     [...ks].sort((a, b) => a.emp.localeCompare(b.emp) || (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct)).forEach(k => {
       if (k.emp !== ult) { ult = k.emp; hx += `<tr class="grupo"><td colspan="5"><span class="emp-tag" style="--c:${corEmp(ult)}">${esc(ult)}</span></td></tr>`; }
       const semMeta = k.prevTotal === 0, pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
-      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
-        <td><div class="barra" title="${nf(pctTot)}% da planejado na semana"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+      hx += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}</td><td class="n"><b>${nf(k.real, 1)}</b> / ${nf(k.prev, 1)}</td><td class="n"><b>${k.pct == null ? '—' : nf(k.pct) + '%'}</b></td><td>${farolHtml(k.pct, semMeta)}</td>
+        <td><div class="barra" title="${nf(pctTot)}% do planejado no período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
     });
     $('#tabFarol').innerHTML = hx + '</tbody>';
     renderAlertas(ks, c, true, inicio);
     graficoPainel(ks);
     return;
   }
-  let h = `<thead><tr><th>Atividade</th><th class="n">Planejado na semana</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% do planejado</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Atividade</th><th class="n">Planejado no período</th><th class="n">Previsto até ${fd(c)}</th><th class="n">Realizado</th><th class="n">Desvio</th><th class="n">Média/dia útil</th><th>Farol</th><th style="min-width:90px">% do planejado</th></tr></thead><tbody>`;
   let ultimo = null;
   ks.forEach(k => {
     if (k.emp !== ultimo) { ultimo = k.emp; h += `<tr class="grupo"><td colspan="8"><span class="emp-tag" style="--c:${corEmp(ultimo)}">${esc(ultimo)}</span></td></tr>`; }
     const semMeta = k.prevTotal === 0, desvio = k.real - k.prev;
     const pctTot = k.prevTotal > 0 ? Math.min(100, k.real / k.prevTotal * 100) : 0;
     const atrasado = k.prev > 0 && k.real === 0 && c >= inicio;
-    h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
+    h += `<tr><td>${esc(cap(k.serv))}${k.un ? ' <span class="nota">(' + k.un + ')</span>' : ''}${k.foraPlano ? ' <span class="nota">· fora do plano</span>' : ''}${atrasado ? ' <span class="farol f-vermelho" style="font-size:.7em">ATRASADO</span>' : ''}</td><td class="n">${nf(k.prevTotal, 1)}</td><td class="n">${nf(k.prev, 1)}</td><td class="n"><b>${nf(k.real, 1)}</b></td>
       <td class="n" style="color:${semMeta ? 'inherit' : desvio < 0 ? 'var(--vermelho)' : 'var(--verde)'}">${semMeta ? '—' : (desvio > 0 ? '+' : '') + nf(desvio, 1)}</td>
       <td class="n">${du ? nf(k.real / du, 2) : '—'}</td><td>${farolHtml(k.pct, semMeta)}</td>
-      <td><div class="barra" title="${nf(pctTot)}% da planejado na semana"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
+      <td><div class="barra" title="${nf(pctTot)}% do planejado no período"><i style="width:${pctTot}%;--c:${corEmp(k.emp)}"></i></div></td></tr>`;
   });
   $('#tabFarol').innerHTML = h + '</tbody>';
   renderAlertas(ks, c, false, inicio);
@@ -706,7 +719,7 @@ function renderPainel() {
 function renderAlertas(ks, c, exec, inicio) {
   const al = [];
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct < 90).sort((a, b) => a.pct - b.pct).forEach(k =>
-    al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para o planejado na semana.`]));
+    al.push(['vermelho', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: ${nf(k.real, 1)} de ${nf(k.prev, 1)} previstos (${nf(k.pct)}%). Faltam ${nf(Math.max(k.prevTotal - k.real, 0), 1)} para o planejado no período.`]));
   ks.filter(k => k.prevTotal > 0 && k.pct != null && k.pct >= 90 && k.pct < 100).forEach(k =>
     al.push(['amarelo', `<b>${esc(k.emp)} · ${esc(cap(k.serv))}</b>: no limite (${nf(k.pct)}%).`]));
 

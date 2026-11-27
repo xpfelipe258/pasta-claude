@@ -1188,7 +1188,7 @@ function ui_catalogo()
     return [
         ['tarefas', 'Tarefas', [['tarefas', 'Tarefas a fazer', [['tarefas', 'Tarefas'], ['mural', 'Mural da equipe'], ['redmine', 'Redmine']]]]],
         ['producao', 'Produção', [
-            ['painel', 'Painel', []], ['semana', 'Programação semanal', []], ['lanc', 'Lançamentos', []],
+            ['painel', 'Painel de produtividade', []], ['semana', 'Programação semanal', []], ['lanc', 'Lançamentos', []],
             ['apont', 'Apontar montagem', [['mapa', 'Mapa (clicar)'], ['viga', 'Digitar vigas'], ['fech', 'Fechamento lateral'], ['marq', 'Marquise'], ['cont', 'Contraventamento'], ['telha', 'Telhas (Globo Aços)'], ['perfil', 'Perfilagem (Globo Aços)'], ['tfech', 'Telhas de fechamento (Globo Aços)']]],
             ['rdo', 'Relatório diário (RDO)', []],
             ['m3d', 'Modelo 3D (4D)', []],
