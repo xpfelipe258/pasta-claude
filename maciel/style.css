@@ -2117,3 +2117,7 @@ body.m3d-canteiro #aba-m3d:not([hidden]) .m3d-cbar { display: flex; position: fi
 .apg-barra{height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden}.apg-barra i{display:block;height:100%;background:#16a34a}
 .apg-marq{display:grid;gap:6px}.apg-marq-l{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.apg-marq-l b{min-width:160px;font-size:12px}
 .apg-cel{display:inline-block;min-width:46px;padding:4px 6px;border:1px solid #c4cdd8;border-radius:4px;font-size:11px;text-align:center;background:#fff}
+
+/* Transferência de saldo entre empresas (BM) */
+dialog.bm-transf-dlg { width: min(1280px, 96vw); max-width: 96vw; }
+dialog.bm-transf-dlg .tiles { margin: 10px 0; }

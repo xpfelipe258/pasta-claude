@@ -6220,7 +6220,20 @@ function bmItens(emp, ate, snap) {
         unidade: b.unidade || '', qtd: r.qtd, peso: r.peso, valor_qpc: r.valor_qpc, valor_rotula: r.valor_rotula }, real: r.realizado || 0 };
     }));
   }
-  return bmMontarItens(bmAtiv(emp).map(a => ({ a, real: bmRealizado(a, ate) })));
+  return bmMontarItens(bmAtiv(emp).map(a => ({ a, real: bmRealCapTransf(emp, a, ate) })));
+}
+// Atividade com saldo transferido para outra empresa: depois do corte do BM da transferência a empresa que cedeu não mede mais
+// nada nela (o realizado fica no que estava no fechamento; o resto é medido pela empresa que recebeu, no item do aditivo).
+function bmRealCapTransf(emp, a, ate) {
+  const real = bmRealizado(a, ate);
+  for (const t of bmTransfs()) {
+    if (t.de !== emp) continue;
+    const l = (t.linhas || []).find(x => x.codigo_de === a.codigo);
+    if (!l) continue;
+    const corte = t.corte || ((bmTab('bm_periodos').filter(p => p.empresa === emp && ehISO(p.corte)).sort((x, y) => x.corte.localeCompare(y.corte))[t.bm - 1]) || {}).corte;
+    if (corte && ate > corte) return Math.min(real, +l.realizado || 0);
+  }
+  return real;
 }
 
 function bmPeriodos(emp) {
@@ -6320,7 +6333,7 @@ function bmDeducoes(emp, p, medido = 0) {
     equip += mensalEquip;
   }
   const manuaisLancados = bmTab('bm_deducoes').filter(d => d.empresa === emp && (d.bm != null ? d.bm === p.n : (d.data && d.data >= p.ini && d.data <= p.fim)));
-  const manuais = manuaisLancados.filter(d => ganNorm(d.tipo) !== 'SINAL DE CONTRATO');
+  const manuais = manuaisLancados.filter(d => ganNorm(d.tipo) !== 'SINAL DE CONTRATO' && ganNorm(d.tipo) !== 'ADITIVO');   // aditivo/transferência é só registro: não desconta do BM
   const sinalManualIgnorado = manuaisLancados.filter(d => ganNorm(d.tipo) === 'SINAL DE CONTRATO' && (d.percentual == null || d.percentual === '')).length;   // sinal com valor fixo (sem %) não vale: o sistema desconta o % × medido
   const sinalPerc = p.sinalPerc != null && isFinite(Number(p.sinalPerc)) ? Number(p.sinalPerc) : BM_SINAL_PERCENTUAL;   // vem de Períodos e deduções
   const sinalAuto = medido > 0 ? medido * sinalPerc / 100 : 0;
@@ -6334,6 +6347,11 @@ function bmDeducoes(emp, p, medido = 0) {
 
 // BM fechado: valores congelados. BM aberto: dados vivos; o que foi corrigido em datas de períodos já fechados
 // aparece como ajuste (diferença entre o realizado atual até o corte anterior e a foto daquele fechamento).
+// saldo cedido a outra empresa (Transferir saldo): a empresa que cede fica com saldo zero nessas atividades
+const bmTransfs = () => (M && M.bm_transferencias) || [];
+const bmTransfAtiv = (emp, cod) => soma0(bmTransfs().filter(t => t.de === emp).flatMap(t => t.linhas || []).filter(l => l.codigo_de === cod), l => l.valor_de);
+const bmTransfItem = (emp, item) => soma0(bmTransfs().filter(t => t.de === emp).flatMap(t => t.linhas || []).filter(l => l.item === item), l => l.valor_de);
+const bmTransfTotal = emp => soma0(bmTransfs().filter(t => t.de === emp), t => t.total_de);
 function bmCalc(emp, p) {
   const ps = bmPeriodos(emp), i = ps.findIndex(x => x.chave === p.chave), prev = i > 0 ? ps[i - 1] : null;
   const fimIt = p.fechado ? bmItens(emp, null, bmFechAtiv(emp, p.n)) : bmItens(emp, p.fim);
@@ -6435,7 +6453,7 @@ function bmImprimir(r, emp, p) {
     <div class="cards">
       ${card('Contrato RÓTULA × ' + esc(emp), rs(tot.contrato), 'valor total contratado da empresa terceirizada', 'az')}
       ${card('Medição do BM' + p.n, rs(tot.per), pc(tot.pctPer) + ' do contrato neste período', 'nd')}
-      ${card('Saldo a medir', rs(tot.contrato - tot.acum), 'contrato − medido acumulado · ' + pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0) + ' do contrato', 'nd')}
+      ${card('Saldo a medir', rs(Math.max(0, tot.contrato - tot.acum - bmTransfTotal(emp))), 'contrato − medido acumulado' + (bmTransfTotal(emp) ? ' − ' + rs(bmTransfTotal(emp)) + ' transferido' : '') + ' · ' + pc(tot.contrato ? Math.max(0, tot.contrato - tot.acum - bmTransfTotal(emp)) / tot.contrato : 0) + ' do contrato', 'nd')}
       ${card('Descontos', rs(dd.total[R]), `sinal ${rs(dd.sinalAuto)}${dd.manuais.length ? ' + ' + dd.manuais.length + ' lançamento(s)' : ''}${dd.equip + dd.comb ? ' + equipamentos' : ''}`, 'am')}
       ${card('Valor a faturar pela ' + esc(emp), rs(fat), 'medição − descontos', 'vd')}
     </div>
@@ -6531,7 +6549,7 @@ function renderBMBoletim(box) {
     bmTile(p.fechado ? `Acumulado no BM${p.n}` : 'Acumulado da produção', rs(tot.acum), `<b>${pc(tot.pctAcum)}</b> do contrato`, 'var(--fg)') +
     bmTile('Já medido (BMs anteriores)', rs(tot.ant), anteriores.length ? anteriores.map(x => 'BM' + x.n).join(' + ') + ' · já pago' : 'nenhum BM anterior', 'var(--fg3)') +
     bmTile(`Medição do BM${p.n}`, rs(tot.per), `acumulado − já medido · ${pc(tot.pctPer)} do contrato`, 'var(--acento)') +
-    bmTile('Saldo a medir', rs(tot.contrato - tot.acum), `contrato − medido acumulado · ${pc(tot.contrato ? (tot.contrato - tot.acum) / tot.contrato : 0)} do contrato`, 'var(--fg)') +
+    bmTile('Saldo a medir', rs(Math.max(0, tot.contrato - tot.acum - bmTransfTotal(emp))), `contrato − medido acumulado${bmTransfTotal(emp) ? ' − ' + rs(bmTransfTotal(emp)) + ' transferido para outra empresa' : ''} · ${pc(tot.contrato ? Math.max(0, tot.contrato - tot.acum - bmTransfTotal(emp)) / tot.contrato : 0)} do contrato`, 'var(--fg)') +
     bmTile('Descontos', rs(r.ded.total[R]), `sinal ${rs(r.ded.sinalAuto)}${r.ded.manuais.length ? ' + ' + r.ded.manuais.length + ' lançamento(s)' : ''}${r.ded.equip + r.ded.comb ? ' + equipamentos' : ''}`, 'var(--vermelho)') +
     bmTile('Valor a faturar', rs(r.faturar[R]), 'medição − descontos', 'var(--verde)') + '</div></details>';
 
@@ -6557,16 +6575,16 @@ function renderBMBoletim(box) {
     h += `<tr class="linha-item" data-bm-item="${esc(it.item)}"><td><span class="seta">${aberto ? '▾' : '▸'}</span> <b>${esc(it.item)}</b> ${esc(cap(it.desc))}</td><td></td><td></td><td></td><td></td>
       <td class="n"><b>${rs2(it.valor[R])}</b></td><td></td>
       <td class="n">${pc(it.pctAnt)}</td><td class="n">${pc(it.pctPer)}</td><td class="n"><b>${pc(it.pct)}</b></td><td class="n"><b>${pc(tot.contrato ? it.pct * it.valor[R] / tot.contrato : 0)}</b></td>
-      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td><td class="n"><b>${rs(it.valor[R] - it.pct * it.valor[R])}</b></td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
+      <td class="n">${rs(it.pctAnt * it.valor[R])}</td><td class="n">${rs(it.pctPer * it.valor[R])}</td><td class="n">${rs(it.pct * it.valor[R])}</td><td class="n"><b>${rs(Math.max(0, it.valor[R] - it.pct * it.valor[R] - bmTransfItem(emp, it.item)))}</b></td>${bmsAteMeusInclusos.map(pm => `<td></td>`).join('')}</tr>`;
     if (aberto) it.ats.forEach(x => {
       const colBmsAti = bmsAteMeusInclusos.map(pm => `<td class="n">${nf(medicaoPorBm.get(`${x.a.codigo}|${pm.n}`) || 0, 1)}</td>`).join('');
       const pr = bmPrecoAtividade(it, x.a, R);
       h += `<tr class="linha-ativ"><td class="sub-ativ">${esc(x.a.atividade)}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.a.qtd, bmQtdContratadaUnd(x.a))}</td><td class="n">${bmFmtQtdFinanceira(x.a, x.real - x.realAnt, bmQtdProducaoBruta(x.a, p.ini, p.fim))}</td><td class="n">${bmManual() && !p.fechado && !document.body.classList.contains('somente-leitura') ? `<input type="number" step="any" min="0" style="width:90px;text-align:right" value="${x.real ? esc(String(+x.real.toFixed(4))) : ''}" placeholder="0" data-bm-manual="${esc(x.a.codigo)}" data-bm-n="${p.n}" title="BM manual: digite o acumulado executado até este BM e saia da célula"> ${esc(x.a.unidade || '')}` : bmFmtQtdFinanceira(x.a, x.real, bmManual() ? null : bmQtdProducaoBruta(x.a, '0000', p.fim))}</td>
-        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td><td class="n">${rs2(pr.total - x.pct * pr.total)}</td>${colBmsAti}</tr>`;
+        <td class="n">${pc((x.a.peso || 0) / it.somaPesos)}</td><td class="n">${rs2(pr.total)}</td><td class="n">${rs2(pr.unit)}</td><td colspan="2"></td><td class="n ${x.real > x.a.qtd ? 'valor-neg' : ''}">${pc(x.pct)}</td><td class="n">${pc(tot.contrato ? x.pct * pr.total / tot.contrato : 0)}</td><td colspan="3"></td><td class="n">${rs2(Math.max(0, pr.total - x.pct * pr.total - bmTransfAtiv(emp, x.a.codigo)))}${bmTransfAtiv(emp, x.a.codigo) ? '<div class="nota">saldo transferido</div>' : ''}</td>${colBmsAti}</tr>`;
     });
   });
   h += `</tbody><tfoot><tr><td><b>Total do contrato</b></td><td></td><td></td><td></td><td></td><td class="n"><b>${rs2(tot.contrato)}</b></td><td></td><td class="n">${pc(tot.ant / (tot.contrato || 1))}</td><td class="n">${pc(tot.pctPer)}</td><td class="n"><b>${pc(tot.pctAcum)}</b></td><td class="n"><b>${pc(tot.pctAcum)}</b></td>
-    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td><td class="n"><b>${rs(tot.contrato - tot.acum)}</b></td></tr></tfoot></table></div></div>`;
+    <td class="n">${rs(tot.ant)}</td><td class="n">${rs(tot.per)}</td><td class="n">${rs(tot.acum)}</td><td class="n"><b>${rs(Math.max(0, tot.contrato - tot.acum - bmTransfTotal(emp)))}</b></td></tr></tfoot></table></div></div>`;
 
   const dd = r.ded, med = tot.per;
   const linhaDesc = d => {
@@ -6609,6 +6627,10 @@ function renderBMBoletim(box) {
 
 function renderBMPeriodos(box) {
   const emp = bmEmp;
+  setTimeout(() => {
+    const bt = box.querySelector('[data-bm-transf]'); if (bt) bt.onclick = () => bmTransfAbrir(emp);
+    box.querySelectorAll('[data-bm-transf-ver]').forEach(tr => { tr.onclick = ev => { if (ev.target.closest('button')) return; bmTransfVer(+tr.dataset.bmTransfVer); }; });
+  });
   setTimeout(() => { const b = box.querySelector('[data-bm-zerar]'); if (b) b.onclick = async () => {
     if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = `Confirmar: apagar todos os BMs da ${emp}`; b.classList.add('perigo'); return; }
     try { await postar(API + 'bm/zerar', { empresa: emp }); await carregar(); toast(`BMs da ${emp} zerados: BM1 em aberto`); } catch (err) { toast(err.message, true); }
@@ -6622,12 +6644,60 @@ function renderBMPeriodos(box) {
     (ps.length ? ps.map(p => { const pp = bmPeriodos(emp).find(x => x.linha === p.linha); const f = bmFech(emp, pp ? pp.n : p.bm); const own = p.sinal_perc != null && p.sinal_perc !== ''; return `<tr><td><b>BM${pp ? pp.n : (p.bm ?? '')}</b></td><td>${fdA(p.corte)}</td><td class="n">${f ? `${nf(pp ? pp.sinalPerc : 10, 1)}%` : `<input type="number" class="sinal-cel" step="0.1" min="0" max="100" style="width:76px;text-align:right" value="${pp && pp.sinalPropria ? esc(String(pp.sinalPerc)) : ''}" placeholder="${nf(pp ? pp.sinalPerc : 10, 1)}" data-edit-sinal-bm="${pp ? pp.n : p.bm}"> %`}</td><td>${f ? `<span class="farol f-verde">Fechado ${fdA(f.fechado_em)}</span>` : '<span class="farol f-amarelo">Em aberto</span>'}</td><td class="sub">${esc(p.obs || '')}</td><td>${f ? '<span class="nota">reabra para editar</span>' : `<button class="link" data-editar-reg="bm_periodos" data-linha="${p.linha}">Editar</button>`}</td></tr>`; }).join('')
       : '<tr><td colspan="6" class="vazio">Nenhum corte cadastrado. Ex.: BM1 da EJ em 03/09/2026.</td></tr>') +
     `</tbody></table></div></div>
-    <div class="bloco"><div class="bloco-cab"><h2>Descontos dos BMs</h2><button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></div>
-      <p class="nota">Equipamento emprestado, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço... Valor negativo é crédito. Equipamentos lançados em Equipamentos entram sozinhos.</p>
+    <div class="bloco"><div class="bloco-cab"><h2>Descontos e aditivos</h2><span class="acoes">${D?.usuario?.perfil === 'admin' || D?.usuario?.admin_obra ? `<button class="btn" data-bm-transf>Transferir saldo para outra empresa</button>` : ''}<button class="btn primario" data-novo="bm_deducoes">+ Desconto</button></span></div>
+      <p class="nota">Equipamento emprestado, faturamento direto, diesel, sinal de contrato (% do medido), medição antecipada, almoço... Valor negativo é crédito. Equipamentos lançados em Equipamentos entram sozinhos. <b>Aditivo</b> (transferência de saldo) é só registro: não desconta do BM; clique na linha para ver o que foi passado e os valores.</p>
       <div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>BM</th><th>Tipo</th><th>Descrição</th><th class="n">Valor / %</th><th></th></tr></thead><tbody>` +
-    (ds.length ? ds.map(d => `<tr><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${esc(cap(d.tipo || ''))}</td><td>${esc((d.descricao || '').replace(/^\[planilha\]\s*/, ''))}</td><td class="n">${d.percentual != null ? nf(d.percentual, 1) + '%' : rs(d.valor)}</td>
-      <td><button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button></td></tr>`).join('')
+    (ds.length ? ds.map(d => { const tn = ganNorm(d.tipo) === 'ADITIVO' && (String(d.descricao || '').match(/Transfer[eê]ncia nº (\d+)/) || [])[1]; return `<tr${tn ? ` data-bm-transf-ver="${tn}" style="cursor:pointer" title="Clique para ver o que foi transferido e os valores"` : ''}><td>${fdA(d.data)}</td><td>${d.bm != null ? 'BM' + d.bm : '—'}</td><td>${tn ? '<span class="farol f-verde">Aditivo</span>' : esc(cap(d.tipo || ''))}</td><td>${esc((d.descricao || '').replace(/^\[planilha\]\s*/, ''))}${tn ? ' <span class="link">ver detalhes</span>' : ''}</td><td class="n">${d.percentual != null ? nf(d.percentual, 1) + '%' : rs(d.valor)}</td>
+      <td>${tn ? '' : `<button class="link" data-editar-reg="bm_deducoes" data-linha="${d.linha}">Editar</button>`}</td></tr>`; }).join('')
       : '<tr><td colspan="6" class="vazio">Nenhum desconto lançado.</td></tr>') + `</tbody></table></div></div></div>`;
+}
+
+// ---- Transferência de saldo entre empresas (Períodos e deduções) ----
+function bmTransfTabela(r, comCedente = true) {
+  const un = l => esc(l.unidade || '');
+  const linhas = r.linhas.map(l => `<tr><td class="nota" style="white-space:nowrap">${esc(l.codigo_de)}</td><td>${esc(l.atividade)}<div class="nota">${esc(l.item)} ${esc(cap(l.item_desc || ''))}</div></td><td class="n">${nf(l.qtd, 2)} ${un(l)}</td><td class="n">${nf(l.realizado, 2)}</td><td class="n"><b>${nf(l.saldo, 2)} ${un(l)}</b></td>
+    ${comCedente ? `<td class="n">${rs2(l.unit_de)}</td><td class="n">${rs2(l.valor_de)}</td>` : ''}<td class="n">${rs2(l.unit_para)}${l.preco_de_cedente ? '<div class="nota">sem atividade igual: preço da cedente</div>' : ''}</td><td class="n"><b>${rs2(l.valor_para)}</b></td><td class="nota" style="white-space:nowrap">${esc(l.codigo_para || '—')}</td></tr>`).join('');
+  return `<div class="tabela-rolagem" style="max-height:55vh"><table data-sem-ferramentas><thead><tr><th>Código</th><th>Atividade</th><th class="n">Contratado</th><th class="n">Realizado até o BM${r.bm}</th><th class="n">Saldo transferido</th>${comCedente ? `<th class="n">Preço ${esc(r.de)}</th><th class="n">Valor ${esc(r.de)}</th>` : ''}<th class="n">Preço ${esc(r.para)}</th><th class="n">Valor ${esc(r.para)}</th><th>Atividade igual na ${esc(r.para)}</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="10" class="vazio">Nenhuma atividade com saldo.</td></tr>'}</tbody>
+    <tfoot><tr><th colspan="5">Total (${r.linhas.length} atividade(s))</th>${comCedente ? `<th></th><th class="n">${rs2(r.total_de)}</th>` : ''}<th></th><th class="n">${rs2(r.total_para)}</th><th></th></tr></tfoot></table></div>`;
+}
+function bmTransfDialogo(html) {
+  const dlg = document.createElement('dialog'); dlg.className = 'bm-copiar bm-transf-dlg'; dlg.innerHTML = html; document.body.appendChild(dlg);
+  dlg.addEventListener('close', () => dlg.remove()); dlg.showModal(); return dlg;
+}
+function bmTransfAbrir(de) {
+  const outras = (M.empresas || []).map(e => e.nome).filter(n => n !== de);
+  const dlg = bmTransfDialogo(`<form method="dialog"><h2>Transferir saldo da ${esc(de)} para outra empresa</h2>
+    <p class="nota">Todo o saldo do catálogo da ${esc(de)} (contratado − realizado no fechamento do último BM) passa para a empresa escolhida como <b>aditivo de contrato</b> (item novo ADT), com o <b>preço unitário da empresa que recebe</b>. A ${esc(de)} fica com saldo zerado nessas atividades; os BMs já fechados não mudam. Fica registrado em Descontos e aditivos das duas empresas.</p>
+    <label class="rot-sel">Empresa que recebe <select data-bt-para>${outras.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
+    <div data-bt-prev><p class="vazio">Calculando…</p></div>
+    <div class="acoes"><button type="button" class="btn" data-bt-cancelar>Cancelar</button><button type="button" class="btn primario" data-bt-ok disabled>Transferir</button></div></form>`);
+  let ultimo = null;
+  const prev = async () => {
+    const para = dlg.querySelector('[data-bt-para]').value, alvo = dlg.querySelector('[data-bt-prev]'), ok = dlg.querySelector('[data-bt-ok]');
+    ok.disabled = true; alvo.innerHTML = '<p class="vazio">Calculando…</p>';
+    try { ultimo = await postar(API + 'bm/transferir', { de, para, simular: true }); alvo.innerHTML = `<p><b>Após o BM${ultimo.bm} da ${esc(de)}:</b> ${ultimo.linhas.length} atividade(s) com saldo · ${esc(de)} cede ${rs2(ultimo.total_de)} · ${esc(para)} recebe ${rs2(ultimo.total_para)} (preço da ${esc(para)})</p>` + bmTransfTabela(ultimo); ok.disabled = !ultimo.linhas.length; }
+    catch (err) { alvo.innerHTML = `<p class="aviso">${esc(err.message)}</p>`; }
+  };
+  dlg.querySelector('[data-bt-para]').onchange = prev;
+  dlg.querySelector('[data-bt-cancelar]').onclick = () => dlg.close();
+  dlg.querySelector('[data-bt-ok]').onclick = async ev => {
+    const b = ev.currentTarget;
+    if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = `Confirmar: transferir ${rs2(ultimo.total_para)} para a ${ultimo.para}`; return; }
+    try { const r = await postar(API + 'bm/transferir', { de, para: ultimo.para }); dlg.close(); await carregar(); toast(`Saldo da ${r.de} transferido para a ${r.para}: aditivo ${r.item_para} de ${rs2(r.total_para)}`); }
+    catch (err) { toast(err.message, true); }
+  };
+  prev();
+}
+function bmTransfVer(id) {
+  const r = bmTransfs().find(t => t.id === id);
+  if (!r) return toast('Transferência não encontrada (recarregue a página).', true);
+  const dlg = bmTransfDialogo(`<form method="dialog"><h2>Aditivo — transferência nº ${r.id}</h2>
+    <p>Saldo da <b>${esc(r.de)}</b> após o <b>BM${r.bm}</b> passado para a <b>${esc(r.para)}</b> em ${fdA(r.data)}${r.por ? ' por ' + esc(r.por) : ''}. Item do aditivo na ${esc(r.para)}: <b>${esc(r.item_para || '')}</b>.</p>
+    <div class="tiles">${bmTile('Atividades transferidas', nf(r.linhas.length, 0), 'saldo após o fechamento do BM' + r.bm, 'var(--acento)')}${bmTile(`Valor cedido pela ${r.de}`, rs2(r.total_de), `saldo a preço da ${r.de} (zerado)`, 'var(--vermelho)')}${bmTile(`Aditivo na ${r.para}`, rs2(r.total_para), `item ${r.item_para || ''} · preço da ${r.para}`, 'var(--verde)')}${bmTile('Diferença de preço', rs2(r.total_para - r.total_de), `${r.para} − ${r.de}`, 'var(--fg3)')}</div>
+    ${bmTransfTabela(r)}
+    <div class="acoes"><button type="button" class="btn primario" data-bt-fechar>Fechar</button></div></form>`);
+  dlg.querySelector('[data-bt-fechar]').onclick = () => dlg.close();
 }
 
 function renderBMCatalogo(box) {

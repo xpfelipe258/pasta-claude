@@ -270,7 +270,8 @@ function montar_modelo()
         'projecao_config' => (object)(json_decode((string)sistema_ler('projecao_config', '{}'), true) ?: []),   // conjunto de equipamentos, dias cobrados e preços da aba Projeção
         'referencia' => sistema_ler('referencia', null),
         'bm_modo' => sistema_ler('bm_modo', 'producao') === 'manual' ? 'manual' : 'producao',   // forma de medição (Administração › Obra)
-        'bm_manual' => (object)(json_decode((string)sistema_ler('bm_manual', '{}'), true) ?: []),   // BM manual: {empresa: {codigo: {nBM: acumulado}}}
+        'bm_manual' => (object)(json_decode((string)sistema_ler('bm_manual', '{}'), true) ?: []),
+        'bm_transferencias' => json_decode((string)sistema_ler('bm_transferencias', '[]'), true) ?: [],   // saldo transferido entre empresas (Períodos e deduções)   // BM manual: {empresa: {codigo: {nBM: acumulado}}}
         'tabelas' => $tabelas,
         'abas_mensais_equip' => [],
         'estoque_externo' => json_decode((string)sistema_ler('estoque_externo', 'null'), true),

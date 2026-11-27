@@ -246,7 +246,7 @@ try {
         'producao'=>'producao','cliente-contrato'=>'producao','apontamento'=>'producao','apontamento-pecas'=>'producao','mapa-obra/atualizar'=>'producao','apontamentos/sincronizar-fase2'=>'producao','planejamento'=>'producao','planos'=>'producao','referencia'=>'producao','projecao-config'=>'financeiro','fluxo-config'=>'producao','cronograma-importado'=>'producao','vinculos'=>'suprimentos','fixadores-atividade'=>'suprimentos','cadastro-faltantes'=>'suprimentos',
         'estoque/semear-materiais'=>'suprimentos','estoque-planilha/remessa'=>'suprimentos','estoque-planilha/remessa-datas'=>'suprimentos','estoque-planilha/material'=>'suprimentos','estoque-planilha/consumo'=>'suprimentos','estoque-planilha/consumo-celula'=>'suprimentos','estoque-planilha/consumo-semana'=>'suprimentos',
         'equip/importar'=>'consumo',
-        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro','bm/manual'=>'financeiro','bm/zerar'=>'financeiro','bm/copiar-atividade'=>'financeiro',
+        'bm/apontar'=>'financeiro','bm/semear'=>'financeiro','bm/fechar'=>'financeiro','bm/reabrir'=>'financeiro','bm/competencia'=>'financeiro','bm/manual'=>'financeiro','bm/zerar'=>'financeiro','bm/copiar-atividade'=>'financeiro','bm/transferir'=>'financeiro',
         'metas'=>'gestao','criar-meta'=>'gestao','impacto'=>'gestao',
         'qualidade'=>'qualidade'
     ];
@@ -263,7 +263,7 @@ try {
         'producao' => 'acao_producao', 'metas' => 'acao_metas', 'impacto' => 'acao_impacto',
         'registro' => 'acao_registro', 'equip/importar' => 'acao_importar_mensal',
         'bm/apontar' => 'acao_bm_apontar', 'bm/semear' => 'acao_bm_semear',
-        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia', 'bm/manual' => 'acao_bm_manual', 'bm/zerar' => 'acao_bm_zerar', 'bm/copiar-atividade' => 'acao_bm_copiar_atividade',
+        'bm/fechar' => 'acao_bm_fechar', 'bm/reabrir' => 'acao_bm_reabrir', 'bm/competencia' => 'acao_bm_competencia', 'bm/manual' => 'acao_bm_manual', 'bm/zerar' => 'acao_bm_zerar', 'bm/copiar-atividade' => 'acao_bm_copiar_atividade', 'bm/transferir' => 'acao_bm_transferir',
         'apontamento' => 'acao_apontamento', 'apontamento-pecas' => 'acao_apontamento_pecas', 'mapa-obra/atualizar' => 'acao_mapa_obra_atualizar', 'apontamentos/sincronizar-fase2' => 'acao_sincronizar_apontamentos_fase2',
         'referencia' => 'acao_referencia',
         'estoque/semear-materiais' => 'acao_semear_materiais',
@@ -2103,6 +2103,68 @@ function acao_bm_copiar_atividade(array $corpo, array $usuario)
         }
     }
     return ['criados' => $criados, 'pulados' => $pulados, 'servicos' => array_values(array_unique($servicos))];
+}
+
+// Transfere TODO o saldo do catálogo de uma empresa (quantidade contratada − realizado congelado no fechamento do último BM)
+// para outra empresa, como ADITIVO de contrato dela (item novo ADTnn, mesmas atividades, preço unitário da empresa que recebe).
+// A empresa que cede fica com saldo zero nessas atividades (sistema.bm_transferencias), sem mexer nos BMs já fechados.
+// Registro em Períodos e deduções (tipo ADITIVO, informativo: não desconta do BM). simular = só a prévia.
+function bm_transf_ler() { $j = json_decode((string)sistema_ler('bm_transferencias', '[]'), true); return is_array($j) ? $j : []; }
+function bm_transf_preco(array $a, array $doItem)
+{
+    $soma = 0; foreach ($doItem as $x) $soma += (float)$x['peso'];
+    $peso = $soma > 0 ? (float)$a['peso'] / $soma : 0;
+    $val = (float)$a['valor_rotula'] * $peso;
+    return ['valor' => $val, 'unit' => (float)$a['qtd'] > 0 ? $val / (float)$a['qtd'] : 0];
+}
+function acao_bm_transferir(array $corpo, array $usuario)
+{
+    if (!usuario_admin_da_obra($usuario)) throw new ErroValidacao('Só o administrador da obra transfere saldo entre empresas.');
+    require_once __DIR__ . '/inc/empresas_obra.php';
+    $de = (string)($corpo['de'] ?? ''); $para = (string)($corpo['para'] ?? '');
+    if ($de === '' || $para === '' || $de === $para) throw new ErroValidacao('Escolha a empresa que cede e a que recebe (diferentes).');
+    $empPara = q('SELECT * FROM empresas WHERE nome = ?', [$para])->fetch();
+    if (!$empPara || !q('SELECT 1 FROM empresas WHERE nome = ?', [$de])->fetchColumn()) throw new ErroValidacao('Empresa inválida.');
+    $n = (int)q('SELECT MAX(bm) FROM bm_fechamentos WHERE empresa = ?', [$de])->fetchColumn();
+    if ($n < 1) throw new ErroValidacao("$de ainda não tem BM fechado: feche o último BM antes de transferir o saldo.");
+    foreach (bm_transf_ler() as $t) if (($t['de'] ?? '') === $de && (int)($t['bm'] ?? 0) === $n) throw new ErroValidacao("O saldo de $de após o BM$n já foi transferido para {$t['para']}.");
+    $fech = [];
+    foreach (q('SELECT codigo, realizado FROM bm_fech_atividades WHERE empresa = ? AND bm = ?', [$de, $n])->fetchAll() as $r) $fech[$r['codigo']] = (float)$r['realizado'];
+    $ativDe = q('SELECT * FROM bm_atividades WHERE empresa = ? ORDER BY item, codigo', [$de])->fetchAll();
+    $ativPara = q('SELECT * FROM bm_atividades WHERE empresa = ?', [$para])->fetchAll();
+    $porItem = function ($lista) { $m = []; foreach ($lista as $a) $m[$a['item']][] = $a; return $m; };
+    $itDe = $porItem($ativDe); $itPara = $porItem($ativPara);
+    $linhas = []; $totDe = 0; $totPara = 0;
+    foreach ($ativDe as $a) {
+        $qtd = (float)$a['qtd']; $real = min($qtd, $fech[$a['codigo']] ?? 0); $saldo = round($qtd - $real, 4);
+        if ($saldo <= 1e-6) continue;
+        $pDe = bm_transf_preco($a, $itDe[$a['item']]);
+        $par = null; foreach ($ativPara as $b) if (bm_copia_sufixo($b['codigo']) === bm_copia_sufixo($a['codigo'])) { $par = $b; break; }
+        $pPara = $par ? bm_transf_preco($par, $itPara[$par['item']]) : null;
+        $unit = $pPara && $pPara['unit'] > 0 ? $pPara['unit'] : $pDe['unit'];
+        $vDe = round($saldo * $pDe['unit'], 2); $vPara = round($saldo * $unit, 2);
+        $totDe += $vDe; $totPara += $vPara;
+        $linhas[] = ['codigo_de' => $a['codigo'], 'codigo_para' => $par['codigo'] ?? '', 'item' => $a['item'], 'item_desc' => $a['item_desc'], 'atividade' => $a['atividade'], 'unidade' => $a['unidade'],
+            'qtd' => $qtd, 'realizado' => $real, 'saldo' => $saldo, 'unit_de' => round($pDe['unit'], 4), 'unit_para' => round($unit, 4), 'preco_de_cedente' => !$pPara || !($pPara['unit'] > 0),
+            'valor_de' => $vDe, 'valor_para' => $vPara];
+    }
+    $pers = bm_periodos_numerados($de); $corte = isset($pers[$n]) ? substr((string)$pers[$n], 0, 10) : '';
+    $res = ['de' => $de, 'para' => $para, 'bm' => $n, 'corte' => $corte, 'linhas' => $linhas, 'total_de' => round($totDe, 2), 'total_para' => round($totPara, 2)];
+    if (!empty($corpo['simular']) || !$linhas) return $res;
+    $data = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+    try {
+        $adt = eo_aditivo((int)$empPara['id'], ['data' => $data, 'motivo' => "Saldo transferido da $de após o BM$n", 'criar_colunas' => false,
+            'linhas' => array_map(function ($l) { return ['atividade' => $l['atividade'], 'unidade' => $l['unidade'] ?: 'un', 'qtd' => str_replace('.', ',', (string)$l['saldo']), 'valor' => number_format($l['valor_para'], 2, ',', '.'), 'origem' => $l['codigo_para']]; }, $linhas)]);
+    } catch (InvalidArgumentException $e) { throw new ErroValidacao($e->getMessage()); }
+    $lista = bm_transf_ler();
+    $id = $lista ? max(array_column($lista, 'id')) + 1 : 1;
+    $reg = $res + ['id' => $id, 'data' => $data, 'aditivo' => $adt['aditivo'], 'item_para' => $adt['item'], 'por' => $usuario['nome'] ?? '', 'em' => (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i')];
+    $lista[] = $reg; sistema_gravar('bm_transferencias', json_encode($lista, JSON_UNESCAPED_UNICODE));
+    // registro em Períodos e deduções (Descontos e aditivos): informativo, não entra no valor a faturar
+    $ins = 'INSERT INTO bm_deducoes (empresa, bm, data, tipo, descricao, valor, contrato) VALUES (?, ?, ?, ?, ?, ?, ?)';
+    q($ins, [$para, $n + 1, $data, 'ADITIVO', "Transferência nº $id: saldo recebido da $de após o BM$n (item {$adt['item']}, " . count($linhas) . ' atividade(s), preço da ' . $para . ')', $reg['total_para'], 'RÓTULA']);
+    q($ins, [$de, $n + 1, $data, 'ADITIVO', "Transferência nº $id: saldo cedido para a $para após o BM$n (" . count($linhas) . ' atividade(s); saldo zerado)', -$reg['total_de'], 'RÓTULA']);
+    return $reg;
 }
 
 function acao_bm_semear()
