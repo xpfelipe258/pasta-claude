@@ -794,11 +794,11 @@ function plRenderPainel() {
   const vis = plVistaDoPlano(pl), c = vis.c, st = plStatusPlano(c), emps = plEmpresasDoPlano(pl);
   const tile = (rot, val, sub, cc) => `<div class="tile" style="--c:${cc}"><div class="rot"><span>${rot}</span></div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const dRest = c.diasRest;
-  const selEmp = emps.length > 1 ? `<label class="rot-sel pl-emp-sel" title="Só as atividades em que a empresa está no Who, com a parte e o realizado dela">Empresa <select id="plEmpPl"><option value="">Todas as empresas</option>${emps.map(e => `<option value="${esc(e)}" ${e === vis.emp ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : '';
+  const selEmp = emps.length > 1 && !window.USUARIO_RESTRITO ? `<label class="rot-sel pl-emp-sel" title="Só as atividades em que a empresa está no Who, com a parte e o realizado dela">Empresa <select id="plEmpPl"><option value="">Todas as empresas</option>${emps.map(e => `<option value="${esc(e)}" ${e === vis.emp ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>` : '';
   let h = `<div class="bloco pl-cab"><div><h3>${esc(pl.nome)} ${plFarol(st)}</h3>
-      <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s) · empresa executora: <b>${Array.isArray(pl.empresas) && pl.empresas.length ? esc(pl.empresas.join(' / ')) : 'todas as empresas'}</b>${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado só dentro do período (${fdA(pl.inicio)} a ${fdA(minD(pl.fim, c.baseRef))})</p>
+      <p class="nota">${fdA(pl.inicio)} a ${fdA(pl.fim)} · ${plDias(pl.inicio, pl.fim).length} dias úteis · ${pl.itens.length} atividade(s) · empresa executora: <b>${esc(emps.join(' / ') || 'todas as empresas')}</b>${pl.responsavel ? ' · responsável: ' + esc(pl.responsavel) : ''} · realizado só dentro do período (${fdA(pl.inicio)} a ${fdA(minD(pl.fim, c.baseRef))})</p>
       ${pl.objetivo ? `<p class="pl-objetivo">${esc(pl.objetivo)}</p>` : ''}
-      ${selEmp ? `<div class="barra-acoes">${selEmp}${vis.emp ? `<span class="nota">realizado só do que a ${esc(vis.emp)} lançou · ${c.itens.length} de ${pl.itens.length} atividade(s)</span>` : ''}</div>` : ''}</div>
+      ${selEmp || vis.emp ? `<div class="barra-acoes">${selEmp}${vis.emp ? `<span class="nota">plano e realizado só da <b>${esc(vis.emp)}</b> · ${c.itens.length} de ${pl.itens.length} atividade(s)</span>` : ''}</div>` : ''}</div>
     <div class="acoes"><button class="btn" data-pl-editar>Editar planejamento</button><button class="btn primario" data-pl-doc>Baixar planejamento</button><button class="btn" data-pl-csv>Exportar CSV</button>
       <button class="btn" data-pl-status="${pl.status === 'concluido' ? 'ativo' : 'concluido'}">${pl.status === 'concluido' ? 'Reabrir' : 'Marcar concluído'}</button>
       <button class="btn perigo" data-pl-excluir>Excluir</button></div></div>`;
@@ -818,7 +818,9 @@ function plEmpresasDoPlano(pl) {
   return [...new Set((pl.itens || []).flatMap(it => plEmpresasDoItem(it, plAtivPorChave(it.chave))))].filter(Boolean);
 }
 function plVistaDoPlano(pl) {
-  const emp = PL.empPl && plEmpresasDoPlano(pl).includes(PL.empPl) ? PL.empPl : '';
+  // usuário de empresa: sempre só a parte e o realizado da própria empresa
+  const minha = window.USUARIO_RESTRITO ? plEmpresasDoPlano(pl).find(e => normEmp(e) === normEmp(window.USUARIO_RESTRITO)) : '';
+  const emp = minha || (PL.empPl && plEmpresasDoPlano(pl).includes(PL.empPl) ? PL.empPl : '');
   const c = plCalc(pl, emp);
   return { pl: emp ? { ...pl, itens: c.itens.map(x => x.it) } : pl, c, emp };
 }
@@ -1886,7 +1888,7 @@ async function renderPainelPlanos() {
     if (tk !== PL._ppTk) return;
     if (JSON.stringify(PL.dados.planos) !== antes) { renderPainel(); return; }   // planos mudaram: refaz Farol e alertas também
   }
-  const planos = plPlanosPainel(), emp = painelEmpFiltro || '';
+  const planos = plPlanosPainel(), emp = painelEmpFiltro || window.USUARIO_RESTRITO || '';   // usuário de empresa: só a parte e o realizado dela
   const selo = planos.length ? `<div class="nota">Qualidade dos dados dos planos: ${plSeloQualidade(plQualidadeDosPlanos(PL.pp.plano ? planos.filter(p => p.id === PL.pp.plano) : planos), true)}</div>` : '';
   const cab = `<div class="bloco-cab"><h2>Planejamento 5W2H — planejado × executado</h2><button class="btn" data-ir-aba="plan">Abrir Planejamento</button></div>${selo}`;
   if (!planos.length) {

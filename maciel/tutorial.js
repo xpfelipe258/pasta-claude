@@ -186,7 +186,7 @@ const TUT_TOPICOS = [
       { t: 'Na "Sugestão do cronograma" também dá para escolher a empresa executora: a sugestão e o plano criado a partir dela ficam só com essa empresa.', alvo: '[data-pl-sug-emp]', novo: '2026-11-27' },
       { t: 'A lista de atividades é a mesma do catálogo e de Lançamentos, com o mesmo nome e código (ex.: "Pré-montagem de joist · 3.1.1-02"). A mesma atividade feita por duas empresas aparece uma vez só, com as duas.', novo: '2026-11-27' },
       { t: 'O realizado de cada atividade do plano conta só o que as empresas escolhidas no Who lançaram. Plano da EJ conta só a produção da EJ.', novo: '2026-11-27' },
-      { t: 'No plano aberto, escolha a "Empresa" para ver só as atividades dela, com a parte e o realizado dela (curva S e cartões também).', alvo: '#plEmpPl', novo: '2026-11-27' },
+      { t: 'No plano aberto, escolha a "Empresa" para ver só as atividades dela, com a parte e o realizado dela (curva S e cartões também). Usuário de empresa já vê sempre só o plano e o realizado da própria empresa.', alvo: '#plEmpPl', novo: '2026-11-27' },
       { t: 'No 5W2H, a empresa (Who) é obrigatória. Com duas ou mais empresas, divida a produção e o valor entre elas — a soma precisa fechar com a quantidade.' },
       { t: '"Salvar como rascunho" guarda o plano sem publicar. Só planos publicados entram no Painel, nos faróis e na Projeção.' },
       { t: 'Em "Planos 5W2H" abra o plano para ver a curva S, o que falta, a liberação do fluxo e o botão "Baixar planejamento".' },
