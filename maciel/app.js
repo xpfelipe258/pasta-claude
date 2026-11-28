@@ -6430,8 +6430,8 @@ function bmImprimir(r, emp, p) {
   const _dailyEquip = dd.equip - dd.mensalEquip;
   if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
   let _eqDesc = '';
-  if ((window.BM_REL_METODO || 1) === 1 && typeof bmDescontoEquipLinhas === 'function') { try { _eqDesc = bmDescontoEquipLinhas(emp, p, dd); } catch (err) { console.error('Descontos por plataforma', err); } }
-  if (_eqDesc) linhasDesc += _eqDesc;   // plataformas em linhas próprias, fora da linha de equipamentos
+  if (typeof bmDescontoEquipLinhas === 'function') { try { _eqDesc = bmDescontoEquipLinhas(emp, p, dd); } catch (err) { console.error('Descontos por plataforma', err); } }
+  if (_eqDesc) linhasDesc += _eqDesc;   // uma linha por máquina (equipamento + abastecimento) e o total
   else {
     if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
     if (dd.mensalEquip) { const _m = bmMesesCobrados(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }

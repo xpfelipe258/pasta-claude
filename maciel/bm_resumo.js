@@ -58,28 +58,27 @@ function bmValorEquipTxt(m) {
   if (m.valorCad) return { txt: `${rs2(m.valorCad)} (${esc(m.cobranca || 'cobrança não informada')})`, v: m.custo };
   return { txt: 'sem valor no cadastro de Equipamentos — vale o custo lançado no uso', v: m.custo };
 }
-// Descontos e valor a faturar: as plataformas usadas ficam em linhas próprias, fora da linha de equipamentos; o resto continua somado.
-// O total bate com o desconto do boletim (dd), também em BM fechado (valores congelados).
+// Descontos e valor a faturar: uma linha por máquina (equipamento + abastecimento dela), plataformas identificadas, e o total no fim.
+// O total bate com o desconto do boletim (dd); em BM fechado (valores congelados) a diferença para o uso lançado hoje vira uma linha de ajuste.
 function bmDescontoEquipLinhas(emp, p, dd) {
-  const E = bmEquipMaquinas(emp, p, dd), plat = E.lista.filter(m => m.plataforma && m.total > 0);
-  const totalBm = dd.equip + dd.comb;
-  let h = '', jaPlat = 0;
-  plat.forEach(m => {
-    const det = m.mensal ? `locação mensal ${m.mesesMensal}× ${rs2(m.valorMes)}` : `${m.diasCusto.size} dia(s) de uso${m.valorCad && ganNorm(m.cobranca).includes('DIARIA') ? ' × ' + rs2(m.valorCad) + '/dia' : ''}`;
-    h += `<tr><td>(−) Plataforma ${esc(m.nome)} <span class="sub">— ${det}${m.comb ? ' + combustível ' + rs2(m.comb) + ' (' + nf(m.litros, 1) + ' L)' : ''}</span></td><td class="n">${rs(-m.total)}</td></tr>`;
-    jaPlat += m.total;
+  const E = bmEquipMaquinas(emp, p, dd), totalBm = Math.round((dd.equip + dd.comb) * 100) / 100;
+  if (!(totalBm > 0)) return p.fechado && E.gTot > 0 ? '<tr><td colspan="2" class="sub">Equipamentos e abastecimento: nenhum desconto congelado no fechamento deste BM.</td></tr>' : '';
+  let h = '';
+  E.lista.filter(m => m.total > 0).forEach(m => {
+    const partes = [];
+    if (m.mensal) partes.push(`locação mensal ${m.mesesMensal}× ${rs2(m.valorMes)}`);
+    else if (m.custo > 0) partes.push(`${m.diasCusto.size} dia(s) de uso${m.valorCad && ganNorm(m.cobranca).includes('DIARIA') && Math.abs(m.valorCad * m.diasCusto.size - m.custo) < 1 ? ' × ' + rs2(m.valorCad) + '/dia' : ''} = ${rs2(m.custo)}`);
+    if (m.comb > 0) partes.push(`abastecimento ${rs2(m.comb)} (${nf(m.litros, 1)} L)`);
+    h += `<tr><td>(−) ${m.plataforma ? 'Plataforma ' : ''}${esc(m.nome)} <span class="sub">— ${partes.join(' + ')}</span></td><td class="n">${rs(-m.total)}</td></tr>`;
   });
-  const mensaisOutras = (dd.eqMensList || []).filter(e => !bmEhPlataforma(e.equipamento));
-  const vMensOutras = soma0(mensaisOutras, e => (e.valor || 0) * E.meses);
-  const resto = Math.max(0, Math.round((totalBm - jaPlat - vMensOutras) * 100) / 100);
-  if (resto > 0) h += `<tr><td>(−) Demais equipamentos${dd.comb ? ' + combustível' : ''} <span class="sub">— ${esc(E.lista.filter(m => !m.plataforma && (m.custo + m.comb) > 0).map(m => m.nome).join(', ') || 'uso lançado')}</span></td><td class="n">${rs(-resto)}</td></tr>`;
-  mensaisOutras.forEach(e => { h += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${E.meses}× ${rs2(e.valor)})</td><td class="n">${rs(-((e.valor || 0) * E.meses))}</td></tr>`; });
-  if (totalBm > 0) h += `<tr class="linha-total"><td><b>Total de equipamentos e combustível</b>${plat.length ? ` <span class="sub">plataformas ${rs2(jaPlat)} + demais ${rs2(totalBm - jaPlat)}</span>` : ''}</td><td class="n"><b>${rs(-totalBm)}</b></td></tr>`;
+  const dif = Math.round((totalBm - E.gTot) * 100) / 100;
+  if (Math.abs(dif) >= 0.01) h += `<tr><td>(${dif > 0 ? '−' : '+'}) Ajuste ${p.fechado ? 'do fechamento do BM (valores congelados × uso lançado hoje)' : 'de arredondamento'}</td><td class="n">${rs(-dif)}</td></tr>`;
+  if (totalBm > 0) h += `<tr class="linha-total"><td><b>Total de equipamentos e abastecimento</b> <span class="sub">equipamentos ${rs2(dd.equip)} + abastecimento ${rs2(dd.comb)}${dd.litros ? ' (' + nf(dd.litros, 1) + ' L)' : ''}</span></td><td class="n"><b>${rs(-totalBm)}</b></td></tr>`;
   return h;
 }
 
 function bmEquipDetalheHtml(emp, p, dd) {
-  const E = bmEquipMaquinas(emp, p, dd), lista = E.lista, metodo2 = (window.BM_REL_METODO || 1) === 2;
+  const E = bmEquipMaquinas(emp, p, dd), lista = E.lista, metodo2 = true;   // detalhe por máquina sempre com o valor do equipamento e o total geral
   if (!lista.length) return `<h2>Equipamentos e combustível do período — ${esc(emp)}</h2><p class="nota">Nenhum uso de equipamento nem abastecimento lançado para ${esc(emp)} neste período.</p>`;
   const resumo = lista.map(m => `<tr><td><b>${esc(m.nome)}</b>${m.plataforma ? ' <span class="sub">plataforma</span>' : ''}</td><td>${esc(m.resp)}</td><td>${esc(m.cobranca || '—')}</td><td class="n">${m.dias.size || (m.mensal ? '—' : 0)}</td><td class="n">${rs2(m.equipTot)}</td><td class="n">${nf(m.litros, 1)}</td><td class="n">${rs2(m.comb)}</td><td class="n"><b>${rs2(m.total)}</b></td></tr>`).join('');
   const detalhe = lista.map(m => {
