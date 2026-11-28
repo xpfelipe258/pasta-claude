@@ -63,17 +63,17 @@ function bmValorEquipTxt(m) {
 function bmDescontoEquipLinhas(emp, p, dd) {
   const E = bmEquipMaquinas(emp, p, dd), totalBm = Math.round((dd.equip + dd.comb) * 100) / 100;
   if (!(totalBm > 0)) return p.fechado && E.gTot > 0 ? '<tr><td colspan="2" class="sub">Equipamentos e abastecimento: nenhum desconto congelado no fechamento deste BM.</td></tr>' : '';
-  let h = '';
+  // linha principal em negrito com o total; os custos de cada equipamento vêm logo abaixo como sublinhas
+  let h = `<tr class="bm-desc-tot"><td><b>(−) Total de equipamentos e abastecimento</b> <span class="sub">equipamentos ${rs2(dd.equip)} + abastecimento ${rs2(dd.comb)}${dd.litros ? ' (' + nf(dd.litros, 1) + ' L)' : ''}</span></td><td class="n"><b>${rs(-totalBm)}</b></td></tr>`;
   E.lista.filter(m => m.total > 0).forEach(m => {
     const partes = [];
     if (m.mensal) partes.push(`locação mensal ${m.mesesMensal}× ${rs2(m.valorMes)}`);
     else if (m.custo > 0) partes.push(`${m.diasCusto.size} dia(s) de uso${m.valorCad && ganNorm(m.cobranca).includes('DIARIA') && Math.abs(m.valorCad * m.diasCusto.size - m.custo) < 1 ? ' × ' + rs2(m.valorCad) + '/dia' : ''} = ${rs2(m.custo)}`);
     if (m.comb > 0) partes.push(`abastecimento ${rs2(m.comb)} (${nf(m.litros, 1)} L)`);
-    h += `<tr><td>(−) ${m.plataforma ? 'Plataforma ' : ''}${esc(m.nome)} <span class="sub">— ${partes.join(' + ')}</span></td><td class="n">${rs(-m.total)}</td></tr>`;
+    h += `<tr class="bm-subl"><td>${m.plataforma ? 'Plataforma ' : ''}${esc(m.nome)} <span class="sub">— ${partes.join(' + ')}</span></td><td class="n">${rs(-m.total)}</td></tr>`;
   });
   const dif = Math.round((totalBm - E.gTot) * 100) / 100;
-  if (Math.abs(dif) >= 0.01) h += `<tr><td>(${dif > 0 ? '−' : '+'}) Ajuste ${p.fechado ? 'do fechamento do BM (valores congelados × uso lançado hoje)' : 'de arredondamento'}</td><td class="n">${rs(-dif)}</td></tr>`;
-  if (totalBm > 0) h += `<tr class="linha-total"><td><b>Total de equipamentos e abastecimento</b> <span class="sub">equipamentos ${rs2(dd.equip)} + abastecimento ${rs2(dd.comb)}${dd.litros ? ' (' + nf(dd.litros, 1) + ' L)' : ''}</span></td><td class="n"><b>${rs(-totalBm)}</b></td></tr>`;
+  if (Math.abs(dif) >= 0.01) h += `<tr class="bm-subl"><td>Ajuste ${p.fechado ? 'do fechamento do BM (valores congelados × uso lançado hoje)' : 'de arredondamento'}</td><td class="n">${rs(-dif)}</td></tr>`;
   return h;
 }
 

@@ -6428,7 +6428,7 @@ function bmImprimir(r, emp, p) {
 
   let linhasDesc = `<tr class="grupo"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(tot.per)}</b></td></tr>`;
   const _dailyEquip = dd.equip - dd.mensalEquip;
-  if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
+  if (dd.sinalAuto) linhasDesc += `<tr class="bm-desc-tot"><td><b>(−) Sinal de contrato</b> <span class="sub">${nf(dd.sinalPercentual, 1)}% do valor medido no BM</span></td><td class="n"><b>${rs(-dd.sinalAuto)}</b></td></tr>`;
   let _eqDesc = '';
   if (typeof bmDescontoEquipLinhas === 'function') { try { _eqDesc = bmDescontoEquipLinhas(emp, p, dd); } catch (err) { console.error('Descontos por plataforma', err); } }
   if (_eqDesc) linhasDesc += _eqDesc;   // uma linha por máquina (equipamento + abastecimento) e o total
@@ -6494,6 +6494,7 @@ function bmImprimir(r, emp, p) {
     .bm-tab table{font-size:9.5px}.bm-tab th,.bm-tab td{padding:3px 5px}
     .bm-ativ{padding-left:18px!important;color:#444}
     .bm-valmes td{background:#eef4fb}
+    .bm-desc-tot td{border-top:1px solid #c9d3e0}.bm-subl td{font-size:.92em;color:#333}.bm-subl td:first-child{padding-left:28px!important}
     tr.bm-fatura td{background:#dcf5e3;font-size:13px;color:#14532d}
     .bm-assin{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:46px}
     .bm-assin div{border-top:1px solid #1c1b18;padding-top:6px;text-align:center;font-size:10px;color:#444;display:flex;flex-direction:column;gap:2px}
