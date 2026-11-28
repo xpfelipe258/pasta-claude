@@ -6429,8 +6429,13 @@ function bmImprimir(r, emp, p) {
   let linhasDesc = `<tr class="grupo"><td><b>Medição do BM${p.n}</b></td><td class="n"><b>${rs(tot.per)}</b></td></tr>`;
   const _dailyEquip = dd.equip - dd.mensalEquip;
   if (dd.sinalAuto) linhasDesc += `<tr><td>(−) Sinal de contrato (${nf(dd.sinalPercentual, 1)}% do valor medido no BM)</td><td class="n">${rs(-dd.sinalAuto)}</td></tr>`;
-  if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
-  if (dd.mensalEquip) { const _m = bmMesesCobrados(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  let _eqDesc = '';
+  if ((window.BM_REL_METODO || 1) === 1 && typeof bmDescontoEquipLinhas === 'function') { try { _eqDesc = bmDescontoEquipLinhas(emp, p, dd); } catch (err) { console.error('Descontos por plataforma', err); } }
+  if (_eqDesc) linhasDesc += _eqDesc;   // plataformas em linhas próprias, fora da linha de equipamentos
+  else {
+    if (_dailyEquip + dd.comb > 0) linhasDesc += `<tr><td>(−) Equipamentos${dd.comb ? ' + Combustível' : ''}</td><td class="n">${rs(-(_dailyEquip + dd.comb))}</td></tr>`;
+    if (dd.mensalEquip) { const _m = bmMesesCobrados(p.ini, p.fim); dd.eqMensList.forEach(e => { linhasDesc += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${_m}×)</td><td class="n">${rs(-(e.valor * _m))}</td></tr>`; }); }
+  }
   dd.manuais.forEach(d => {
     const v = bmValorDeducao(d, tot.per), pct = d.percentual != null && d.percentual !== '';
     linhasDesc += `<tr><td>(−) ${esc(cap(d.tipo || 'Outros'))}${d.descricao ? ': ' + esc(d.descricao.replace(/^\[planilha\]\s*/, '')) : ''}${pct ? ' (' + nf(d.percentual, 1) + '% do medido)' : ''}</td><td class="n">${rs(-v)}</td></tr>`;
@@ -6488,6 +6493,7 @@ function bmImprimir(r, emp, p) {
     .bm-terc-sit.f{background:#dcf5e3;color:#15803d}.bm-terc-sit.a{background:#fdf3c4;color:#a16207}
     .bm-tab table{font-size:9.5px}.bm-tab th,.bm-tab td{padding:3px 5px}
     .bm-ativ{padding-left:18px!important;color:#444}
+    .bm-valmes td{background:#eef4fb}
     tr.bm-fatura td{background:#dcf5e3;font-size:13px;color:#14532d}
     .bm-assin{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:46px}
     .bm-assin div{border-top:1px solid #1c1b18;padding-top:6px;text-align:center;font-size:10px;color:#444;display:flex;flex-direction:column;gap:2px}

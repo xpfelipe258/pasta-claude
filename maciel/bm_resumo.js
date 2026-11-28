@@ -17,13 +17,20 @@ const bmPrimeiraData = emp => {
 // ---------------------------------------------------------------- BM impresso: uso de equipamento + combustível POR MÁQUINA da empresa
 // Mesma regra do desconto do BM (bmDeducoes): equipamento locado por mês já é descontado como locação (o uso lançado dele não soma custo de novo);
 // abastecimento da SANY não entra na medição. As linhas dessas regras aparecem marcadas e não somam no total descontado.
-function bmEquipDetalheHtml(emp, p, dd) {
+// Plataforma elevatória (PTA, tesoura, lança): pelo tipo do cadastro ou pelo nome da máquina
+function bmEhPlataforma(nome) {
+  const q = (bmTab('equipamentos') || []).find(e => ganNorm(e.equipamento) === ganNorm(nome));
+  const t = ganNorm((q?.tipo || '') + ' ' + nome);
+  return /PLATAFORMA|\bPTA\b|SKYJACK|GENIE|\bJLG\b|TESOURA|ELEVATORIA|MANITOU|HAULOTTE/.test(t);
+}
+// Máquinas do período da empresa, com o mesmo critério do desconto do BM (locação mensal × meses; uso lançado do locado e abastecimento da SANY não somam de novo)
+function bmEquipMaquinas(emp, p, dd) {
   const ini = p.ini === '0000-01-01' ? bmPrimeiraData(emp) : p.ini, fim = p.fim;
   const dados = relEquipDados(emp, ini, fim, 'todos');
   const locados = new Set((dd.eqMensList || []).map(e => ganNorm(e.equipamento)));
   const meses = bmMesesCobrados(p.ini, p.fim);
-  const maq = new Map();   // equipamento -> { resp, linhas[], dias:Set, custo, litros, comb }
-  const pega = (nome, resp) => { if (!maq.has(nome)) maq.set(nome, { nome, resp: resp || '—', cobranca: '', linhas: [], dias: new Set(), custo: 0, litros: 0, comb: 0, mensal: 0, mesesMensal: 0 }); const m = maq.get(nome); if (resp && m.resp === '—') m.resp = resp; return m; };
+  const maq = new Map();
+  const pega = (nome, resp) => { if (!maq.has(nome)) maq.set(nome, { nome, resp: resp || '—', cobranca: '', valorCad: 0, linhas: [], dias: new Set(), diasCusto: new Set(), custo: 0, litros: 0, comb: 0, mensal: 0, mesesMensal: 0, valorMes: 0 }); const m = maq.get(nome); if (resp && m.resp === '—') m.resp = resp; return m; };
   dados.linhas.forEach(l => {
     const m = pega(l.equipamento, l.resp);
     const eAbast = ganNorm(l.uso).includes('ABASTECIMENTO') || l.litros > 0 || l.comb > 0;
@@ -32,31 +39,68 @@ function bmEquipDetalheHtml(emp, p, dd) {
     const c = locado ? 0 : l.custo, lt = semComb ? 0 : l.litros, cb = semComb ? 0 : l.comb;
     const nota = [locado ? 'coberto pela locação mensal' : '', semComb ? 'abastecimento não entra na medição' : '', l.rateio || ''].filter(Boolean).join(' · ');
     m.linhas.push({ ...l, c, lt, cb, nota });
-    m.custo += c; m.litros += lt; m.comb += cb; if (l.data) m.dias.add(l.data);
+    m.custo += c; m.litros += lt; m.comb += cb; if (l.data) { m.dias.add(l.data); if (c > 0) m.diasCusto.add(l.data); }
   });
   (dd.eqMensList || []).forEach(e => { const m = pega(e.equipamento, e.responsavel || emp); m.cobranca = 'MENSAL'; m.mensal = (e.valor || 0) * meses; m.mesesMensal = meses; m.valorMes = e.valor || 0; });
-  (bmTab('equipamentos') || []).forEach(e => { const m = maq.get(e.equipamento); if (m && !m.cobranca) m.cobranca = e.cobranca || ''; });
-  const lista = [...maq.values()].sort((a, b) => (b.custo + b.comb + b.mensal) - (a.custo + a.comb + a.mensal) || a.nome.localeCompare(b.nome));
-  const tot = x => x.custo + x.comb + x.mensal;
-  const gEq = soma0(lista, m => m.custo + m.mensal), gLt = soma0(lista, m => m.litros), gCb = soma0(lista, m => m.comb), gTot = soma0(lista, tot);
+  (bmTab('equipamentos') || []).forEach(e => { const m = maq.get(e.equipamento); if (!m) return; if (!m.cobranca) m.cobranca = e.cobranca || ''; if (!m.valorCad) m.valorCad = Number(e.valor) || 0; });
+  maq.forEach(m => { m.plataforma = bmEhPlataforma(m.nome); m.equipTot = m.custo + m.mensal; m.total = m.custo + m.comb + m.mensal; });
+  const lista = [...maq.values()].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+  return { lista, meses, gEq: soma0(lista, m => m.equipTot), gLt: soma0(lista, m => m.litros), gCb: soma0(lista, m => m.comb), gTot: soma0(lista, m => m.total) };
+}
+// Valor do equipamento no período, pela forma de cobrança do cadastro (mensal × meses, diária × dias de uso, hora × horas)
+function bmValorEquipTxt(m) {
+  const cob = ganNorm(m.cobranca || '');
+  if (m.mensal) return { txt: `${rs2(m.valorMes)} por mês × ${m.mesesMensal} mês(es)`, v: m.mensal };
+  const dias = m.diasCusto.size, horas = soma0(m.linhas.filter(l => l.c > 0), l => Number(l.qtd) || 0);
+  const bate = q => Math.abs(m.valorCad * q - m.custo) < 1;   // o lançado confere com o cadastro: mostra a conta; senão diz que vale o lançado
+  if (m.valorCad && cob.includes('DIARIA')) return { txt: bate(dias) ? `${rs2(m.valorCad)} por dia × ${dias} dia(s) de uso no período` : `diária do cadastro ${rs2(m.valorCad)} · ${dias} dia(s) com uso · vale o custo lançado em cada uso`, v: m.custo };
+  if (m.valorCad && cob.includes('HORA')) return { txt: bate(horas) ? `${rs2(m.valorCad)} por hora × ${nf(horas, 1)} h no período` : `hora do cadastro ${rs2(m.valorCad)} · ${nf(horas, 1)} h · vale o custo lançado em cada uso`, v: m.custo };
+  if (m.valorCad) return { txt: `${rs2(m.valorCad)} (${esc(m.cobranca || 'cobrança não informada')})`, v: m.custo };
+  return { txt: 'sem valor no cadastro de Equipamentos — vale o custo lançado no uso', v: m.custo };
+}
+// Descontos e valor a faturar: as plataformas usadas ficam em linhas próprias, fora da linha de equipamentos; o resto continua somado.
+// O total bate com o desconto do boletim (dd), também em BM fechado (valores congelados).
+function bmDescontoEquipLinhas(emp, p, dd) {
+  const E = bmEquipMaquinas(emp, p, dd), plat = E.lista.filter(m => m.plataforma && m.total > 0);
+  const totalBm = dd.equip + dd.comb;
+  let h = '', jaPlat = 0;
+  plat.forEach(m => {
+    const det = m.mensal ? `locação mensal ${m.mesesMensal}× ${rs2(m.valorMes)}` : `${m.diasCusto.size} dia(s) de uso${m.valorCad && ganNorm(m.cobranca).includes('DIARIA') ? ' × ' + rs2(m.valorCad) + '/dia' : ''}`;
+    h += `<tr><td>(−) Plataforma ${esc(m.nome)} <span class="sub">— ${det}${m.comb ? ' + combustível ' + rs2(m.comb) + ' (' + nf(m.litros, 1) + ' L)' : ''}</span></td><td class="n">${rs(-m.total)}</td></tr>`;
+    jaPlat += m.total;
+  });
+  const mensaisOutras = (dd.eqMensList || []).filter(e => !bmEhPlataforma(e.equipamento));
+  const vMensOutras = soma0(mensaisOutras, e => (e.valor || 0) * E.meses);
+  const resto = Math.max(0, Math.round((totalBm - jaPlat - vMensOutras) * 100) / 100);
+  if (resto > 0) h += `<tr><td>(−) Demais equipamentos${dd.comb ? ' + combustível' : ''} <span class="sub">— ${esc(E.lista.filter(m => !m.plataforma && (m.custo + m.comb) > 0).map(m => m.nome).join(', ') || 'uso lançado')}</span></td><td class="n">${rs(-resto)}</td></tr>`;
+  mensaisOutras.forEach(e => { h += `<tr><td>(−) ${esc(e.equipamento)} — locação mensal (${E.meses}× ${rs2(e.valor)})</td><td class="n">${rs(-((e.valor || 0) * E.meses))}</td></tr>`; });
+  if (totalBm > 0) h += `<tr class="linha-total"><td><b>Total de equipamentos e combustível</b>${plat.length ? ` <span class="sub">plataformas ${rs2(jaPlat)} + demais ${rs2(totalBm - jaPlat)}</span>` : ''}</td><td class="n"><b>${rs(-totalBm)}</b></td></tr>`;
+  return h;
+}
+
+function bmEquipDetalheHtml(emp, p, dd) {
+  const E = bmEquipMaquinas(emp, p, dd), lista = E.lista, metodo2 = (window.BM_REL_METODO || 1) === 2;
   if (!lista.length) return `<h2>Equipamentos e combustível do período — ${esc(emp)}</h2><p class="nota">Nenhum uso de equipamento nem abastecimento lançado para ${esc(emp)} neste período.</p>`;
-  const resumo = lista.map(m => `<tr><td><b>${esc(m.nome)}</b></td><td>${esc(m.resp)}</td><td>${esc(m.cobranca || '—')}</td><td class="n">${m.dias.size || (m.mensal ? '—' : 0)}</td><td class="n">${rs2(m.custo + m.mensal)}</td><td class="n">${nf(m.litros, 1)}</td><td class="n">${rs2(m.comb)}</td><td class="n"><b>${rs2(tot(m))}</b></td></tr>`).join('');
+  const resumo = lista.map(m => `<tr><td><b>${esc(m.nome)}</b>${m.plataforma ? ' <span class="sub">plataforma</span>' : ''}</td><td>${esc(m.resp)}</td><td>${esc(m.cobranca || '—')}</td><td class="n">${m.dias.size || (m.mensal ? '—' : 0)}</td><td class="n">${rs2(m.equipTot)}</td><td class="n">${nf(m.litros, 1)}</td><td class="n">${rs2(m.comb)}</td><td class="n"><b>${rs2(m.total)}</b></td></tr>`).join('');
   const detalhe = lista.map(m => {
     const linhas = m.linhas.slice().sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-    const cab = `<tr class="grupo"><td colspan="9"><b>${esc(m.nome)}</b> · responsável ${esc(m.resp)}${m.cobranca ? ' · cobrança ' + esc(m.cobranca) : ''}</td></tr>`;
-    const mens = m.mensal ? `<tr><td colspan="4">Locação mensal <span class="nota">${m.mesesMensal}× ${rs2(m.valorMes)}</span></td><td class="n">${rs2(m.mensal)}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs2(m.mensal)}</b></td><td></td></tr>` : '';
+    const cab = `<tr class="grupo"><td colspan="9"><b>${esc(m.nome)}</b>${m.plataforma ? ' (plataforma)' : ''} · responsável ${esc(m.resp)}${m.cobranca ? ' · cobrança ' + esc(m.cobranca) : ''}</td></tr>`;
+    const ve = bmValorEquipTxt(m);
+    const valorMes = metodo2 ? `<tr class="bm-valmes"><td colspan="4"><b>Valor do equipamento no período</b> <span class="sub">${ve.txt}</span></td><td class="n"><b>${rs2(m.equipTot)}</b></td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs2(m.equipTot)}</b></td><td class="sub">${m.mensal ? 'valor mensal do cadastro' : m.valorCad ? 'valor do cadastro' : ''}</td></tr>` : '';
+    const mens = !metodo2 && m.mensal ? `<tr><td colspan="4">Locação mensal <span class="nota">${m.mesesMensal}× ${rs2(m.valorMes)}</span></td><td class="n">${rs2(m.mensal)}</td><td class="n">—</td><td class="n">—</td><td class="n"><b>${rs2(m.mensal)}</b></td><td></td></tr>` : '';
     const rows = linhas.map(l => `<tr><td>${fdA(l.data)}</td><td>${esc(l.uso || '—')}</td><td>${esc(l.operTxt || '—')}</td><td class="n">${l.qtd ? nf(l.qtd, 1) : '—'}</td><td class="n">${rs2(l.c)}</td><td class="n">${l.lt ? nf(l.lt, 1) : '—'}</td><td class="n">${rs2(l.cb)}</td><td class="n"><b>${rs2(l.c + l.cb)}</b></td><td class="sub">${esc(l.nota)}</td></tr>`).join('');
-    const sub = `<tr class="linha-total"><td colspan="4"><b>Total ${esc(m.nome)}</b></td><td class="n"><b>${rs2(m.custo + m.mensal)}</b></td><td class="n"><b>${nf(m.litros, 1)}</b></td><td class="n"><b>${rs2(m.comb)}</b></td><td class="n"><b>${rs2(tot(m))}</b></td><td></td></tr>`;
-    return cab + mens + rows + sub;
+    const sub = `<tr class="linha-total"><td colspan="4"><b>Total ${esc(m.nome)}</b>${metodo2 ? ' <span class="sub">equipamento + combustível</span>' : ''}</td><td class="n"><b>${rs2(m.equipTot)}</b></td><td class="n"><b>${nf(m.litros, 1)}</b></td><td class="n"><b>${rs2(m.comb)}</b></td><td class="n"><b>${rs2(m.total)}</b></td><td></td></tr>`;
+    return cab + valorMes + mens + rows + sub;
   }).join('');
-  const dif = Math.abs(gTot - (dd.equip + dd.comb)) > 1
+  const rodape = metodo2 ? `<tfoot><tr><th colspan="4">TOTAL GERAL — ${lista.length} máquina(s) · equipamentos + combustível da ${esc(emp)}</th><th class="n">${rs2(E.gEq)}</th><th class="n">${nf(E.gLt, 1)}</th><th class="n">${rs2(E.gCb)}</th><th class="n">${rs2(E.gTot)}</th><th></th></tr></tfoot>` : '';
+  const dif = Math.abs(E.gTot - (dd.equip + dd.comb)) > 1
     ? `<p class="nota">${p.fechado ? 'BM fechado: o desconto do boletim usa os valores congelados no fechamento (' + rs2(dd.equip + dd.comb) + '); esta tabela mostra o uso lançado hoje no período.' : 'Atenção: o total listado difere do desconto do boletim (' + rs2(dd.equip + dd.comb) + ').'}</p>` : '';
   return `<h2>Equipamentos e combustível do período — ${esc(emp)}</h2>
     <p class="nota">Uso de equipamento e combustível por máquina, lançados para ${esc(emp)} de ${p.ini === '0000-01-01' ? 'início da obra' : fdA(p.ini)} a ${fdA(p.fim)}. Locação mensal entra como desconto do mês; uso lançado do equipamento locado e abastecimento da SANY não somam de novo.</p>
     <table><thead><tr><th>Máquina / equipamento</th><th>Responsável</th><th>Cobrança</th><th class="n">Dias de uso</th><th class="n">Equipamento (R$)</th><th class="n">Litros</th><th class="n">Combustível (R$)</th><th class="n">Total descontado (R$)</th></tr></thead><tbody>${resumo}</tbody>
-      <tfoot><tr><th colspan="4">Total de equipamentos + combustível</th><th class="n">${rs2(gEq)}</th><th class="n">${nf(gLt, 1)}</th><th class="n">${rs2(gCb)}</th><th class="n">${rs2(gTot)}</th></tr></tfoot></table>${dif}
+      <tfoot><tr><th colspan="4">Total de equipamentos + combustível</th><th class="n">${rs2(E.gEq)}</th><th class="n">${nf(E.gLt, 1)}</th><th class="n">${rs2(E.gCb)}</th><th class="n">${rs2(E.gTot)}</th></tr></tfoot></table>${dif}
     <h2>Detalhe por máquina — ${esc(emp)}</h2>
-    <table><thead><tr><th>Data</th><th>Uso</th><th>Operador / abastecido por</th><th class="n">Qtd</th><th class="n">Equipamento (R$)</th><th class="n">Litros</th><th class="n">Combustível (R$)</th><th class="n">Total (R$)</th><th>Observação</th></tr></thead><tbody>${detalhe}</tbody></table>`;
+    <table><thead><tr><th>Data</th><th>Uso</th><th>Operador / abastecido por</th><th class="n">Qtd</th><th class="n">Equipamento (R$)</th><th class="n">Litros</th><th class="n">Combustível (R$)</th><th class="n">Total (R$)</th><th>Observação</th></tr></thead><tbody>${detalhe}</tbody>${rodape}</table>`;
 }
 
 // ---------------------------------------------------------------- resumo do período: o que foi gasto e o ganho produtivo
